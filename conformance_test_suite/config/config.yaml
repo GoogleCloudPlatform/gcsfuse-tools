@@ -1,0 +1,21 @@
+Environments:
+  - name: GCEVM
+    type: GCE
+    machine_type: "e2-medium"
+    project_id: "<project_id>"
+    zone: "us-central1-f"
+    # instance_name: "conformance-test-instance"
+    bucket_name: "<bucket_name>"
+
+Reporters:
+  - name: CSVReport
+    type: CSVReporter
+    output_file: test_results.csv
+
+Tests:
+  - name: BasicFileOperations
+    type: BasicTest
+    environments:
+      - GCEVM
+    reporters:
+      - CSVReport
