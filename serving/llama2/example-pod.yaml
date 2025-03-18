@@ -1,9 +1,9 @@
 apiVersion: apps/v1
 kind: Deployment # Using deployment kind here as that is the recommended kind to manage pod lifecycle. To remove the running instance delete only the deployment, pod will automatically be deleted as pod lifecycle is controlled by deployment lifecycle
 metadata:
-  name: gcsfuse-parallel-downloads-read-cache-on
+  name: gcsfuse-parallel-downloads-read-cache-on # update name as per experiment
 spec:
-  replicas: 1
+  replicas: 1 # update the integer value to number of instances required for the experiment
   selector:
     matchLabels:
       app: gcsfuse-mount
