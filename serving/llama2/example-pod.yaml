@@ -1,0 +1,67 @@
+apiVersion: apps/v1
+kind: Deployment # Using deployment kind here as that is the recommended kind to manage pod lifecycle. To remove the running instance delete only the deployment, pod will automatically be deleted as pod lifecycle is controlled by deployment lifecycle
+metadata:
+  name: gcsfuse-parallel-downloads-read-cache-on
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gcsfuse-mount
+  template:
+    metadata:
+      annotations:
+        gke-gcsfuse/volumes: "true"
+      labels:
+        app: gcsfuse-mount
+    spec:
+      nodeSelector:
+        cloud.google.com/gke-ephemeral-storage-local-ssd: "true"
+      serviceAccountName: parallel-downloads-ksa # the service account should be part of cluster and have Object admin permissions on the bucket
+      containers:
+      - name: gke-gcsfuse-sidecar
+        image: gcr.io/gcs-tess/lankita_google_com/lankita-neg-cache-test/gcs-fuse-csi-driver-sidecar-mounter:v1.12.0-30-gb8e5b97a_linux_amd64 # Update with your own custom image or remove this section in case custom image is not required
+      - name: gcsfuse-mount
+        image: python:3.9
+        imagePullPolicy: Always
+        volumeMounts:
+        - mountPath: /mnt/disks/pd
+          name: gcs-fuse-csi-test-bucket
+        command: ["/bin/sh", "-c"]
+        args:
+        - |
+          pip install --upgrade pip;
+          pip install torch;
+          pip install numpy;
+          cat << EOF > script.py
+          print("Inside script")
+          import os
+          import time
+          import torch
+          MODEL_DIR = "/mnt/disks/pd/llama2/llama2-70b-hf"
+          hf_weights_files = ['pytorch_model-00001-of-00015.bin', 'pytorch_model-00002-of-00015.bin', 'pytorch_model-00003-of-00015.bin', 'pytorch_model-00004-of-00015.bin', 'pytorch_model-00005-of-00015.bin', 'pytorch_model-00006-of-00015.bin', 'pytorch_model-00007-of-00015.bin', 'pytorch_model-00008-of-00015.bin', 'pytorch_model-00009-of-00015.bin', 'pytorch_model-00010-of-00015.bin', 'pytorch_model-00011-of-00015.bin', 'pytorch_model-00012-of-00015.bin', 'pytorch_model-00013-of-00015.bin', 'pytorch_model-00014-of-00015.bin', 'pytorch_model-00015-of-00015.bin']
+          very_beginning = time.time()
+          print(f"Starting workload at {time.time()}")
+          for hf_weight_file in hf_weights_files:
+              local_file = os.path.join(MODEL_DIR, hf_weight_file)
+              with open(local_file, 'rb') as file2:
+                  state = torch.load(file2, map_location="cpu")
+                  del state
+                  torch.cuda.empty_cache()
+                  print(f"Finished file {hf_weight_file} at {time.time()}")
+
+          very_end = time.time()
+          print(f"Ending workload at {time.time()}")
+
+          print(f"Emulator workflow took {very_end - very_beginning}")
+          time.sleep(86400)
+          EOF
+          echo "Script emulating serving workload added in /script.py successfully !!"
+          python -u script.py
+      volumes:
+      - name: gcs-fuse-csi-test-bucket
+        csi:
+          driver: gcsfuse.csi.storage.gke.io
+          readOnly: false
+          volumeAttributes:
+            bucketName: "parallel-downloads-serving-workload-west1" # Add bucket which is in same region as the pod
+            mountOptions: "implicit-dirs,metadata-cache:ttl-secs:-1,metadata-cache:type-cache-max-size-mb:-1,metadata-cache:stat-cache-max-size-mb:-1,file-cache:max-size-mb:-1,file-cache:cache-file-for-range-read:true"
