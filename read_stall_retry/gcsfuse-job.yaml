@@ -17,8 +17,8 @@ kind: Job
 metadata:
   name: ${NAME}
 spec:
-  parallelism: 512
-  completions: 512
+  parallelism: 100
+  completions: 100
   completionMode: Indexed
   template:
     metadata:
