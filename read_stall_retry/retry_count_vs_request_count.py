@@ -1,10 +1,12 @@
+#!/usr/bin/env python3
+
 # Copyright 2025 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#      http://www.apache.org/licenses/LICENSE-2.0
+#   http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -15,77 +17,103 @@
 import pandas as pd
 import logging
 import time
+import argparse
+import fsspec
+import gcsfs
+import re
+from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import os
 
-# Run read_stall_retry/stalled_read_req_retry_logs.sh before running this script to get the log files
+# Initialize logger
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
-# Move to the directory that has log files
-os.chdir(os.path.expanduser('~/redastall-logs'))
+# Compile regex
+LOG_PATTERN = re.compile(r'\[(.*?)\] stalled read-req for object \((.*?)\) cancelled after')
 
-# Create the 'retry_count_vs_request_count' directory if it doesn't exist
-output_dir = os.path.join(os.getcwd(), 'retry_count_vs_request_count')
-if not os.path.exists(output_dir):
-    os.makedirs(output_dir)
+def process_file(file_path, fs, aggregated_counts):
+    """Processes a single log file and aggregates UUID counts."""
+    try:
+        with fs.open(file_path, 'r') as file:
+            for line in file:
+                match = LOG_PATTERN.search(line)
+                if match:
+                    uuid = match.group(1)
+                    if uuid:
+                        aggregated_counts[uuid] += 1
+    except FileNotFoundError:
+        logger.error(f"File not found: {file_path}")
+    except Exception as e:
+        logger.error(f"Error processing file {file_path}: {e}")
 
-# Set up logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
-logger = logging.getLogger()
+def process_files_optimized(file_pattern, output_file, num_workers=4):
+    """Processes log files in parallel and aggregates retry counts."""
+    try:
+        if file_pattern.startswith("gs://"):
+            fs = gcsfs.GCSFileSystem()
+        else:
+            fs = fsspec.filesystem("local")
 
-# Define a list of filenames
-filenames = ['fastenvironment-readstall-genericread-logs', 'fastenvironment-readstall-filecache-logs', 'fastenvironment-readstall-paralleldownload-logs']  # Replace with your list of filenames (without extension)
+        file_list = fs.glob(file_pattern)
 
-# Initialize an empty list to store the request codes
-request_codes = []
+        if not file_list:
+            logger.warning(f"No files found matching pattern: {file_pattern}")
+            return
 
-# Loop through each filename in the list
-for filename in filenames:
-    logger.info(f"Processing file: {filename}.csv")
+        aggregated_counts = defaultdict(int)
+        futures = []
 
-    # Initialize the request codes list for each file
-    request_codes.clear()
+        with ThreadPoolExecutor(max_workers=num_workers) as executor:
+            for file_path in file_list:
+                futures.append(executor.submit(process_file, file_path, fs, aggregated_counts))
 
-    # Read the file in chunks and log time taken
-    chunk_size = 10000  # You can experiment with chunk size
-    start_time = time.time()  # Start time for file reading
-    logger.info(f"Starting to read the file {filename}.csv in chunks...")
+            for future in as_completed(futures):
+                try:
+                    future.result()  # Check for exceptions in threads
+                except Exception as e:
+                    logger.error(f"Error in thread: {e}")
 
-    for chunk in pd.read_csv(f'{filename}.csv', header=None, names=['timestamp', 'log_message'], chunksize=chunk_size):
-        chunk_time_start = time.time()  # Time at start of each chunk
-        logger.info(f"Processing a chunk of {len(chunk)} rows.")
-        
-        # Extract request codes in chunks and log the time
-        mask_start_time = time.time()  # Start time for mask application
-        mask = chunk['log_message'].str.contains(r'\(0x[0-9a-fA-F]+\)', regex=True)
-        logger.info(f"Time taken for mask application: {time.time() - mask_start_time:.2f} seconds.")
-        
-        extract_start_time = time.time()  # Start time for regex extraction
-        chunk['request_code'] = chunk.loc[mask, 'log_message'].str.extract(r'\(0x([0-9a-fA-F]+)\)', expand=False)
-        logger.info(f"Time taken for regex extraction: {time.time() - extract_start_time:.2f} seconds.")
-        
-        # Append the extracted request codes to the list and log
-        request_codes.extend(chunk['request_code'].dropna())
-        logger.info(f"Time taken for appending request codes: {time.time() - chunk_time_start:.2f} seconds.")
+        frequency_counts = defaultdict(int)
+        for count in aggregated_counts.values():
+            frequency_counts[count] += 1
 
-    logger.info(f"Total time for reading and processing {filename}: {time.time() - start_time:.2f} seconds.")
+        frequency_counts_df = pd.DataFrame(list(frequency_counts.items()), columns=['retry_count', 'num_requests_with_that_retry_count'])
+        frequency_counts_df.to_csv(output_file, index=False)
+        logger.info(f"Results saved to '{output_file}'.")
 
-    # Count occurrences of each request code
-    count_start_time = time.time()  # Start time for counting occurrences
-    request_code_counts = pd.Series(request_codes).value_counts()
-    logger.info(f"Time taken for counting request codes: {time.time() - count_start_time:.2f} seconds.")
+    except Exception as e:
+        logger.error(f"Error in processing files: {e}")
 
-    # Count how many request codes have the same frequency
-    frequency_counts = request_code_counts.value_counts().sort_index()
+def parse_args():
+    """Parses command-line arguments."""
+    parser = argparse.ArgumentParser(description="Analyze logs and count retries per request.")
+    parser.add_argument(
+        "--logs-path",
+        type=str,
+        required=True,
+        help="Path to the logs (GCS or local path with wildcards) to analyze."
+    )
+    parser.add_argument(
+        "--output-file",
+        type=str,
+        default="retry_count_vs_request_count.csv",
+        help="Output CSV file to save the results."
+    )
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=min(32, os.cpu_count() or 1), #Adjusting workers number.
+        help="Number of worker threads for parallel processing."
+    )
+    return parser.parse_args()
 
-    # Log the distinct frequencies
-    logger.info(f"Distinct frequencies (number of unique counts): {len(frequency_counts)}")
+def main():
+    """Main function to execute the script."""
+    args = parse_args()
+    main_start = time.time()
+    process_files_optimized(args.logs_path, args.output_file, args.workers)
+    logger.info(f"Total execution time: {time.time() - main_start:.2f} seconds")
 
-    # Save the frequency counts to a CSV file inside the retry_count_vs_request_count directory
-    output_filename = os.path.join(output_dir, f'{filename}.csv')
-    
-    # Convert frequency_counts to DataFrame and reset index properly
-    frequency_counts_df = frequency_counts.reset_index(name='retry_count')  # Ensure column name for frequency count is unique
-    frequency_counts_df.columns = ['retry_count', 'num_requests_with_that_retry_count']
-    
-    # Save the DataFrame to CSV
-    frequency_counts_df.to_csv(output_filename, index=False)
-    logger.info(f"Results saved to '{output_filename}'.")
+if __name__ == "__main__":
+    main()
