@@ -40,7 +40,7 @@ function run_job {
         NAME+="-genericread"
     fi
     export NAME
-    envsubst '$DATA_BUCKET_NAME $READ_STALL_RETRY $FILE_CACHE_CAPACITY $PARALLEL_DOWNLOAD $NAME' < job.yaml | kubectl apply -f -
+    envsubst '$DATA_BUCKET_NAME $READ_STALL_RETRY $FILE_CACHE_CAPACITY $PARALLEL_DOWNLOAD $NAME' < gcsfuse-job.yaml | kubectl apply -f -
 
     # Wait for the specific job to complete or fail
     kubectl wait --for=condition=complete --timeout=2h job/"$NAME"
