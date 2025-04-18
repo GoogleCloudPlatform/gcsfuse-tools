@@ -1,6 +1,6 @@
 gcsfs==2024.6.1
 pyarrow==17.0.0
-torch==2.4.0
+torch==2.6.0
 grpcio==1.67.1
 opentelemetry-exporter-gcp-monitoring==1.7.0a0
 opentelemetry-resourcedetector-gcp==1.7.0a0
