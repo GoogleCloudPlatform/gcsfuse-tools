@@ -13,7 +13,7 @@ file_service_type=random
 numjobs=128
 filename_format=$jobname.$jobnum/$filenum
 
-[read_128K_seq]
+[read_filesize_128K_blocksize_128K]
 stonewall
 directory=${DIR}
 bs=128K
@@ -21,7 +21,7 @@ filesize=128K
 rw=read
 nrfiles=30
 
-[read_256K_seq]
+[read_filesize_256K_blocksize_128K]
 stonewall
 directory=${DIR}
 bs=128K
@@ -29,7 +29,7 @@ filesize=256K
 rw=read
 nrfiles=30
 
-[read_1M_seq]
+[read_filesize_1M_blocksize_1M]
 stonewall
 directory=${DIR}
 bs=1M
@@ -37,7 +37,7 @@ filesize=1MB
 rw=read
 nrfiles=30
 
-[read_5M_seq]
+[read_filesize_5M_blocksize_1M]
 stonewall
 directory=${DIR}
 bs=1M
@@ -45,7 +45,7 @@ filesize=5MB
 rw=read
 nrfiles=20
 
-[read_10M_seq]
+[read_filesize_10M_blocksize_1M]
 stonewall
 directory=${DIR}
 bs=1M
@@ -53,7 +53,7 @@ filesize=10MB
 rw=read
 nrfiles=20
 
-[read_50M_seq]
+[read_filesize_50M_blocksize_1M]
 stonewall
 directory=${DIR}
 bs=1M
@@ -61,7 +61,7 @@ filesize=50MB
 rw=read
 nrfiles=20
 
-[read_100M_seq]
+[read_filesize_100M_blocksize_1M]
 stonewall
 directory=${DIR}
 bs=1M
@@ -69,7 +69,7 @@ filesize=100MB
 rw=read
 nrfiles=10
 
-[read_200M_seq]
+[read_filesize_200M_blocksize_1M]
 stonewall
 directory=${DIR}
 bs=1M
@@ -77,7 +77,7 @@ filesize=200MB
 rw=read
 nrfiles=10
 
-[read_1g_seq]
+[read_filesize_1G_blocksize_1M]
 stonewall
 directory=${DIR}
 bs=1M
