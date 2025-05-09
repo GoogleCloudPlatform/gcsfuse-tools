@@ -71,3 +71,6 @@ gcloud compute instances create ${VM_NAME} \
 --metadata gcsfuse_version=${GCSFUSE_VERSION},GCS_BUCKET_WITH_FIO_TEST_DATA=${GCS_BUCKET_WITH_FIO_TEST_DATA} \
 --metadata-from-file=startup-script=starter-script.sh
 
+
+# TODO: Cleanup
+
