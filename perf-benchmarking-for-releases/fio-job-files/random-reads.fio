@@ -14,63 +14,63 @@ numjobs=128
 rw=randread
 filename_format=$jobname.$jobnum/$filenum
 
-[read_128K_rand]
+[read_filesize_128K_blocksize_128K]
 stonewall
 directory=${DIR}
 bs=128K
 filesize=128K
 nrfiles=30
 
-[read_256K_rand]
+[read_filesize_256K_blocksize_128K]
 stonewall
 directory=${DIR}
 bs=128K
 filesize=256K
 nrfiles=30
 
-[read_1M_rand]
+[read_filesize_1M_blocksize_1M]
 stonewall
 directory=${DIR}
 bs=1M
 filesize=1MB
 nrfiles=30
 
-[read_5M_rand]
+[read_filesize_5M_blocksize_1M]
 stonewall
 directory=${DIR}
 bs=1M
 filesize=5MB
 nrfiles=20
 
-[read_10M_rand]
+[read_filesize_10M_blocksize_1M]
 stonewall
 directory=${DIR}
 bs=1M
 filesize=10MB
 nrfiles=20
 
-[read_50M_rand]
+[read_filesize_50M_blocksize_1M]
 stonewall
 directory=${DIR}
 bs=1M
 filesize=50MB
 nrfiles=20
 
-[read_100M_rand]
+[read_filesize_100M_blocksize_1M]
 stonewall
 directory=${DIR}
 bs=1M
 filesize=100MB
 nrfiles=10
 
-[read_200M_rand]
+[read_filesize_200M_blocksize_1M]
 stonewall
 directory=${DIR}
 bs=1M
 filesize=200MB
 nrfiles=10
 
-[read_1g_rand]
+[read_filesize_1G_blocksize_1M]
 stonewall
 directory=${DIR}
 bs=1M
