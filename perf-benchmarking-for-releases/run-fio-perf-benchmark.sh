@@ -55,6 +55,8 @@ gcloud transfer jobs create \
 
 
 VM_NAME=gcsfuse-perf-benchmark-version-${GCSFUSE_VERSION}
+# TODO: Add the 16LSSD in the RAID0 configuration. Ref: https://cloud.google.com/compute/docs/disks/benchmarking-local-ssd-performance#max_partitions
+# Mount manually using mdadm (logic goes to starter_script.sh)
 # Create the VM based on the config passed by user
 gcloud compute instances create ${VM_NAME} \
 --project=${PROJECT_ID}\
