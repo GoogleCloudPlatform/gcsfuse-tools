@@ -1,3 +1,18 @@
+#!/usr/bin/env python3
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import polars as pl
 import time
 import pandas as pd
@@ -8,6 +23,7 @@ import os
 import argparse
 import sys
 import re
+import subprocess
 
 
 def _generate_dummy_dataframe(num_rows: int) -> pd.DataFrame:
@@ -17,6 +33,16 @@ def _generate_dummy_dataframe(num_rows: int) -> pd.DataFrame:
         "float_col": np.random.random(size=num_rows),
         "str_col": np.random.choice(['alpha', 'beta', 'gamma', 'delta', 'epsilon', 'zeta', 'eta', 'theta'], size=num_rows)
     })
+    
+def clear_kernel_cache_bash():
+    try:
+        # Attempt to clear the cache with sudo, but suppress password prompt
+         subprocess.run(['sudo', 'sh', '-c', 'echo 1 > /proc/sys/vm/drop_caches'], check=True, stdout=subprocess.DEVNULL, 
+stderr=subprocess.DEVNULL)
+         time.sleep(1)  # Wait for the caches to be cleared
+    except subprocess.CalledProcessError as e:
+         # If sudo fails (likely due to no passwordless access), log the error and exit
+         print(f"Failed to clear kernel cache: {e}")
 
 
 def create_parquet_file_if_not_exists(file_path: str, target_size_bytes: int, chunk_rows: int = 1_000_000):
@@ -61,6 +87,9 @@ def create_parquet_file_if_not_exists(file_path: str, target_size_bytes: int, ch
 
             current_size = os.path.getsize(file_path)
             print(f"Wrote {total_rows:,} rows, current file size: {current_size / (1024**2):.2f} MiB")
+            
+            # Clear the page cache to make sure, next read doesn't happen with the page-cache.
+            clear_kernel_cache_bash()
 
             if current_size >= target_size_bytes:
                 break
