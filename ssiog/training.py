@@ -323,7 +323,7 @@ def full_random_reader(
     subset = _subset(samples, td.get_rank(), td.get_world_size())
     subset = _subset(subset, thread_id, thread_count)
     for name, offset in subset:
-        logger.debug(f"Reading {name} at {offset} with size {sample_size}.")
+        logger.debug(f"Thread {thread_id} reading {name} at {offset} with size {sample_size}.")
         start_time = time.monotonic_ns()
         try:
             chunk = files[name].read_at(sample_size, offset)
@@ -335,8 +335,8 @@ def full_random_reader(
         sample_lat.record(elapsed_time / 1000000, {"reader": "full_random"})
         logger.debug(f"Complete reading {name} at {offset} with size {sample_size} in {elapsed_time / 1000000} ms.")
         if not chunk:
-            logger.error(f"Chunk is nil.")
-            raise ValueError("chunk is nil.") 
+            logger.error(f"chunk is nil for object: {name}, offset: {offset}, thread_id: {thread_id}")
+            raise ValueError(f"chunk is nil for object: {name}, offset: {offset}, thread_id: {thread_id}")
         yield (offset, chunk)
     for name, f in files.items():
         f.close()

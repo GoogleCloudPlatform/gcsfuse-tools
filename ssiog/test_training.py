@@ -294,7 +294,8 @@ class TestTraining(unittest.TestCase):
         with self.assertRaises(ValueError) as context:
             list(full_random_reader(["test_file"], 0, 1, mock_fs, 2, [("test_file", 0), ("test_file", 10)]))
             
-        self.assertEqual(str(context.exception), "chunk is nil.")
+        self.assertEqual("chunk is nil for object: test_file, offset: 10, thread_id: 0", str(context.exception))
+
     
     @patch('training.td.get_rank', return_value=0)
     @patch('training.td.get_world_size', return_value=1)
