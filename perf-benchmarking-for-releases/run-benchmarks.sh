@@ -14,16 +14,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# Validate input arguments
+if [ "$#" -ne 6 ]; then
+    echo "Usage: $0 <GCSFUSE_VERSION> <PROJECT_ID> <REGION> <MACHINE_TYPE> <IMAGE_FAMILY> <IMAGE_PROJECT>"
+    echo ""
+    echo "<GCSFUSE_VERSION> can be a Git tag (e.g. v1.0.0), branch name (e.g. main), or a commit ID on master."
+    echo ""
+    echo "This script should be run from the 'perf-benchmarking-for-releases' directory."
+    echo ""
+    echo "Example:"
+    echo "  bash run-benchmarks.sh v2.12.0 gcs-fuse-test us-south1 n2-standard-96 ubuntu-2004-lts ubuntu-os-cloud"
+    exit 1
+fi
+
 # Print commands and their arguments as they are executed.
 set -x
 # Exit immediately if a command exits with a non-zero status.
 set -e
-
-# Validate input arguments
-if [ "$#" -ne 6 ]; then
-    echo "Usage: $0 <GCSFUSE_VERSION> <PROJECT_ID> <REGION> <MACHINE_TYPE> <IMAGE_FAMILY> <IMAGE_PROJECT>"
-    exit 1
-fi
 
 echo "!!! Ensure your account has the following permissions:"
 echo "Read access to:    gs://gcsfuse-release-benchmark-fio-data"
@@ -168,10 +175,10 @@ echo "Waiting for benchmarks to complete on VM (polling for success.txt)..."
 
 SUCCESS_FILE_PATH="gs://${RESULTS_BUCKET_NAME}/${GCSFUSE_VERSION}/success.txt"
 LOG_FILE_PATH="gs://${RESULTS_BUCKET_NAME}/${GCSFUSE_VERSION}/benchmark_run.log"
-SLEEP_TIME=600  # 10 minutes
+SLEEP_TIME=300  # 5 minutes
 sleep "$SLEEP_TIME"
-#max 9 retries amounting to ~1hr30mins time
-MAX_RETRIES=9
+#max 18 retries amounting to ~1hr30mins time
+MAX_RETRIES=18
 
 for ((i=1; i<=MAX_RETRIES; i++)); do
     if gcloud storage objects describe "${SUCCESS_FILE_PATH}" &> /dev/null; then
@@ -181,9 +188,18 @@ for ((i=1; i<=MAX_RETRIES; i++)); do
         exit 0
     fi
 
+    # Check for early failure indicators
+    if gcloud storage objects describe "gs://${RESULTS_BUCKET_NAME}/${GCSFUSE_VERSION}/details.txt" &> /dev/null || \
+       gcloud storage objects describe "$LOG_FILE_PATH" &> /dev/null; then
+        echo "Benchmark log or details.txt found, but success.txt is missing. Possible error in benchmark execution."
+        echo "Check logs at: $LOG_FILE_PATH"
+        exit 1
+    fi
+
     echo "Attempt $i/$MAX_RETRIES: success.txt not found. Sleeping for $((SLEEP_TIME / 60)) minutes..."
     sleep "$SLEEP_TIME"
 done
+
 
 # Failure case: success.txt was not found after retries
 echo "Timed out waiting for success.txt after $((MAX_RETRIES * SLEEP_TIME / 60)) minutes. Perhaps there is some error."
