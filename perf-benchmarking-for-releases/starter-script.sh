@@ -32,7 +32,7 @@ fi
 # Install common dependencies before adding starterscriptuser
 if [[ "$OS_FAMILY" == "debian_ubuntu" ]]; then
     sudo apt-get update
-    sudo apt-get install -y git fio libaio1 libaio-dev gcc make mdadm build-essential python3-setuptools python3-crcmod fuse
+    sudo apt-get install -y git fio libaio1 libaio-dev gcc make mdadm build-essential python3-setuptools python3-crcmod python3-pip fuse
 elif [[ "$OS_FAMILY" == "rhel_centos" ]]; then
     sudo yum makecache
     sudo yum -y install git fio fuse libaio libaio-devel gcc make mdadm redhat-rpm-config python3-devel python3-setuptools python3-pip
@@ -163,22 +163,32 @@ fi
 mkdir -p "$MNT"
 "$GCSFUSE_BIN" --implicit-dirs "$GCS_BUCKET_WITH_FIO_TEST_DATA" "$MNT"
 
+# Clone the tools repo for uploading fio results to bigquery
+git clone --single-branch --branch fio-to-bigquery https://github.com/GoogleCloudPlatform/gcsfuse-tools.git
+
+# Install Python dependencies
+python3 -m pip install --user -r gcsfuse-tools/perf-benchmarking-for-releases/requirements.txt
+
+# FIO benchmarking and BigQuery upload
 for fio_job_file in "$FIO_JOB_DIR"/*.fio; do
-    job_name=$(basename "$fio_job_file" .fio) # e.g., random-read-workload
+    job_name=$(basename "$fio_job_file" .fio)
 
     [[ "$LSSD_ENABLED" == "true" ]] && reformat_and_remount_lssd
 
-    # Drop Page Cache
     sudo sh -c "echo 3 > /proc/sys/vm/drop_caches"
-        
+
     RESULT_FILE="gcsfuse-${job_name}-benchmark-$(date +%Y%m%d%H%M%S).json"
 
     DIR="$MNT" fio "$fio_job_file" --output-format=json --output="$RESULT_FILE"
 
-    gcloud storage cp "$RESULT_FILE" "$RESULT_PATH"
-        
-    rm -f "$RESULT_FILE" # Clean up local files
+    # Upload result to BigQuery (default project/dataset/table are built into the script)
+    python3 gcsfuse-tools/perf-benchmarking-for-releases/upload-fio-output-to-bigquery.py \
+      --result-file "$RESULT_FILE"
+
+    # Clean up local result file
+    rm -f "$RESULT_FILE"
 done
+
 
 # All tests ran successfully; create a success.txt file in GCS
 touch success.txt

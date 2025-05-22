@@ -183,7 +183,7 @@ MAX_RETRIES=18
 for ((i=1; i<=MAX_RETRIES; i++)); do
     if gcloud storage objects describe "${SUCCESS_FILE_PATH}" &> /dev/null; then
         echo "Benchmarks completed. success.txt found."
-        echo "Results are available in gs://${RESULTS_BUCKET_NAME}/${GCSFUSE_VERSION}/"
+        echo "Results are available in BigQuery: gcs-fuse-test-ml.benchmark_results.fio_benchmarks"
         echo "Benchmark log file: $LOG_FILE_PATH"
         exit 0
     fi
