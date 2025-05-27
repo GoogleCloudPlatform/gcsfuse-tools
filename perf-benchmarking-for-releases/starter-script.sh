@@ -171,7 +171,7 @@ for fio_job_file in "$FIO_JOB_DIR"/*.fio; do
     # Drop Page Cache
     sudo sh -c "echo 3 > /proc/sys/vm/drop_caches"
         
-    RESULT_FILE="gcsfuse-${job_name}-benchmark-$(date +%Y%m%d%H%M%S).json"
+    RESULT_FILE="gcsfuse-${job_name}-benchmark.json"
 
     DIR="$MNT" fio "$fio_job_file" --output-format=json --output="$RESULT_FILE"
 

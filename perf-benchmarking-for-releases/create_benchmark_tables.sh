@@ -27,8 +27,9 @@ if [ "$#" -ne 5 ]; then
     exit 1
 fi
 
-create_benchmark_tables_dir="/home/mohitkyadav_google_com/gcsfuse-tools/perf-benchmarking-for-releases/"
-tables_file="${create_benchmark_tables_dir}/tables.md"
+rm -rf /tmp/create_benchmark_tables* # Remove previous directories.
+TMP_DIR=$(mktemp -d -t create_benchmark_tables.XXXXXX)
+TABLES_FILE="${TMP_DIR}/tables.md"
 RESULTS_BUCKET_NAME="gcsfuse-release-benchmarks-results"
 GCSFUSE_VERSION=$1
 REGION=$2
@@ -37,9 +38,9 @@ NETWORKING=$4
 DISK_TYPE=$5
 
 # Files to read from GCS.
-RANDOM_READ_RES="gcsfuse-random-read-workload-benchmark-20250522104648.json"
-SEQ_READ_RES="gcsfuse-sequential-read-workload-benchmark-20250522104623.json"
-WRITE_RES="gcsfuse-write-workload-benchmark-20250522105731.json"
+RANDOM_READ_RES="gcsfuse-random-read-workload-benchmark.json"
+SEQ_READ_RES="gcsfuse-sequential-read-workload-benchmark.json"
+WRITE_RES="gcsfuse-write-workload-benchmark.json"
 
 if gcloud storage objects describe "gs://${RESULTS_BUCKET_NAME}/${GCSFUSE_VERSION}/success.txt" &>/dev/null; then
     echo "Found the success.txt file in the bucket."
@@ -47,96 +48,246 @@ else
     echo "Unable to locate success.txt file in the bucket. Exiting..."
     exit 1
 fi
-gcloud storage cp "gs://${RESULTS_BUCKET_NAME}/${GCSFUSE_VERSION}/${RANDOM_READ_RES}" "${create_benchmark_tables_dir}/${RANDOM_READ_RES}"
-gcloud storage cp "gs://${RESULTS_BUCKET_NAME}/${GCSFUSE_VERSION}/${SEQ_READ_RES}" "${create_benchmark_tables_dir}/${SEQ_READ_RES}"
-gcloud storage cp "gs://${RESULTS_BUCKET_NAME}/${GCSFUSE_VERSION}/${WRITE_RES}" "${create_benchmark_tables_dir}/${WRITE_RES}"
 
-RANDOM_READ_RES="${create_benchmark_tables_dir}/${RANDOM_READ_RES}"
-SEQ_READ_RES="${create_benchmark_tables_dir}/${SEQ_READ_RES}"
-WRITE_RES="${create_benchmark_tables_dir}/${WRITE_RES}"
+gcloud storage cp "gs://${RESULTS_BUCKET_NAME}/${GCSFUSE_VERSION}/${RANDOM_READ_RES}" "${TMP_DIR}/${RANDOM_READ_RES}"
+gcloud storage cp "gs://${RESULTS_BUCKET_NAME}/${GCSFUSE_VERSION}/${SEQ_READ_RES}" "${TMP_DIR}/${SEQ_READ_RES}"
+gcloud storage cp "gs://${RESULTS_BUCKET_NAME}/${GCSFUSE_VERSION}/${WRITE_RES}" "${TMP_DIR}/${WRITE_RES}"
 
-# Helper
-# Checks if all arrays (names passed as args) have the same size.
-# Returns 0 if same size (or 0/1 array provided), 1 if different, 2 if no args.
-all_same_size() {
-    [ "$#" -eq 0 ] && return 2  # No arguments
-    local -n arr_ref="$1"       # Nameref to the first array
-    local size="${#arr_ref[@]}" # Get size of the first array
-    exit_code=0
-    for arr_name in "$@"; do
-        local -n current_arr="$arr_name"
-        if [ "${#current_arr[@]}" -ne "$size" ]; then 
-            exit_code=1
+RANDOM_READ_RES="${TMP_DIR}/${RANDOM_READ_RES}"
+SEQ_READ_RES="${TMP_DIR}/${SEQ_READ_RES}"
+WRITE_RES="${TMP_DIR}/${WRITE_RES}"
+
+# Helper methods
+# Get size of jobs
+job_count() {
+    local file=$1
+    job_count=$(jq '.jobs | length' "$file")
+    if [[ "$job_count" -le 0 ]]; then 
+        echo "Exiting found no jobs in experiment result file: $file"
+        exit 1
+    fi
+    echo "$job_count"
+    return 0
+}
+
+ROW_COUNT=0
+filesize=()
+bw_bytes=()
+nrfiles=()
+iops=()
+mean=()
+bs=()
+
+populate_column_from_job_options() {
+    local file=$1
+    local field_to_extract=$2
+    local -n array_ref=$3
+    array_ref=() # clear the array
+    local jq_output
+    jq_output=$(jq -r --arg jq_field_name "$field_to_extract" '.jobs[]?."job options"[$jq_field_name]?' "$file")
+    while IFS= read -r value; do
+        if [[ "$value" == "null" ]]; then
+            # try getting from global options.
+            value=$(jq -r --arg jq_field_name "$field_to_extract" '."global options"[$jq_field_name]?' "$file")
         fi
+        if [[ "$value" == "null" ]]; then 
+            echo "value is null for field [$field_to_extract] from file [$file] and not found in global options."
+            exit 1
+        fi
+        array_ref+=("$value")
+    done <<< "$jq_output"
+    if [[ "${#array_ref[@]}" -ne "$ROW_COUNT" ]]; then 
+        echo "not enough rows for field [$field_to_extract] for file [$file]."
+        exit 1
+    fi
+    return 0
+}
+
+populate_column_from_read() {
+    local file=$1
+    local field_to_extract=$2
+    local -n array_ref=$3
+    array_ref=() # clear the array
+    local jq_output
+    jq_output=$(jq -r --arg jq_field_name "$field_to_extract" '.jobs[]?.read[$jq_field_name]?' "$file")
+    while IFS= read -r value; do
+        if [[ "$value" == "null" ]]; then
+            # try getting from global options.
+            value=$(jq -r --arg jq_field_name "$field_to_extract" '."global options"[$jq_field_name]?' "$file")
+        fi
+        if [[ "$value" == "null" ]]; then 
+            echo "value is null for field [$field_to_extract] from file [$file] and not found in global options."
+            exit 1
+        fi
+        array_ref+=("$value")
+    done <<< "$jq_output"
+    if [[ "${#array_ref[@]}" -ne "$ROW_COUNT" ]]; then 
+        echo "not enough rows for field [$field_to_extract] for file [$file]."
+        exit 1
+    fi
+    return 0
+}
+
+populate_column_from_read_clat_ns() {
+    local file=$1
+    local field_to_extract=$2
+    local -n array_ref=$3
+    array_ref=() # clear the array
+    local jq_output
+    jq_output=$(jq -r --arg jq_field_name "$field_to_extract" '.jobs[]?.read.clat_ns[$jq_field_name]?' "$file")
+    while IFS= read -r value; do
+        if [[ "$value" == "null" ]]; then
+            # try getting from global options.
+            value=$(jq -r --arg jq_field_name "$field_to_extract" '."global options"[$jq_field_name]?' "$file")
+        fi
+        if [[ "$value" == "null" ]]; then 
+            echo "value is null for field [$field_to_extract] from file [$file] and not found in global options."
+            exit 1
+        fi
+        array_ref+=("$value")
+    done <<< "$jq_output"
+    if [[ "${#array_ref[@]}" -ne "$ROW_COUNT" ]]; then 
+        echo "not enough rows for field [$field_to_extract] for file [$file]."
+        exit 1
+    fi
+    return 0
+}
+
+populate_column_from_write() {
+    local file=$1
+    local field_to_extract=$2
+    local -n array_ref=$3
+    array_ref=() # clear the array
+    local jq_output
+    jq_output=$(jq -r --arg jq_field_name "$field_to_extract" '.jobs[]?.write[$jq_field_name]?' "$file")
+    while IFS= read -r value; do
+        if [[ "$value" == "null" ]]; then
+            # try getting from global options.
+            value=$(jq -r --arg jq_field_name "$field_to_extract" '."global options"[$jq_field_name]?' "$file")
+        fi
+        if [[ "$value" == "null" ]]; then 
+            echo "value is null for field [$field_to_extract] from file [$file] and not found in global options."
+            exit 1
+        fi
+        array_ref+=("$value")
+    done <<< "$jq_output"
+    if [[ "${#array_ref[@]}" -ne "$ROW_COUNT" ]]; then 
+        echo "not enough rows for field [$field_to_extract] for file [$file]."
+        exit 1
+    fi
+    return 0
+}
+
+populate_column_from_write_clat_ns() {
+    local file=$1
+    local field_to_extract=$2
+    local -n array_ref=$3
+    array_ref=() # clear the array
+    local jq_output
+    jq_output=$(jq -r --arg jq_field_name "$field_to_extract" '.jobs[]?.write.clat_ns[$jq_field_name]?' "$file")
+    while IFS= read -r value; do
+        if [[ "$value" == "null" ]]; then
+            # try getting from global options.
+            value=$(jq -r --arg jq_field_name "$field_to_extract" '."global options"[$jq_field_name]?' "$file")
+        fi
+        if [[ "$value" == "null" ]]; then 
+            echo "value is null for field [$field_to_extract] from file [$file] and not found in global options."
+            exit 1
+        fi
+        array_ref+=("$value")
+    done <<< "$jq_output"
+    if [[ "${#array_ref[@]}" -ne "$ROW_COUNT" ]]; then 
+        echo "not enough rows for field [$field_to_extract] for file [$file]."
+        exit 1
+    fi
+    return 0
+}
+
+populate_all_columns_common() {
+    local file="$1"
+    populate_column_from_job_options "$file" "bs" "bs"
+    populate_column_from_job_options "$file" "filesize" "filesize"
+    populate_column_from_job_options "$file" "nrfiles" "nrfiles"
+}
+
+populate_all_columns_for_read() {
+    local file="$1"
+    populate_all_columns_common "$file"
+    populate_column_from_read "$file" "bw_bytes" "bw_bytes"
+    populate_column_from_read "$file" "iops" "iops"
+    populate_column_from_read_clat_ns "$file" "mean" "mean"
+}
+
+populate_all_columns_for_write() {
+    local file="$1"
+    populate_all_columns_common "$file"
+    populate_column_from_write "$file" "bw_bytes" "bw_bytes"
+    populate_column_from_write "$file" "iops" "iops"
+    populate_column_from_write_clat_ns "$file" "mean" "mean"
+}
+
+convert_to_gib() {
+    local precision=3 bytes_value
+    for ((i = 0; i < ROW_COUNT; i++)); do
+        bytes_value=${bw_bytes[i]}
+        bw_bytes[i]=$(awk -v prec="$precision" -v bval="$bytes_value" 'BEGIN { printf "%.*f\n", prec, bval / 1073741824 }')
     done
-    return $exit_code # All same size (or single array)
+}
+
+convert_iops() {
+    local iops_value
+    for ((i = 0; i < ROW_COUNT; i++)); do
+        iops_value=${iops[i]}
+        iops[i]=$(awk -v n="$iops_value" 'BEGIN { printf "%.2fK\n", n / 1000 }')
+    done
+}
+
+convert_mean() {
+    local precision=2 mean_value
+    for ((i = 0; i < ROW_COUNT; i++)); do
+        mean_value=${mean[i]}
+        mean[i]=$(awk -v p="$precision" -v ns="$mean_value" 'BEGIN { printf "%.*fms\n", p, ns / 1E6 }')
+    done
+}
+
+create_table() {
+    local table_name="$1"
+    local file="$2"
+    local workflow_type="$3"
+    echo "### $table_name"
+    ROW_COUNT=$(job_count "$file")
+    if [[ "$workflow_type" == "read" ]]; then
+        populate_all_columns_for_read "$file"
+    else
+        populate_all_columns_for_write "$file"
+    fi
+    convert_to_gib
+    convert_iops
+    convert_mean
+    echo "| File Size | BlockSize | nrfiles |Bandwidth in (GiB/sec) | IOPs  |  Avg Latency (msec) |"
+    echo "|---|---|---|---|---|---|"
+    for ((i = 0; i < ROW_COUNT; i++)); do
+        echo "| ${filesize[i]} | ${bs[i]} | ${nrfiles[i]} | ${bw_bytes[i]} | ${iops[i]} | ${mean[i]} |"
+    done
+    echo ""
 }
 
 create_tables() {
-    echo "## GCSFuse Benchmarking on c4 machine-type"
-    echo "* VM Type: c4-standard-96"
-    echo "* VM location: us-south1"
-    echo "* Networking: gVNIC+  tier_1 networking (200Gbps)"
-    echo "* Disk Type: Hyperdisk balanced"
-    echo "* GCS Bucket location: us-south1"
-
-    echo "### Sequential Reads"
-    echo "| File Size | BlockSize | nrfiles |Bandwidth in (GiB/sec) | IOPs  |  Avg Latency (msec) |"
-    echo "|---|---|---|---|---|---|"
-    fileSize=($(jq -r '.jobs[]?."job options"?.filesize? | select(. != null)' "$SEQ_READ_RES"))
-    blockSize=($(jq -r '.jobs[]?."job options"?.bs? | select(. != null)' "$SEQ_READ_RES"))
-    nrFiles=($(jq -r '.jobs[]?."job options"?.nrfiles? | select(. != null)' "$SEQ_READ_RES"))
-    bandwidthBytes=($(jq -r '.jobs[]?.read?.bw_bytes? | select(. != null)' "$SEQ_READ_RES"))
-    iops=($(jq -r '.jobs[]?.read?.iops? | select(. != null)' "$SEQ_READ_RES"))
-    clat_ns_mean=($(jq -r '.jobs[]?.read?.clat_ns?.mean | select(. != null)' "$SEQ_READ_RES"))
-    # Verify same size arrays
-    if ! all_same_size fileSize blockSize nrFiles bandwidthBytes iops clat_ns_mean; then
-        echo "Json file parsing or data error."
-        echo "Not all arrays have the same size."
-        exit 1
-    fi
-    rows=(${#fileSize[@]})
-    for ((i = 0; i < rows; i++)); do
-        echo "| ${fileSize[i]} | ${blockSize[i]} | ${nrFiles[i]} | ${bandwidthBytes[i]} | ${iops[i]} | ${clat_ns_mean[i]} |"
-    done
-    echo "### Random Reads"
-    echo "| File Size | BlockSize | nrfiles |Bandwidth in (GiB/sec) | IOPs  |  Avg Latency (msec) |"
-    echo "|---|---|---|---|---|---|"
-    fileSize=($(jq -r '.jobs[]?."job options"?.filesize? | select(. != null)' "$RANDOM_READ_RES"))
-    blockSize=($(jq -r '.jobs[]?."job options"?.bs? | select(. != null)' "$RANDOM_READ_RES"))
-    nrFiles=($(jq -r '.jobs[]?."job options"?.nrfiles? | select(. != null)' "$RANDOM_READ_RES"))
-    bandwidthBytes=($(jq -r '.jobs[]?.read?.bw_bytes? | select(. != null)' "$RANDOM_READ_RES"))
-    iops=($(jq -r '.jobs[]?.read?.iops? | select(. != null)' "$RANDOM_READ_RES"))
-    clat_ns_mean=($(jq -r '.jobs[]?.read?.clat_ns?.mean | select(. != null)' "$RANDOM_READ_RES"))
-    # Verify same size arrays
-    if ! all_same_size fileSize blockSize nrFiles bandwidthBytes iops clat_ns_mean; then
-        echo "Json file parsing or data error."
-        echo "Not all arrays have the same size."
-        exit 1
-    fi
-    rows=(${#fileSize[@]})
-    for ((i = 0; i < rows; i++)); do
-        echo "| ${fileSize[i]} | ${blockSize[i]} | ${nrFiles[i]} | ${bandwidthBytes[i]} | ${iops[i]} | ${clat_ns_mean[i]} |"
-    done
-    echo "### Sequential Writes"
-    echo "| File Size | BlockSize | nrfiles |Bandwidth in (GiB/sec) | IOPs  |  Avg Latency (msec) |"
-    echo "|---|---|---|---|---|---|"
-    fileSize=($(jq -r '.jobs[]?."job options"?.filesize? | select(. != null)' "$WRITE_RES"))
-    blockSize=($(jq -r '(.jobs // [])[] | (."job options"?.bs? // "1M")' "$WRITE_RES"))
-    nrFiles=($(jq -r '.jobs[]?."job options"?.nrfiles? | select(. != null)' "$WRITE_RES"))
-    bandwidthBytes=($(jq -r '.jobs[]?.write?.bw_bytes? | select(. != null)' "$WRITE_RES"))
-    iops=($(jq -r '.jobs[]?.write?.iops? | select(. != null)' "$WRITE_RES"))
-    clat_ns_mean=($(jq -r '.jobs[]?.write?.clat_ns?.mean | select(. != null)' "$WRITE_RES"))
-    # Verify same size arrays
-    if ! all_same_size fileSize blockSize nrFiles bandwidthBytes iops clat_ns_mean; then
-        echo "Json file parsing or data error."
-        echo "Not all arrays have the same size."
-        exit 1
-    fi
-    rows=(${#fileSize[@]})
-    for ((i = 0; i < rows; i++)); do
-        echo "| ${fileSize[i]} | ${blockSize[i]} | ${nrFiles[i]} | ${bandwidthBytes[i]} | ${iops[i]} | ${clat_ns_mean[i]} |"
-    done
+    echo "## GCSFuse Benchmarking on ${MACHINE_TYPE%%-*} machine-type"
+    echo "* VM Type: ${MACHINE_TYPE}"
+    echo "* VM location: ${REGION}"
+    echo "* Networking: ${NETWORKING}"
+    echo "* Disk Type: ${DISK_TYPE}"
+    echo "* GCS Bucket location: ${REGION}"
+    echo ""
+    create_table "Sequential Reads" "$SEQ_READ_RES" "read"
+    create_table "Random Reads" "$RANDOM_READ_RES" "read"
+    create_table "Sequential Writes" "$WRITE_RES" "write"
 }
 
-create_tables > "${tables_file}"
+create_tables > "${TABLES_FILE}"
+
+cat "${TABLES_FILE}"
+# copy file to results bucket
+
+gcloud storage cp "${TABLES_FILE}" "gs://${RESULTS_BUCKET_NAME}/${GCSFUSE_VERSION}/"
