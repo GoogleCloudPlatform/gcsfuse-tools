@@ -29,9 +29,10 @@ import uuid
 # Add relative path ../../ for class ExperimentsGCSFuseBQ .
 sys.path.append(os.path.join(os.path.dirname(__file__), '../../'))
 
-from google.cloud import bigquery
+from google.cloud import bigquery as cloud_bigquery
 from google.cloud.bigquery import table
-from google.cloud.bigquery.job import QueryJob
+# from google.cloud.bigquery.job import QueryJob
+# import bigquery
 from bigquery.experiments_gcsfuse_bq import ExperimentsGCSFuseBQ
 
 
@@ -165,7 +166,7 @@ class FioBigqueryExporter(ExperimentsGCSFuseBQ):
       {self.table_id} table to store the metrics.
     """
     # Create dataset if not exists
-    dataset = bigquery.Dataset(f'{self.project_id}.{self.dataset_id}')
+    dataset = cloud_bigquery.Dataset(f'{self.project_id}.{self.dataset_id}')
     try:
       self.client.create_dataset(dataset, exists_ok=True)
       # # Wait for the dataset to be created and ready to be referenced
