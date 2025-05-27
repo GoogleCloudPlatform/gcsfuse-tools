@@ -21,7 +21,7 @@ class RunTestsCommonTest(unittest.TestCase):
 
   def test_escape_commas_in_string(self):
     tcs = [
-        {"input": "a:b,c=d,", "expected_output": "a:b\,c=d\,"},
+        {"input": "a:b,c=d,", "expected_output": r"a:b\,c=d\,"},
         {"input": "", "expected_output": ""},
     ]
     for tc in tcs:

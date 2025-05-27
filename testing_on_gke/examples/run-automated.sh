@@ -57,8 +57,8 @@ export num_nodes=7
 export num_ssd=16
 export use_custom_csi_driver=true
 export output_dir=.
-if test -z "${gcsfuse_branch}"; then
-  echo "gcsfuse_branch has not been set."
+if test -z "${gcsfuse_tools_branch}"; then
+  echo "gcsfuse_tools_branch has not been set."
   exit 1
 fi
 export pod_wait_time_in_seconds=300
@@ -82,7 +82,7 @@ test -n ${only_parse} || export only_parse=false
 
 # Create a dedicated folder on the machine.
 mkdir -pv ~/gke-testing && cd ~/gke-testing
-wget https://raw.githubusercontent.com/googlecloudplatform/gcsfuse/${gcsfuse_branch}/perfmetrics/scripts/testing_on_gke/examples/run-gke-tests.sh -O run-gke-tests.sh
+wget https://raw.githubusercontent.com/googlecloudplatform/gcsfuse-tools/${gcsfuse_tools_branch}/testing_on_gke/examples/run-gke-tests.sh -O run-gke-tests.sh
 chmod +x run-gke-tests.sh
 
 # Remove previous run's outputs.
@@ -102,7 +102,7 @@ echo "Run ended at ${end_time}"
 if test -n "${workload_config}"; then
   cp ${workload_config} ./workloads.json
 else
-  cp src/gcsfuse/perfmetrics/scripts/testing_on_gke/examples/workloads.json .
+  cp src/gcsfuse-tools/testing_on_gke/examples/workloads.json .
 fi
 git -C src/gcsfuse rev-parse HEAD > gcsfuse_commithash
 git -C src/gcs-fuse-csi-driver rev-parse HEAD > gcs_fuse_csi_driver_commithash
