@@ -170,7 +170,7 @@ gcloud compute instances create "${VM_NAME}" \
     --network-interface=network-tier=PREMIUM,nic-type=GVNIC \
     --scopes=https://www.googleapis.com/auth/cloud-platform,https://www.googleapis.com/auth/devstorage.read_write \
     --network-performance-configs=total-egress-bandwidth-tier=TIER_1 \
-    --metadata GCSFUSE_VERSION="${GCSFUSE_VERSION}", MACHINE_TYPE="${MACHINE_TYPE}", GCS_BUCKET_WITH_FIO_TEST_DATA="${GCS_BUCKET_WITH_FIO_TEST_DATA}",RESULTS_BUCKET_NAME="${RESULTS_BUCKET_NAME}",LSSD_ENABLED="${LSSD_ENABLED}" \
+    --metadata GCSFUSE_VERSION="${GCSFUSE_VERSION}",MACHINE_TYPE="${MACHINE_TYPE}",GCS_BUCKET_WITH_FIO_TEST_DATA="${GCS_BUCKET_WITH_FIO_TEST_DATA}",RESULTS_BUCKET_NAME="${RESULTS_BUCKET_NAME}",LSSD_ENABLED="${LSSD_ENABLED}" \
     --metadata-from-file=startup-script=starter-script.sh \
     ${VM_LOCAL_SSD_ARGS}
 echo "VM created. Benchmarks will run on the VM."
