@@ -28,7 +28,7 @@ if [ "$#" -ne 6 ]; then
 fi
 
 # #1 Benchmark
-# bash run run-benchmarks.sh change-default-configs-for-streaming-writes gcs-fuse-test us-south1 c4-standard-96 ubuntu-2004-lts ubuntu-os-cloud
+# bash run-benchmarks.sh change-default-configs-for-streaming-writes gcs-fuse-test us-south1 c4-standard-96 ubuntu-2004-lts ubuntu-os-cloud
 # bash create_benchmark_tables.sh change-default-configs-for-streaming-writes us-south1 c4-standard-96 'gVNIC+ tier_1 networking (200Gbps)' 'Hyperdisk balanced'
 
 # Print commands and their arguments as they are executed.
