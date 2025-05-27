@@ -22,7 +22,7 @@
 # It installs all the necessary dependencies on its own.
 # It creates a GKE cluster and other GCP resources (as needed), based on a number of configuration parameters e.g. gcp-project-name/number, cluster-name, zone (for resource location), machine-type (of node), number of local SSDs.
 # It creates fio/dlio tests as helm charts, based on the provided JSON workload configuration file and deploys them on the GKE cluster.
-# A sample workload-configuration file is available at https://github.com/GoogleCloudPlatform/gcsfuse/blob/garnitin/add-gke-load-testing/v1/perfmetrics/scripts/testing_on_gke/examples/workloads.json .
+# A sample workload-configuration file is available at https://github.com/GoogleCloudPlatform/gcsfuse-tools/blob/main/testing_on_gke/examples/workloads.json .
 
 # Fail script if any of the commands fail.
 set -e
@@ -57,7 +57,7 @@ readonly DEFAULT_CUSTOM_CSI_DRIVER=
 readonly DEFAULT_SRC_DIR="$(realpath .)/src"
 readonly csi_driver_github_path=https://github.com/googlecloudplatform/gcs-fuse-csi-driver
 readonly csi_driver_branch=main
-readonly gcsfuse_github_path=https://github.com/googlecloudplatform/gcsfuse
+readonly gcsfuse_tools_github_path=https://github.com/googlecloudplatform/gcsfuse-tools
 readonly DEFAULT_GCSFUSE_BRANCH=garnitin/add-gke-load-testing/v1
 # Test runtime configuration
 # 5 minutes
@@ -122,9 +122,9 @@ function printHelp() {
   echo "custom_csi_driver=<string representing the full path of the csi-driver image hash e.g. gcr.io/<registry-name>:<hash>, default=\"${DEFAULT_CUSTOM_CSI_DRIVER}\". If it is non-empty, then use_custom_csi_driver is assumed true, but a custom driver is not built and the given custom csi driver is used instead. >"
   echo "use_custom_csi_driver=<true|false, true means build and use a new custom csi driver using gcsfuse code, default=\"${DEFAULT_USE_CUSTOM_CSI_DRIVER}\">"
   # GCSFuse/GKE GCSFuse CSI Driver source code related
-  echo "src_dir=<\"directory/to/clone/github/repos/if/needed\", used for locally cloning in case gcsfuse_src_dir or csi_src_dir are not passed, default=\"${DEFAULT_SRC_DIR}\">"
-  echo "gcsfuse_branch=<name-of-gcsfuse-branch-for-cloning>, used for locally cloning, in case gcsfuse_src_dir has not been passed, default=\"${DEFAULT_GCSFUSE_BRANCH}\">"
-  echo "gcsfuse_src_dir=<\"/path/of/gcsfuse/src/to/use/if/available\", default=\"${DEFAULT_SRC_DIR}/gcsfuse\">"
+  echo "src_dir=<\"directory/to/clone/github/repos/if/needed\", used for locally cloning in case gcsfuse_tools_src_dir or csi_src_dir are not passed, default=\"${DEFAULT_SRC_DIR}\">"
+  echo "gcsfuse_branch=<name-of-gcsfuse-branch-for-cloning>, used for locally cloning, in case gcsfuse_tools_src_dir has not been passed, default=\"${DEFAULT_GCSFUSE_BRANCH}\">"
+  echo "gcsfuse_tools_src_dir=<\"/path/of/gcsfuse/src/to/use/if/available\", default=\"${DEFAULT_SRC_DIR}/gcsfuse\">"
   echo "csi_src_dir=<\"/path/of/gcs-fuse-csi-driver/to/use/if/available\", default=\"${DEFAULT_SRC_DIR}\"/gcs-fuse-csi-driver>"
   # Test runtime configuration
   echo "pod_wait_time_in_seconds=<number e.g. 60 for checking pod status every 1 min, default=\"${DEFAULT_POD_WAIT_TIME_IN_SECONDS}\">"
@@ -132,7 +132,7 @@ function printHelp() {
   echo "experiment_id=<Optional description of this particular test-run, it does not need to be unique e.g. \"cache test #43\""
   echo "workload_config=<path/to/workload/configuration/file e.g. /a/b/c.json >"
   echo "output_dir=</absolute/path/to/output/dir, output files will be written at output_dir/fio/output.csv and output_dir/dlio/output.csv>"
-  echo "force_update_gcsfuse_code=<true|false, to force-update the gcsfuse-code to given branch if gcsfuse_src_dir has been set. Default=\"${DEFAULT_FORCE_UPDATE_GCSFUSE_CODE}\">"
+  echo "force_update_gcsfuse_code=<true|false, to force-update the gcsfuse-code to given branch if gcsfuse_tools_src_dir has been set. Default=\"${DEFAULT_FORCE_UPDATE_GCSFUSE_CODE}\">"
   echo "zonal=<true|false, to convey that at least one of the buckets in the given workload configuration is a zonal bucket which can't be read/written using gcloud. Default=\"${DEFAULT_ZONAL}\"> "
   echo ""
   echo ""
@@ -222,20 +222,20 @@ else
   mkdir -pv "${src_dir}"
 fi
 
-if test -n "${gcsfuse_src_dir}"; then
-  if ! test -d "${gcsfuse_src_dir}"; then
-    exitWithError "gcsfuse_src_dir \"${gcsfuse_src_dir}\" does not exist"
+if test -n "${gcsfuse_tools_src_dir}"; then
+  if ! test -d "${gcsfuse_tools_src_dir}"; then
+    exitWithError "gcsfuse_tools_src_dir \"${gcsfuse_tools_src_dir}\" does not exist"
   fi
-  export gcsfuse_src_dir="$(realpath "${gcsfuse_src_dir}")"
+  export gcsfuse_tools_src_dir="$(realpath "${gcsfuse_tools_src_dir}")"
 else
-  export gcsfuse_src_dir="${src_dir}"/gcsfuse
+  export gcsfuse_tools_src_dir="${src_dir}"/gcsfuse-tools
 fi
 
 if test -z "${force_update_gcsfuse_code}"; then
   export force_update_gcsfuse_code=${DEFAULT_FORCE_UPDATE_GCSFUSE_CODE}
 fi
 
-export gke_testing_dir="${gcsfuse_src_dir}"/perfmetrics/scripts/testing_on_gke
+export gke_testing_dir="${gcsfuse_tools_src_dir}"/testing_on_gke
 
 if test -n "${csi_src_dir}"; then
   if ! test -d "${csi_src_dir}"; then
@@ -316,7 +316,7 @@ function printRunParameters() {
   echo "custom_csi_driver=\"${custom_csi_driver}\""
   # GCSFuse/GKE GCSFuse CSI Driver source code related
   echo "src_dir=\"${src_dir}\""
-  echo "gcsfuse_src_dir=\"${gcsfuse_src_dir}\""
+  echo "gcsfuse_tools_src_dir=\"${gcsfuse_tools_src_dir}\""
   echo "csi_src_dir=\"${csi_src_dir}\""
   echo "gke_testing_dir=\"${gke_testing_dir}\""
   # Test runtime configuration
@@ -605,10 +605,10 @@ function createKubernetesServiceAccountForCluster() {
 function ensureGcsfuseCode() {
   printf "\nEnsuring we have gcsfuse code ...\n\n\n"
   # clone gcsfuse code if needed
-  if ! test -d "${gcsfuse_src_dir}"; then
-    cd $(dirname "${gcsfuse_src_dir}") && git clone ${gcsfuse_github_path} && cd "${gcsfuse_src_dir}" && git switch ${gcsfuse_branch} && cd - && cd -
+  if ! test -d "${gcsfuse_tools_src_dir}"; then
+    cd $(dirname "${gcsfuse_tools_src_dir}") && git clone ${gcsfuse_tools_github_path} && cd "${gcsfuse_tools_src_dir}" && git switch ${gcsfuse_branch} && cd - && cd -
   elif ${force_update_gcsfuse_code}; then
-    cd ${gcsfuse_src_dir} && git fetch --all && git reset --hard origin/${gcsfuse_branch} && cd -
+    cd ${gcsfuse_tools_src_dir} && git fetch --all && git reset --hard origin/${gcsfuse_branch} && cd -
   fi
 
   test -d "${gke_testing_dir}" || (exitWithError "${gke_testing_dir} does not exist" )
@@ -646,15 +646,15 @@ function createCustomCsiDriverIfNeeded() {
     fi
 
     # Build new gcsfuse binaries.
-    printf "\nBuilding a new GCSFuse binary from ${gcsfuse_src_dir} ...\n\n"
-    cd "${gcsfuse_src_dir}"
+    printf "\nBuilding a new GCSFuse binary from ${gcsfuse_tools_src_dir} ...\n\n"
+    cd "${gcsfuse_tools_src_dir}"
     rm -rfv ./bin ./sbin
     GOOS=linux GOARCH=amd64 go run tools/build_gcsfuse/main.go . . v3
     # Copy the binary to a GCS bucket for csi driver build.
     gcloud storage -q cp ./bin/gcsfuse gs://${package_bucket}/linux/amd64/
     gcloud storage -q cp gs://${package_bucket}/linux/amd64/gcsfuse gs://${package_bucket}/linux/arm64/ # needed as build on arm64 doesn't work on cloudtop.
     # clean-up
-    rm -rfv "${gcsfuse_src_dir}"/bin "${gcsfuse_src_dir}"/sbin
+    rm -rfv "${gcsfuse_tools_src_dir}"/bin "${gcsfuse_tools_src_dir}"/sbin
     cd -
 
     # Build and install csi driver
@@ -752,7 +752,7 @@ function waitTillAllPodsComplete() {
       if test -n "${custom_csi_driver}"; then
         message+=" custom_csi_driver=${custom_csi_driver}"
       fi
-      message+=" gcsfuse_src_dir=\"${gcsfuse_src_dir}\" "
+      message+=" gcsfuse_tools_src_dir=\"${gcsfuse_tools_src_dir}\" "
       if test -d "${csi_src_dir}"; then
         message+="csi_src_dir=\"${csi_src_dir}\" "
       fi
@@ -786,8 +786,8 @@ function downloadFioOutputsFromBucket() {
   fusermount -uz $mountpath 2>/dev/null || true
   echo "Searching for FIO outputs for experiment ${experiment_id} in gs://${bucket} ..."
 
-  cd $gcsfuse_src_dir
-  if ! go run $gcsfuse_src_dir --implicit-dirs --o ro $bucket $mountpath > /dev/null ; then
+  cd $gcsfuse_tools_src_dir
+  if ! go run $gcsfuse_tools_src_dir --implicit-dirs --o ro $bucket $mountpath > /dev/null ; then
     # If fails to mount this bucket,
     # Return to original directory before exiting..
     cd - >/dev/null
@@ -801,7 +801,7 @@ function downloadFioOutputsFromBucket() {
   # If the given bucket has the fio outputs for the given experiment-id, then
   # copy/download them locally to the appropriate folder.
   src_dir="${mountpath}/fio-output/${experiment_id}"
-  dst_dir="${gcsfuse_src_dir}/perfmetrics/scripts/testing_on_gke/bin/fio-logs/${experiment_id}/${bucket}"
+  dst_dir="${gcsfuse_tools_src_dir}/testing_on_gke/bin/fio-logs/${experiment_id}/${bucket}"
   if test -d "${src_dir}" ; then
     mkdir -p "${dst_dir}"
     echo "Copying all files from \"${src_dir}\" to \"${dst_dir}/\" ... "
