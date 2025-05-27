@@ -26,8 +26,8 @@ import sys
 import time
 import uuid
 
-# Add relative path ../../../ for class ExperimentsGCSFuseBQ .
-sys.path.append(os.path.join(os.path.dirname(__file__), '../../../'))
+# Add relative path ../../ for class ExperimentsGCSFuseBQ .
+sys.path.append(os.path.join(os.path.dirname(__file__), '../../'))
 
 from google.cloud import bigquery
 from google.cloud.bigquery import table
