@@ -301,7 +301,7 @@ def create_output_scenarios_from_downloaded_files(args: dict) -> dict:
         r["start"] = unix_to_timestamp(job0_start)
         r["end"] = unix_to_timestamp(timestamp_ms)
 
-        fetch_cpu_memory_data(args=args, record=r)
+        # fetch_cpu_memory_data(args=args, record=r)
 
         r["blockSize"] = bs
         r["filesPerThread"] = nrfiles
