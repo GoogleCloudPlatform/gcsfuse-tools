@@ -42,16 +42,16 @@ RANDOM_READ_RES="gcsfuse-random-read-workload-benchmark.json"
 SEQ_READ_RES="gcsfuse-sequential-read-workload-benchmark.json"
 WRITE_RES="gcsfuse-write-workload-benchmark.json"
 
-if gcloud storage objects describe "gs://${RESULTS_BUCKET_NAME}/${GCSFUSE_VERSION}/success.txt" &>/dev/null; then
+if gcloud storage objects describe "gs://${RESULTS_BUCKET_NAME}/${GCSFUSE_VERSION}/${MACHINE_TYPE}/success.txt" &>/dev/null; then
     echo "Found the success.txt file in the bucket."
 else
     echo "Unable to locate success.txt file in the bucket. Exiting..."
     exit 1
 fi
 
-gcloud storage cp "gs://${RESULTS_BUCKET_NAME}/${GCSFUSE_VERSION}/${RANDOM_READ_RES}" "${TMP_DIR}/${RANDOM_READ_RES}"
-gcloud storage cp "gs://${RESULTS_BUCKET_NAME}/${GCSFUSE_VERSION}/${SEQ_READ_RES}" "${TMP_DIR}/${SEQ_READ_RES}"
-gcloud storage cp "gs://${RESULTS_BUCKET_NAME}/${GCSFUSE_VERSION}/${WRITE_RES}" "${TMP_DIR}/${WRITE_RES}"
+gcloud storage cp "gs://${RESULTS_BUCKET_NAME}/${GCSFUSE_VERSION}/${MACHINE_TYPE}/${RANDOM_READ_RES}" "${TMP_DIR}/${RANDOM_READ_RES}"
+gcloud storage cp "gs://${RESULTS_BUCKET_NAME}/${GCSFUSE_VERSION}/${MACHINE_TYPE}/${SEQ_READ_RES}" "${TMP_DIR}/${SEQ_READ_RES}"
+gcloud storage cp "gs://${RESULTS_BUCKET_NAME}/${GCSFUSE_VERSION}/${MACHINE_TYPE}/${WRITE_RES}" "${TMP_DIR}/${WRITE_RES}"
 
 RANDOM_READ_RES="${TMP_DIR}/${RANDOM_READ_RES}"
 SEQ_READ_RES="${TMP_DIR}/${SEQ_READ_RES}"
@@ -290,4 +290,4 @@ create_tables > "${TABLES_FILE}"
 cat "${TABLES_FILE}"
 # copy file to results bucket
 
-gcloud storage cp "${TABLES_FILE}" "gs://${RESULTS_BUCKET_NAME}/${GCSFUSE_VERSION}/"
+gcloud storage cp "${TABLES_FILE}" "gs://${RESULTS_BUCKET_NAME}/${GCSFUSE_VERSION}/${MACHINE_TYPE}/"
