@@ -14,37 +14,32 @@
 """Python module for setting up the dataset and tables in BigQuery.
 
 This python module creates the dataset and the tables that will store experiment
-configurations and metrics data in BigQuery. It can also be used to upload data
-to the tables.
+configurations and metrics data in BigQuery. It can also be used to upload data to the tables.
 
 Note:
   Make sure BigQuery API is enabled for the project
 """
-import time
 import uuid
-from bigquery import constants
-from google.cloud import bigquery as cloud_bigquery
+import time
+from google.cloud import bigquery
 from google.cloud.bigquery.job import QueryJob
-
+from bigquery import constants
 
 class ExperimentsGCSFuseBQ:
-  """Class to create and interact with Bigquery dataset and tables for storing
+  """
+    Class to create and interact with Bigquery dataset and tables for storing
+    experiments configurations and their results.
 
-  experiments configurations and their results.
-
-  Attributes:
-    project_id (str): The GCP project in which dataset and tables will be
-      created
-    dataset_id (str): The name of the dataset in the project that will store the
-      tables
-    bq_client (Optional[google.cloud.bigquery.client.Client]): The client for
-      interacting with Bigquery. Default value is
-      bigquery.Client(project=project_id).
+    Attributes:
+      project_id (str): The GCP project in which dataset and tables will be created
+      dataset_id (str): The name of the dataset in the project that will store the tables
+      bq_client (Optional[google.cloud.bigquery.client.Client]): The client for interacting with Bigquery.
+                                                                 Default value is bigquery.Client(project=project_id).
   """
 
   def __init__(self, project_id, dataset_id, bq_client=None):
     if bq_client is None:
-      self.client = cloud_bigquery.Client(project=project_id)
+      self.client = bigquery.Client(project=project_id)
     else:
       self.client = bq_client
     self.project_id = project_id
@@ -64,7 +59,6 @@ class ExperimentsGCSFuseBQ:
 
     Args:
       table_id (str): String representing the ID or name of the table
-
     Returns:
       google.cloud.bigquery.table.Table: The table in BigQuery
     """
@@ -74,7 +68,6 @@ class ExperimentsGCSFuseBQ:
 
   def _execute_query(self, query) -> QueryJob:
     """Executes the query in BigQuery and raises an exception if query
-
        execution could not be completed.
 
     Args:
@@ -102,12 +95,7 @@ class ExperimentsGCSFuseBQ:
       SELECT *
       FROM `{}.{}.{}`
       WHERE configuration_id = '{}'
-    """.format(
-        self.project_id,
-        self.dataset_id,
-        constants.CONFIGURATION_TABLE_ID,
-        exp_config_id,
-    )
+    """.format(self.project_id, self.dataset_id, constants.CONFIGURATION_TABLE_ID, exp_config_id)
 
     job = self._execute_query(query_check_if_config_valid)
     row_count = job.result().total_rows
@@ -115,18 +103,13 @@ class ExperimentsGCSFuseBQ:
       return True
     return False
 
-  def _delete_rows_incomplete_transaction(
-      self, table_id=None, config_id=None, start_time_build=None
-  ):
-    """Helper function for _insert_row.
-
-    If insertion of some nth row fails, this method deletes (n-1) rows that were
-    inserted before
+  def _delete_rows_incomplete_transaction(self, table_id = None, config_id = None, start_time_build = None):
+    """Helper function for _insert_row. If insertion of some nth row fails,
+    this method deletes (n-1) rows that were inserted before
 
     Args:
       table_id (str): ID of table to which results are being uploaded
-      config_id (str): config_id of the experiment for which results are being
-        uploaded
+      config_id (str): config_id of the experiment for which results are being uploaded
       start_time_build (timestamp): Start epoch time of the build
     """
     if config_id:
@@ -134,34 +117,18 @@ class ExperimentsGCSFuseBQ:
         DELETE FROM `{}.{}.{}`
         WHERE configuration_id = '{}'
         AND start_time_build = '{}'
-      """.format(
-          self.project_id,
-          self.dataset_id,
-          table_id,
-          config_id,
-          start_time_build,
-      )
+      """.format(self.project_id, self.dataset_id, table_id, config_id, start_time_build)
       job = self._execute_query(query_delete_if_row_exists)
 
-  def _insert_rows(
-      self,
-      table,
-      rows_to_insert,
-      table_id=None,
-      config_id=None,
-      start_time_build=None,
-  ):
-    """Insert rows in table.
-
-    If insertion of some nth row fails, delete (n-1) rows that were inserted
-    before and raise an exception
+  def _insert_rows(self, table, rows_to_insert, table_id = None, config_id = None, start_time_build = None):
+    """Insert rows in table. If insertion of some nth row fails, delete (n-1) rows
+    that were inserted before and raise an exception
 
     Args:
       table (str): Table in which rows are being inserted
       rows_to_insert (str): Rows to insert in the table
       table_id (str): ID of table to which results are being uploaded
-      config_id (str): config_id of the experiment for which results are being
-        uploaded
+      config_id (str): config_id of the experiment for which results are being uploaded
       start_time_build (timestamp): Start epoch time of the build
 
     Raises:
@@ -172,9 +139,7 @@ class ExperimentsGCSFuseBQ:
       if result:
         raise Exception(f'{result}')
     except Exception as e:
-      self._delete_rows_incomplete_transaction(
-          table_id, config_id, start_time_build
-      )
+      self._delete_rows_incomplete_transaction(table_id, config_id, start_time_build)
       raise Exception(f'Error inserting data to BigQuery table: {e}')
 
   def setup_dataset_and_tables(self):
@@ -184,7 +149,7 @@ class ExperimentsGCSFuseBQ:
       {constants.FIO_TABLE_ID}, {constants.VM_TABLE_ID} tables to store the metrics 
     """
     # Create dataset if not exists
-    dataset = cloud_bigquery.Dataset(f'{self.project_id}.{self.dataset_id}')
+    dataset = bigquery.Dataset(f"{self.project_id}.{self.dataset_id}")
     self.client.create_dataset(dataset, exists_ok=True)
     # Wait for the dataset to be created and ready to be referenced
     time.sleep(120)
@@ -200,9 +165,7 @@ class ExperimentsGCSFuseBQ:
         end_date TIMESTAMP,
         PRIMARY KEY (configuration_id) NOT ENFORCED
       ) OPTIONS (description = 'Table for storing Job Configurations and respective VM instance name on which the job was run');
-    """.format(
-        self.project_id, self.dataset_id, constants.CONFIGURATION_TABLE_ID
-    )
+    """.format(self.project_id, self.dataset_id, constants.CONFIGURATION_TABLE_ID)
 
     # Query for creating fio_metrics table
     query_create_table_fio_metrics = """
@@ -226,13 +189,7 @@ class ExperimentsGCSFuseBQ:
         percentile_latency_95 FLOAT64, 
         FOREIGN KEY(configuration_id) REFERENCES {}.{} (configuration_id) NOT ENFORCED
       ) OPTIONS (description = 'Table for storing FIO metrics extracted from experiments.');
-    """.format(
-        self.project_id,
-        self.dataset_id,
-        constants.FIO_TABLE_ID,
-        self.dataset_id,
-        constants.CONFIGURATION_TABLE_ID,
-    )
+    """.format(self.project_id, self.dataset_id, constants.FIO_TABLE_ID, self.dataset_id, constants.CONFIGURATION_TABLE_ID)
 
     # Query for creating vm_metrics table
     query_create_table_vm_metrics = """
@@ -249,13 +206,7 @@ class ExperimentsGCSFuseBQ:
         ops_mean_latency_sec FLOAT64, 
         FOREIGN KEY(configuration_id) REFERENCES {}.{} (configuration_id) NOT ENFORCED
       ) OPTIONS (description = 'Table for storing VM metrics extracted from experiments.');
-    """.format(
-        self.project_id,
-        self.dataset_id,
-        constants.VM_TABLE_ID,
-        self.dataset_id,
-        constants.CONFIGURATION_TABLE_ID,
-    )
+    """.format(self.project_id, self.dataset_id, constants.VM_TABLE_ID, self.dataset_id, constants.CONFIGURATION_TABLE_ID)
 
     # Query for creating ls_metrics table
     query_create_table_ls_metrics = """
@@ -284,40 +235,25 @@ class ExperimentsGCSFuseBQ:
         FOREIGN KEY(configuration_id) REFERENCES {}.{} (configuration_id) NOT ENFORCED
       ) OPTIONS (description = 'Table for storing GCSFUSE metrics extracted from list experiments.');
 
-    """.format(
-        self.project_id,
-        self.dataset_id,
-        constants.LS_TABLE_ID,
-        self.dataset_id,
-        constants.CONFIGURATION_TABLE_ID,
-    )
+    """.format(self.project_id, self.dataset_id, constants.LS_TABLE_ID, self.dataset_id, constants.CONFIGURATION_TABLE_ID)
 
     self._execute_query(query_create_table_experiment_configuration)
     self._execute_query(query_create_table_fio_metrics)
     self._execute_query(query_create_table_vm_metrics)
     self._execute_query(query_create_table_ls_metrics)
 
-  def get_experiment_configuration_id(
-      self,
-      gcsfuse_flags,
-      config_file_flags_as_json,
-      branch,
-      end_date,
-      config_name,
-  ) -> str:
-    """Gets the configuration ID of the experiment from experiment details
+  def get_experiment_configuration_id(self, gcsfuse_flags, config_file_flags_as_json, branch, end_date, config_name) -> str:
 
+    """Gets the configuration ID of the experiment from experiment details
        If experiment configuration exists: Check if end date needs update and
                                            then return the configuration ID
        Else: Insert new experiment configuration and return the configuration ID
 
     Args:
       gcsfuse_flags (str): Set of flags the gcsfuse flags used for experiment.
-      config_file_flags_as_json (str): Config file flag value that gcsfuse
-        --config-file flag used for experiment.
+      config_file_flags_as_json (str): Config file flag value that gcsfuse --config-file flag used for experiment.
       branch (str): GCSFuse repo branch used for building GCSFuse.
-      end_date (timestamp): Date till when experiments of this configuration are
-        run.
+      end_date (timestamp): Date till when experiments of this configuration are run.
                             Format: 'YYYY-MM-DD HH:MM:SS'
       config_name (str): Name of the experiment configuration.
 
@@ -329,34 +265,20 @@ class ExperimentsGCSFuseBQ:
       SELECT configuration_id, gcsfuse_flags, config_file_flags_as_json, branch, end_date
       FROM `{}.{}.{}`
       WHERE configuration_name = '{}'
-    """.format(
-        self.project_id,
-        self.dataset_id,
-        constants.CONFIGURATION_TABLE_ID,
-        config_name,
-    )
+    """.format(self.project_id, self.dataset_id, constants.CONFIGURATION_TABLE_ID, config_name)
 
     job = self._execute_query(query_check_config_name_exists)
     result_count = job.result().total_rows
 
     # If more than 1 result -> duplicate experiment configuration present -> throw error
     if result_count > 1:
-      raise Exception(
-          'Duplicate experiment configurations exist. Data corrupted'
-      )
+      raise Exception("Duplicate experiment configurations exist. Data corrupted")
 
     # If result empty, then experiment configuration not present -> insert new experiment configuration -> return configuration ID
     elif result_count == 0:
       table = self._get_table_from_table_id(constants.CONFIGURATION_TABLE_ID)
       uuid_str = str(uuid.uuid4())
-      rows_to_insert = [(
-          uuid_str,
-          config_name,
-          gcsfuse_flags,
-          config_file_flags_as_json,
-          branch,
-          end_date,
-      )]
+      rows_to_insert = [(uuid_str, config_name, gcsfuse_flags, config_file_flags_as_json, branch, end_date)]
       self._insert_rows(table, rows_to_insert)
       return uuid_str
 
@@ -364,13 +286,8 @@ class ExperimentsGCSFuseBQ:
     else:
       row = list(job)[0]
       # If the configuration name exists, but GCSFuse flags and branch don't match then raise an exception
-    if (row.get('gcsfuse_flags') != gcsfuse_flags) or (
-        row.get('branch') != branch
-    ):
-      raise Exception(
-          "Configuration name already exists. GCSFuse flags and branch don't"
-          ' match'
-      )
+    if (row.get('gcsfuse_flags') != gcsfuse_flags) or (row.get('branch') != branch):
+        raise Exception("Configuration name already exists. GCSFuse flags and branch don't match")
     config_id = row.get('configuration_id')
     # If the configuration name exists and GCSFuse flags and branch match, but end date does not match, then update end date
     if row.get('end_date') is not end_date:
@@ -378,49 +295,38 @@ class ExperimentsGCSFuseBQ:
         UPDATE `{}.{}.{}`
         SET end_date = '{}'
         WHERE configuration_id = '{}'
-      """.format(
-          self.project_id,
-          self.dataset_id,
-          constants.CONFIGURATION_TABLE_ID,
-          end_date,
-          config_id,
-      )
+      """.format(self.project_id, self.dataset_id, constants.CONFIGURATION_TABLE_ID, end_date, config_id)
       self._execute_query(query_update_end_date)
     return config_id
 
-  def upload_metrics_to_table(
-      self, table_id, config_id, start_time_build, metrics_data
-  ):
+  def upload_metrics_to_table(self, table_id, config_id, start_time_build, metrics_data):
+
     """Uploads metrics_data to the table corresponding to 'table_name'.
 
     Args:
       table_id (str): ID of table to which results are being uploaded
-      config_id (str): config_id of the experiment for which results are being
-        uploaded
+      config_id (str): config_id of the experiment for which results are being uploaded
       start_time_build (int): Start epoch time of the build
-      metrics_data (list): A 2D list containing the experiment results For
-        example: metrics data for fio jobs will look like: [['read', 40, 256,
-          1687928088, 1687928159, 27032.61141, 443600529, 26647527424,
-          0.000126831, 0.323205657, 0.09454765585, 0.08650752, 0.0917504,
-          0.106430464, 0.113770496], ['write', 40, 256, 1687928278, 1687928364,
-          87.361631, 1979988, 149176320, 0.032581924, 45.73434076, 20.26386098,
-          13.75731712, 17.11276032, 17.11276032, 17.11276032]]
+      metrics_data (list): A 2D list containing the experiment results
+                           For example: metrics data for fio jobs will look like:
+                           [['read', 40, 256, 1687928088, 1687928159, 27032.61141, 443600529,
+                           26647527424, 0.000126831, 0.323205657, 0.09454765585, 0.08650752,
+                           0.0917504, 0.106430464, 0.113770496],
+                           ['write', 40, 256, 1687928278, 1687928364, 87.361631, 1979988,
+                           149176320, 0.032581924, 45.73434076, 20.26386098, 13.75731712,
+                           17.11276032, 17.11276032, 17.11276032]]
     """
 
     # Check if the configuration ID of the experiment is valid
     config_valid = self._check_if_config_valid(config_id)
 
     if not config_valid:
-      raise Exception('Invalid configuration ID')
+      raise Exception("Invalid configuration ID")
 
     table = self._get_table_from_table_id(table_id)
 
     rows_to_insert = []
     for row in metrics_data:
-      rows_to_insert = rows_to_insert + [
-          (config_id, start_time_build) + tuple(row)
-      ]
+      rows_to_insert = rows_to_insert + [(config_id, start_time_build) + tuple(row)]
 
-    self._insert_rows(
-        table, rows_to_insert, table_id, config_id, start_time_build
-    )
+    self._insert_rows(table, rows_to_insert, table_id, config_id, start_time_build)
