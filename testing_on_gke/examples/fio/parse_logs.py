@@ -508,3 +508,22 @@ if __name__ == "__main__":
           bq_table_id=args.bq_table_id,
           experiment_id=args.experiment_id,
       )
+
+    """
+    # Export output dict to bigquery table.
+    if (
+        args.bq_project_id
+        and args.bq_project_id.strip()
+        and args.bq_dataset_id
+        and args.bq_dataset_id.strip()
+        and args.bq_table_id
+        and args.bq_table_id.strip()
+    ):
+      write_records_to_bq_table(
+          output=output,
+          bq_project_id=args.bq_project_id,
+          bq_dataset_id=args.bq_dataset_id,
+          bq_table_id=args.bq_table_id,
+          experiment_id=args.experiment_id,
+      )
+      """
