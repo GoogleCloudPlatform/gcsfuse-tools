@@ -121,9 +121,9 @@ trap cleanup EXIT
 echo "Creating GCS test data bucket: gs://${GCS_BUCKET_WITH_FIO_TEST_DATA} in region: ${REGION}"
 gcloud storage buckets create "gs://${GCS_BUCKET_WITH_FIO_TEST_DATA}" --project="${PROJECT_ID}" --location="${REGION}"
 
-# Clear the existing GCSFUSE_VERSION directory in the results bucket
-echo "Clearing previous data in gs://${RESULTS_BUCKET_NAME}/${GCSFUSE_VERSION}/..."
-gcloud storage rm -r "gs://${RESULTS_BUCKET_NAME}/${GCSFUSE_VERSION}/**" --quiet || true
+# Clear the existing GCSFUSE_VERSION directory in the results bucket for the machine-type
+echo "Clearing previous data in gs://${RESULTS_BUCKET_NAME}/${GCSFUSE_VERSION}/${MACHINE_TYPE}..."
+gcloud storage rm -r "gs://${RESULTS_BUCKET_NAME}/${GCSFUSE_VERSION}/${MACHINE_TYPE}/**" --quiet || true
 
 # Upload FIO job files to the results bucket for the VM to download
 echo "Uploading all .fio job files from local 'fio-job-files/' directory to gs://${RESULTS_BUCKET_NAME}/${GCSFUSE_VERSION}/fio-job-files/..."
@@ -170,15 +170,15 @@ gcloud compute instances create "${VM_NAME}" \
     --network-interface=network-tier=PREMIUM,nic-type=GVNIC \
     --scopes=https://www.googleapis.com/auth/cloud-platform,https://www.googleapis.com/auth/devstorage.read_write \
     --network-performance-configs=total-egress-bandwidth-tier=TIER_1 \
-    --metadata GCSFUSE_VERSION="${GCSFUSE_VERSION}",GCS_BUCKET_WITH_FIO_TEST_DATA="${GCS_BUCKET_WITH_FIO_TEST_DATA}",RESULTS_BUCKET_NAME="${RESULTS_BUCKET_NAME}",LSSD_ENABLED="${LSSD_ENABLED}" \
+    --metadata GCSFUSE_VERSION="${GCSFUSE_VERSION}", MACHINE_TYPE="${MACHINE_TYPE}", GCS_BUCKET_WITH_FIO_TEST_DATA="${GCS_BUCKET_WITH_FIO_TEST_DATA}",RESULTS_BUCKET_NAME="${RESULTS_BUCKET_NAME}",LSSD_ENABLED="${LSSD_ENABLED}" \
     --metadata-from-file=startup-script=starter-script.sh \
     ${VM_LOCAL_SSD_ARGS}
 echo "VM created. Benchmarks will run on the VM."
 
 echo "Waiting for benchmarks to complete on VM (polling for success.txt)..."
 
-SUCCESS_FILE_PATH="gs://${RESULTS_BUCKET_NAME}/${GCSFUSE_VERSION}/success.txt"
-LOG_FILE_PATH="gs://${RESULTS_BUCKET_NAME}/${GCSFUSE_VERSION}/benchmark_run.log"
+SUCCESS_FILE_PATH="gs://${RESULTS_BUCKET_NAME}/${GCSFUSE_VERSION}/${MACHINE_TYPE}/success.txt"
+LOG_FILE_PATH="gs://${RESULTS_BUCKET_NAME}/${GCSFUSE_VERSION}/${MACHINE_TYPE}/benchmark_run.log"
 SLEEP_TIME=300  # 5 minutes
 sleep "$SLEEP_TIME"
 #max 18 retries amounting to ~1hr30mins time
@@ -187,13 +187,13 @@ MAX_RETRIES=18
 for ((i=1; i<=MAX_RETRIES; i++)); do
     if gcloud storage objects describe "${SUCCESS_FILE_PATH}" &> /dev/null; then
         echo "Benchmarks completed. success.txt found."
-        echo "Results are available in gs://${RESULTS_BUCKET_NAME}/${GCSFUSE_VERSION}/"
+        echo "Results are available in gs://${RESULTS_BUCKET_NAME}/${GCSFUSE_VERSION}/${MACHINE_TYPE}/"
         echo "Benchmark log file: $LOG_FILE_PATH"
         exit 0
     fi
 
     # Check for early failure indicators
-    if gcloud storage objects describe "gs://${RESULTS_BUCKET_NAME}/${GCSFUSE_VERSION}/details.txt" &> /dev/null || \
+    if gcloud storage objects describe "gs://${RESULTS_BUCKET_NAME}/${GCSFUSE_VERSION}/${MACHINE_TYPE}/details.txt" &> /dev/null || \
        gcloud storage objects describe "$LOG_FILE_PATH" &> /dev/null; then
         echo "Benchmark log or details.txt found, but success.txt is missing. Possible error in benchmark execution."
         echo "Check logs at: $LOG_FILE_PATH"

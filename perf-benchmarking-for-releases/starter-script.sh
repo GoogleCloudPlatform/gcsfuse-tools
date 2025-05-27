@@ -81,6 +81,7 @@ echo "User: $(whoami)"
 
 # Fetch metadata parameters
 GCSFUSE_VERSION=$(curl -s "http://metadata.google.internal/computeMetadata/v1/instance/attributes/GCSFUSE_VERSION" -H "Metadata-Flavor: Google")
+MACHINE_TYPE=$(curl -s "http://metadata.google.internal/computeMetadata/v1/instance/attributes/MACHINE_TYPE" -H "Metadata-Flavor: Google")
 GCS_BUCKET_WITH_FIO_TEST_DATA=$(curl -s "http://metadata.google.internal/computeMetadata/v1/instance/attributes/GCS_BUCKET_WITH_FIO_TEST_DATA" -H "Metadata-Flavor: Google")
 RESULTS_BUCKET_NAME=$(curl -s "http://metadata.google.internal/computeMetadata/v1/instance/attributes/RESULTS_BUCKET_NAME" -H "Metadata-Flavor: Google")
 LSSD_ENABLED=$(curl -s "http://metadata.google.internal/computeMetadata/v1/instance/attributes/LSSD_ENABLED" -H "Metadata-Flavor: Google")
@@ -127,7 +128,7 @@ FIO_JOB_DIR="/tmp/fio_jobs"
 mkdir -p "$FIO_JOB_DIR"
 gcloud storage cp "gs://$RESULTS_BUCKET_NAME/$GCSFUSE_VERSION/fio-job-files/*.fio" "$FIO_JOB_DIR/"
 
-RESULT_PATH="gs://$RESULTS_BUCKET_NAME/$GCSFUSE_VERSION/"
+RESULT_PATH="gs://$RESULTS_BUCKET_NAME/$GCSFUSE_VERSION/$MACHINE_TYPE/"
 
 # Capture versions
 {
