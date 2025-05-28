@@ -75,22 +75,22 @@ def validate_fio_workload(workload: dict, name: str):
       )
       return False
   else:
-  for requiredAttribute, expectedType in {
-      'fileSize': str,
-      'blockSize': str,
-      'filesPerThread': int,
-      'numThreads': int,
-  }.items():
-    if requiredAttribute not in fioWorkload:
-      print(f'In {name}, fioWorkload does not have {requiredAttribute} in it')
-      return False
-    if not type(fioWorkload[requiredAttribute]) is expectedType:
-      print(
-          f'In {name}, fioWorkload[{requiredAttribute}] is of type'
-          f' {type(fioWorkload[requiredAttribute])}, expected:'
-          f' {expectedType} '
-      )
-      return False
+    for requiredAttribute, expectedType in {
+        'fileSize': str,
+        'blockSize': str,
+        'filesPerThread': int,
+        'numThreads': int,
+    }.items():
+      if requiredAttribute not in fioWorkload:
+        print(f'In {name}, fioWorkload does not have {requiredAttribute} in it')
+        return False
+      if not type(fioWorkload[requiredAttribute]) is expectedType:
+        print(
+            f'In {name}, fioWorkload[{requiredAttribute}] is of type'
+            f' {type(fioWorkload[requiredAttribute])}, expected:'
+            f' {expectedType} '
+        )
+        return False
 
   if 'readTypes' in fioWorkload:
     readTypes = fioWorkload['readTypes']
@@ -206,7 +206,7 @@ def parse_test_config_for_fio_workloads(fioTestConfigFile: str):
       if not validate_fio_workload(workload, f'workload#{i}'):
         print(f'workloads#{i} is not a valid FIO workload, so ignoring it.')
       else:
-          fioWorkload = workload['fioWorkload']
+        fioWorkload = workload['fioWorkload']
         fioWorkloadAttributes = dict()
         if 'jobFile' in fioWorkload:
           fioWorkloadAttributes['jobFile'] = fioWorkload['jobFile']
@@ -221,15 +221,15 @@ def parse_test_config_for_fio_workloads(fioTestConfigFile: str):
         for attr in ['bucket', 'gcsfuseMountOptions']:
           fioWorkloadAttributes[attr] = workload[attr]
         fioWorkloadAttributes['readTypes'] = (
-                      fioWorkload['readTypes']
-                      if 'readTypes' in fioWorkload
-                      else ['read', 'randread']
+            fioWorkload['readTypes']
+            if 'readTypes' in fioWorkload
+            else ['read', 'randread']
         )
         fioWorkloadAttributes['numEpochs'] = (
-                      workload['numEpochs']
-                      if 'numEpochs' in workload
-                      else DefaultNumEpochs
-          )
+            workload['numEpochs']
+            if 'numEpochs' in workload
+            else DefaultNumEpochs
+        )
         for scenario in scenarios:
           fioWorkloadAttributes['scenario'] = scenario
           fioWorkloads.append(FioWorkload(**fioWorkloadAttributes))
@@ -260,10 +260,10 @@ def FioChartNamePodName(
   )
   return (
       (
-      f'fio-load-{shortForScenario}-{shortForReadType}-{fioWorkload.fileSize.lower()}-{hashOfWorkload}',
-      f'fio-tester-{shortForScenario}-{shortForReadType}-{fioWorkload.fileSize.lower()}-{hashOfWorkload}',
-      f'{experimentID}/{fioWorkload.fileSize}-{fioWorkload.blockSize}-{fioWorkload.numThreads}-{fioWorkload.filesPerThread}-{hashOfWorkload}/{fioWorkload.scenario}/{readType}',
-  )
+          f'fio-load-{shortForScenario}-{shortForReadType}-{fioWorkload.fileSize.lower()}-{hashOfWorkload}',
+          f'fio-tester-{shortForScenario}-{shortForReadType}-{fioWorkload.fileSize.lower()}-{hashOfWorkload}',
+          f'{experimentID}/{fioWorkload.fileSize}-{fioWorkload.blockSize}-{fioWorkload.numThreads}-{fioWorkload.filesPerThread}-{hashOfWorkload}/{fioWorkload.scenario}/{readType}',
+      )
       if not fioWorkload.jobFile
       else (
           f'fio-load-{shortForScenario}-{shortForReadType}-{hashOfWorkload}',
