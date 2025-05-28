@@ -128,13 +128,13 @@ populate_column_from_read() {
     return 0
 }
 
-populate_column_from_read_clat_ns() {
+populate_column_from_read_lat_ns() {
     local file=$1
     local field_to_extract=$2
     local -n array_ref=$3
     array_ref=() # clear the array
     local jq_output
-    jq_output=$(jq -r --arg jq_field_name "$field_to_extract" '.jobs[]?.read.clat_ns[$jq_field_name]?' "$file")
+    jq_output=$(jq -r --arg jq_field_name "$field_to_extract" '.jobs[]?.read.lat_ns[$jq_field_name]?' "$file")
     while IFS= read -r value; do
         if [[ "$value" == "null" ]]; then
             # try getting from global options.
@@ -178,13 +178,13 @@ populate_column_from_write() {
     return 0
 }
 
-populate_column_from_write_clat_ns() {
+populate_column_from_write_lat_ns() {
     local file=$1
     local field_to_extract=$2
     local -n array_ref=$3
     array_ref=() # clear the array
     local jq_output
-    jq_output=$(jq -r --arg jq_field_name "$field_to_extract" '.jobs[]?.write.clat_ns[$jq_field_name]?' "$file")
+    jq_output=$(jq -r --arg jq_field_name "$field_to_extract" '.jobs[]?.write.lat_ns[$jq_field_name]?' "$file")
     while IFS= read -r value; do
         if [[ "$value" == "null" ]]; then
             # try getting from global options.
@@ -215,7 +215,7 @@ populate_all_columns_for_read() {
     populate_all_columns_common "$file"
     populate_column_from_read "$file" "bw_bytes" "bw_bytes"
     populate_column_from_read "$file" "iops" "iops"
-    populate_column_from_read_clat_ns "$file" "mean" "mean"
+    populate_column_from_read_lat_ns "$file" "mean" "mean"
 }
 
 populate_all_columns_for_write() {
@@ -223,7 +223,7 @@ populate_all_columns_for_write() {
     populate_all_columns_common "$file"
     populate_column_from_write "$file" "bw_bytes" "bw_bytes"
     populate_column_from_write "$file" "iops" "iops"
-    populate_column_from_write_clat_ns "$file" "mean" "mean"
+    populate_column_from_write_lat_ns "$file" "mean" "mean"
 }
 
 convert_to_gib() {
@@ -287,7 +287,5 @@ create_tables() {
 
 create_tables > "${TABLES_FILE}"
 
-cat "${TABLES_FILE}"
 # copy file to results bucket
-
 gcloud storage cp "${TABLES_FILE}" "gs://${RESULTS_BUCKET_NAME}/${GCSFUSE_VERSION}/${MACHINE_TYPE}/"
