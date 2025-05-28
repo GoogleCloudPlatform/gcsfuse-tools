@@ -183,7 +183,7 @@ create_table() {
     convert_slat_mean
     convert_clat_mean
     echo "| File Size | BlockSize | nrfiles | Bandwidth in (GiB/sec) | IOPs  |  slat (ms) | clat (ms) | lat (ms) |"
-    echo "|---|---|---|---|---|---|"
+    echo "|---|---|---|---|---|---|---|---|"
     for ((i = 0; i < ROW_COUNT; i++)); do
         echo "| ${filesize[i]} | ${bs[i]} | ${nrfiles[i]} | ${bw_bytes[i]} | ${iops[i]} | ${slat_mean[i]} | ${clat_mean[i]} | ${lat_mean[i]} |"
     done
