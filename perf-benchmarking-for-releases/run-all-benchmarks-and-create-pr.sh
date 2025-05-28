@@ -34,10 +34,10 @@ TMP_DIR=$(mktemp -d -t update_benchmarks.XXXXXX)
 
 benchmark_pids=()
 # Benchmark 1
-bash run-benchmarks.sh "$GCSFUSE_VERSION" gcs-fuse-test us-south1 c4-standard-96 ubuntu-2004-lts ubuntu-os-cloud &
+bash run-benchmarks.sh "$GCSFUSE_VERSION" gcs-fuse-test us-south1 c4-standard-96 ubuntu-2004-lts ubuntu-os-cloud >"${GCSFUSE_VERSION}-c4" 2>&1 &
 benchmark_pids+=($!)
 # Benchmark 2
-bash run-benchmarks.sh "$GCSFUSE_VERSION" gcs-fuse-test us-south1 n2-standard-96 ubuntu-2004-lts ubuntu-os-cloud &
+bash run-benchmarks.sh "$GCSFUSE_VERSION" gcs-fuse-test us-south1 n2-standard-96 ubuntu-2004-lts ubuntu-os-cloud >"${GCSFUSE_VERSION}-n2" 2>&1 &
 benchmark_pids+=($!)
 
 for pid in "${benchmark_pids[@]}"; do

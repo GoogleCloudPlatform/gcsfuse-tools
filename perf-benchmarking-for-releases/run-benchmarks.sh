@@ -101,7 +101,7 @@ cleanup() {
     # Delete GCS bucket with test data if it exists
     if gcloud storage buckets list --project="${PROJECT_ID}" --filter="name:(${GCS_BUCKET_WITH_FIO_TEST_DATA})" --format="value(name)" | grep -q "^${GCS_BUCKET_WITH_FIO_TEST_DATA}$"; then
         echo "Deleting GCS bucket: ${GCS_BUCKET_WITH_FIO_TEST_DATA}"
-        gcloud storage rm -r "gs://${GCS_BUCKET_WITH_FIO_TEST_DATA}" -q >/dev/null
+        gcloud storage rm -r "gs://${GCS_BUCKET_WITH_FIO_TEST_DATA}" > /dev/null 2>&1
     else
         echo "Bucket '${GCS_BUCKET_WITH_FIO_TEST_DATA}' not found; skipping deletion."
     fi
@@ -119,7 +119,7 @@ gcloud storage buckets create "gs://${GCS_BUCKET_WITH_FIO_TEST_DATA}" --project=
 
 # Clear the existing GCSFUSE_VERSION directory in the results bucket for the machine-type
 echo "Clearing previous data in gs://${RESULTS_BUCKET_NAME}/${GCSFUSE_VERSION}/${MACHINE_TYPE}..."
-gcloud storage rm -r "gs://${RESULTS_BUCKET_NAME}/${GCSFUSE_VERSION}/${MACHINE_TYPE}/**" --quiet || true
+gcloud storage rm -r "gs://${RESULTS_BUCKET_NAME}/${GCSFUSE_VERSION}/${MACHINE_TYPE}/**" --quiet > /dev/null 2>&1 || true
 
 # Upload FIO job files to the results bucket for the VM to download
 echo "Uploading all .fio job files from local 'fio-job-files/' directory to gs://${RESULTS_BUCKET_NAME}/${GCSFUSE_VERSION}/fio-job-files/..."
