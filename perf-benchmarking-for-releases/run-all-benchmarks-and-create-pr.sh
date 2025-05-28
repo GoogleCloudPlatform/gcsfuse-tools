@@ -132,10 +132,10 @@ update_benchmarks_based_on_markers() {
 
     # 2. The start marker itself
     echo "$start_marker" >>"$temp_file"
-
+    echo "" >> "$temp_file"
     # 3. Content from the source file
     cat "$source_file" >>"$temp_file"
-
+    echo "" >> "$temp_file"
     # 4. The end marker itself
     echo "$end_marker" >>"$temp_file"
 
@@ -186,8 +186,8 @@ git checkout -b "$BRANCH_TO_UPDATE_RESULTS_FROM" || {
 }
 GCSFUSE_VERSION_LINE_PREFIX="* GCSFuse version:"
 GCSFUSE_VERSION_LINE_UPDATED="* GCSFuse version: ${GCSFUSE_VERSION}"
-BENCHMARKS_START_MARKER="to GCS on close/fsync."
-BENCHMARKS_END_MARKER="## Steps to benchmark GCSFuse performance"
+BENCHMARKS_START_MARKER="<!-- Benchmarks start -->"
+BENCHMARKS_END_MARKER="<!-- Benchmarks end -->"
 update_benchmarks_based_on_markers "$CLONE_DIR/docs/benchmarks.md" "${TMP_DIR}/benchmarks.md" "$BENCHMARKS_START_MARKER" "$BENCHMARKS_END_MARKER"
 sed -i "/^${GCSFUSE_VERSION_LINE_PREFIX}/c${GCSFUSE_VERSION_LINE_UPDATED}" "docs/benchmarks.md"
 git add .
