@@ -16,7 +16,7 @@
 """This file defines unit tests for functionalities in fio_workload.py"""
 
 import unittest
-from fio_workload import FioWorkload, validate_fio_workload
+from fio_workload import FioWorkload, _serialize_job_file_content, validate_fio_workload
 
 
 class FioWorkloadTest(unittest.TestCase):
@@ -406,6 +406,46 @@ class FioWorkloadTest(unittest.TestCase):
         "gcsfuseMountOptions": "implicit-dirs,cache-max-size:-1",
     })
     self.assertTrue(validate_fio_workload(workload, "valid-fio-workload-2"))
+
+  def test_serialize_job_file_content(self):
+    cases = [
+        {"rawContent": "", "expectedSerializedContent": ""},
+        {
+            "rawContent": r"""[global]
+file_size=${FILE_SIZE}
+bs=64K
+
+[Workload]
+rw=randread
+directory=${DIR}
+""",
+            "expectedSerializedContent": (
+                r"[global];file_size=\\\${FILE_SIZE};bs=64K;;[Workload];rw=randread;directory=\\\${DIR};"
+            ),
+        },
+    ]
+    for case in cases:
+      self.assertEqual(
+          _serialize_job_file_content(case["rawContent"]),
+          case["expectedSerializedContent"],
+      )
+
+  def test_serialize_job_file_content_failed(self):
+    cases = [
+        {"rawContent": r"""[global]
+# This is a comment, which will make this testcase fail.
+file_size=${FILE_SIZE}
+bs=64K
+[Workload]
+rw=randread
+directory=${DIR}
+"""},
+    ]
+    for case in cases:
+      with self.assertRaisesRegex(
+          Exception, "input string has unsupported character"
+      ):
+        _serialize_job_file_content(case["rawContent"])
 
 
 if __name__ == "__main__":
