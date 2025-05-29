@@ -171,12 +171,11 @@ def _serialize_job_file_content(jobFileRawContent: str) -> str:
   # helm and shell evaluating them.
   # One backslash is needed to avoid the shell evaluating these constants.
   # Then two more backslashes are needed to avoid the helm install command
-  # evaluating added backslash and the slash itself.
+  # evaluating original added backslash and the backslash added to escape it.
   # As an example, helm install ... --set jobFileContent="filesize=\\\$FILESIZE",
   # get passed down to pod config as variable jobFileContent with value
   # "\$FILESIZE". This when dumped by shell into a file becomes
   # "filesize=$FILESIZE" which is the intended original config.
-  # TODO: handle it through a utility function.
   jobFileContent = jobFileContent.replace('$', r'\\\$')
 
   return jobFileContent
