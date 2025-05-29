@@ -53,6 +53,8 @@ def createHelmInstallCommands(
 
   # Internal function to keep reusable logic
   # scoped to this function.
+  # This create a full helm install command string
+  # for a given FIO workload given the various variable parameters.
   def _create_helm_command(
       chartName: str,
       podName: str,
