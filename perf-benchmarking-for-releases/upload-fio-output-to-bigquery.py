@@ -12,6 +12,22 @@ parser.add_argument("--table-id", default="fio_benchmarks", help="BigQuery table
 
 args = parser.parse_args()
 
+import requests
+
+def fetch_metadata(attribute):
+    url = f"http://metadata.google.internal/computeMetadata/v1/instance/attributes/{attribute}"
+    headers = {"Metadata-Flavor": "Google"}
+    try:
+        response = requests.get(url, headers=headers, timeout=5)
+        response.raise_for_status()
+        return response.text
+    except Exception as e:
+        print(f"Failed to fetch metadata attribute '{attribute}': {e}")
+        return "unknown"
+
+machine_type = fetch_metadata("MACHINE_TYPE")
+gcsfuse_version = fetch_metadata("GCSFUSE_VERSION")
+
 # Load the results file
 with open(args.result_file) as f:
     try:
@@ -36,6 +52,8 @@ except Exception:
 # Create table if it doesn't exist
 schema = [
     bigquery.SchemaField("job_name", "STRING"),
+    bigquery.SchemaField("gcsfuse_version", "STRING"),
+    bigquery.SchemaField("machine_type", "STRING"),
     bigquery.SchemaField("start_time", "TIMESTAMP"),
     bigquery.SchemaField("file_size", "STRING"),
     bigquery.SchemaField("block_size", "STRING"),
@@ -43,7 +61,7 @@ schema = [
     bigquery.SchemaField("read_bandwidth_MiBps", "FLOAT"),
     bigquery.SchemaField("write_bandwidth_MiBps", "FLOAT"),
     bigquery.SchemaField("IOPS", "FLOAT"),
-    bigquery.SchemaField("duration_seconds", "FLOAT"),
+    bigquery.SchemaField("avg_latency_ms", "FLOAT"),
 ]
 
 try:
@@ -59,23 +77,37 @@ start_time = datetime.datetime.utcfromtimestamp(data.get("timestamp", 0)).isofor
 rows = []
 for job in data.get("jobs", []):
     jobname = job.get("jobname")
-    # Correctly access job options using .get() for nested keys
     job_options = job.get("job options", {})
 
-    # Use get with a default value for each option and handle string conversion
-    file_size = job_options.get("filesize", data.get("global options",{}).get("filesize", "unknown"))
-    block_size = job_options.get("bs", data.get("global options",{}).get("bs", "unknown"))
-    
-    # Convert nrfiles to int, handle missing values and potential string values
-    nrfiles_str = job_options.get("nrfiles", data.get("global options",{}).get("nrfiles"))
+    file_size = job_options.get("filesize", data.get("global options", {}).get("filesize", "unknown"))
+    block_size = job_options.get("bs", data.get("global options", {}).get("bs", "unknown"))
+
+    nrfiles_str = job_options.get("nrfiles", data.get("global options", {}).get("nrfiles"))
     nrfiles = int(nrfiles_str) if nrfiles_str and isinstance(nrfiles_str, str) and nrfiles_str.isdigit() else 0
 
-    read_bw = job.get("read", {}).get("bw_bytes", 0) / (1024 * 1024)
-    write_bw = job.get("write", {}).get("bw_bytes", 0) / (1024 * 1024)
-    iops = job.get("read", {}).get("iops", 0.0) + job.get("write", {}).get("iops", 0.0)
+    read = job.get("read", {})
+    write = job.get("write", {})
+
+    read_bw = read.get("bw_bytes", 0) / (1024 * 1024)
+    write_bw = write.get("bw_bytes", 0) / (1024 * 1024)
+    iops = read.get("iops", 0.0) + write.get("iops", 0.0)
+
+    read_lat_ns = read.get("lat_ns", {}).get("mean")
+    write_lat_ns = write.get("lat_ns", {}).get("mean")
+
+    if read_lat_ns is not None and write_lat_ns is not None:
+        avg_latency_ms = ((read_lat_ns + write_lat_ns) / 2) / 1_000_000
+    elif read_lat_ns is not None:
+        avg_latency_ms = read_lat_ns / 1_000_000
+    elif write_lat_ns is not None:
+        avg_latency_ms = write_lat_ns / 1_000_000
+    else:
+        avg_latency_ms = 0.0
 
     rows.append({
         "job_name": jobname,
+        "gcsfuse_version": gcsfuse_version,
+        "machine_type": machine_type,
         "start_time": start_time,
         "file_size": file_size,
         "block_size": block_size,
@@ -83,7 +115,7 @@ for job in data.get("jobs", []):
         "read_bandwidth_MiBps": read_bw,
         "write_bandwidth_MiBps": write_bw,
         "IOPS": iops,
-        "duration_seconds": job.get("job_runtime", 0) / 1000,
+        "avg_latency_ms": avg_latency_ms,
     })
 
 # Insert rows

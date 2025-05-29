@@ -93,7 +93,7 @@ cleanup() {
     # Delete VM if it exists
     if gcloud compute instances describe "${VM_NAME}" --zone="${VM_ZONE}" --project="${PROJECT_ID}" >/dev/null 2>&1; then
         echo "Deleting VM: ${VM_NAME}"
-        gcloud compute instances delete "${VM_NAME}" --zone="${VM_ZONE}" --project="${PROJECT_ID}" --delete-disks=all -q >/dev/null
+        gcloud compute instances delete "${VM_NAME}" --zone="${VM_ZONE}" --project="${PROJECT_ID}" --delete-disks=all -q >/dev/null 2>&1
     else
         echo "VM '${VM_NAME}' not found; skipping deletion."
     fi
@@ -101,7 +101,7 @@ cleanup() {
     # Delete GCS bucket with test data if it exists
     if gcloud storage buckets list --project="${PROJECT_ID}" --filter="name:(${GCS_BUCKET_WITH_FIO_TEST_DATA})" --format="value(name)" | grep -q "^${GCS_BUCKET_WITH_FIO_TEST_DATA}$"; then
         echo "Deleting GCS bucket: ${GCS_BUCKET_WITH_FIO_TEST_DATA}"
-        gcloud storage rm -r "gs://${GCS_BUCKET_WITH_FIO_TEST_DATA}" -q >/dev/null
+        gcloud storage rm -r "gs://${GCS_BUCKET_WITH_FIO_TEST_DATA}" -q >/dev/null 2>&1
     else
         echo "Bucket '${GCS_BUCKET_WITH_FIO_TEST_DATA}' not found; skipping deletion."
     fi
@@ -166,7 +166,7 @@ gcloud compute instances create "${VM_NAME}" \
     --network-interface=network-tier=PREMIUM,nic-type=GVNIC \
     --scopes=https://www.googleapis.com/auth/cloud-platform,https://www.googleapis.com/auth/devstorage.read_write \
     --network-performance-configs=total-egress-bandwidth-tier=TIER_1 \
-    --metadata GCSFUSE_VERSION="${GCSFUSE_VERSION}",GCS_BUCKET_WITH_FIO_TEST_DATA="${GCS_BUCKET_WITH_FIO_TEST_DATA}",RESULTS_BUCKET_NAME="${RESULTS_BUCKET_NAME}",LSSD_ENABLED="${LSSD_ENABLED}" \
+    --metadata GCSFUSE_VERSION="${GCSFUSE_VERSION}",GCS_BUCKET_WITH_FIO_TEST_DATA="${GCS_BUCKET_WITH_FIO_TEST_DATA}",RESULTS_BUCKET_NAME="${RESULTS_BUCKET_NAME}",LSSD_ENABLED="${LSSD_ENABLED}",MACHINE_TYPE="${MACHINE_TYPE}" \
     --metadata-from-file=startup-script=starter-script.sh \
     ${VM_LOCAL_SSD_ARGS}
 echo "VM created. Benchmarks will run on the VM."
