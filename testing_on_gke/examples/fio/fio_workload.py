@@ -25,7 +25,20 @@ DefaultNumEpochs = 4
 
 
 def validate_fio_workload(workload: dict, name: str):
-  """Validates the given json workload object."""
+  """Validates the given json workload object for a FIO workload.
+
+  It confirms that the passed workload object has a dict as value for key
+  'fioWorkload'. The workload object should also This fioWorkload dict should
+  either have (a) the key 'jobFile' or (b) keys 'fileSize', 'blockSize',
+  'numThreads',
+  'filesPerThread' etc, or both (a) and (b). If 'jobFile' is specified, then the
+  values of fileSize etc are ignored. The function also does checks on the types
+  and the
+  values of all these fields.
+  It also confirms that the passed workload object has strings as values for
+  keys 'gcsfuseMountOptions', and 'bucket', and optionally an integer value for
+  key 'numEpochs'.
+  """
   for requiredWorkloadAttribute, expectedType in {
       'bucket': str,
       'gcsfuseMountOptions': str,
@@ -147,9 +160,9 @@ class FioWorkload:
   "implicit-dirs,file_mode=777,file-cache:enable-parallel-downloads:true,metadata-cache:ttl-secs:true".
   9. numEpochs: Number of runs of the fio workload. Default is DefaultNumEpochs
   if missing.
-  10. jobFile: The path of a FIO job-file . When this is specified, it will
-  override the values of
-  fileSize, blockSize, filesPerThreads, numThreads, readTypes.
+  10. jobFile: The path of a FIO job-file . When jobFile is specified, the
+  values of
+  fileSize, blockSize, filesPerThreads, numThreads will not be used.
   """
 
   def __init__(
