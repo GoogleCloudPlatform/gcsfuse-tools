@@ -158,8 +158,7 @@ def _serialize_job_file_content(jobFileRawContent: str) -> str:
   for unsupportedChar in UnsupportedCharsInFIOJobFile:
     if unsupportedChar in jobFileRawContent:
       raise Exception(
-          f'FIO jobFile {jobFile} has unsupported character'
-          f' "{unsupportedChar}".'
+          f'input string has unsupported character "{unsupportedChar}".'
       )
 
   jobFileContent = jobFileRawContent.replace(
