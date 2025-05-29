@@ -67,7 +67,6 @@ gcloud storage cp "gs://gcsfuse-release-benchmarks-results/${GCSFUSE_VERSION}/n2
 cat "${TMP_DIR}/c4-standard-96/tables.md" >>"${TMP_DIR}/benchmarks.md"
 echo " " >>"${TMP_DIR}/benchmarks.md"
 cat "${TMP_DIR}/n2-standard-96/tables.md" >>"${TMP_DIR}/benchmarks.md"
-
 # Helper method to update the benchmark file section based on markers with given file.
 update_benchmarks_based_on_markers() {
     local target_file="$1"

@@ -32,12 +32,18 @@ fi
 # Install common dependencies before adding starterscriptuser
 if [[ "$OS_FAMILY" == "debian_ubuntu" ]]; then
     sudo apt-get update
-    sudo apt-get install -y git fio libaio1 libaio-dev gcc make mdadm build-essential python3-setuptools python3-crcmod fuse
+    sudo apt-get install -y git libaio1 libaio-dev gcc make mdadm build-essential python3-setuptools python3-crcmod fuse
 elif [[ "$OS_FAMILY" == "rhel_centos" ]]; then
     sudo yum makecache
-    sudo yum -y install git fio fuse libaio libaio-devel gcc make mdadm redhat-rpm-config python3-devel python3-setuptools python3-pip
+    sudo yum -y install git fuse libaio libaio-devel gcc make mdadm redhat-rpm-config python3-devel python3-setuptools python3-pip
     pip3 install crcmod
 fi
+
+# Install fio-3.39
+git clone -b fio-3.39 https://github.com/axboe/fio.git
+cd fio
+./configure && sudo make && sudo make install
+cd ..
 
 # Add starterscriptuser based on OS type
 if ! id "starterscriptuser" &>/dev/null; then

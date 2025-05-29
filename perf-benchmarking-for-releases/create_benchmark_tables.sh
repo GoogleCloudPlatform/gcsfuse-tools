@@ -65,7 +65,7 @@ WRITE_RES="${TMP_DIR}/${WRITE_RES_BASENAME}"
 
 # Global arrays for storing column data
 ROW_COUNT=0
-declare -a filesize bw_bytes nrfiles iops lat_mean slat_mean clat_mean bs
+declare -a filesize bw_bytes nrfiles iops lat_mean bs
 
 # Helper methods
 # Get size of jobs
@@ -121,8 +121,6 @@ populate_all_columns() {
     local file="$1"
     local op_type="$2" # "read" or "write"
     local lat_ns_op_type="${op_type}.lat_ns" # "read.lat_ns" or "write.lat_ns"
-    local clat_ns_op_type="${op_type}.clat_ns"
-    local slat_ns_op_type="${op_type}.slat_ns"
 
     populate_array_from_jq "$file" '.jobs[]?."job options"' '."global options"' "bs" "bs"
     populate_array_from_jq "$file" '.jobs[]?."job options"' '."global options"' "filesize" "filesize"
@@ -131,15 +129,14 @@ populate_all_columns() {
     populate_array_from_jq "$file" ".jobs[]?.$op_type" '."global options"' "bw_bytes" "bw_bytes"
     populate_array_from_jq "$file" ".jobs[]?.$op_type" '."global options"' "iops" "iops"
     populate_array_from_jq "$file" ".jobs[]?.$lat_ns_op_type" '."global options"' "mean" "lat_mean"
-    populate_array_from_jq "$file" ".jobs[]?.$clat_ns_op_type" '."global options"' "mean" "clat_mean"
-    populate_array_from_jq "$file" ".jobs[]?.$slat_ns_op_type" '."global options"' "mean" "slat_mean"
 }
 
-
-convert_bytes_to_gib() {
+declare -A bytes_in=( [MB]="1000000" [GB]="1000000000" )
+convert_bytes_to() {
+    local division="${bytes_in[$1]}"
     local precision=3
     for ((i = 0; i < ROW_COUNT; i++)); do
-        bw_bytes[i]=$(awk -v prec="$precision" -v bval="${bw_bytes[i]}" 'BEGIN { printf "%.*f\n", prec, bval / 1073741824 }')
+        bw_bytes[i]=$(awk -v prec="$precision" -v div="$division" -v bval="${bw_bytes[i]}" 'BEGIN { printf "%.*f\n", prec, bval / div }')
     done
 }
 
@@ -161,19 +158,18 @@ create_table() {
     local table_name="$1"
     local file="$2"
     local workflow_type="$3" # "read" or "write"
+    local bw_in="$4"
     echo "### $table_name"
     ROW_COUNT=$(job_count "$file")
     populate_all_columns "$file" "$workflow_type"
-    convert_bytes_to_gib
+    convert_bytes_to "${bw_in}"
     format_iops_to_kilo
-    convert_lat_mean_ns_to_ms "slat_mean"
-    convert_lat_mean_ns_to_ms "clat_mean"
     convert_lat_mean_ns_to_ms "lat_mean"
 
-    echo "| File Size | BlockSize | nrfiles | Bandwidth in (GiB/sec) | IOPs | slat mean | clat mean | lat mean |"
+    echo "| File Size | BlockSize | nrfiles | Bandwidth in (${bw_in}/sec) | IOPs | IOPs Avg Latency (ms) |"
     echo "|---|---|---|---|---|---|---|---|"
     for ((i = 0; i < ROW_COUNT; i++)); do
-        echo "| ${filesize[i]} | ${bs[i]} | ${nrfiles[i]} | ${bw_bytes[i]} | ${iops[i]} | ${slat_mean[i]} | ${clat_mean[i]} | ${lat_mean[i]} |"
+        echo "| ${filesize[i]} | ${bs[i]} | ${nrfiles[i]} | ${bw_bytes[i]} | ${iops[i]} | ${lat_mean[i]} |"
     done
     echo ""
 }
@@ -186,9 +182,9 @@ create_tables_markdown_content() {
     echo "* Disk Type: ${DISK_TYPE}"
     echo "* GCS Bucket location: ${REGION}"
     echo ""
-    create_table "Sequential Reads" "$SEQ_READ_RES" "read"
-    create_table "Random Reads" "$RANDOM_READ_RES" "read"
-    create_table "Sequential Writes" "$WRITE_RES" "write"
+    create_table "Sequential Reads" "$SEQ_READ_RES" "read" "GB"
+    create_table "Random Reads" "$RANDOM_READ_RES" "read" "MB"
+    create_table "Sequential Writes" "$WRITE_RES" "write" "MB"
 }
 
 create_tables_markdown_content > "${TABLES_FILE}"
