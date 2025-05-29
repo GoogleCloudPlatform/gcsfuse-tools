@@ -9,11 +9,12 @@
           "_description": "This is a dummy fio workload (missing the 'fioWorkload' field), purely standing as a header and does not execute any workload. For it to execute a fio workload, it must have a valid 'fioWorkload', a valid 'bucket' attribute, and a valid gcsfuseMountOption attribute.",
           "_fioWorkload": {
             "_description": "Every fioWorkload must have fileSize, filesPerThread, numThreads, and blockSize fields. readTypes is an array of string values 'read' and 'randread'. If readTypes is missing, then it defaults to [\"read\",\"randread\"].",
-            "fileSize": "64k",
+            "fileSize": "This should be a string without spaces, representing file-size such as 10, 64K, 1M, 10G etc.",
             "filesPerThread": 20000,
             "numThreads": 50,
-            "blockSize": "64K",
-            "readTypes": ["read","randread"]
+            "blockSize": "This should be a string without spaces, representing block-size such as 10, 64K, 1M etc.",
+            "readTypes": ["read","randread"],
+            "jobFile": "Path to a FIO jobfile, either a GCS object path such as gs://<bucket>/<object-name> or a local file path e.g. /home/<user>/path/to/a/fio/job/file . When jobFile is set, then the values of fileSize, blockSize, numThreads, filesPerThread, numThreads, readTypes are ignored, and their values are used based on the values in the job-file. In case of a local-file-path, the file is serialized and passed through helm and then through a GKE pod configuration yaml, it is serialized by converting all newlines i.e. \\n to semicolons i.e. ';' and this serialized string is then used in the GKE pod. For this to work, the local FIO job-file should not contain any spaces, tabs, semicolons in it, otherwise the tool will fail."
           },
           "gcsfuseMountOptions": "GCSFuse mount-options, in a compact stringified format, to be used for the test scenario gcsfuse-generic. The individual config/cli flag values should be separated by comma. Each cli flag should be of the form <flag>[=<value>], while each config-file flag should be of form <config>[:<subconfig>[:<subsubconfig>[...]]]:<value>. For example, a legal value would be: implicit-dirs,file_mode=777,file-cache:enable-parallel-downloads:true,metadata-cache:ttl-secs:-1 .",
           "numEpochs": "Optional integer value > 0, default = 4.",
@@ -21,7 +22,7 @@
         },
         {
           "fioWorkload": {
-            "fileSize": "64k",
+            "fileSize": "64K",
             "filesPerThread": 20000,
             "numThreads": 50,
             "blockSize": "64K",
