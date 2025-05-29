@@ -1,8 +1,6 @@
 {
-  "_comment": "_ in the starting of element name indicates comment.",
   "TestConfig": {
     "workloadConfig": {
-      "_description": "workloadConfig has an optional field runOnSSD (default true if missing), and an array of workloads.",
       "runOnSSD": false,
       "workloads": [
         {
@@ -31,9 +29,7 @@
             "batchSizes": [200]
           },
           "gcsfuseMountOptions": "implicit-dirs,metadata-cache:ttl-secs:-1,metadata-cache:type-cache-max-size-mb:-1,metadata-cache:stat-cache-max-size-mb:-1,file-cache:max-size-mb:-1,file-cache:cache-file-for-range-read:true,file-cache:enable-parallel-downloads:true",
-          "bucket":"dlio-unet3d-3mb-100k-us-west1",
-          "_bucket_alt2":"dlio-unet3d-3mb-100k-us-central1",
-          "_bucket_alt3":"gke-dlio-unet3d-3mb-100k"
+          "bucket":"dlio-unet3d-3mb-100k-us-west1"
         }
       ]
     }
