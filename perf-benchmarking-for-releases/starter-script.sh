@@ -166,11 +166,11 @@ if [[ "$LSSD_ENABLED" == "true" ]]; then
     }
 fi
 
-# Mount GCS bucket using gcsfuse
+# Mount dir for gcsfuse
 mkdir -p "$MNT"
-"$GCSFUSE_BIN" --implicit-dirs "$GCS_BUCKET_WITH_FIO_TEST_DATA" "$MNT"
-
 for fio_job_file in "$FIO_JOB_DIR"/*.fio; do
+    echo "Mounting GCSFuse for fio-job: ${fio_job_file}"
+    "$GCSFUSE_BIN" --implicit-dirs "$GCS_BUCKET_WITH_FIO_TEST_DATA" "$MNT"
     job_name=$(basename "$fio_job_file" .fio) # e.g., random-read-workload
 
     [[ "$LSSD_ENABLED" == "true" ]] && reformat_and_remount_lssd
@@ -185,6 +185,9 @@ for fio_job_file in "$FIO_JOB_DIR"/*.fio; do
     gcloud storage cp "$RESULT_FILE" "$RESULT_PATH"
         
     rm -f "$RESULT_FILE" # Clean up local files
+    # Unmount GCSFuse
+    echo "Unmounting GCSFuse"
+    sudo umount "$MNT"
 done
 
 # All tests ran successfully; create a success.txt file in GCS
