@@ -18,7 +18,7 @@
 set -xeuo pipefail
 
 # Script Documentation
-if [ "$#" -ne 1 ]; then
+if [ "$#" -gt 2 ]; then
     echo "Usage: $0 <GCSFUSE_VERSION> [RERUN]"
     echo ""
     echo "RERUN: is optional argument true or false, if true it reruns benchmarks even if the benchmarks exists from previous runs (Default:false)"
