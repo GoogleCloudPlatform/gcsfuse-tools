@@ -18,7 +18,7 @@
 # This is a stand-alone script, and can be invoked directly by a user.
 # It takes in parameters through environment variables. For learning about them, run this script with `--help` argument.
 # For debugging, pass argument `--debug` which will print all the shell commands that runs.
-# It fetches GCSFuse and GKE GCSFuse CSI driver code from github, if you don't provide it pre-existing clones of them.
+# It fetches gcsfuse, gcsfuse-tools and GKE GCSFuse CSI driver (gcs-fuse-csi-driver) code from github, if you don't provide it pre-existing clones of them.
 # It installs all the necessary dependencies on its own.
 # It creates a GKE cluster and other GCP resources (as needed), based on a number of configuration parameters e.g. gcp-project-name/number, cluster-name, zone (for resource location), machine-type (of node), number of local SSDs.
 # It creates fio/dlio tests as helm charts, based on the provided JSON workload configuration file and deploys them on the GKE cluster.
@@ -53,17 +53,20 @@ readonly DEFAULT_APPNAMESPACE=default
 readonly DEFAULT_KSA=default
 readonly DEFAULT_USE_CUSTOM_CSI_DRIVER=true
 readonly DEFAULT_CUSTOM_CSI_DRIVER=
-# GCSFuse/GKE GCSFuse CSI Driver source code related
+# GCSFuse tools/GKE GCSFuse CSI Driver source code related
 readonly DEFAULT_SRC_DIR="$(realpath .)/src"
 readonly csi_driver_github_path=https://github.com/googlecloudplatform/gcs-fuse-csi-driver
 readonly csi_driver_branch=main
 readonly gcsfuse_tools_github_path=https://github.com/googlecloudplatform/gcsfuse-tools
-readonly DEFAULT_GCSFUSE_BRANCH=garnitin/add-gke-load-testing/v1
+readonly DEFAULT_GCSFUSE_TOOLS_BRANCH=main
+readonly gcsfuse_github_path=https://github.com/googlecloudplatform/gcsfuse
+readonly DEFAULT_GCSFUSE_BRANCH=master
 # Test runtime configuration
 # 5 minutes
 readonly DEFAULT_POD_WAIT_TIME_IN_SECONDS=300
 # 1 week
 readonly DEFAULT_POD_TIMEOUT_IN_SECONDS=604800
+readonly DEFAULT_FORCE_UPDATE_GCSFUSE_TOOLS_CODE=false
 readonly DEFAULT_FORCE_UPDATE_GCSFUSE_CODE=false
 readonly DEFAULT_ZONAL=false
 
@@ -122,9 +125,11 @@ function printHelp() {
   echo "custom_csi_driver=<string representing the full path of the csi-driver image hash e.g. gcr.io/<registry-name>:<hash>, default=\"${DEFAULT_CUSTOM_CSI_DRIVER}\". If it is non-empty, then use_custom_csi_driver is assumed true, but a custom driver is not built and the given custom csi driver is used instead. >"
   echo "use_custom_csi_driver=<true|false, true means build and use a new custom csi driver using gcsfuse code, default=\"${DEFAULT_USE_CUSTOM_CSI_DRIVER}\">"
   # GCSFuse/GKE GCSFuse CSI Driver source code related
-  echo "src_dir=<\"directory/to/clone/github/repos/if/needed\", used for locally cloning in case gcsfuse_tools_src_dir or csi_src_dir are not passed, default=\"${DEFAULT_SRC_DIR}\">"
-  echo "gcsfuse_branch=<name-of-gcsfuse-branch-for-cloning>, used for locally cloning, in case gcsfuse_tools_src_dir has not been passed, default=\"${DEFAULT_GCSFUSE_BRANCH}\">"
-  echo "gcsfuse_tools_src_dir=<\"/path/of/gcsfuse/src/to/use/if/available\", default=\"${DEFAULT_SRC_DIR}/gcsfuse\">"
+  echo "src_dir=<\"directory/to/clone/github/repos/if/needed\", used for creating local clones of repos in case when gcsfuse, gcsfuse_tools_src_dir or csi_src_dir are not passed, default=\"${DEFAULT_SRC_DIR}\">"
+  echo "gcsfuse_tools_branch=<name-of-gcsfuse-tools-branch-for-cloning>, used for locally cloning, in case gcsfuse_tools_src_dir has not been passed, default=\"${DEFAULT_GCSFUSE_TOOLS_BRANCH}\">"
+  echo "gcsfuse_tools_src_dir=<\"/path/of/gcsfuse-tools/src/to/use/if/available\", default=\"${DEFAULT_SRC_DIR}/gcsfuse-tools\">"
+  echo "gcsfuse_branch=<name-of-gcsfuse-branch-for-cloning>, used for locally cloning, in case gcsfuse_src_dir has not been passed, default=\"${DEFAULT_GCSFUSE_BRANCH}\">"
+  echo "gcsfuse_src_dir=<\"/path/of/gcsfuse/src/to/use/if/available\", default=\"${DEFAULT_SRC_DIR}/gcsfuse\">"
   echo "csi_src_dir=<\"/path/of/gcs-fuse-csi-driver/to/use/if/available\", default=\"${DEFAULT_SRC_DIR}\"/gcs-fuse-csi-driver>"
   # Test runtime configuration
   echo "pod_wait_time_in_seconds=<number e.g. 60 for checking pod status every 1 min, default=\"${DEFAULT_POD_WAIT_TIME_IN_SECONDS}\">"
@@ -132,7 +137,8 @@ function printHelp() {
   echo "experiment_id=<Optional description of this particular test-run, it does not need to be unique e.g. \"cache test #43\""
   echo "workload_config=<path/to/workload/configuration/file e.g. /a/b/c.json >"
   echo "output_dir=</absolute/path/to/output/dir, output files will be written at output_dir/fio/output.csv and output_dir/dlio/output.csv>"
-  echo "force_update_gcsfuse_code=<true|false, to force-update the gcsfuse-code to given branch if gcsfuse_tools_src_dir has been set. Default=\"${DEFAULT_FORCE_UPDATE_GCSFUSE_CODE}\">"
+  echo "force_update_gcsfuse_tools_code=<true|false, to force-update the gcsfuse-tools code to given branch if gcsfuse_tools_src_dir has been set. Default=\"${DEFAULT_FORCE_UPDATE_GCSFUSE_TOOLS_CODE}\">"
+  echo "force_update_gcsfuse_code=<true|false, to force-update the gcsfuse-code to given branch if gcsfuse_src_dir has been set. Default=\"${DEFAULT_FORCE_UPDATE_GCSFUSE_CODE}\">"
   echo "zonal=<true|false, to convey that at least one of the buckets in the given workload configuration is a zonal bucket which can't be read/written using gcloud. Default=\"${DEFAULT_ZONAL}\"> "
   echo ""
   echo ""
@@ -209,6 +215,7 @@ else
   applied_custom_csi_driver=${custom_csi_driver}
 fi
 
+test -n "${gcsfuse_tools_branch}" || export gcsfuse_tools_branch="${DEFAULT_GCSFUSE_TOOLS_BRANCH}"
 test -n "${gcsfuse_branch}" || export gcsfuse_branch="${DEFAULT_GCSFUSE_BRANCH}"
 
 # GCSFuse/GKE GCSFuse CSI Driver source code related
@@ -231,19 +238,24 @@ else
   export gcsfuse_tools_src_dir="${src_dir}"/gcsfuse-tools
 fi
 
-if test -z "${force_update_gcsfuse_code}"; then
-  export force_update_gcsfuse_code=${DEFAULT_FORCE_UPDATE_GCSFUSE_CODE}
+if test -z "${force_update_gcsfuse_tools_code}"; then
+  export force_update_gcsfuse_tools_code=${DEFAULT_FORCE_UPDATE_GCSFUSE_TOOLS_CODE}
 fi
 
 export gke_testing_dir="${gcsfuse_tools_src_dir}"/testing_on_gke
+
+if test -n "${gcsfuse_src_dir}"; then
+  if ! test -d "${gcsfuse_src_dir}"; then
+    exitWithError "gcsfuse_src_dir has been passed as \"${gcsfuse_src_dir}\", which does not exist"
+  fi
+  export gcsfuse_src_dir="$(realpath "${gcsfuse_src_dir}")"
+fi
 
 if test -n "${csi_src_dir}"; then
   if ! test -d "${csi_src_dir}"; then
     exitWithError "csi_src_dir \"${csi_src_dir}\" does not exist"
   fi
   export csi_src_dir="$(realpath "${csi_src_dir}")"
-else
-  export csi_src_dir="${src_dir}"/gcs-fuse-csi-driver
 fi
 
 # Test runtime configuration
@@ -317,7 +329,12 @@ function printRunParameters() {
   # GCSFuse/GKE GCSFuse CSI Driver source code related
   echo "src_dir=\"${src_dir}\""
   echo "gcsfuse_tools_src_dir=\"${gcsfuse_tools_src_dir}\""
-  echo "csi_src_dir=\"${csi_src_dir}\""
+  if test -n "${gcsfuse_src_dir}"; then
+    echo "gcsfuse_src_dir=\"${gcsfuse_src_dir}\""
+  fi
+  if test -n "${csi_src_dir}"; then
+    echo "csi_src_dir=\"${csi_src_dir}\""
+  fi
   echo "gke_testing_dir=\"${gke_testing_dir}\""
   # Test runtime configuration
   echo "pod_wait_time_in_seconds=\"${pod_wait_time_in_seconds}\""
@@ -325,7 +342,10 @@ function printRunParameters() {
   echo "experiment_id=User passed: \"${user_passed_experiment_id}\", internally created: \"${experiment_id}\""
   echo "workload_config=\"${workload_config}\""
   echo "output_dir=\"${output_dir}\""
-  echo "force_update_gcsfuse_code=\"${force_update_gcsfuse_code}\""
+  echo "force_update_gcsfuse_tools_code=\"${force_update_gcsfuse_tools_code}\""
+  if test -n "${force_update_gcsfuse_code}"; then
+    echo "force_update_gcsfuse_code=\"${force_update_gcsfuse_code}\""
+  fi
   echo "zonal=\"${zonal}\""
   if ${only_parse}; then
     echo "only_parse=${only_parse}"
@@ -365,7 +385,7 @@ function installDependencies() {
   # Ensure that python-absl is installed.
   pip install absl-py >/dev/null
   # Ensure that helm is installed
-  which helm >/dev/null || (cd "${src_dir}" && (test -d "./helm" || git clone https://github.com/helm/helm.git) && cd helm && make && ls -lh bin/ && mkdir -pv ~/bin && cp -fv bin/helm ~/bin/ && chmod +x ~/bin/helm && export PATH=$PATH:$HOME/bin && echo $PATH && which helm && cd - && cd -)
+  which helm >/dev/null || (cd "${src_dir}" && (test -d "./helm" || git clone https://github.com/helm/helm.git) && cd helm && make && ls -lh bin/ && mkdir -pv ~/bin && cp -fv bin/helm ~/bin/ && chmod +x ~/bin/helm && export PATH=$PATH:$HOME/bin && echo $PATH && which helm && cd - >/dev/null && cd - >/dev/null)
   # for some reason, the above is unable to update the value of $PATH, so doing it explicitly below.
   export PATH=$PATH:$HOME/bin
   which helm >/dev/null
@@ -602,23 +622,43 @@ function createKubernetesServiceAccountForCluster() {
   kubectl config view --minify | grep namespace:
 }
 
-function ensureGcsfuseCode() {
-  printf "\nEnsuring we have gcsfuse code ...\n\n\n"
-  # clone gcsfuse code if needed
+function ensureGcsfuseToolsCode() {
+  printf "\nEnsuring we have gcsfuse-tools code ...\n\n\n"
+  # clone gcsfuse-tools repo if needed
   if ! test -d "${gcsfuse_tools_src_dir}"; then
-    cd $(dirname "${gcsfuse_tools_src_dir}") && git clone ${gcsfuse_tools_github_path} && cd "${gcsfuse_tools_src_dir}" && git switch ${gcsfuse_branch} && cd - && cd -
-  elif ${force_update_gcsfuse_code}; then
-    cd ${gcsfuse_tools_src_dir} && git fetch --all && git reset --hard origin/${gcsfuse_branch} && cd -
+    cd $(dirname "${gcsfuse_tools_src_dir}") && git clone ${gcsfuse_tools_github_path} && cd "${gcsfuse_tools_src_dir}" && git switch ${gcsfuse_tools_branch} && cd - >/dev/null && cd - >/dev/null
+  elif ${force_update_gcsfuse_tools_code}; then
+    cd ${gcsfuse_tools_src_dir} && git fetch --all && git reset --hard origin/${gcsfuse_tools_branch} && cd - >/dev/null
   fi
 
   test -d "${gke_testing_dir}" || (exitWithError "${gke_testing_dir} does not exist" )
 }
 
+function ensureGcsfuseCode() {
+  printf "\nEnsuring we have gcsfuse code ...\n\n\n"
+  if test -z "${gcsfuse_src_dir}"; then
+    export gcsfuse_src_dir="${src_dir}"/gcsfuse
+  fi
+  if test -z "${force_update_gcsfuse_code}"; then
+    export force_update_gcsfuse_code=${DEFAULT_FORCE_UPDATE_GCSFUSE_CODE}
+  fi
+
+  # clone gcsfuse code if needed
+  if ! test -d "${gcsfuse_src_dir}"; then
+    mkdir -pv $(dirname "${gcsfuse_src_dir}") && cd $(dirname "${gcsfuse_src_dir}") && git clone ${gcsfuse_github_path} && cd "${gcsfuse_src_dir}" && git switch ${gcsfuse_branch} && cd - >/dev/null && cd - >/dev/null
+  elif ${force_update_gcsfuse_code}; then
+    cd ${gcsfuse_src_dir} && git fetch --all && git reset --hard origin/${gcsfuse_branch} && cd - >/dev/null
+  fi
+}
+
 function ensureGcsFuseCsiDriverCode() {
   printf "\nEnsuring we have gcs-fuse-csi-driver code ...\n\n"
+  if test -z "${csi_src_dir}"; then
+    export csi_src_dir="${src_dir}"/gcs-fuse-csi-driver
+  fi
   # clone csi-driver code if needed
   if ! test -d "${csi_src_dir}"; then
-    cd $(dirname "${csi_src_dir}") && git clone ${csi_driver_github_path} && cd "${csi_src_dir}" && git switch ${csi_driver_branch} && cd - && cd -
+    mkdir -pv $(dirname "${csi_src_dir}") && cd $(dirname "${csi_src_dir}") && git clone ${csi_driver_github_path} && cd "${csi_src_dir}" && git switch ${csi_driver_branch} && cd - >/dev/null && cd - >/dev/null
   fi
 }
 
@@ -645,17 +685,21 @@ function createCustomCsiDriverIfNeeded() {
       gcloud storage buckets create gs://${package_bucket} --project=${project_id} --location=${region}
     fi
 
+    # Ensure that gcsfuse source code is available by now for building a binary
+    # from it.
+    ensureGcsfuseCode
+
     # Build new gcsfuse binaries.
-    printf "\nBuilding a new GCSFuse binary from ${gcsfuse_tools_src_dir} ...\n\n"
-    cd "${gcsfuse_tools_src_dir}"
+    printf "\nBuilding a new GCSFuse binary from ${gcsfuse_src_dir} ...\n\n"
+    cd "${gcsfuse_src_dir}"
     rm -rfv ./bin ./sbin
     GOOS=linux GOARCH=amd64 go run tools/build_gcsfuse/main.go . . v3
     # Copy the binary to a GCS bucket for csi driver build.
     gcloud storage -q cp ./bin/gcsfuse gs://${package_bucket}/linux/amd64/
     gcloud storage -q cp gs://${package_bucket}/linux/amd64/gcsfuse gs://${package_bucket}/linux/arm64/ # needed as build on arm64 doesn't work on cloudtop.
     # clean-up
-    rm -rfv "${gcsfuse_tools_src_dir}"/bin "${gcsfuse_tools_src_dir}"/sbin
-    cd -
+    rm -rfv "${gcsfuse_src_dir}"/bin "${gcsfuse_src_dir}"/sbin
+    cd - >/dev/null
 
     # Build and install csi driver
     ensureGcsFuseCsiDriverCode
@@ -681,7 +725,7 @@ function createCustomCsiDriverIfNeeded() {
     sleep 30
     verify_csi_driver_image ${applied_custom_csi_driver}
 
-    cd -
+    cd - >/dev/null
   fi
 }
 
@@ -701,7 +745,7 @@ function deployAllFioHelmCharts() {
   printf "\nDeploying all fio helm charts ...\n\n"
   cd "${gke_testing_dir}"/examples/fio
   python3 ./run_tests.py --workload-config "${workload_config}" --experiment-id ${experiment_id} --machine-type="${machine_type}" --project-id=${project_id} --project-number=${project_number} --namespace=${appnamespace} --ksa=${ksa} --custom-csi-driver=${applied_custom_csi_driver}
-  cd -
+  cd - >/dev/null
 }
 
 function deployAllDlioHelmCharts() {
@@ -709,7 +753,7 @@ function deployAllDlioHelmCharts() {
   cd "${gke_testing_dir}"/examples/dlio
   python3 ./run_tests.py --workload-config "${workload_config}" --experiment-id ${experiment_id} --machine-type="${machine_type}" --project-id=${project_id} --project-number=${project_number} --namespace=${appnamespace} --ksa=${ksa} --custom-csi-driver=${applied_custom_csi_driver}
 
-  cd -
+  cd - >/dev/null
 }
 
 function waitTillAllPodsComplete() {
@@ -753,6 +797,9 @@ function waitTillAllPodsComplete() {
         message+=" custom_csi_driver=${custom_csi_driver}"
       fi
       message+=" gcsfuse_tools_src_dir=\"${gcsfuse_tools_src_dir}\" "
+      if test -n "${gcsfuse_src_dir}"; then
+        message+=" gcsfuse_src_dir=\"${gcsfuse_src_dir}\" "
+      fi
       if test -d "${csi_src_dir}"; then
         message+="csi_src_dir=\"${csi_src_dir}\" "
       fi
@@ -884,8 +931,8 @@ if ! ${only_parse} ; then
   activateCluster
   createKubernetesServiceAccountForCluster
 
-  # GCSFuse driver source code
-  ensureGcsfuseCode
+  # GCSFuse-tools source code
+  ensureGcsfuseToolsCode
 
   # GCP/GKE configuration dependent on GCSFuse/CSI driver source code
   createCustomCsiDriverIfNeeded
