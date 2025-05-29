@@ -58,11 +58,6 @@ BENCHMARK_LOG_FILE="/tmp/benchmark_run.log"
 exec > >(tee -a "$BENCHMARK_LOG_FILE") 2>&1
 
 cleanup() {
-    # Unmount GCSFuse mount point
-    if mount | grep -q "$MNT"; then
-        sudo umount "$MNT" || echo "Failed to unmount $MNT"
-    fi
-
     # Upload logs and details
     if [[ -f details.txt ]]; then
         gcloud storage cp details.txt "$RESULT_PATH" || echo "Failed to upload details.txt"
@@ -159,10 +154,6 @@ if [[ "$LSSD_ENABLED" == "true" ]]; then
     }
 fi
 
-# Mount GCS bucket using gcsfuse
-mkdir -p "$MNT"
-"$GCSFUSE_BIN" --implicit-dirs "$GCS_BUCKET_WITH_FIO_TEST_DATA" "$MNT"
-
 # Clone the tools repo for uploading fio results to bigquery
 git clone --single-branch --branch fio-to-bigquery https://github.com/GoogleCloudPlatform/gcsfuse-tools.git
 
@@ -177,9 +168,18 @@ for fio_job_file in "$FIO_JOB_DIR"/*.fio; do
 
     sudo sh -c "echo 3 > /proc/sys/vm/drop_caches"
 
-    RESULT_FILE="gcsfuse-${job_name}-benchmark-$(date +%Y%m%d%H%M%S).json"
+    # Mount GCS bucket
+    mkdir -p "$MNT"
+    "$GCSFUSE_BIN" --implicit-dirs "$GCS_BUCKET_WITH_FIO_TEST_DATA" "$MNT"
+
+    RESULT_FILE="gcsfuse-${job_name}-benchmark.json"
 
     DIR="$MNT" fio "$fio_job_file" --output-format=json --output="$RESULT_FILE"
+
+    # Unmount the bucket after each run
+    if mount | grep -q "$MNT"; then
+        sudo umount "$MNT" || echo "Failed to unmount $MNT"
+    fi
 
     # Upload result to BigQuery (default project/dataset/table are built into the script)
     python3 gcsfuse-tools/perf-benchmarking-for-releases/upload-fio-output-to-bigquery.py \
