@@ -22,6 +22,7 @@ import json
 
 
 DefaultNumEpochs = 4
+DefaultReadTypes = ['read', 'randread']
 
 
 def validate_fio_workload(workload: dict, name: str):
@@ -48,25 +49,25 @@ def validate_fio_workload(workload: dict, name: str):
       print(f"{name} does not have '{requiredWorkloadAttribute}' key in it.")
       return False
     if not type(workload[requiredWorkloadAttribute]) is expectedType:
-      print(
+      raise TypeError(
           f"In {name}, the type of '{requiredWorkloadAttribute}' is of type"
           f" '{type(workload[requiredWorkloadAttribute])}', not {expectedType}"
       )
-      return False
     if expectedType == str and ' ' in workload[requiredWorkloadAttribute]:
-      print(f"{name} has space in the value of '{requiredWorkloadAttribute}'")
-      return False
+      raise ValueError(
+          f"{name} has space in the value of '{requiredWorkloadAttribute}'"
+      )
 
   if 'numEpochs' in workload:
     if not type(workload['numEpochs']) is int:
-      print(
+      raise TypeError(
           f"In {name}, the type of workload['numEpochs'] is of type"
           f" {type(workload['numEpochs'])}, not {int}"
       )
-      return False
     if int(workload['numEpochs']) < 0:
-      print(f"In {name}, the value of workload['numEpochs'] < 0, expected: >=0")
-      return False
+      raise ValueError(
+          f"In {name}, the value of workload['numEpochs'] < 0, expected: >=0"
+      )
 
   if 'dlioWorkload' in workload:
     print(f"{name} has 'dlioWorkload' key in it, which is unexpected.")
@@ -76,17 +77,14 @@ def validate_fio_workload(workload: dict, name: str):
   if 'jobFile' in fioWorkload:
     jobFile = fioWorkload['jobFile'].strip()
     if len(jobFile) == 0:
-      print(
-          '{name} has jobFile attribute in it, but it is empty, so ignoring'
-          ' this workload.'
+      raise ValueError(
+          '{name} has jobFile attribute in it, but its value is an empty string'
       )
-      return False
     elif ' ' in jobFile:
-      print(
+      raise ValueError(
           '{name} has jobFile attribute in it, but it has space (" ") in it, so'
           ' ignoring this workload.'
       )
-      return False
   else:
     for requiredAttribute, expectedType in {
         'fileSize': str,
@@ -95,39 +93,36 @@ def validate_fio_workload(workload: dict, name: str):
         'numThreads': int,
     }.items():
       if requiredAttribute not in fioWorkload:
-        print(f'In {name}, fioWorkload does not have {requiredAttribute} in it')
-        return False
+        raise Exception(
+            f'In {name}, fioWorkload does not have {requiredAttribute} in it'
+        )
       if not type(fioWorkload[requiredAttribute]) is expectedType:
-        print(
+        raise TypeError(
             f'In {name}, fioWorkload[{requiredAttribute}] is of type'
             f' {type(fioWorkload[requiredAttribute])}, expected:'
             f' {expectedType} '
         )
-        return False
 
-  if 'readTypes' in fioWorkload:
-    readTypes = fioWorkload['readTypes']
-    if not type(readTypes) is list:
-      print(
-          f"In {name}, fioWorkload['readTypes'] is of type {type(readTypes)},"
-          " not 'list'."
-      )
-      return False
-    for readType in readTypes:
-      if not type(readType) is str:
-        print(
-            f'In {name}, one of the values in'
-            f" fioWorkload['readTypes'] is '{readType}', which is of type"
-            f' {type(readType)}, not str'
+    if 'readTypes' in fioWorkload:
+      readTypes = fioWorkload['readTypes']
+      if not type(readTypes) is list:
+        raise TypeError(
+            f"In {name}, fioWorkload['readTypes'] is of type {type(readTypes)},"
+            " not 'list'."
         )
-        return False
-      if not readType == 'read' and not readType == 'randread':
-        print(
-            f"In {name}, one of the values in fioWorkload['readTypes'] is"
-            f" '{readType}' which is not a supported value. Supported values"
-            ' are read, randread'
-        )
-        return False
+      for readType in readTypes:
+        if not type(readType) is str:
+          raise TypeError(
+              f'In {name}, one of the values in'
+              f" fioWorkload['readTypes'] is '{readType}', which is of type"
+              f' {type(readType)}, not str'
+          )
+        if not readType == 'read' and not readType == 'randread':
+          raise ValueError(
+              f"In {name}, fioWorkload['readTypes'] is"
+              f" '{readType}' which is not a supported value. Supported values"
+              ' are read, randread'
+          )
 
   return True
 
@@ -169,13 +164,13 @@ class FioWorkload:
       self,
       scenario: str,
       bucket: str,
-      readTypes: list,
       gcsfuseMountOptions: str,
       numEpochs: int = DefaultNumEpochs,
       fileSize: str = None,
       blockSize: str = None,
       filesPerThread: int = None,
       numThreads: int = None,
+      readTypes: list = DefaultReadTypes,
       jobFile: str = None,
   ):
     self.scenario = scenario
@@ -236,7 +231,7 @@ def parse_test_config_for_fio_workloads(fioTestConfigFile: str):
         fioWorkloadAttributes['readTypes'] = (
             fioWorkload['readTypes']
             if 'readTypes' in fioWorkload
-            else ['read', 'randread']
+            else DefaultReadTypes
         )
         fioWorkloadAttributes['numEpochs'] = (
             workload['numEpochs']
@@ -250,7 +245,7 @@ def parse_test_config_for_fio_workloads(fioTestConfigFile: str):
 
 
 def FioChartNamePodName(
-    fioWorkload: FioWorkload, experimentID: str, readType: str
+    fioWorkload: FioWorkload, experimentID: str, readType: str = None
 ) -> (str, str, str):
   shortenScenario = {
       'local-ssd': 'ssd',
@@ -261,26 +256,28 @@ def FioChartNamePodName(
       if fioWorkload.scenario in shortenScenario
       else 'other'
   )
-  readTypeToShortReadType = {'read': 'sr', 'randread': 'rr'}
-  shortForReadType = (
-      readTypeToShortReadType[readType]
-      if readType in readTypeToShortReadType
-      else 'ur'
-  )
 
-  hashOfWorkload = str(hash((fioWorkload, experimentID, readType))).replace(
-      '-', ''
-  )
-  return (
-      (
-          f'fio-load-{shortForScenario}-{shortForReadType}-{fioWorkload.fileSize.lower()}-{hashOfWorkload}',
-          f'fio-tester-{shortForScenario}-{shortForReadType}-{fioWorkload.fileSize.lower()}-{hashOfWorkload}',
-          f'{experimentID}/{fioWorkload.fileSize}-{fioWorkload.blockSize}-{fioWorkload.numThreads}-{fioWorkload.filesPerThread}-{hashOfWorkload}/{fioWorkload.scenario}/{readType}',
+  if not fioWorkload.jobFile:
+    readTypeToShortReadType = {'read': 'sr', 'randread': 'rr'}
+    if not readType or readType not in readTypeToShortReadType.keys():
+      raise ValueError(
+          f'Unexpected scenario. Unsupported rw type {readType} passed for a'
+          ' fioWorkload not containing a jobFile. Expected it to be one out of'
+          f' {readTypeToShortReadType.keys()}'
       )
-      if not fioWorkload.jobFile
-      else (
-          f'fio-load-{shortForScenario}-{shortForReadType}-{hashOfWorkload}',
-          f'fio-tester-{shortForScenario}-{shortForReadType}-{hashOfWorkload}',
-          f'{experimentID}/{hashOfWorkload}/{fioWorkload.scenario}/{readType}',
-      )
-  )
+    shortForReadType = readTypeToShortReadType[readType]
+    hashOfWorkload = str(hash((fioWorkload, experimentID, readType))).replace(
+        '-', ''
+    )
+    return (
+        f'fio-load-{shortForScenario}-{shortForReadType}-{fioWorkload.fileSize.lower()}-{hashOfWorkload}',
+        f'fio-tester-{shortForScenario}-{shortForReadType}-{fioWorkload.fileSize.lower()}-{hashOfWorkload}',
+        f'{experimentID}/{fioWorkload.fileSize}-{fioWorkload.blockSize}-{fioWorkload.numThreads}-{fioWorkload.filesPerThread}-{hashOfWorkload}/{fioWorkload.scenario}/{readType}',
+    )
+  else:
+    hashOfWorkload = str(hash((fioWorkload, experimentID))).replace('-', '')
+    return (
+        f'fio-load-{shortForScenario}-{hashOfWorkload}',
+        f'fio-tester-{shortForScenario}-{hashOfWorkload}',
+        f'{experimentID}/{hashOfWorkload}/{fioWorkload.scenario}/unknown_rw',
+    )
