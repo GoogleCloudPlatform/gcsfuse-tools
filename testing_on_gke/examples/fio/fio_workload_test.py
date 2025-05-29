@@ -430,6 +430,23 @@ directory=${DIR}
           case["expectedSerializedContent"],
       )
 
+  def test_serialize_job_file_content_failed(self):
+    cases = [
+        {"rawContent": r"""[global]
+# This is a comment, which will make this testcase fail.
+file_size=${FILE_SIZE}
+bs=64K
+[Workload]
+rw=randread
+directory=${DIR}
+"""},
+    ]
+    for case in cases:
+      with self.assertRaisesRegex(
+          Exception, "input string has unsupported character"
+      ):
+        _serialize_job_file_content(case["rawContent"])
+
 
 if __name__ == "__main__":
   unittest.main()
