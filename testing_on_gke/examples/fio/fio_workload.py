@@ -24,8 +24,21 @@ import json
 DefaultNumEpochs = 4
 
 
-def validateFioWorkload(workload: dict, name: str):
-  """Validates the given json workload object."""
+def validate_fio_workload(workload: dict, name: str):
+  """Validates the given json workload object for a FIO workload.
+
+  It confirms that the passed workload object has a dict as value for key
+  'fioWorkload'. The workload object should also This fioWorkload dict should
+  either have (a) the key 'jobFile' or (b) keys 'fileSize', 'blockSize',
+  'numThreads',
+  'filesPerThread' etc, or both (a) and (b). If 'jobFile' is specified, then the
+  values of fileSize etc are ignored. The function also does checks on the types
+  and the
+  values of all these fields.
+  It also confirms that the passed workload object has strings as values for
+  keys 'gcsfuseMountOptions', and 'bucket', and optionally an integer value for
+  key 'numEpochs'.
+  """
   for requiredWorkloadAttribute, expectedType in {
       'bucket': str,
       'gcsfuseMountOptions': str,
@@ -60,22 +73,37 @@ def validateFioWorkload(workload: dict, name: str):
     return False
 
   fioWorkload = workload['fioWorkload']
-  for requiredAttribute, expectedType in {
-      'fileSize': str,
-      'blockSize': str,
-      'filesPerThread': int,
-      'numThreads': int,
-  }.items():
-    if requiredAttribute not in fioWorkload:
-      print(f'In {name}, fioWorkload does not have {requiredAttribute} in it')
-      return False
-    if not type(fioWorkload[requiredAttribute]) is expectedType:
+  if 'jobFile' in fioWorkload:
+    jobFile = fioWorkload['jobFile'].strip()
+    if len(jobFile) == 0:
       print(
-          f'In {name}, fioWorkload[{requiredAttribute}] is of type'
-          f' {type(fioWorkload[requiredAttribute])}, expected:'
-          f' {expectedType} '
+          '{name} has jobFile attribute in it, but it is empty, so ignoring'
+          ' this workload.'
       )
       return False
+    elif ' ' in jobFile:
+      print(
+          '{name} has jobFile attribute in it, but it has space (" ") in it, so'
+          ' ignoring this workload.'
+      )
+      return False
+  else:
+    for requiredAttribute, expectedType in {
+        'fileSize': str,
+        'blockSize': str,
+        'filesPerThread': int,
+        'numThreads': int,
+    }.items():
+      if requiredAttribute not in fioWorkload:
+        print(f'In {name}, fioWorkload does not have {requiredAttribute} in it')
+        return False
+      if not type(fioWorkload[requiredAttribute]) is expectedType:
+        print(
+            f'In {name}, fioWorkload[{requiredAttribute}] is of type'
+            f' {type(fioWorkload[requiredAttribute])}, expected:'
+            f' {expectedType} '
+        )
+        return False
 
   if 'readTypes' in fioWorkload:
     readTypes = fioWorkload['readTypes']
@@ -132,19 +160,23 @@ class FioWorkload:
   "implicit-dirs,file_mode=777,file-cache:enable-parallel-downloads:true,metadata-cache:ttl-secs:true".
   9. numEpochs: Number of runs of the fio workload. Default is DefaultNumEpochs
   if missing.
+  10. jobFile: The path of a FIO job-file . When jobFile is specified, the
+  values of
+  fileSize, blockSize, filesPerThreads, numThreads will not be used.
   """
 
   def __init__(
       self,
       scenario: str,
-      fileSize: str,
-      blockSize: str,
-      filesPerThread: int,
-      numThreads: int,
       bucket: str,
       readTypes: list,
       gcsfuseMountOptions: str,
       numEpochs: int = DefaultNumEpochs,
+      fileSize: str = None,
+      blockSize: str = None,
+      filesPerThread: int = None,
+      numThreads: int = None,
+      jobFile: str = None,
   ):
     self.scenario = scenario
     self.fileSize = fileSize
@@ -155,6 +187,7 @@ class FioWorkload:
     self.readTypes = set(readTypes)
     self.gcsfuseMountOptions = gcsfuseMountOptions
     self.numEpochs = numEpochs
+    self.jobFile = jobFile
 
   def PPrint(self):
     print(
@@ -162,7 +195,8 @@ class FioWorkload:
         f' blockSize:{self.blockSize}, filesPerThread:{self.filesPerThread},'
         f' numThreads:{self.numThreads}, bucket:{self.bucket},'
         f' readTypes:{self.readTypes}, gcsfuseMountOptions:'
-        f' {self.gcsfuseMountOptions}, numEpochs: {self.numEpochs}'
+        f' {self.gcsfuseMountOptions}, numEpochs: {self.numEpochs}, jobFile:'
+        f' {self.jobFile}'
     )
 
 
@@ -182,32 +216,36 @@ def parse_test_config_for_fio_workloads(fioTestConfigFile: str):
     )
     for i in range(len(workloads)):
       workload = workloads[i]
-      if not validateFioWorkload(workload, f'workload#{i}'):
+      if not validate_fio_workload(workload, f'workload#{i}'):
         print(f'workloads#{i} is not a valid FIO workload, so ignoring it.')
       else:
+        fioWorkload = workload['fioWorkload']
+        fioWorkloadAttributes = dict()
+        if 'jobFile' in fioWorkload:
+          fioWorkloadAttributes['jobFile'] = fioWorkload['jobFile']
+        else:
+          for attr in [
+              'fileSize',
+              'blockSize',
+              'numThreads',
+              'filesPerThread',
+          ]:
+            fioWorkloadAttributes[attr] = fioWorkload[attr]
+        for attr in ['bucket', 'gcsfuseMountOptions']:
+          fioWorkloadAttributes[attr] = workload[attr]
+        fioWorkloadAttributes['readTypes'] = (
+            fioWorkload['readTypes']
+            if 'readTypes' in fioWorkload
+            else ['read', 'randread']
+        )
+        fioWorkloadAttributes['numEpochs'] = (
+            workload['numEpochs']
+            if 'numEpochs' in workload
+            else DefaultNumEpochs
+        )
         for scenario in scenarios:
-          fioWorkload = workload['fioWorkload']
-          fioWorkloads.append(
-              FioWorkload(
-                  scenario,
-                  fioWorkload['fileSize'],
-                  fioWorkload['blockSize'],
-                  fioWorkload['filesPerThread'],
-                  fioWorkload['numThreads'],
-                  workload['bucket'],
-                  (
-                      fioWorkload['readTypes']
-                      if 'readTypes' in fioWorkload
-                      else ['read', 'randread']
-                  ),
-                  workload['gcsfuseMountOptions'],
-                  numEpochs=(
-                      workload['numEpochs']
-                      if 'numEpochs' in workload
-                      else DefaultNumEpochs
-                  ),
-              )
-          )
+          fioWorkloadAttributes['scenario'] = scenario
+          fioWorkloads.append(FioWorkload(**fioWorkloadAttributes))
   return fioWorkloads
 
 
@@ -234,7 +272,15 @@ def FioChartNamePodName(
       '-', ''
   )
   return (
-      f'fio-load-{shortForScenario}-{shortForReadType}-{fioWorkload.fileSize.lower()}-{hashOfWorkload}',
-      f'fio-tester-{shortForScenario}-{shortForReadType}-{fioWorkload.fileSize.lower()}-{hashOfWorkload}',
-      f'{experimentID}/{fioWorkload.fileSize}-{fioWorkload.blockSize}-{fioWorkload.numThreads}-{fioWorkload.filesPerThread}-{hashOfWorkload}/{fioWorkload.scenario}/{readType}',
+      (
+          f'fio-load-{shortForScenario}-{shortForReadType}-{fioWorkload.fileSize.lower()}-{hashOfWorkload}',
+          f'fio-tester-{shortForScenario}-{shortForReadType}-{fioWorkload.fileSize.lower()}-{hashOfWorkload}',
+          f'{experimentID}/{fioWorkload.fileSize}-{fioWorkload.blockSize}-{fioWorkload.numThreads}-{fioWorkload.filesPerThread}-{hashOfWorkload}/{fioWorkload.scenario}/{readType}',
+      )
+      if not fioWorkload.jobFile
+      else (
+          f'fio-load-{shortForScenario}-{shortForReadType}-{hashOfWorkload}',
+          f'fio-tester-{shortForScenario}-{shortForReadType}-{hashOfWorkload}',
+          f'{experimentID}/{hashOfWorkload}/{fioWorkload.scenario}/{readType}',
+      )
   )
