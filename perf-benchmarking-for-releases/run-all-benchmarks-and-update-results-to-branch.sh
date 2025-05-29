@@ -19,33 +19,44 @@ set -xeuo pipefail
 
 # Script Documentation
 if [ "$#" -ne 1 ]; then
-    echo "Usage: $0 <GCSFUSE_VERSION>"
+    echo "Usage: $0 <GCSFUSE_VERSION> [RERUN]"
     echo ""
-    echo ""
+    echo "RERUN: is optional argument true or false, if true it reruns benchmarks even if the benchmarks exists from previous runs (Default:false)"
     echo "Example:"
     echo "  ./run-all-benchmarks-and-update-results-to-branch.sh  <tag, commit-id-on-master, branch-name>"
     exit 1
 fi
 
 GCSFUSE_VERSION="$1"
+RERUN=${2:-false}
 
 rm -rf /tmp/update_benchmarks* # Remove previous directories.
 TMP_DIR=$(mktemp -d -t update_benchmarks.XXXXXX)
 
-benchmark_pids=()
-# Benchmark 1
-./run-benchmarks.sh "$GCSFUSE_VERSION" gcs-fuse-test us-south1 c4-standard-96 ubuntu-2004-lts ubuntu-os-cloud >"${GCSFUSE_VERSION}-c4" 2>&1 &
-benchmark_pids+=($!)
-# Benchmark 2
-./run-benchmarks.sh "$GCSFUSE_VERSION" gcs-fuse-test us-south1 n2-standard-96 ubuntu-2004-lts ubuntu-os-cloud >"${GCSFUSE_VERSION}-n2" 2>&1 &
-benchmark_pids+=($!)
-
-for pid in "${benchmark_pids[@]}"; do
-    if ! wait "$pid"; then 
-        echo "Benchmark with PID $pid failed. Exiting."
-        exit 1
+if [[ "$RERUN" == "false" ]]; then
+    if ! gcloud storage objects describe "gs://gcsfuse-release-benchmarks-results/${GCSFUSE_VERSION}/c4-standard-96/success.txt" &>/dev/null; then
+        RERUN="true"
     fi
-done
+    if ! gcloud storage objects describe "gs://gcsfuse-release-benchmarks-results/${GCSFUSE_VERSION}/n2-standard-96/success.txt" &>/dev/null; then
+        RERUN="true"
+    fi
+fi
+
+if [[ "$RERUN" == "true" ]]; then
+    benchmark_pids=()
+    # Benchmark 1
+    ./run-benchmarks.sh "$GCSFUSE_VERSION" gcs-fuse-test us-south1 c4-standard-96 ubuntu-2004-lts ubuntu-os-cloud >"${GCSFUSE_VERSION}-c4" 2>&1 &
+    benchmark_pids+=($!)
+    # Benchmark 2
+    ./run-benchmarks.sh "$GCSFUSE_VERSION" gcs-fuse-test us-south1 n2-standard-96 ubuntu-2004-lts ubuntu-os-cloud >"${GCSFUSE_VERSION}-n2" 2>&1 &
+    benchmark_pids+=($!)
+    for pid in "${benchmark_pids[@]}"; do
+        if ! wait "$pid"; then
+            echo "Benchmark with PID $pid failed. Exiting."
+            exit 1
+        fi
+    done
+fi
 
 ./create_benchmark_tables.sh "$GCSFUSE_VERSION" us-south1 c4-standard-96 'gVNIC+ tier_1 networking (200Gbps)' 'Hyperdisk balanced'
 ./create_benchmark_tables.sh "$GCSFUSE_VERSION" us-south1 n2-standard-96 'gVNIC+ tier_1 networking (100Gbps)' 'SSD persistent disk'
@@ -53,9 +64,9 @@ done
 gcloud storage cp "gs://gcsfuse-release-benchmarks-results/${GCSFUSE_VERSION}/c4-standard-96/tables.md" "${TMP_DIR}/c4-standard-96/tables.md"
 gcloud storage cp "gs://gcsfuse-release-benchmarks-results/${GCSFUSE_VERSION}/n2-standard-96/tables.md" "${TMP_DIR}/n2-standard-96/tables.md"
 
-cat "${TMP_DIR}/c4-standard-96/tables.md" >> "${TMP_DIR}/benchmarks.md"
-echo " " >> "${TMP_DIR}/benchmarks.md"
-cat "${TMP_DIR}/n2-standard-96/tables.md" >> "${TMP_DIR}/benchmarks.md"
+cat "${TMP_DIR}/c4-standard-96/tables.md" >>"${TMP_DIR}/benchmarks.md"
+echo " " >>"${TMP_DIR}/benchmarks.md"
+cat "${TMP_DIR}/n2-standard-96/tables.md" >>"${TMP_DIR}/benchmarks.md"
 
 # Helper method to update the benchmark file section based on markers with given file.
 update_benchmarks_based_on_markers() {
@@ -132,10 +143,10 @@ update_benchmarks_based_on_markers() {
 
     # 2. The start marker itself
     echo "$start_marker" >>"$temp_file"
-    echo "" >> "$temp_file"
+    echo "" >>"$temp_file"
     # 3. Content from the source file
     cat "$source_file" >>"$temp_file"
-    echo "" >> "$temp_file"
+    echo "" >>"$temp_file"
     # 4. The end marker itself
     echo "$end_marker" >>"$temp_file"
 
