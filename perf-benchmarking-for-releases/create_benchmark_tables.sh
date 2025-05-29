@@ -22,7 +22,7 @@ if [ "$#" -ne 5 ]; then
     echo "Usage: $0 <GCSFUSE_VERSION> <REGION> <MACHINE_TYPE> <NETWORKING> <DISK_TYPE>"
     echo ""
     echo "Example:"
-    echo "  bash create_benchmark_tables.sh change-default-configs-for-streaming-writes us-south1 c4-standard-96 'gVNIC+ tier_1 networking (200Gbps)' 'Hyperdisk balanced'"
+    echo "  bash create_benchmark_tables.sh  <tag, commit-id-on-master, branch-name> us-south1 c4-standard-96 'gVNIC+ tier_1 networking (200Gbps)' 'Hyperdisk balanced'"
     exit 1
 fi
 
@@ -136,37 +136,24 @@ populate_all_columns() {
 }
 
 
-convert_to_gib() {
+convert_bytes_to_gib() {
     local precision=3
     for ((i = 0; i < ROW_COUNT; i++)); do
         bw_bytes[i]=$(awk -v prec="$precision" -v bval="${bw_bytes[i]}" 'BEGIN { printf "%.*f\n", prec, bval / 1073741824 }')
     done
 }
 
-convert_iops() {
+format_iops_to_kilo() {
     for ((i = 0; i < ROW_COUNT; i++)); do
         iops[i]=$(awk -v n="${iops[i]}" 'BEGIN { printf "%.2fK\n", n / 1000 }')
     done
 }
 
-convert_lat_mean() {
+convert_lat_mean_ns_to_ms() {
+    local -n lat_array_ref="$1"
     local precision=2
     for ((i = 0; i < ROW_COUNT; i++)); do
-        lat_mean[i]=$(awk -v p="$precision" -v ns="${lat_mean[i]}" 'BEGIN { printf "%.*fms\n", p, ns / 1E6 }')
-    done
-}
-
-convert_slat_mean() {
-    local precision=2
-    for ((i = 0; i < ROW_COUNT; i++)); do
-        slat_mean[i]=$(awk -v p="$precision" -v ns="${slat_mean[i]}" 'BEGIN { printf "%.*fms\n", p, ns / 1E6 }')
-    done
-}
-
-convert_clat_mean() {
-    local precision=2
-    for ((i = 0; i < ROW_COUNT; i++)); do
-        clat_mean[i]=$(awk -v p="$precision" -v ns="${clat_mean[i]}" 'BEGIN { printf "%.*fms\n", p, ns / 1E6 }')
+        lat_array_ref[i]=$(awk -v p="$precision" -v ns="${lat_array_ref[i]}" 'BEGIN { printf "%.*fms\n", p, ns / 1E6 }')
     done
 }
 
@@ -177,11 +164,12 @@ create_table() {
     echo "### $table_name"
     ROW_COUNT=$(job_count "$file")
     populate_all_columns "$file" "$workflow_type"
-    convert_to_gib
-    convert_iops
-    convert_lat_mean
-    convert_slat_mean
-    convert_clat_mean
+    convert_bytes_to_gib
+    format_iops_to_kilo
+    convert_lat_mean_ns_to_ms "slat_mean"
+    convert_lat_mean_ns_to_ms "clat_mean"
+    convert_lat_mean_ns_to_ms "lat_mean"
+
     echo "| File Size | BlockSize | nrfiles | Bandwidth in (GiB/sec) | IOPs | slat mean | clat mean | lat mean |"
     echo "|---|---|---|---|---|---|---|---|"
     for ((i = 0; i < ROW_COUNT; i++)); do

@@ -14,8 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Fail on anything unexpected.
-set -euo pipefail
+# Fail on anything unexpected and print commands as they are executed.
+set -xeuo pipefail
 
 # Script Documentation
 if [ "$#" -ne 1 ]; then
@@ -23,7 +23,7 @@ if [ "$#" -ne 1 ]; then
     echo ""
     echo ""
     echo "Example:"
-    echo "  bash run-all-benchmarks-and-create-pr.sh  <tag, commit-id-on-master, branch-name>"
+    echo "  ./run-all-benchmarks-and-update-results-to-branch.sh  <tag, commit-id-on-master, branch-name>"
     exit 1
 fi
 
@@ -34,10 +34,10 @@ TMP_DIR=$(mktemp -d -t update_benchmarks.XXXXXX)
 
 benchmark_pids=()
 # Benchmark 1
-bash run-benchmarks.sh "$GCSFUSE_VERSION" gcs-fuse-test us-south1 c4-standard-96 ubuntu-2004-lts ubuntu-os-cloud >"${GCSFUSE_VERSION}-c4" 2>&1 &
+./run-benchmarks.sh "$GCSFUSE_VERSION" gcs-fuse-test us-south1 c4-standard-96 ubuntu-2004-lts ubuntu-os-cloud >"${GCSFUSE_VERSION}-c4" 2>&1 &
 benchmark_pids+=($!)
 # Benchmark 2
-bash run-benchmarks.sh "$GCSFUSE_VERSION" gcs-fuse-test us-south1 n2-standard-96 ubuntu-2004-lts ubuntu-os-cloud >"${GCSFUSE_VERSION}-n2" 2>&1 &
+./run-benchmarks.sh "$GCSFUSE_VERSION" gcs-fuse-test us-south1 n2-standard-96 ubuntu-2004-lts ubuntu-os-cloud >"${GCSFUSE_VERSION}-n2" 2>&1 &
 benchmark_pids+=($!)
 
 for pid in "${benchmark_pids[@]}"; do
@@ -47,8 +47,8 @@ for pid in "${benchmark_pids[@]}"; do
     fi
 done
 
-bash create_benchmark_tables.sh "$GCSFUSE_VERSION" us-south1 c4-standard-96 'gVNIC+ tier_1 networking (200Gbps)' 'Hyperdisk balanced'
-bash create_benchmark_tables.sh "$GCSFUSE_VERSION" us-south1 n2-standard-96 'gVNIC+ tier_1 networking (100Gbps)' 'SSD persistent disk'
+./create_benchmark_tables.sh "$GCSFUSE_VERSION" us-south1 c4-standard-96 'gVNIC+ tier_1 networking (200Gbps)' 'Hyperdisk balanced'
+./create_benchmark_tables.sh "$GCSFUSE_VERSION" us-south1 n2-standard-96 'gVNIC+ tier_1 networking (100Gbps)' 'SSD persistent disk'
 
 gcloud storage cp "gs://gcsfuse-release-benchmarks-results/${GCSFUSE_VERSION}/c4-standard-96/tables.md" "${TMP_DIR}/c4-standard-96/tables.md"
 gcloud storage cp "gs://gcsfuse-release-benchmarks-results/${GCSFUSE_VERSION}/n2-standard-96/tables.md" "${TMP_DIR}/n2-standard-96/tables.md"
@@ -175,6 +175,7 @@ clone_gcsfuse_repo() {
     }
     echo "Repository cloned successfully."
 }
+
 CLONE_DIR="${TMP_DIR}/gcsfuse"
 REPO_URL="https://github.com/GoogleCloudPlatform/gcsfuse.git"
 clone_gcsfuse_repo
@@ -195,3 +196,7 @@ git commit -m "update benchmark results for version $GCSFUSE_VERSION"
 git push -u origin "$BRANCH_TO_UPDATE_RESULTS_FROM"
 
 popd
+
+echo "Results of benchmarks updated in branch: $BRANCH_TO_UPDATE_RESULTS_FROM"
+echo "Follow link to open the branch on github"
+echo "https://github.com/GoogleCloudPlatform/gcsfuse/tree/${BRANCH_TO_UPDATE_RESULTS_FROM}"
