@@ -15,14 +15,14 @@
 # limitations under the License.
 
 # Fail on anything unexpected.
-set -euo pipefail
+set -xeuo pipefail
 
 # Script Documentation
-if [ "$#" -ne 5 ]; then
-    echo "Usage: $0 <GCSFUSE_VERSION> <REGION> <MACHINE_TYPE> <NETWORKING> <DISK_TYPE>"
+if [ "$#" -ne 6 ]; then
+    echo "Usage: $0 <GCSFUSE_VERSION> <REGION> <MACHINE_TYPE> <NETWORKING> <DISK_TYPE> <BENCHMARK_COUNT"
     echo ""
     echo "Example:"
-    echo "  bash create_benchmark_tables.sh  <tag, commit-id-on-master, branch-name> us-south1 c4-standard-96 'gVNIC+ tier_1 networking (200Gbps)' 'Hyperdisk balanced'"
+    echo "  bash create_benchmark_tables.sh  <tag, commit-id-on-master, branch-name> us-south1 c4-standard-96 'gVNIC+ tier_1 networking (200Gbps)' 'Hyperdisk balanced' 3"
     exit 1
 fi
 
@@ -36,11 +36,12 @@ REGION=$2
 MACHINE_TYPE=$3
 NETWORKING=$4
 DISK_TYPE=$5
+BENCHMARK_COUNT=$6
 
 # Files to read from GCS. Basenames
-RANDOM_READ_RES_BASENAME="gcsfuse-random-read-workload-benchmark.json"
-SEQ_READ_RES_BASENAME="gcsfuse-sequential-read-workload-benchmark.json"
-WRITE_RES_BASENAME="gcsfuse-write-workload-benchmark.json"
+RANDOM_READ_RES_BASENAME="gcsfuse-random-read-workload-benchmark"
+SEQ_READ_RES_BASENAME="gcsfuse-sequential-read-workload-benchmark"
+WRITE_RES_BASENAME="gcsfuse-write-workload-benchmark"
 
 JSON_FILES_BASENAMES=(
     "$RANDOM_READ_RES_BASENAME"
@@ -55,7 +56,11 @@ fi
 echo "Found the success.txt file in the bucket."
 
 for basename in "${JSON_FILES_BASENAMES[@]}"; do
-    gcloud storage cp "gs://${RESULTS_BUCKET_NAME}/${GCSFUSE_VERSION}/${MACHINE_TYPE}/${basename}" "${TMP_DIR}/${basename}"
+    for i in $(seq 1 "$BENCHMARK_COUNT"); do
+        curr_filename="${basename}_${i}.json"
+        gcloud storage cp "gs://${RESULTS_BUCKET_NAME}/${GCSFUSE_VERSION}/${MACHINE_TYPE}/${curr_filename}" "${TMP_DIR}/${curr_filename}"
+        sed -i '/^note:/d' "${TMP_DIR}/${curr_filename}"
+    done
 done
 
 # Update variables to point to local copies
@@ -97,6 +102,7 @@ populate_array_from_jq() {
     # Read values using mapfile for efficiency
     mapfile -t values < <(jq -r "$jq_job_query" "$file")
 
+    local i
     for i in "${!values[@]}"; do
         local value="${values[i]}"
         if [[ "$value" == "null" ]]; then
@@ -115,6 +121,30 @@ populate_array_from_jq() {
     fi
 }
 
+populate_avg_in_array_for_all_runs() {
+    local file="$1"
+    local jq_job_path_template="$2" # e.g., '.jobs[]?."job options"' or '.jobs[]?.read'
+    local jq_global_path_template="$3" # e.g., '."global options"'
+    local field_name="$4"
+    local -n array_ref="$5" # Nameref to the array to populate
+    local sum=()
+    for i in $(seq 1 "$BENCHMARK_COUNT"); do
+        local curr_arr=()
+        local curr_file_name="${file}_${i}.json"
+        populate_array_from_jq "$curr_file_name" "$jq_job_path_template" "$jq_global_path_template" "$field_name" "curr_arr"
+        if [[ $i -eq 1 ]]; then
+            sum=("${curr_arr[@]}")
+        else
+            for ((j = 0; j < ROW_COUNT; j++)); do
+                sum[j]=$(awk -v s="${sum[j]}" -v c="${curr_arr[j]}" 'BEGIN { print s + c }')
+            done
+        fi
+    done
+    for ((i = 0; i < ROW_COUNT; i++)); do
+        array_ref[i]=$(awk -v s="${sum[i]}" -v c="$BENCHMARK_COUNT" 'BEGIN { print s / c }')
+    done
+}
+
 # Populate all columns based on operation type (read/write)
 # Args: $1: json_file, $2: operation_type ("read" or "write")
 populate_all_columns() {
@@ -122,13 +152,15 @@ populate_all_columns() {
     local op_type="$2" # "read" or "write"
     local lat_ns_op_type="${op_type}.lat_ns" # "read.lat_ns" or "write.lat_ns"
 
-    populate_array_from_jq "$file" '.jobs[]?."job options"' '."global options"' "bs" "bs"
-    populate_array_from_jq "$file" '.jobs[]?."job options"' '."global options"' "filesize" "filesize"
-    populate_array_from_jq "$file" '.jobs[]?."job options"' '."global options"' "nrfiles" "nrfiles"
+    # Populate from #1 Experiment
+    populate_array_from_jq "${file}_1.json" '.jobs[]?."job options"' '."global options"' "bs" "bs"
+    populate_array_from_jq "${file}_1.json" '.jobs[]?."job options"' '."global options"' "filesize" "filesize"
+    populate_array_from_jq "${file}_1.json" '.jobs[]?."job options"' '."global options"' "nrfiles" "nrfiles"
 
-    populate_array_from_jq "$file" ".jobs[]?.$op_type" '."global options"' "bw_bytes" "bw_bytes"
-    populate_array_from_jq "$file" ".jobs[]?.$op_type" '."global options"' "iops" "iops"
-    populate_array_from_jq "$file" ".jobs[]?.$lat_ns_op_type" '."global options"' "mean" "lat_mean"
+    # Take average of all experiments
+    populate_avg_in_array_for_all_runs "$file" ".jobs[]?.$op_type" '."global options"' "bw_bytes" "bw_bytes"
+    populate_avg_in_array_for_all_runs "$file" ".jobs[]?.$op_type" '."global options"' "iops" "iops"
+    populate_avg_in_array_for_all_runs "$file" ".jobs[]?.$lat_ns_op_type" '."global options"' "mean" "lat_mean"
 }
 
 declare -A bytes_in=( [MB]="1000000" [GB]="1000000000" )
@@ -160,14 +192,14 @@ create_table() {
     local workflow_type="$3" # "read" or "write"
     local bw_in="$4"
     echo "### $table_name"
-    ROW_COUNT=$(job_count "$file")
+    ROW_COUNT=$(job_count "${file}_1.json")
     populate_all_columns "$file" "$workflow_type"
     convert_bytes_to "${bw_in}"
     format_iops_to_kilo
     convert_lat_mean_ns_to_ms "lat_mean"
 
     echo "| File Size | BlockSize | nrfiles | Bandwidth in (${bw_in}/sec) | IOPs | IOPs Avg Latency (ms) |"
-    echo "|---|---|---|---|---|---|---|---|"
+    echo "|---|---|---|---|---|---|"
     for ((i = 0; i < ROW_COUNT; i++)); do
         echo "| ${filesize[i]} | ${bs[i]} | ${nrfiles[i]} | ${bw_bytes[i]} | ${iops[i]} | ${lat_mean[i]} |"
     done

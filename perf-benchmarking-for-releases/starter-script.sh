@@ -86,6 +86,7 @@ echo "Current directory: $(pwd)"
 echo "User: $(whoami)"
 
 # Fetch metadata parameters
+BENCHMARK_COUNT=$(curl -s "http://metadata.google.internal/computeMetadata/v1/instance/attributes/BENCHMARK_COUNT" -H "Metadata-Flavor: Google")
 GCSFUSE_VERSION=$(curl -s "http://metadata.google.internal/computeMetadata/v1/instance/attributes/GCSFUSE_VERSION" -H "Metadata-Flavor: Google")
 MACHINE_TYPE=$(curl -s "http://metadata.google.internal/computeMetadata/v1/instance/attributes/MACHINE_TYPE" -H "Metadata-Flavor: Google")
 GCS_BUCKET_WITH_FIO_TEST_DATA=$(curl -s "http://metadata.google.internal/computeMetadata/v1/instance/attributes/GCS_BUCKET_WITH_FIO_TEST_DATA" -H "Metadata-Flavor: Google")
@@ -132,7 +133,7 @@ FIO_JOB_DIR="/tmp/fio_jobs"
 
 # Download all FIO job spec files
 mkdir -p "$FIO_JOB_DIR"
-gcloud storage cp "gs://$RESULTS_BUCKET_NAME/$GCSFUSE_VERSION/fio-job-files/*.fio" "$FIO_JOB_DIR/"
+gcloud storage cp "gs://$RESULTS_BUCKET_NAME/$GCSFUSE_VERSION/$MACHINE_TYPE/fio-job-files/*.fio" "$FIO_JOB_DIR/"
 
 RESULT_PATH="gs://$RESULTS_BUCKET_NAME/$GCSFUSE_VERSION/$MACHINE_TYPE/"
 
@@ -169,25 +170,35 @@ fi
 # Mount dir for gcsfuse
 mkdir -p "$MNT"
 for fio_job_file in "$FIO_JOB_DIR"/*.fio; do
-    echo "Mounting GCSFuse for fio-job: ${fio_job_file}"
-    "$GCSFUSE_BIN" --implicit-dirs "$GCS_BUCKET_WITH_FIO_TEST_DATA" "$MNT"
-    job_name=$(basename "$fio_job_file" .fio) # e.g., random-read-workload
+    for i in $(seq 1 "$BENCHMARK_COUNT"); do
+        echo "Running benchmark $i/$BENCHMARK_COUNT for $fio_job_file"
+        echo "Mounting GCSFuse now..."
+        "$GCSFUSE_BIN" --implicit-dirs "$GCS_BUCKET_WITH_FIO_TEST_DATA" "$MNT"
+        job_name=$(basename "$fio_job_file" .fio) # e.g., random-read-workload
 
-    [[ "$LSSD_ENABLED" == "true" ]] && reformat_and_remount_lssd
+        [[ "$LSSD_ENABLED" == "true" ]] && reformat_and_remount_lssd
 
-    # Drop Page Cache
-    sudo sh -c "echo 3 > /proc/sys/vm/drop_caches"
+        # Drop Page Cache
+        sudo sh -c "echo 3 > /proc/sys/vm/drop_caches"
         
-    RESULT_FILE="gcsfuse-${job_name}-benchmark.json"
+        RESULT_FILE="gcsfuse-${job_name}-benchmark_${i}.json"
+        if [[ "$job_name" == "write-workload" ]]; then
+            DIR="$MNT" fio "$fio_job_file" --output-format=json --output="$RESULT_FILE"
+            rm -f "$RESULT_FILE"
+            rm -rf "$MNT/*" # Populate negative stat cache.
+        else
+            # Read workload
+            ls -R "$MNT" # Prefetch metadata. 
+        fi
+        DIR="$MNT" fio "$fio_job_file" --output-format=json --output="$RESULT_FILE"
 
-    DIR="$MNT" fio "$fio_job_file" --output-format=json --output="$RESULT_FILE"
-
-    gcloud storage cp "$RESULT_FILE" "$RESULT_PATH"
+        gcloud storage cp "$RESULT_FILE" "$RESULT_PATH"
         
-    rm -f "$RESULT_FILE" # Clean up local files
-    # Unmount GCSFuse
-    echo "Unmounting GCSFuse"
-    sudo umount "$MNT"
+        rm -f "$RESULT_FILE" # Clean up local files
+        # Unmount GCSFuse
+        echo "Unmounting GCSFuse"
+        sudo umount "$MNT"
+    done
 done
 
 # All tests ran successfully; create a success.txt file in GCS

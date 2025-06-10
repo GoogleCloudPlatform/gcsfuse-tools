@@ -15,15 +15,15 @@
 # limitations under the License.
 
 # Validate input arguments
-if [ "$#" -ne 6 ]; then
-    echo "Usage: $0 <GCSFUSE_VERSION> <PROJECT_ID> <REGION> <MACHINE_TYPE> <IMAGE_FAMILY> <IMAGE_PROJECT>"
+if [ "$#" -ne 7 ]; then
+    echo "Usage: $0 <GCSFUSE_VERSION> <PROJECT_ID> <REGION> <MACHINE_TYPE> <IMAGE_FAMILY> <IMAGE_PROJECT> <BENCHMARK_COUNT>"
     echo ""
     echo "<GCSFUSE_VERSION> can be a Git tag (e.g. v1.0.0), branch name (e.g. main), or a commit ID on master."
     echo ""
     echo "This script should be run from the 'perf-benchmarking-for-releases' directory."
     echo ""
     echo "Example:"
-    echo "  bash run-benchmarks.sh v2.12.0 gcs-fuse-test us-south1 n2-standard-96 ubuntu-2004-lts ubuntu-os-cloud"
+    echo "  bash run-benchmarks.sh v2.12.0 gcs-fuse-test us-south1 n2-standard-96 ubuntu-2004-lts ubuntu-os-cloud 3"
     exit 1
 fi
 
@@ -42,6 +42,7 @@ REGION=$3
 MACHINE_TYPE=$4
 IMAGE_FAMILY=$5
 IMAGE_PROJECT=$6
+BENCHMARK_COUNT=$7
 
 # Generate unique names for VM and buckets using timestamp and random number
 TIMESTAMP=$(date +%Y%m%d-%H%M%S)
@@ -142,17 +143,17 @@ gcloud storage buckets add-iam-policy-binding "gs://${GCS_BUCKET_WITH_FIO_TEST_D
 # Since file generation with fio is painfully slow, we will use storage transfer
 # job to transfer test data from a fixed GCS bucket to the newly created bucket.
 # Note : We need to copy only read data.
-# echo "Creating storage transfer job to copy read data to gs://${GCS_BUCKET_WITH_FIO_TEST_DATA}..."
+echo "Creating storage transfer job to copy read data to gs://${GCS_BUCKET_WITH_FIO_TEST_DATA}..."
 
-# TRANSFER_JOB_NAME=$(gcloud transfer jobs create \
-#   gs://gcsfuse-release-benchmark-fio-data \
-#   gs://${GCS_BUCKET_WITH_FIO_TEST_DATA} \
-#    --include-prefixes=read \
-#   --project="${PROJECT_ID}" \
-#   --format="value(name)" \
-#   --no-async) 
+TRANSFER_JOB_NAME=$(gcloud transfer jobs create \
+  gs://gcsfuse-release-benchmark-fio-data \
+  gs://${GCS_BUCKET_WITH_FIO_TEST_DATA} \
+   --include-prefixes=read \
+  --project="${PROJECT_ID}" \
+  --format="value(name)" \
+  --no-async) 
 
-# echo "Transfer completed."
+echo "Transfer completed."
 
 
 # Create the VM based on the config passed by user
@@ -167,14 +168,56 @@ gcloud compute instances create "${VM_NAME}" \
     --network-interface=network-tier=PREMIUM,nic-type=GVNIC \
     --scopes=https://www.googleapis.com/auth/cloud-platform,https://www.googleapis.com/auth/devstorage.read_write \
     --network-performance-configs=total-egress-bandwidth-tier=TIER_1 \
-    --metadata GCSFUSE_VERSION="${GCSFUSE_VERSION}",MACHINE_TYPE="${MACHINE_TYPE}",GCS_BUCKET_WITH_FIO_TEST_DATA="${GCS_BUCKET_WITH_FIO_TEST_DATA}",RESULTS_BUCKET_NAME="${RESULTS_BUCKET_NAME}",LSSD_ENABLED="${LSSD_ENABLED}" \
+    --metadata BENCHMARK_COUNT="${BENCHMARK_COUNT}",GCSFUSE_VERSION="${GCSFUSE_VERSION}",MACHINE_TYPE="${MACHINE_TYPE}",GCS_BUCKET_WITH_FIO_TEST_DATA="${GCS_BUCKET_WITH_FIO_TEST_DATA}",RESULTS_BUCKET_NAME="${RESULTS_BUCKET_NAME}",LSSD_ENABLED="${LSSD_ENABLED}" \
     $VM_LOCAL_SSD_ARGS
 
 gcloud compute os-login ssh-keys add --key="$(ssh-add -L | grep publickey)" --project="$PROJECT_ID"
 
-sleep 60
+run_command_on_vm() {
+    if ! gcloud compute ssh "$VM_NAME" "--zone=${VM_ZONE}" "--project=${PROJECT_ID}" "--command=$1" -- -o "Hostname=nic0.${VM_NAME}.${VM_ZONE}.c.${PROJECT_ID}.internal.gcpnode.com"; then
+        echo "Retrying..."
+        sleep 60
+    else
+        return 0
+    fi
+    if ! gcloud compute ssh "$VM_NAME" "--zone=${VM_ZONE}" "--project=${PROJECT_ID}" "--command=$1" -- -o "Hostname=nic0.${VM_NAME}.${VM_ZONE}.c.${PROJECT_ID}.internal.gcpnode.com"; then
+        echo "Retrying..."
+        sleep 60
+    else
+        return 0
+    fi
+    if ! gcloud compute ssh "$VM_NAME" "--zone=${VM_ZONE}" "--project=${PROJECT_ID}" "--command=$1" -- -o "Hostname=nic0.${VM_NAME}.${VM_ZONE}.c.${PROJECT_ID}.internal.gcpnode.com"; then
+        echo "Retrying..."
+        sleep 60
+    else
+        return 0
+    fi
+    if ! gcloud compute ssh "$VM_NAME" "--zone=${VM_ZONE}" "--project=${PROJECT_ID}" "--command=$1" -- -o "Hostname=nic0.${VM_NAME}.${VM_ZONE}.c.${PROJECT_ID}.internal.gcpnode.com"; then
+        echo "Retrying..."
+        sleep 60
+    else
+        return 0
+    fi
+    if ! gcloud compute ssh "$VM_NAME" "--zone=${VM_ZONE}" "--project=${PROJECT_ID}" "--command=$1" -- -o "Hostname=nic0.${VM_NAME}.${VM_ZONE}.c.${PROJECT_ID}.internal.gcpnode.com"; then
+        echo "Retrying..."
+        sleep 60
+    else
+        return 0
+    fi
+    if ! gcloud compute ssh "$VM_NAME" "--zone=${VM_ZONE}" "--project=${PROJECT_ID}" "--command=$1" -- -o "Hostname=nic0.${VM_NAME}.${VM_ZONE}.c.${PROJECT_ID}.internal.gcpnode.com"; then
+        echo "Retrying..."
+        sleep 60
+    else
+        return 0
+    fi
+    exit 1
+}
 
-gcloud compute ssh "$VM_NAME" "--zone=${VM_ZONE}" "--project=${PROJECT_ID}" "--command=hostname" -- -o "Hostname=nic0.${VM_NAME}.${VM_ZONE}.c.${PROJECT_ID}.internal.gcpnode.com"
+gcloud storage cp starter-script.sh gs://${RESULTS_BUCKET_NAME}/${GCSFUSE_VERSION}/${MACHINE_TYPE}/starter-script.sh
+
+run_command_on_vm "gcloud storage cp gs://${RESULTS_BUCKET_NAME}/${GCSFUSE_VERSION}/${MACHINE_TYPE}/starter-script.sh ~/"
+
+run_command_on_vm "bash ~/starter-script.sh"
 
 echo "Waiting for benchmarks to complete on VM (polling for success.txt)..."
 SUCCESS_FILE_PATH="gs://${RESULTS_BUCKET_NAME}/${GCSFUSE_VERSION}/${MACHINE_TYPE}/success.txt"
