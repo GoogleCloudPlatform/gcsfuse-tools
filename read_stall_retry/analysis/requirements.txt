@@ -1,0 +1,5 @@
+# Used for data analysis and reading CSV files in requests_per_retry_count.py
+pandas
+
+# Used for creating the bar chart visualization in retries_per_interval.py
+matplotlib
