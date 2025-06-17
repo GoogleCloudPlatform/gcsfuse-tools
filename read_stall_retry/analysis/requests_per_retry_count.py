@@ -21,16 +21,16 @@ UUID and counts how many times each request was retried.
 
 It then summarizes the number of requests that were retried 1, 2, 3, ... times.
 
-The input log file is expected to be at '/tmp/<job_name>-logs.csv'.
+The input log file path is provided as a command-line argument.
 
 Usage:
-    python requests_per_retry_count.py <job_name>
+    python requests_per_retry_count.py <path_to_log_file>
 
 Example:
-    python requests_per_retry_count.py sample-job
+    python requests_per_retry_count.py /tmp/sample-logs.csv
 
 Output:
-    Processing file: /tmp/sample-job-logs.csv
+    Processing file: /tmp/sample-logs.csv
 
     Retries    | Requests
     -----------+----------
@@ -57,22 +57,19 @@ def main():
         ),
         epilog=(
             "Example usage:\n"
-            "  python requests_per_retry_count.py sample-job\n\n"
-            "This will read '/tmp/sample-job-logs.csv' and output a summary of retry counts."
+            "  python requests_per_retry_count.py /tmp/sample-logs.csv\n\n"
+            "This will read the specified CSV file and output a summary of retry counts."
         ),
         formatter_class=argparse.RawTextHelpFormatter
     )
     parser.add_argument(
-        "job_name",
-        help="Name of the job. This is used to construct the log file path: "
-             "'/tmp/<job_name>-logs.csv'."
+        "log_file_path",
+        help="Path to the CSV log file to be processed."
     )
 
     args = parser.parse_args()
 
-    job_name = args.job_name
-    # Construct log_file path from job_name
-    log_file = f"/tmp/{job_name}-logs.csv"
+    log_file = args.log_file_path
 
     print(f"Processing file: {log_file}")
 
@@ -80,14 +77,19 @@ def main():
         df = pd.read_csv(log_file)
     except FileNotFoundError:
         print(f"Error: Log file '{log_file}' not found.")
-        print(f"Please ensure the file exists at '/tmp/{job_name}-logs.csv'.")
         sys.exit(1)
     except Exception as e:
         print(f"Error reading log file '{log_file}': {e}")
         sys.exit(1)
 
-    if 'textPayload' not in df.columns:
-        print(f"Error: Log file '{log_file}' is missing the required 'textPayload' column.")
+    # Sanitize header for case-insensitive and whitespace-proof comparison.
+    sanitized_header = [h.strip().lower() for h in df.columns]
+
+    # Validate that the header has the expected columns.
+    if len(sanitized_header) < 2 or sanitized_header[0] != 'timestamp' or sanitized_header[1] != 'textpayload':
+        print(f"Error: Invalid CSV header in '{log_file}'.", file=sys.stderr)
+        print("Expected header to start with 'timestamp,textPayload'.", file=sys.stderr)
+        print(f"Actual header: {','.join(df.columns)}", file=sys.stderr)
         sys.exit(1)
 
     retry_counts = defaultdict(int)
