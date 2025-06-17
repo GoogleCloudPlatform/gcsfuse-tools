@@ -14,30 +14,28 @@
 # limitations under the License.
 
 """
-Analyzes job retry log timestamps and aggregates them into time intervals.
+This script reads a CSV file where the first column contains ISO-formatted
+timestamps. It groups these timestamps into specified time intervals (e.g., '5m')
+and calculates the number of entries per interval. The results are saved to a
+new CSV file and a PNG bar chart is generated.
 
 Usage:
-    python retries_per_interval.py <job_name> [--interval <interval>]
+    python retries_per_interval.py <log_file_path> [--interval <interval>]
 
 Examples:
-    python retries_per_interval.py sample-job
-    python retries_per_interval.py sample-job --interval 10m
-    python retries_per_interval.py sample-job -i 1h
+    python retries_per_interval.py /tmp/sample-logs.csv
+    python retries_per_interval.py /tmp/sample-logs.csv --interval 10m
+    python retries_per_interval.py /tmp/sample-logs.csv -i 1h
 
-This script reads a CSV log file located at '/tmp/<job_name>-logs.csv',
-where the first column contains ISO-formatted retry timestamps. It then:
-- Groups the timestamps by interval (e.g., 5 minutes)
-- Outputs a CSV file: '<job_name>-retries.csv'
-- Generates a PNG bar chart: '<job_name>-retries.png'
-
-Sample Output (CSV: <job_name>-retries.csv):
+Sample Output (CSV: sample-retries_1m.csv):
 
     Interval Start (UTC),Retries
-    2025-05-14 16:31:00,4
-    2025-05-14 16:32:00,14
-    2025-05-14 16:33:00,12
-    2025-05-14 16:34:00,2299
-    2025-05-14 16:35:00,606
+    2025-06-16 09:21:00,684
+    2025-06-16 09:28:00,765
+    2025-06-16 09:35:00,318
+    2025-06-16 09:42:00,344
+    2025-06-16 09:49:00,63
+    2025-06-16 09:56:00,8
 """
 
 import argparse
@@ -70,7 +68,18 @@ def process_logs(log_file_path, interval_seconds):
     try:
         with open(log_file_path, 'r', encoding='utf-8') as csvfile:
             reader = csv.reader(csvfile)
-            header = next(reader) # Skip header
+            header = next(reader) # Read header
+
+            # Sanitize header for case-insensitive and whitespace-proof comparison
+            sanitized_header = [h.strip().lower() for h in header]
+
+            # Validate that the header has the expected columns in the correct order.
+            if len(sanitized_header) < 2 or sanitized_header[0] != 'timestamp' or sanitized_header[1] != 'textpayload':
+                print(f"Error: Invalid CSV header in '{log_file_path}'.", file=sys.stderr)
+                print("Expected header to start with 'timestamp,textPayload'.", file=sys.stderr)
+                print(f"Actual header: {','.join(header)}", file=sys.stderr)
+                sys.exit(1)
+
             for i, row in enumerate(reader):
                 if not row:  # Skip empty rows
                     continue
@@ -96,7 +105,6 @@ def process_logs(log_file_path, interval_seconds):
                     continue
     except FileNotFoundError:
         print(f"Error: Log file {log_file_path} not found.", file=sys.stderr)
-        print(f"Please ensure the log file '/tmp/{os.path.basename(log_file_path).replace('-logs.csv', '')}-logs.csv' exists.", file=sys.stderr)
         sys.exit(1)
     except StopIteration:
         print(f"Error: Log file {log_file_path} appears to be empty or only contains a header.", file=sys.stderr)
@@ -139,7 +147,7 @@ def write_csv(output_csv_path, data, min_bucket, max_bucket, interval_seconds):
         sys.exit(1)
 
 
-def generate_graph(csv_file_path, output_png_path, job_name, interval_str):
+def generate_graph(csv_file_path, output_png_path, title_prefix, interval_str):
     """Generates a bar chart from the CSV data using matplotlib."""
     try:
         import matplotlib
@@ -181,14 +189,17 @@ def generate_graph(csv_file_path, output_png_path, job_name, interval_str):
     fig, ax = plt.subplots(figsize=(15, 7))
 
     interval_duration_in_days = parse_interval_to_seconds(interval_str) / (24*60*60)
-    bars = ax.bar(timestamps, retries, width=interval_duration_in_days * 0.8, align='center', color='skyblue') # Store the bars
+    bars = ax.bar(timestamps, retries, width=interval_duration_in_days, align='edge', color='skyblue', edgecolor='black') # Store the bars
 
     ax.set_xlabel("Time Interval Start (UTC)")
     ax.set_ylabel("Number of Retries")
-    ax.set_title(f"Retries per Interval for {job_name}\nInterval: {interval_str}")
+    ax.set_title(f"Retries per Interval for {title_prefix}\nInterval: {interval_str}")
 
     ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d\n%H:%M', tz=datetime.timezone.utc))
     plt.xticks(rotation=45, ha="right")
+
+    # Force a tick for every timestamp in your data
+    ax.set_xticks(timestamps)
 
     if retries: # Ensure retries list is not empty
         y_tick_step = max(1, (max(retries) // 10) or 1)
@@ -224,25 +235,24 @@ def generate_graph(csv_file_path, output_png_path, job_name, interval_str):
 def main():
     parser = argparse.ArgumentParser(
         description=(
-            "Processes job log files to calculate and visualize the number of retries over time.\n"
-            "Reads a CSV log file with timestamps from '/tmp/<job_name>-logs.csv', "
-            "groups retries into intervals, outputs a new CSV, and generates a PNG graph."
+            "Processes log files to calculate and visualize the number of retries over time.\n"
+            "Reads a CSV log file with timestamps, groups retries into intervals, "
+            "outputs a new CSV, and generates a PNG graph."
         ),
         epilog=(
             "Examples:\n"
-            "  python retries_per_interval.py sample-job\n"
-            "  python retries_per_interval.py sample-job --interval 10m\n"
-            "  python retries_per_interval.py sample-job -i 1h\n\n"
+            "  python retries_per_interval.py /tmp/sample-logs.csv\n"
+            "  python retries_per_interval.py /data/logs.csv --interval 10m\n"
+            "  python retries_per_interval.py my-logs.csv -i 1h\n\n"
             "Notes:\n"
             "  - The '--interval' argument is optional. If not specified, the default interval is '1m'.\n"
-            "  - The input file must be located at '/tmp/<job_name>-logs.csv' and include a header."
+            "  - The input file must be a CSV with a header, and the first column must be the timestamp."
         ),
         formatter_class=argparse.RawTextHelpFormatter
     )
     parser.add_argument(
-        "job_name",
-        help="Name of the job. Used for default log file name construction "
-             "('/tmp/<job_name>-logs.csv')"
+        "log_file_path",
+        help="Path to the input CSV log file (e.g., '/tmp/sample-logs.csv')."
     )
     parser.add_argument(
         "-i", "--interval",
@@ -253,11 +263,17 @@ def main():
 
     args = parser.parse_args()
 
-    job_name = args.job_name
+    log_file_path = args.log_file_path
     interval_str = args.interval
 
-    # Construct log_file_path from job_name
-    log_file_path = f"/tmp/{job_name}-logs.csv"
+    # Create a prefix for output files from the input file path
+    base_name = os.path.basename(log_file_path)
+    if base_name.endswith("-logs.csv"):
+        output_prefix = base_name[:-len("-logs.csv")]
+    elif base_name.endswith(".csv"):
+        output_prefix = base_name[:-len(".csv")]
+    else:
+        output_prefix = base_name
 
     try:
         interval_seconds = parse_interval_to_seconds(interval_str)
@@ -266,12 +282,14 @@ def main():
         parser.print_help()
         sys.exit(1)
 
-    output_csv_path = f"{job_name}-retries.csv"
-    output_png_path = f"{job_name}-retries.png"
+    # Add the interval to the output filenames to make them unique and descriptive
+    output_csv_path = f"{output_prefix}-retries_{interval_str}.csv"
+    output_png_path = f"{output_prefix}-retries_{interval_str}.png"
 
-    print(f"Job Name: {job_name}")
+    print(f"Input Log File: {log_file_path}")
     print(f"Aggregation Interval: {interval_str} ({interval_seconds} seconds)")
-    print(f"Log File: {log_file_path}")
+    print(f"Output CSV: {output_csv_path}")
+    print(f"Output PNG: {output_png_path}")
 
     retry_data, min_bucket, max_bucket = process_logs(log_file_path, interval_seconds)
 
@@ -280,7 +298,7 @@ def main():
         sys.exit(0)
 
     write_csv(output_csv_path, retry_data, min_bucket, max_bucket, interval_seconds)
-    generate_graph(output_csv_path, output_png_path, job_name, interval_str)
+    generate_graph(output_csv_path, output_png_path, output_prefix, interval_str)
 
 if __name__ == "__main__":
     main()
