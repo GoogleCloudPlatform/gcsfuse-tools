@@ -23,7 +23,7 @@ if [ "$#" -ne 7 ]; then
     echo "This script should be run from the 'perf-benchmarking-for-releases' directory."
     echo ""
     echo "Example:"
-    echo "  bash run-benchmarks.sh v2.12.0 gcs-fuse-test us-south1 n2-standard-96 ubuntu-2004-lts ubuntu-os-cloud 3"
+    echo "  bash run-benchmarks.sh v2.12.0 gcs-fuse-test us-south1 n2-standard-96 ubuntu-2204-lts ubuntu-os-cloud 3"
     exit 1
 fi
 

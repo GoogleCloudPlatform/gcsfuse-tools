@@ -27,7 +27,7 @@ if [ "$#" -gt 2 ]; then
     exit 1
 fi
 
-BENCHMARK_COUNT=3 # Number of times run each benchmark 
+BENCHMARK_COUNT=1 # Number of times run each benchmark 
 GCSFUSE_VERSION="$1"
 RERUN=${2:-false}
 
@@ -47,10 +47,10 @@ echo "Logging in: ${TMP_DIR}/${GCSFUSE_VERSION}-n2"
 if [[ "$RERUN" == "true" ]]; then
     benchmark_pids=()
     # Benchmark 1
-    ./run-benchmarks.sh "$GCSFUSE_VERSION" gcs-fuse-test us-south1 n2-standard-96 ubuntu-2004-lts ubuntu-os-cloud "$BENCHMARK_COUNT" >"${TMP_DIR}/${GCSFUSE_VERSION}-n2" 2>&1 &
+    ./run-benchmarks.sh "$GCSFUSE_VERSION" gcs-fuse-test us-south1 n2-standard-96 ubuntu-2204-lts ubuntu-os-cloud "$BENCHMARK_COUNT" >"${TMP_DIR}/${GCSFUSE_VERSION}-n2" 2>&1 &
     benchmark_pids+=($!)
     # Benchmark 2
-    ./run-benchmarks.sh "$GCSFUSE_VERSION" gcs-fuse-test us-south1 c4-standard-96 ubuntu-2004-lts ubuntu-os-cloud "$BENCHMARK_COUNT" >"${TMP_DIR}/${GCSFUSE_VERSION}-c4" 2>&1 &
+    ./run-benchmarks.sh "$GCSFUSE_VERSION" gcs-fuse-test us-south1 c4-standard-96 ubuntu-2204-lts ubuntu-os-cloud "$BENCHMARK_COUNT" >"${TMP_DIR}/${GCSFUSE_VERSION}-c4" 2>&1 &
     benchmark_pids+=($!)
     for pid in "${benchmark_pids[@]}"; do
         if ! wait "$pid"; then
