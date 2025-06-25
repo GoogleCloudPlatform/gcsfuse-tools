@@ -1,0 +1,1113 @@
+multi_threaded_read_over_single_file: (g=0): rw=read, bs=(R) 1024KiB-1024KiB, (W) 1024KiB-1024KiB, (T) 1024KiB-1024KiB, ioengine=libaio, iodepth=64
+...
+fio-3.16
+Starting 2 threads
+multi_threaded_read_over_single_file: Laying out IO file (1 file / 2048MiB)
+multi_threaded_read_over_single_file: Laying out IO file (1 file / 2048MiB)
+
+multi_threaded_read_over_single_file: (groupid=0, jobs=2): err= 0: pid=3168298: Tue Jun 24 08:55:59 2025
+  read: IOPS=431, BW=432MiB/s (453MB/s)(4096MiB/9487msec)
+    slat (usec): min=49, max=1456, avg=195.53, stdev=151.10
+    clat (msec): min=13, max=705, avg=295.36, stdev=73.44
+     lat (msec): min=14, max=705, avg=295.56, stdev=73.43
+    clat percentiles (msec):
+     |  1.00th=[   39],  5.00th=[  136], 10.00th=[  218], 20.00th=[  300],
+     | 30.00th=[  305], 40.00th=[  305], 50.00th=[  305], 60.00th=[  305],
+     | 70.00th=[  305], 80.00th=[  309], 90.00th=[  317], 95.00th=[  401],
+     | 99.00th=[  506], 99.50th=[  609], 99.90th=[  684], 99.95th=[  693],
+     | 99.99th=[  709]
+   bw (  KiB/s): min=290816, max=645120, per=99.34%, avg=439182.22, stdev=35764.73, samples=36
+   iops        : min=  284, max=  630, avg=428.89, stdev=34.93, samples=36
+  lat (msec)   : 20=0.63%, 50=0.54%, 100=1.32%, 250=10.16%, 500=85.99%
+  lat (msec)   : 750=1.37%
+  cpu          : usr=0.05%, sys=4.28%, ctx=4158, majf=0, minf=32869
+  IO depths    : 1=0.1%, 2=0.1%, 4=0.2%, 8=0.4%, 16=0.8%, 32=1.6%, >=64=96.9%
+     submit    : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.0%, >=64=0.0%
+     complete  : 0=0.0%, 4=99.9%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.1%, >=64=0.0%
+     issued rwts: total=4096,0,0,0 short=0,0,0,0 dropped=0,0,0,0
+     latency   : target=0, window=0, percentile=100.00%, depth=64
+
+Run status group 0 (all jobs):
+   READ: bw=432MiB/s (453MB/s), 432MiB/s-432MiB/s (453MB/s-453MB/s), io=4096MiB (4295MB), run=9487-9487msec
+
+Disk stats (read/write):
+  sda: ios=16216/16933, merge=0/149, ticks=4720945/907768, in_queue=5628713, util=94.30%
+multi_threaded_read_over_single_file: (g=0): rw=read, bs=(R) 1024KiB-1024KiB, (W) 1024KiB-1024KiB, (T) 1024KiB-1024KiB, ioengine=libaio, iodepth=64
+...
+fio-3.16
+Starting 2 threads
+
+multi_threaded_read_over_single_file: (groupid=0, jobs=2): err= 0: pid=3169216: Tue Jun 24 09:01:49 2025
+  read: IOPS=420, BW=420MiB/s (441MB/s)(49.4GiB/120300msec)
+    slat (usec): min=68, max=2501, avg=234.66, stdev=167.67
+    clat (msec): min=19, max=981, avg=304.35, stdev=149.09
+     lat (msec): min=20, max=981, avg=304.58, stdev=149.07
+    clat percentiles (msec):
+     |  1.00th=[   83],  5.00th=[   97], 10.00th=[  116], 20.00th=[  161],
+     | 30.00th=[  203], 40.00th=[  245], 50.00th=[  292], 60.00th=[  334],
+     | 70.00th=[  384], 80.00th=[  439], 90.00th=[  506], 95.00th=[  567],
+     | 99.00th=[  693], 99.50th=[  743], 99.90th=[  827], 99.95th=[  869],
+     | 99.99th=[  953]
+   bw (  KiB/s): min=210944, max=649216, per=99.99%, avg=430222.87, stdev=39257.02, samples=480
+   iops        : min=  206, max=  634, avg=420.13, stdev=38.34, samples=480
+  lat (msec)   : 20=0.01%, 50=0.08%, 100=5.82%, 250=35.16%, 500=48.41%
+  lat (msec)   : 750=10.09%, 1000=0.44%
+  cpu          : usr=0.04%, sys=4.90%, ctx=52226, majf=0, minf=33282
+  IO depths    : 1=0.1%, 2=0.1%, 4=0.1%, 8=0.1%, 16=0.1%, 32=0.1%, >=64=99.8%
+     submit    : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.0%, >=64=0.0%
+     complete  : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.1%, >=64=0.0%
+     issued rwts: total=50547,0,0,0 short=0,0,0,0 dropped=0,0,0,0
+     latency   : target=0, window=0, percentile=100.00%, depth=64
+
+Run status group 0 (all jobs):
+   READ: bw=420MiB/s (441MB/s), 420MiB/s-420MiB/s (441MB/s-441MB/s), io=49.4GiB (53.0GB), run=120300-120300msec
+
+Disk stats (read/write):
+  sda: ios=201922/743, merge=0/105, ticks=60720182/2748, in_queue=60722945, util=100.00%
+multi_threaded_seq_read_over_single_file: (g=0): rw=read, bs=(R) 1024KiB-1024KiB, (W) 1024KiB-1024KiB, (T) 1024KiB-1024KiB, ioengine=libaio, iodepth=64
+...
+multi_threaded_rand_read_over_single_file: (g=1): rw=read, bs=(R) 1024KiB-1024KiB, (W) 1024KiB-1024KiB, (T) 1024KiB-1024KiB, ioengine=libaio, iodepth=64
+...
+fio-3.16
+Starting 4 threads
+multi_threaded_seq_read_over_single_file: Laying out IO file (1 file / 2048MiB)
+multi_threaded_seq_read_over_single_file: Laying out IO file (1 file / 2048MiB)
+
+multi_threaded_seq_read_over_single_file: (groupid=0, jobs=2): err= 0: pid=3169661: Tue Jun 24 09:10:50 2025
+  read: IOPS=1113k, BW=702MiB/s (737MB/s)(82.3GiB/120001msec)
+    slat (nsec): min=401, max=203579k, avg=1327.05, stdev=89575.57
+    clat (nsec): min=1696, max=297756k, avg=113349.48, stdev=2332159.71
+     lat (usec): min=2, max=298199, avg=114.71, stdev=2367.85
+    clat percentiles (usec):
+     |  1.00th=[    57],  5.00th=[    57], 10.00th=[    57], 20.00th=[    57],
+     | 30.00th=[    57], 40.00th=[    57], 50.00th=[    57], 60.00th=[    57],
+     | 70.00th=[    57], 80.00th=[    57], 90.00th=[    58], 95.00th=[    60],
+     | 99.00th=[    67], 99.50th=[    89], 99.90th=[   101], 99.95th=[ 70779],
+     | 99.99th=[109577]
+   bw (  KiB/s): min=380021, max=802695, per=91.54%, avg=658475.25, stdev=81700.15, samples=239
+   iops        : min=831574, max=1035408, avg=969232.70, stdev=11608.60, samples=478
+  lat (usec)   : 2=0.01%, 4=0.01%, 10=0.01%, 20=0.01%, 50=0.01%
+  lat (usec)   : 100=99.90%, 250=0.04%, 500=0.01%, 750=0.01%, 1000=0.01%
+  lat (msec)   : 2=0.01%, 4=0.01%, 10=0.01%, 20=0.01%, 50=0.01%
+  lat (msec)   : 100=0.05%, 250=0.02%, 500=0.01%
+  cpu          : usr=22.38%, sys=28.59%, ctx=84433, majf=0, minf=178115
+  IO depths    : 1=0.1%, 2=0.1%, 4=0.1%, 8=0.1%, 16=0.1%, 32=0.1%, >=64=100.0%
+     submit    : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.0%, >=64=0.0%
+     complete  : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.1%, >=64=0.0%
+     issued rwts: total=133593514,0,0,0 short=0,0,0,0 dropped=0,0,0,0
+     latency   : target=0, window=0, percentile=100.00%, depth=64
+multi_threaded_rand_read_over_single_file: (groupid=1, jobs=2): err= 0: pid=3170336: Tue Jun 24 09:10:50 2025
+  read: IOPS=1438, BW=1439MiB/s (1509MB/s)(4096MiB/2847msec)
+    slat (usec): min=332, max=43391, avg=1358.23, stdev=2393.26
+    clat (nsec): min=1707, max=130013k, avg=83452844.62, stdev=18729329.97
+     lat (usec): min=373, max=130590, avg=84811.39, stdev=18808.25
+    clat percentiles (msec):
+     |  1.00th=[   20],  5.00th=[   64], 10.00th=[   66], 20.00th=[   69],
+     | 30.00th=[   73], 40.00th=[   77], 50.00th=[   80], 60.00th=[   86],
+     | 70.00th=[   95], 80.00th=[  103], 90.00th=[  109], 95.00th=[  114],
+     | 99.00th=[  126], 99.50th=[  128], 99.90th=[  129], 99.95th=[  130],
+     | 99.99th=[  130]
+   bw (  MiB/s): min= 1196, max= 1586, per=98.31%, avg=1414.40, stdev=68.88, samples=10
+   iops        : min= 1196, max= 1586, avg=1414.40, stdev=68.88, samples=10
+  lat (usec)   : 2=0.02%, 4=0.02%, 500=0.05%
+  lat (msec)   : 2=0.05%, 4=0.12%, 10=0.27%, 20=0.51%, 50=1.22%
+  lat (msec)   : 100=73.88%, 250=23.85%
+  cpu          : usr=0.00%, sys=3.11%, ctx=4103, majf=0, minf=32770
+  IO depths    : 1=0.1%, 2=0.1%, 4=0.2%, 8=0.4%, 16=0.8%, 32=1.6%, >=64=96.9%
+     submit    : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.0%, >=64=0.0%
+     complete  : 0=0.0%, 4=99.9%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.1%, >=64=0.0%
+     issued rwts: total=4096,0,0,0 short=0,0,0,0 dropped=0,0,0,0
+     latency   : target=0, window=0, percentile=100.00%, depth=64
+
+Run status group 0 (all jobs):
+   READ: bw=702MiB/s (737MB/s), 702MiB/s-702MiB/s (737MB/s-737MB/s), io=82.3GiB (88.4GB), run=120001-120001msec
+
+Run status group 1 (all jobs):
+   READ: bw=1439MiB/s (1509MB/s), 1439MiB/s-1439MiB/s (1509MB/s-1509MB/s), io=4096MiB (4295MB), run=2847-2847msec
+multi_threaded_seq_read_over_single_file: (g=0): rw=read, bs=(R) 1024KiB-1024KiB, (W) 1024KiB-1024KiB, (T) 1024KiB-1024KiB, ioengine=libaio, iodepth=64
+...
+multi_threaded_rand_read_over_single_file: (g=1): rw=read, bs=(R) 1024KiB-1024KiB, (W) 1024KiB-1024KiB, (T) 1024KiB-1024KiB, ioengine=libaio, iodepth=64
+...
+fio-3.16
+Starting 4 threads
+
+multi_threaded_seq_read_over_single_file: (groupid=0, jobs=2): err= 0: pid=3171649: Tue Jun 24 09:23:01 2025
+  read: IOPS=1171, BW=1172MiB/s (1228MB/s)(3893MiB/3323msec)
+    slat (usec): min=340, max=142909, avg=1704.87, stdev=5831.17
+    clat (usec): min=2, max=241185, avg=100668.81, stdev=39355.91
+     lat (usec): min=522, max=284955, avg=102373.85, stdev=39793.14
+    clat percentiles (msec):
+     |  1.00th=[   26],  5.00th=[   65], 10.00th=[   66], 20.00th=[   72],
+     | 30.00th=[   75], 40.00th=[   78], 50.00th=[   84], 60.00th=[   96],
+     | 70.00th=[  124], 80.00th=[  138], 90.00th=[  153], 95.00th=[  178],
+     | 99.00th=[  224], 99.50th=[  228], 99.90th=[  239], 99.95th=[  241],
+     | 99.99th=[  243]
+   bw (  KiB/s): min=441379, max=1185186, per=79.83%, avg=957645.83, stdev=126450.23, samples=12
+   iops        : min=  430, max= 1156, avg=934.17, stdev=123.45, samples=12
+  lat (usec)   : 4=0.05%, 750=0.03%
+  lat (msec)   : 4=0.10%, 10=0.26%, 20=0.39%, 50=0.98%, 100=62.47%
+  lat (msec)   : 250=35.73%
+  cpu          : usr=0.12%, sys=1.96%, ctx=3899, majf=0, minf=32770
+  IO depths    : 1=0.1%, 2=0.1%, 4=0.2%, 8=0.4%, 16=0.8%, 32=1.6%, >=64=96.8%
+     submit    : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.0%, >=64=0.0%
+     complete  : 0=0.0%, 4=99.9%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.1%, >=64=0.0%
+     issued rwts: total=3893,0,0,0 short=0,0,0,0 dropped=0,0,0,0
+     latency   : target=0, window=0, percentile=100.00%, depth=64
+multi_threaded_rand_read_over_single_file: (groupid=1, jobs=2): err= 0: pid=3171673: Tue Jun 24 09:23:01 2025
+  read: IOPS=1216, BW=1216MiB/s (1275MB/s)(4049MiB/3329msec)
+    slat (usec): min=381, max=156502, avg=1634.82, stdev=5513.54
+    clat (usec): min=2, max=234001, avg=99391.42, stdev=36993.24
+     lat (usec): min=453, max=234501, avg=101026.39, stdev=37170.75
+    clat percentiles (msec):
+     |  1.00th=[   45],  5.00th=[   68], 10.00th=[   70], 20.00th=[   73],
+     | 30.00th=[   78], 40.00th=[   80], 50.00th=[   83], 60.00th=[   88],
+     | 70.00th=[  109], 80.00th=[  129], 90.00th=[  159], 95.00th=[  176],
+     | 99.00th=[  226], 99.50th=[  228], 99.90th=[  232], 99.95th=[  234],
+     | 99.99th=[  234]
+   bw (  MiB/s): min=  824, max= 1404, per=96.23%, avg=1170.47, stdev=96.86, samples=12
+   iops        : min=  824, max= 1404, avg=1170.33, stdev=96.85, samples=12
+  lat (usec)   : 4=0.02%, 10=0.02%, 500=0.02%
+  lat (msec)   : 4=0.05%, 10=0.15%, 20=0.20%, 50=0.64%, 100=64.04%
+  lat (msec)   : 250=34.85%
+  cpu          : usr=0.00%, sys=2.11%, ctx=4055, majf=0, minf=32770
+  IO depths    : 1=0.1%, 2=0.1%, 4=0.2%, 8=0.4%, 16=0.8%, 32=1.6%, >=64=96.9%
+     submit    : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.0%, >=64=0.0%
+     complete  : 0=0.0%, 4=99.9%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.1%, >=64=0.0%
+     issued rwts: total=4049,0,0,0 short=0,0,0,0 dropped=0,0,0,0
+     latency   : target=0, window=0, percentile=100.00%, depth=64
+
+Run status group 0 (all jobs):
+   READ: bw=1172MiB/s (1228MB/s), 1172MiB/s-1172MiB/s (1228MB/s-1228MB/s), io=3893MiB (4082MB), run=3323-3323msec
+
+Run status group 1 (all jobs):
+   READ: bw=1216MiB/s (1275MB/s), 1216MiB/s-1216MiB/s (1275MB/s-1275MB/s), io=4049MiB (4246MB), run=3329-3329msec
+multi_threaded_seq_read_over_single_file: (g=0): rw=read, bs=(R) 1024KiB-1024KiB, (W) 1024KiB-1024KiB, (T) 1024KiB-1024KiB, ioengine=libaio, iodepth=64
+...
+fio-3.16
+Starting 2 threads
+
+multi_threaded_seq_read_over_single_file: (groupid=0, jobs=2): err= 0: pid=3175421: Tue Jun 24 10:18:39 2025
+  read: IOPS=1079, BW=1080MiB/s (1132MB/s)(4096MiB/3793msec)
+    slat (usec): min=332, max=233401, avg=1772.26, stdev=6977.06
+    clat (nsec): min=1466, max=194661k, avg=102593873.15, stdev=37227740.31
+     lat (usec): min=424, max=366525, avg=104366.33, stdev=37867.72
+    clat percentiles (msec):
+     |  1.00th=[   23],  5.00th=[   66], 10.00th=[   67], 20.00th=[   70],
+     | 30.00th=[   73], 40.00th=[   80], 50.00th=[   89], 60.00th=[  110],
+     | 70.00th=[  130], 80.00th=[  140], 90.00th=[  159], 95.00th=[  165],
+     | 99.00th=[  190], 99.50th=[  192], 99.90th=[  194], 99.95th=[  194],
+     | 99.99th=[  194]
+   bw (  MiB/s): min=  256, max= 1386, per=100.00%, avg=1093.10, stdev=195.68, samples=13
+   iops        : min=  256, max= 1386, avg=1093.10, stdev=195.68, samples=13
+  lat (usec)   : 2=0.05%, 500=0.05%
+  lat (msec)   : 2=0.02%, 4=0.07%, 10=0.27%, 20=0.39%, 50=1.17%
+  lat (msec)   : 100=53.98%, 250=43.99%
+  cpu          : usr=0.11%, sys=1.78%, ctx=4102, majf=0, minf=32770
+  IO depths    : 1=0.1%, 2=0.1%, 4=0.2%, 8=0.4%, 16=0.8%, 32=1.6%, >=64=96.9%
+     submit    : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.0%, >=64=0.0%
+     complete  : 0=0.0%, 4=99.9%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.1%, >=64=0.0%
+     issued rwts: total=4096,0,0,0 short=0,0,0,0 dropped=0,0,0,0
+     latency   : target=0, window=0, percentile=100.00%, depth=64
+
+Run status group 0 (all jobs):
+   READ: bw=1080MiB/s (1132MB/s), 1080MiB/s-1080MiB/s (1132MB/s-1132MB/s), io=4096MiB (4295MB), run=3793-3793msec
+multi_threaded_seq_read_over_single_file: (g=0): rw=read, bs=(R) 1024KiB-1024KiB, (W) 1024KiB-1024KiB, (T) 1024KiB-1024KiB, ioengine=libaio, iodepth=64
+...
+fio-3.16
+Starting 96 threads
+multi_threaded_seq_read_over_single_file: (g=0): rw=read, bs=(R) 1024KiB-1024KiB, (W) 1024KiB-1024KiB, (T) 1024KiB-1024KiB, ioengine=libaio, iodepth=64
+...
+fio-3.16
+Starting 4 threads
+
+multi_threaded_seq_read_over_single_file: (groupid=0, jobs=4): err= 0: pid=3178212: Tue Jun 24 10:36:24 2025
+  read: IOPS=2912, BW=2913MiB/s (3054MB/s)(341GiB/120024msec)
+    slat (usec): min=342, max=268036, avg=1371.44, stdev=2643.82
+    clat (usec): min=2, max=291804, avg=86297.38, stdev=21623.21
+     lat (usec): min=460, max=362008, avg=87669.04, stdev=21815.35
+    clat percentiles (msec):
+     |  1.00th=[   57],  5.00th=[   62], 10.00th=[   65], 20.00th=[   69],
+     | 30.00th=[   73], 40.00th=[   78], 50.00th=[   82], 60.00th=[   89],
+     | 70.00th=[   95], 80.00th=[  102], 90.00th=[  111], 95.00th=[  123],
+     | 99.00th=[  163], 99.50th=[  184], 99.90th=[  236], 99.95th=[  268],
+     | 99.99th=[  288]
+   bw (  MiB/s): min= 1059, max= 3714, per=99.90%, avg=2910.04, stdev=86.61, samples=958
+   iops        : min= 1059, max= 3714, avg=2909.94, stdev=86.62, samples=958
+  lat (usec)   : 4=0.01%, 10=0.01%, 500=0.01%, 750=0.01%
+  lat (msec)   : 2=0.01%, 4=0.01%, 10=0.01%, 20=0.01%, 50=0.03%
+  lat (msec)   : 100=77.50%, 250=22.37%, 500=0.08%
+  cpu          : usr=0.11%, sys=2.48%, ctx=349676, majf=0, minf=640613
+  IO depths    : 1=0.1%, 2=0.1%, 4=0.1%, 8=0.1%, 16=0.1%, 32=0.1%, >=64=99.9%
+     submit    : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.0%, >=64=0.0%
+     complete  : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.1%, >=64=0.0%
+     issued rwts: total=349622,0,0,0 short=0,0,0,0 dropped=0,0,0,0
+     latency   : target=0, window=0, percentile=100.00%, depth=64
+
+Run status group 0 (all jobs):
+   READ: bw=2913MiB/s (3054MB/s), 2913MiB/s-2913MiB/s (3054MB/s-3054MB/s), io=341GiB (367GB), run=120024-120024msec
+multi_threaded_seq_read_over_single_file: (g=0): rw=read, bs=(R) 1024KiB-1024KiB, (W) 1024KiB-1024KiB, (T) 1024KiB-1024KiB, ioengine=libaio, iodepth=64
+...
+fio-3.16
+Starting 4 threads
+
+multi_threaded_seq_read_over_single_file: (groupid=0, jobs=4): err= 0: pid=3178619: Tue Jun 24 10:39:11 2025
+  read: IOPS=2886, BW=2886MiB/s (3026MB/s)(338GiB/120002msec)
+    slat (usec): min=362, max=228409, avg=1384.14, stdev=2628.65
+    clat (usec): min=2, max=349644, avg=87055.17, stdev=23354.14
+     lat (usec): min=1550, max=492536, avg=88439.59, stdev=23612.51
+    clat percentiles (msec):
+     |  1.00th=[   58],  5.00th=[   61], 10.00th=[   63], 20.00th=[   68],
+     | 30.00th=[   72], 40.00th=[   78], 50.00th=[   84], 60.00th=[   90],
+     | 70.00th=[   96], 80.00th=[  104], 90.00th=[  114], 95.00th=[  125],
+     | 99.00th=[  163], 99.50th=[  190], 99.90th=[  268], 99.95th=[  288],
+     | 99.99th=[  309]
+   bw (  MiB/s): min=   40, max= 3708, per=99.92%, avg=2883.83, stdev=105.68, samples=958
+   iops        : min=   40, max= 3708, avg=2883.70, stdev=105.69, samples=958
+  lat (usec)   : 4=0.01%, 10=0.01%
+  lat (msec)   : 2=0.01%, 4=0.01%, 10=0.01%, 20=0.01%, 50=0.03%
+  lat (msec)   : 100=75.91%, 250=23.83%, 500=0.21%
+  cpu          : usr=0.13%, sys=2.51%, ctx=346375, majf=0, minf=389772
+  IO depths    : 1=0.1%, 2=0.1%, 4=0.1%, 8=0.1%, 16=0.1%, 32=0.1%, >=64=99.9%
+     submit    : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.0%, >=64=0.0%
+     complete  : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.1%, >=64=0.0%
+     issued rwts: total=346340,0,0,0 short=0,0,0,0 dropped=0,0,0,0
+     latency   : target=0, window=0, percentile=100.00%, depth=64
+
+Run status group 0 (all jobs):
+   READ: bw=2886MiB/s (3026MB/s), 2886MiB/s-2886MiB/s (3026MB/s-3026MB/s), io=338GiB (363GB), run=120002-120002msec
+multi_threaded_seq_read_over_single_file: (g=0): rw=read, bs=(R) 1024KiB-1024KiB, (W) 1024KiB-1024KiB, (T) 1024KiB-1024KiB, ioengine=libaio, iodepth=64
+...
+fio-3.16
+Starting 4 threads
+
+multi_threaded_seq_read_over_single_file: (groupid=0, jobs=4): err= 0: pid=3180331: Tue Jun 24 10:52:30 2025
+  read: IOPS=2975, BW=2976MiB/s (3120MB/s)(349GiB/120002msec)
+    slat (usec): min=369, max=252616, avg=1342.32, stdev=2569.74
+    clat (usec): min=2, max=352460, avg=84411.20, stdev=22279.73
+     lat (usec): min=521, max=527040, avg=85753.78, stdev=22524.81
+    clat percentiles (msec):
+     |  1.00th=[   57],  5.00th=[   61], 10.00th=[   64], 20.00th=[   68],
+     | 30.00th=[   71], 40.00th=[   75], 50.00th=[   80], 60.00th=[   86],
+     | 70.00th=[   93], 80.00th=[  100], 90.00th=[  108], 95.00th=[  117],
+     | 99.00th=[  167], 99.50th=[  197], 99.90th=[  275], 99.95th=[  284],
+     | 99.99th=[  347]
+   bw (  MiB/s): min=  904, max= 3624, per=100.00%, avg=2985.40, stdev=87.04, samples=953
+   iops        : min=  904, max= 3624, avg=2985.28, stdev=87.05, samples=953
+  lat (usec)   : 4=0.01%, 750=0.01%
+  lat (msec)   : 2=0.01%, 4=0.01%, 10=0.01%, 20=0.01%, 50=0.02%
+  lat (msec)   : 100=81.57%, 250=18.17%, 500=0.22%
+  cpu          : usr=0.15%, sys=2.51%, ctx=357149, majf=0, minf=510746
+  IO depths    : 1=0.1%, 2=0.1%, 4=0.1%, 8=0.1%, 16=0.1%, 32=0.1%, >=64=99.9%
+     submit    : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.0%, >=64=0.0%
+     complete  : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.1%, >=64=0.0%
+     issued rwts: total=357106,0,0,0 short=0,0,0,0 dropped=0,0,0,0
+     latency   : target=0, window=0, percentile=100.00%, depth=64
+
+Run status group 0 (all jobs):
+   READ: bw=2976MiB/s (3120MB/s), 2976MiB/s-2976MiB/s (3120MB/s-3120MB/s), io=349GiB (374GB), run=120002-120002msec
+multi_threaded_seq_read_over_single_file: (g=0): rw=read, bs=(R) 1024KiB-1024KiB, (W) 1024KiB-1024KiB, (T) 1024KiB-1024KiB, ioengine=libaio, iodepth=64
+...
+fio-3.16
+Starting 4 threads
+
+multi_threaded_seq_read_over_single_file: (groupid=0, jobs=4): err= 0: pid=3181118: Tue Jun 24 10:59:57 2025
+  read: IOPS=2974, BW=2975MiB/s (3119MB/s)(349GiB/120002msec)
+    slat (usec): min=380, max=287535, avg=1343.18, stdev=2545.71
+    clat (nsec): min=1978, max=283990k, avg=84488256.20, stdev=19967352.69
+     lat (usec): min=1376, max=436393, avg=85831.63, stdev=20153.62
+    clat percentiles (msec):
+     |  1.00th=[   57],  5.00th=[   63], 10.00th=[   65], 20.00th=[   69],
+     | 30.00th=[   72], 40.00th=[   75], 50.00th=[   80], 60.00th=[   87],
+     | 70.00th=[   94], 80.00th=[  100], 90.00th=[  108], 95.00th=[  118],
+     | 99.00th=[  153], 99.50th=[  174], 99.90th=[  209], 99.95th=[  230],
+     | 99.99th=[  259]
+   bw (  MiB/s): min=  700, max= 3612, per=99.92%, avg=2972.28, stdev=83.42, samples=959
+   iops        : min=  700, max= 3612, avg=2972.14, stdev=83.43, samples=959
+  lat (usec)   : 2=0.01%, 4=0.01%
+  lat (msec)   : 2=0.01%, 4=0.01%, 10=0.01%, 20=0.01%, 50=0.03%
+  lat (msec)   : 100=80.67%, 250=19.26%, 500=0.02%
+  cpu          : usr=0.12%, sys=2.36%, ctx=357032, majf=0, minf=575271
+  IO depths    : 1=0.1%, 2=0.1%, 4=0.1%, 8=0.1%, 16=0.1%, 32=0.1%, >=64=99.9%
+     submit    : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.0%, >=64=0.0%
+     complete  : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.1%, >=64=0.0%
+     issued rwts: total=356982,0,0,0 short=0,0,0,0 dropped=0,0,0,0
+     latency   : target=0, window=0, percentile=100.00%, depth=64
+
+Run status group 0 (all jobs):
+   READ: bw=2975MiB/s (3119MB/s), 2975MiB/s-2975MiB/s (3119MB/s-3119MB/s), io=349GiB (374GB), run=120002-120002msec
+multi_threaded_seq_read_over_single_file: (g=0): rw=read, bs=(R) 1024KiB-1024KiB, (W) 1024KiB-1024KiB, (T) 1024KiB-1024KiB, ioengine=libaio, iodepth=64
+...
+fio-3.16
+Starting 4 threads
+
+multi_threaded_seq_read_over_single_file: (groupid=0, jobs=4): err= 0: pid=3182384: Tue Jun 24 11:07:36 2025
+  read: IOPS=2867, BW=2868MiB/s (3007MB/s)(336GiB/120020msec)
+    slat (usec): min=364, max=221391, avg=1393.14, stdev=2627.64
+    clat (usec): min=2, max=387901, avg=87605.45, stdev=23206.79
+     lat (usec): min=524, max=558703, avg=88998.79, stdev=23457.55
+    clat percentiles (msec):
+     |  1.00th=[   58],  5.00th=[   63], 10.00th=[   66], 20.00th=[   70],
+     | 30.00th=[   74], 40.00th=[   78], 50.00th=[   83], 60.00th=[   90],
+     | 70.00th=[   96], 80.00th=[  104], 90.00th=[  113], 95.00th=[  125],
+     | 99.00th=[  167], 99.50th=[  190], 99.90th=[  271], 99.95th=[  334],
+     | 99.99th=[  368]
+   bw (  MiB/s): min=  822, max= 3634, per=100.00%, avg=2874.70, stdev=91.37, samples=956
+   iops        : min=  822, max= 3634, avg=2874.59, stdev=91.37, samples=956
+  lat (usec)   : 4=0.01%, 750=0.01%
+  lat (msec)   : 2=0.01%, 4=0.01%, 10=0.01%, 20=0.01%, 50=0.02%
+  lat (msec)   : 100=75.70%, 250=24.10%, 500=0.16%
+  cpu          : usr=0.11%, sys=2.21%, ctx=344246, majf=0, minf=454403
+  IO depths    : 1=0.1%, 2=0.1%, 4=0.1%, 8=0.1%, 16=0.1%, 32=0.1%, >=64=99.9%
+     submit    : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.0%, >=64=0.0%
+     complete  : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.1%, >=64=0.0%
+     issued rwts: total=344216,0,0,0 short=0,0,0,0 dropped=0,0,0,0
+     latency   : target=0, window=0, percentile=100.00%, depth=64
+
+Run status group 0 (all jobs):
+   READ: bw=2868MiB/s (3007MB/s), 2868MiB/s-2868MiB/s (3007MB/s-3007MB/s), io=336GiB (361GB), run=120020-120020msec
+multi_threaded_seq_read_over_single_file: (g=0): rw=read, bs=(R) 1024KiB-1024KiB, (W) 1024KiB-1024KiB, (T) 1024KiB-1024KiB, ioengine=libaio, iodepth=64
+...
+fio-3.16
+Starting 96 threads
+multi_threaded_seq_read_over_single_file: (g=0): rw=read, bs=(R) 1024KiB-1024KiB, (W) 1024KiB-1024KiB, (T) 1024KiB-1024KiB, ioengine=libaio, iodepth=64
+...
+fio-3.16
+Starting 96 threads
+
+multi_threaded_seq_read_over_single_file: (groupid=0, jobs=96): err= 0: pid=3204064: Tue Jun 24 12:53:39 2025
+  read: IOPS=8530, BW=8531MiB/s (8945MB/s)(1002GiB/120291msec)
+    slat (usec): min=452, max=4233.3k, avg=11224.42, stdev=44360.60
+    clat (usec): min=2, max=14326k, avg=701675.18, stdev=1377084.30
+     lat (usec): min=710, max=14327k, avg=712900.59, stdev=1396708.52
+    clat percentiles (msec):
+     |  1.00th=[   73],  5.00th=[   86], 10.00th=[   94], 20.00th=[  109],
+     | 30.00th=[  130], 40.00th=[  163], 50.00th=[  211], 60.00th=[  266],
+     | 70.00th=[  347], 80.00th=[  634], 90.00th=[ 1905], 95.00th=[ 3876],
+     | 99.00th=[ 7080], 99.50th=[ 8020], 99.90th=[10537], 99.95th=[10805],
+     | 99.99th=[12953]
+   bw (  MiB/s): min=  351, max=61865, per=100.00%, avg=8799.84, stdev=139.81, samples=22194
+   iops        : min=  313, max=61860, avg=8793.05, stdev=139.83, samples=22194
+  lat (usec)   : 4=0.01%, 10=0.01%, 20=0.01%, 750=0.01%, 1000=0.01%
+  lat (msec)   : 2=0.01%, 4=0.01%, 10=0.01%, 20=0.01%, 50=0.03%
+  lat (msec)   : 100=14.28%, 250=42.84%, 500=19.73%, 750=5.01%, 1000=2.59%
+  lat (msec)   : 2000=5.93%, >=2000=9.58%
+  cpu          : usr=0.05%, sys=0.56%, ctx=1028628, majf=0, minf=9015403
+  IO depths    : 1=0.1%, 2=0.1%, 4=0.1%, 8=0.1%, 16=0.1%, 32=0.3%, >=64=99.4%
+     submit    : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.0%, >=64=0.0%
+     complete  : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.1%, >=64=0.0%
+     issued rwts: total=1026165,0,0,0 short=0,0,0,0 dropped=0,0,0,0
+     latency   : target=0, window=0, percentile=100.00%, depth=64
+
+Run status group 0 (all jobs):
+   READ: bw=8531MiB/s (8945MB/s), 8531MiB/s-8531MiB/s (8945MB/s-8945MB/s), io=1002GiB (1076GB), run=120291-120291msec
+multi_threaded_seq_read_over_single_file: (g=0): rw=read, bs=(R) 1024KiB-1024KiB, (W) 1024KiB-1024KiB, (T) 1024KiB-1024KiB, ioengine=libaio, iodepth=64
+...
+fio-3.16
+Starting 96 threads
+multi_threaded_seq_read_over_single_file: (g=0): rw=read, bs=(R) 1024KiB-1024KiB, (W) 1024KiB-1024KiB, (T) 1024KiB-1024KiB, ioengine=libaio, iodepth=64
+...
+fio-3.16
+Starting 96 threads
+fio: pid=3206276, err=107/file:filesetup.c:350, func=fstat, error=Transport endpoint is not connected
+fio: pid=3206273, err=107/file:filesetup.c:350, func=fstat, error=Transport endpoint is not connected
+fio: pid=3206278, err=107/file:filesetup.c:350, func=fstat, error=Transport endpoint is not connected
+fio: pid=3206275, err=107/file:filesetup.c:350, func=fstat, error=Transport endpoint is not connected
+fio: pid=3206274, err=107/file:filesetup.c:350, func=fstat, error=Transport endpoint is not connected
+fio: pid=3206272, err=107/file:filesetup.c:350, func=fstat, error=Transport endpoint is not connected
+fio: pid=3206279, err=107/file:filesetup.c:350, func=fstat, error=Transport endpoint is not connected
+fio: pid=3206277, err=107/file:filesetup.c:350, func=fstat, error=Transport endpoint is not connected
+fio: pid=3206295, err=107/file:filesetup.c:350, func=fstat, error=Transport endpoint is not connected
+fio: pid=3206296, err=107/file:filesetup.c:350, func=fstat, error=Transport endpoint is not connected
+fio: pid=3206297, err=107/file:filesetup.c:350, func=fstat, error=Transport endpoint is not connected
+fio: pid=3206280, err=107/file:filesetup.c:350, func=fstat, error=Transport endpoint is not connected
+fio: pid=3206283, err=107/file:filesetup.c:350, func=fstat, error=Transport endpoint is not connected
+fio: pid=3206290, err=107/file:filesetup.c:350, func=fstat, error=Transport endpoint is not connected
+fio: pid=3206328, err=107/file:filesetup.c:350, func=fstat, error=Transport endpoint is not connected
+fio: pid=3206322, err=107/file:filesetup.c:350, func=fstat, error=Transport endpoint is not connected
+fio: pid=3206323, err=107/file:filesetup.c:350, func=fstat, error=Transport endpoint is not connected
+fio: pid=3206298, err=107/file:filesetup.c:350, func=fstat, error=Transport endpoint is not connected
+fio: pid=3206282, err=107/file:filesetup.c:350, func=fstat, error=Transport endpoint is not connected
+fio: pid=3206326, err=107/file:filesetup.c:350, func=fstat, error=Transport endpoint is not connected
+fio: pid=3206299, err=107/file:filesetup.c:350, func=fstat, error=Transport endpoint is not connected
+fio: pid=3206329, err=107/file:filesetup.c:350, func=fstat, error=Transport endpoint is not connected
+fio: pid=3206281, err=107/file:filesetup.c:350, func=fstat, error=Transport endpoint is not connected
+fio: pid=3206294, err=107/file:filesetup.c:350, func=fstat, error=Transport endpoint is not connected
+fio: pid=3206287, err=107/file:filesetup.c:350, func=fstat, error=Transport endpoint is not connected
+fio: pid=3206293, err=107/file:filesetup.c:350, func=fstat, error=Transport endpoint is not connected
+fio: pid=3206321, err=107/file:filesetup.c:350, func=fstat, error=Transport endpoint is not connected
+fio: pid=3206311, err=107/file:filesetup.c:350, func=fstat, error=Transport endpoint is not connected
+fio: pid=3206292, err=107/file:filesetup.c:350, func=fstat, error=Transport endpoint is not connected
+fio: pid=3206327, err=107/file:filesetup.c:350, func=fstat, error=Transport endpoint is not connected
+fio: pid=3206319, err=107/file:filesetup.c:350, func=fstat, error=Transport endpoint is not connected
+fio: pid=3206289, err=107/file:filesetup.c:350, func=fstat, error=Transport endpoint is not connected
+fio: pid=3206330, err=107/file:filesetup.c:350, func=fstat, error=Transport endpoint is not connected
+fio: pid=3206300, err=107/file:filesetup.c:350, func=fstat, error=Transport endpoint is not connected
+fio: pid=3206286, err=107/file:filesetup.c:350, func=fstat, error=Transport endpoint is not connected
+fio: pid=3206291, err=107/file:filesetup.c:350, func=fstat, error=Transport endpoint is not connected
+fio: pid=3206285, err=107/file:filesetup.c:350, func=fstat, error=Transport endpoint is not connected
+fio: pid=3206288, err=107/file:filesetup.c:350, func=fstat, error=Transport endpoint is not connected
+fio: pid=3206284, err=107/file:filesetup.c:350, func=fstat, error=Transport endpoint is not connected
+fio: pid=3206303, err=107/file:filesetup.c:350, func=fstat, error=Transport endpoint is not connected
+fio: pid=3206308, err=107/file:filesetup.c:350, func=fstat, error=Transport endpoint is not connected
+fio: pid=3206314, err=107/file:filesetup.c:350, func=fstat, error=Transport endpoint is not connected
+fio: pid=3206316, err=107/file:filesetup.c:350, func=fstat, error=Transport endpoint is not connected
+fio: pid=3206306, err=107/file:filesetup.c:350, func=fstat, error=Transport endpoint is not connected
+fio: pid=3206304, err=107/file:filesetup.c:350, func=fstat, error=Transport endpoint is not connected
+fio: pid=3206338, err=107/file:filesetup.c:350, func=fstat, error=Transport endpoint is not connected
+fio: pid=3206336, err=107/file:filesetup.c:350, func=fstat, error=Transport endpoint is not connected
+fio: pid=3206339, err=107/file:filesetup.c:350, func=fstat, error=Transport endpoint is not connected
+fio: pid=3206324, err=107/file:filesetup.c:350, func=fstat, error=Transport endpoint is not connected
+fio: pid=3206325, err=107/file:filesetup.c:350, func=fstat, error=Transport endpoint is not connected
+fio: pid=3206341, err=107/file:filesetup.c:350, func=fstat, error=Transport endpoint is not connected
+fio: pid=3206334, err=107/file:filesetup.c:350, func=fstat, error=Transport endpoint is not connected
+fio: pid=3206332, err=107/file:filesetup.c:350, func=fstat, error=Transport endpoint is not connected
+fio: pid=3206343, err=107/file:filesetup.c:350, func=fstat, error=Transport endpoint is not connected
+fio: pid=3206342, err=107/file:filesetup.c:350, func=fstat, error=Transport endpoint is not connected
+fio: pid=3206352, err=107/file:filesetup.c:350, func=fstat, error=Transport endpoint is not connected
+fio: pid=3206360, err=107/file:filesetup.c:350, func=fstat, error=Transport endpoint is not connected
+fio: pid=3206347, err=107/file:filesetup.c:350, func=fstat, error=Transport endpoint is not connected
+fio: pid=3206344, err=107/file:filesetup.c:350, func=fstat, error=Transport endpoint is not connected
+fio: pid=3206366, err=107/file:filesetup.c:350, func=fstat, error=Transport endpoint is not connected
+fio: pid=3206361, err=107/file:filesetup.c:350, func=fstat, error=Transport endpoint is not connected
+fio: pid=3206367, err=107/file:filesetup.c:350, func=fstat, error=Transport endpoint is not connected
+fio: pid=3206356, err=107/file:filesetup.c:350, func=fstat, error=Transport endpoint is not connected
+fio: pid=3206349, err=107/file:filesetup.c:350, func=fstat, error=Transport endpoint is not connected
+fio: pid=3206357, err=107/file:filesetup.c:350, func=fstat, error=Transport endpoint is not connected
+fio: pid=3206318, err=107/file:filesetup.c:350, func=fstat, error=Transport endpoint is not connected
+fio: pid=3206313, err=107/file:filesetup.c:350, func=fstat, error=Transport endpoint is not connected
+fio: pid=3206301, err=107/file:filesetup.c:350, func=fstat, error=Transport endpoint is not connected
+fio: pid=3206312, err=107/file:filesetup.c:350, func=fstat, error=Transport endpoint is not connected
+fio: pid=3206307, err=107/file:filesetup.c:350, func=fstat, error=Transport endpoint is not connected
+fio: pid=3206315, err=107/file:filesetup.c:350, func=fstat, error=Transport endpoint is not connected
+fio: pid=3206348, err=107/file:filesetup.c:350, func=fstat, error=Transport endpoint is not connected
+fio: pid=3206363, err=107/file:filesetup.c:350, func=fstat, error=Transport endpoint is not connected
+fio: pid=3206364, err=107/file:filesetup.c:350, func=fstat, error=Transport endpoint is not connected
+fio: pid=3206302, err=107/file:filesetup.c:350, func=fstat, error=Transport endpoint is not connected
+fio: pid=3206346, err=107/file:filesetup.c:350, func=fstat, error=Transport endpoint is not connected
+fio: pid=3206340, err=107/file:filesetup.c:350, func=fstat, error=Transport endpoint is not connected
+fio: pid=3206365, err=107/file:filesetup.c:350, func=fstat, error=Transport endpoint is not connected
+fio: pid=3206320, err=107/file:filesetup.c:350, func=fstat, error=Transport endpoint is not connected
+fio: pid=3206335, err=107/file:filesetup.c:350, func=fstat, error=Transport endpoint is not connected
+fio: pid=3206331, err=107/file:filesetup.c:350, func=fstat, error=Transport endpoint is not connected
+fio: pid=3206359, err=107/file:filesetup.c:350, func=fstat, error=Transport endpoint is not connected
+fio: pid=3206353, err=107/file:filesetup.c:350, func=fstat, error=Transport endpoint is not connected
+fio: pid=3206333, err=107/file:filesetup.c:350, func=fstat, error=Transport endpoint is not connected
+fio: pid=3206345, err=107/file:filesetup.c:350, func=fstat, error=Transport endpoint is not connected
+fio: pid=3206362, err=107/file:filesetup.c:350, func=fstat, error=Transport endpoint is not connected
+fio: pid=3206310, err=107/file:filesetup.c:350, func=fstat, error=Transport endpoint is not connected
+fio: pid=3206305, err=107/file:filesetup.c:350, func=fstat, error=Transport endpoint is not connected
+fio: pid=3206309, err=107/file:filesetup.c:350, func=fstat, error=Transport endpoint is not connected
+fio: pid=3206317, err=107/file:filesetup.c:350, func=fstat, error=Transport endpoint is not connected
+fio: pid=3206355, err=107/file:filesetup.c:350, func=fstat, error=Transport endpoint is not connected
+fio: pid=3206358, err=107/file:filesetup.c:350, func=fstat, error=Transport endpoint is not connected
+fio: pid=3206337, err=107/file:filesetup.c:350, func=fstat, error=Transport endpoint is not connected
+fio: pid=3206351, err=107/file:filesetup.c:350, func=fstat, error=Transport endpoint is not connected
+fio: pid=3206350, err=107/file:filesetup.c:350, func=fstat, error=Transport endpoint is not connected
+fio: pid=3206354, err=107/file:filesetup.c:350, func=fstat, error=Transport endpoint is not connected
+
+
+Run status group 0 (all jobs):
+multi_threaded_seq_read_over_single_file: (g=0): rw=read, bs=(R) 1024KiB-1024KiB, (W) 1024KiB-1024KiB, (T) 1024KiB-1024KiB, ioengine=libaio, iodepth=64
+...
+fio-3.16
+Starting 96 threads
+
+multi_threaded_seq_read_over_single_file: (groupid=0, jobs=96): err= 0: pid=3207866: Tue Jun 24 13:09:06 2025
+  read: IOPS=8560, BW=8560MiB/s (8976MB/s)(1006GiB/120326msec)
+    slat (usec): min=457, max=1537.4k, avg=11182.38, stdev=39468.47
+    clat (nsec): min=1787, max=19333M, avg=700073441.70, stdev=1436080024.18
+     lat (usec): min=645, max=19334k, avg=711256.94, stdev=1456840.23
+    clat percentiles (msec):
+     |  1.00th=[   75],  5.00th=[   90], 10.00th=[  100], 20.00th=[  121],
+     | 30.00th=[  153], 40.00th=[  205], 50.00th=[  268], 60.00th=[  334],
+     | 70.00th=[  439], 80.00th=[  768], 90.00th=[ 1670], 95.00th=[ 2903],
+     | 99.00th=[ 6812], 99.50th=[11073], 99.90th=[16040], 99.95th=[16711],
+     | 99.99th=[17113]
+   bw (  MiB/s): min=  441, max=59697, per=100.00%, avg=8759.43, stdev=126.73, samples=22327
+   iops        : min=  387, max=59694, avg=8754.44, stdev=126.74, samples=22327
+  lat (usec)   : 2=0.01%, 4=0.01%, 10=0.01%, 20=0.01%, 750=0.01%
+  lat (usec)   : 1000=0.01%
+  lat (msec)   : 4=0.01%, 10=0.01%, 20=0.01%, 50=0.02%, 100=10.70%
+  lat (msec)   : 250=36.33%, 500=25.97%, 750=6.69%, 1000=3.85%, 2000=8.26%
+  lat (msec)   : >=2000=8.16%
+  cpu          : usr=0.06%, sys=0.59%, ctx=1032819, majf=0, minf=8911755
+  IO depths    : 1=0.1%, 2=0.1%, 4=0.1%, 8=0.1%, 16=0.1%, 32=0.3%, >=64=99.4%
+     submit    : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.0%, >=64=0.0%
+     complete  : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.1%, >=64=0.0%
+     issued rwts: total=1030036,0,0,0 short=0,0,0,0 dropped=0,0,0,0
+     latency   : target=0, window=0, percentile=100.00%, depth=64
+
+Run status group 0 (all jobs):
+   READ: bw=8560MiB/s (8976MB/s), 8560MiB/s-8560MiB/s (8976MB/s-8976MB/s), io=1006GiB (1080GB), run=120326-120326msec
+multi_threaded_seq_read_over_single_file: (g=0): rw=randread, bs=(R) 1024KiB-1024KiB, (W) 1024KiB-1024KiB, (T) 1024KiB-1024KiB, ioengine=libaio, iodepth=64
+...
+fio-3.16
+Starting 96 threads
+
+multi_threaded_seq_read_over_single_file: (groupid=0, jobs=96): err= 0: pid=3209163: Tue Jun 24 13:15:44 2025
+  read: IOPS=957, BW=957MiB/s (1004MB/s)(112GiB/120087msec)
+    slat (msec): min=12, max=263, avg=100.24, stdev=10.09
+    clat (usec): min=2, max=6541.8k, avg=6143571.06, stdev=825121.69
+     lat (msec): min=86, max=6637, avg=6243.82, stdev=824.97
+    clat percentiles (msec):
+     |  1.00th=[ 1150],  5.00th=[ 5940], 10.00th=[ 6208], 20.00th=[ 6208],
+     | 30.00th=[ 6275], 40.00th=[ 6275], 50.00th=[ 6342], 60.00th=[ 6342],
+     | 70.00th=[ 6342], 80.00th=[ 6409], 90.00th=[ 6409], 95.00th=[ 6477],
+     | 99.00th=[ 6477], 99.50th=[ 6477], 99.90th=[ 6544], 99.95th=[ 6544],
+     | 99.99th=[ 6544]
+   bw (  KiB/s): min=286649, max=1179648, per=99.71%, avg=977408.41, stdev=1044.34, samples=21885
+   iops        : min=  273, max= 1152, avg=949.47, stdev= 1.05, samples=21885
+  lat (usec)   : 4=0.02%, 10=0.06%, 20=0.01%
+  lat (msec)   : 100=0.07%, 250=0.10%, 500=0.22%, 750=0.19%, 1000=0.17%
+  lat (msec)   : 2000=0.82%, >=2000=98.34%
+  cpu          : usr=0.01%, sys=0.06%, ctx=115365, majf=0, minf=1572960
+  IO depths    : 1=0.1%, 2=0.2%, 4=0.3%, 8=0.7%, 16=1.3%, 32=2.7%, >=64=94.7%
+     submit    : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.0%, >=64=0.0%
+     complete  : 0=0.0%, 4=99.9%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.1%, >=64=0.0%
+     issued rwts: total=114954,0,0,0 short=0,0,0,0 dropped=0,0,0,0
+     latency   : target=0, window=0, percentile=100.00%, depth=64
+
+Run status group 0 (all jobs):
+   READ: bw=957MiB/s (1004MB/s), 957MiB/s-957MiB/s (1004MB/s-1004MB/s), io=112GiB (121GB), run=120087-120087msec
+multi_threaded_rand_read_over_different_files: (g=0): rw=randread, bs=(R) 1024KiB-1024KiB, (W) 1024KiB-1024KiB, (T) 1024KiB-1024KiB, ioengine=libaio, iodepth=64
+...
+fio-3.16
+Starting 4 threads
+multi_threaded_rand_read_over_different_files: Laying out IO file (1 file / 2048MiB)
+multi_threaded_rand_read_over_different_files: Laying out IO file (1 file / 2048MiB)
+multi_threaded_rand_read_over_different_files: Laying out IO file (1 file / 2048MiB)
+multi_threaded_rand_read_over_different_files: Laying out IO file (1 file / 2048MiB)
+
+multi_threaded_rand_read_over_different_files: (groupid=0, jobs=4): err= 0: pid=3209696: Tue Jun 24 13:24:14 2025
+  read: IOPS=867, BW=868MiB/s (910MB/s)(254GiB/300003msec)
+    slat (usec): min=3085, max=112596, avg=4604.96, stdev=916.49
+    clat (usec): min=2, max=633656, avg=289910.09, stdev=20170.46
+     lat (msec): min=3, max=746, avg=294.52, stdev=20.49
+    clat percentiles (msec):
+     |  1.00th=[  249],  5.00th=[  262], 10.00th=[  268], 20.00th=[  275],
+     | 30.00th=[  279], 40.00th=[  284], 50.00th=[  288], 60.00th=[  292],
+     | 70.00th=[  300], 80.00th=[  305], 90.00th=[  313], 95.00th=[  321],
+     | 99.00th=[  342], 99.50th=[  351], 99.90th=[  418], 99.95th=[  443],
+     | 99.99th=[  472]
+   bw (  KiB/s): min=459215, max=1024000, per=99.99%, avg=888723.88, stdev=13141.42, samples=2393
+   iops        : min=  447, max= 1000, avg=867.72, stdev=12.85, samples=2393
+  lat (usec)   : 4=0.01%
+  lat (msec)   : 4=0.01%, 10=0.01%, 20=0.01%, 50=0.01%, 100=0.02%
+  lat (msec)   : 250=1.07%, 500=98.89%, 750=0.01%
+  cpu          : usr=0.09%, sys=0.82%, ctx=260504, majf=0, minf=917615
+  IO depths    : 1=0.1%, 2=0.1%, 4=0.1%, 8=0.1%, 16=0.1%, 32=0.1%, >=64=99.9%
+     submit    : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.0%, >=64=0.0%
+     complete  : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.1%, >=64=0.0%
+     issued rwts: total=260397,0,0,0 short=0,0,0,0 dropped=0,0,0,0
+     latency   : target=0, window=0, percentile=100.00%, depth=64
+
+Run status group 0 (all jobs):
+   READ: bw=868MiB/s (910MB/s), 868MiB/s-868MiB/s (910MB/s-910MB/s), io=254GiB (273GB), run=300003-300003msec
+multi_threaded_rand_read_over_different_files: (g=0): rw=randread, bs=(R) 1024KiB-1024KiB, (W) 1024KiB-1024KiB, (T) 1024KiB-1024KiB, ioengine=libaio, iodepth=64
+...
+fio-3.16
+Starting 96 threads
+multi_threaded_rand_read_over_different_files: Laying out IO file (1 file / 2048MiB)
+multi_threaded_rand_read_over_different_files: Laying out IO file (1 file / 2048MiB)
+multi_threaded_rand_read_over_different_files: Laying out IO file (1 file / 2048MiB)
+multi_threaded_rand_read_over_different_files: Laying out IO file (1 file / 2048MiB)
+multi_threaded_rand_read_over_different_files: Laying out IO file (1 file / 2048MiB)
+multi_threaded_rand_read_over_different_files: Laying out IO file (1 file / 2048MiB)
+multi_threaded_rand_read_over_different_files: Laying out IO file (1 file / 2048MiB)
+multi_threaded_rand_read_over_different_files: Laying out IO file (1 file / 2048MiB)
+multi_threaded_rand_read_over_different_files: Laying out IO file (1 file / 2048MiB)
+multi_threaded_rand_read_over_different_files: Laying out IO file (1 file / 2048MiB)
+multi_threaded_rand_read_over_different_files: Laying out IO file (1 file / 2048MiB)
+multi_threaded_rand_read_over_different_files: Laying out IO file (1 file / 2048MiB)
+multi_threaded_rand_read_over_different_files: Laying out IO file (1 file / 2048MiB)
+multi_threaded_rand_read_over_different_files: Laying out IO file (1 file / 2048MiB)
+multi_threaded_rand_read_over_different_files: Laying out IO file (1 file / 2048MiB)
+multi_threaded_rand_read_over_different_files: Laying out IO file (1 file / 2048MiB)
+multi_threaded_rand_read_over_different_files: Laying out IO file (1 file / 2048MiB)
+multi_threaded_rand_read_over_different_files: Laying out IO file (1 file / 2048MiB)
+multi_threaded_rand_read_over_different_files: Laying out IO file (1 file / 2048MiB)
+multi_threaded_rand_read_over_different_files: Laying out IO file (1 file / 2048MiB)
+multi_threaded_rand_read_over_different_files: Laying out IO file (1 file / 2048MiB)
+multi_threaded_rand_read_over_different_files: Laying out IO file (1 file / 2048MiB)
+multi_threaded_rand_read_over_different_files: Laying out IO file (1 file / 2048MiB)
+multi_threaded_rand_read_over_different_files: Laying out IO file (1 file / 2048MiB)
+multi_threaded_rand_read_over_different_files: Laying out IO file (1 file / 2048MiB)
+multi_threaded_rand_read_over_different_files: Laying out IO file (1 file / 2048MiB)
+multi_threaded_rand_read_over_different_files: Laying out IO file (1 file / 2048MiB)
+multi_threaded_rand_read_over_different_files: Laying out IO file (1 file / 2048MiB)
+multi_threaded_rand_read_over_different_files: Laying out IO file (1 file / 2048MiB)
+multi_threaded_rand_read_over_different_files: Laying out IO file (1 file / 2048MiB)
+multi_threaded_rand_read_over_different_files: Laying out IO file (1 file / 2048MiB)
+multi_threaded_rand_read_over_different_files: Laying out IO file (1 file / 2048MiB)
+multi_threaded_rand_read_over_different_files: Laying out IO file (1 file / 2048MiB)
+multi_threaded_rand_read_over_different_files: Laying out IO file (1 file / 2048MiB)
+multi_threaded_rand_read_over_different_files: Laying out IO file (1 file / 2048MiB)
+multi_threaded_rand_read_over_different_files: Laying out IO file (1 file / 2048MiB)
+multi_threaded_rand_read_over_different_files: Laying out IO file (1 file / 2048MiB)
+multi_threaded_rand_read_over_different_files: Laying out IO file (1 file / 2048MiB)
+multi_threaded_rand_read_over_different_files: Laying out IO file (1 file / 2048MiB)
+multi_threaded_rand_read_over_different_files: Laying out IO file (1 file / 2048MiB)
+multi_threaded_rand_read_over_different_files: Laying out IO file (1 file / 2048MiB)
+multi_threaded_rand_read_over_different_files: Laying out IO file (1 file / 2048MiB)
+multi_threaded_rand_read_over_different_files: Laying out IO file (1 file / 2048MiB)
+multi_threaded_rand_read_over_different_files: Laying out IO file (1 file / 2048MiB)
+multi_threaded_rand_read_over_different_files: Laying out IO file (1 file / 2048MiB)
+multi_threaded_rand_read_over_different_files: Laying out IO file (1 file / 2048MiB)
+multi_threaded_rand_read_over_different_files: Laying out IO file (1 file / 2048MiB)
+multi_threaded_rand_read_over_different_files: Laying out IO file (1 file / 2048MiB)
+multi_threaded_rand_read_over_different_files: Laying out IO file (1 file / 2048MiB)
+multi_threaded_rand_read_over_different_files: Laying out IO file (1 file / 2048MiB)
+multi_threaded_rand_read_over_different_files: Laying out IO file (1 file / 2048MiB)
+multi_threaded_rand_read_over_different_files: Laying out IO file (1 file / 2048MiB)
+multi_threaded_rand_read_over_different_files: Laying out IO file (1 file / 2048MiB)
+multi_threaded_rand_read_over_different_files: Laying out IO file (1 file / 2048MiB)
+multi_threaded_rand_read_over_different_files: Laying out IO file (1 file / 2048MiB)
+multi_threaded_rand_read_over_different_files: Laying out IO file (1 file / 2048MiB)
+multi_threaded_rand_read_over_different_files: Laying out IO file (1 file / 2048MiB)
+multi_threaded_rand_read_over_different_files: Laying out IO file (1 file / 2048MiB)
+multi_threaded_rand_read_over_different_files: Laying out IO file (1 file / 2048MiB)
+multi_threaded_rand_read_over_different_files: Laying out IO file (1 file / 2048MiB)
+multi_threaded_rand_read_over_different_files: Laying out IO file (1 file / 2048MiB)
+multi_threaded_rand_read_over_different_files: Laying out IO file (1 file / 2048MiB)
+multi_threaded_rand_read_over_different_files: Laying out IO file (1 file / 2048MiB)
+multi_threaded_rand_read_over_different_files: Laying out IO file (1 file / 2048MiB)
+multi_threaded_rand_read_over_different_files: Laying out IO file (1 file / 2048MiB)
+multi_threaded_rand_read_over_different_files: Laying out IO file (1 file / 2048MiB)
+multi_threaded_rand_read_over_different_files: Laying out IO file (1 file / 2048MiB)
+multi_threaded_rand_read_over_different_files: Laying out IO file (1 file / 2048MiB)
+multi_threaded_rand_read_over_different_files: Laying out IO file (1 file / 2048MiB)
+multi_threaded_rand_read_over_different_files: Laying out IO file (1 file / 2048MiB)
+multi_threaded_rand_read_over_different_files: Laying out IO file (1 file / 2048MiB)
+multi_threaded_rand_read_over_different_files: Laying out IO file (1 file / 2048MiB)
+multi_threaded_rand_read_over_different_files: Laying out IO file (1 file / 2048MiB)
+multi_threaded_rand_read_over_different_files: Laying out IO file (1 file / 2048MiB)
+multi_threaded_rand_read_over_different_files: Laying out IO file (1 file / 2048MiB)
+multi_threaded_rand_read_over_different_files: Laying out IO file (1 file / 2048MiB)
+multi_threaded_rand_read_over_different_files: Laying out IO file (1 file / 2048MiB)
+multi_threaded_rand_read_over_different_files: Laying out IO file (1 file / 2048MiB)
+multi_threaded_rand_read_over_different_files: Laying out IO file (1 file / 2048MiB)
+multi_threaded_rand_read_over_different_files: Laying out IO file (1 file / 2048MiB)
+multi_threaded_rand_read_over_different_files: Laying out IO file (1 file / 2048MiB)
+multi_threaded_rand_read_over_different_files: Laying out IO file (1 file / 2048MiB)
+multi_threaded_rand_read_over_different_files: Laying out IO file (1 file / 2048MiB)
+multi_threaded_rand_read_over_different_files: Laying out IO file (1 file / 2048MiB)
+multi_threaded_rand_read_over_different_files: Laying out IO file (1 file / 2048MiB)
+multi_threaded_rand_read_over_different_files: Laying out IO file (1 file / 2048MiB)
+multi_threaded_rand_read_over_different_files: Laying out IO file (1 file / 2048MiB)
+multi_threaded_rand_read_over_different_files: Laying out IO file (1 file / 2048MiB)
+multi_threaded_rand_read_over_different_files: Laying out IO file (1 file / 2048MiB)
+multi_threaded_rand_read_over_different_files: Laying out IO file (1 file / 2048MiB)
+multi_threaded_rand_read_over_different_files: Laying out IO file (1 file / 2048MiB)
+multi_threaded_rand_read_over_different_files: Laying out IO file (1 file / 2048MiB)
+
+multi_threaded_rand_read_over_different_files: (groupid=0, jobs=96): err= 0: pid=3210939: Tue Jun 24 13:36:24 2025
+  read: IOPS=8305, BW=8306MiB/s (8709MB/s)(2434GiB/300014msec)
+    slat (msec): min=3, max=3044, avg=11.55, stdev=11.37
+    clat (usec): min=2, max=24577k, avg=724180.68, stdev=243626.76
+     lat (msec): min=4, max=24769, avg=735.73, stdev=248.08
+    clat percentiles (msec):
+     |  1.00th=[  288],  5.00th=[  334], 10.00th=[  384], 20.00th=[  575],
+     | 30.00th=[  659], 40.00th=[  709], 50.00th=[  743], 60.00th=[  768],
+     | 70.00th=[  810], 80.00th=[  860], 90.00th=[  969], 95.00th=[ 1053],
+     | 99.00th=[ 1250], 99.50th=[ 1385], 99.90th=[ 2802], 99.95th=[ 3306],
+     | 99.99th=[ 4329]
+   bw (  MiB/s): min= 1716, max=12679, per=82.84%, avg=6880.37, stdev=16.33, samples=57089
+   iops        : min= 1665, max=12637, avg=6834.18, stdev=16.34, samples=57089
+  lat (usec)   : 4=0.01%, 10=0.01%, 20=0.01%
+  lat (msec)   : 10=0.01%, 20=0.01%, 50=0.02%, 100=0.03%, 250=0.08%
+  lat (msec)   : 500=16.39%, 750=36.70%, 1000=38.51%, 2000=8.08%, >=2000=0.20%
+  cpu          : usr=0.06%, sys=0.86%, ctx=2526669, majf=0, minf=49061266
+  IO depths    : 1=0.1%, 2=0.1%, 4=0.1%, 8=0.1%, 16=0.1%, 32=0.1%, >=64=99.8%
+     submit    : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.0%, >=64=0.0%
+     complete  : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.1%, >=64=0.0%
+     issued rwts: total=2491913,0,0,0 short=0,0,0,0 dropped=0,0,0,0
+     latency   : target=0, window=0, percentile=100.00%, depth=64
+
+Run status group 0 (all jobs):
+   READ: bw=8306MiB/s (8709MB/s), 8306MiB/s-8306MiB/s (8709MB/s-8709MB/s), io=2434GiB (2613GB), run=300014-300014msec
+multi_threaded_rand_read_over_different_files: (g=0): rw=randread, bs=(R) 1024KiB-1024KiB, (W) 1024KiB-1024KiB, (T) 1024KiB-1024KiB, ioengine=libaio, iodepth=64
+...
+fio-3.16
+Starting 96 threads
+
+multi_threaded_rand_read_over_different_files: (groupid=0, jobs=96): err= 0: pid=3215439: Tue Jun 24 14:15:14 2025
+  read: IOPS=7205, BW=7206MiB/s (7556MB/s)(2112GiB/300096msec)
+    slat (msec): min=4, max=2535, avg=13.31, stdev=13.89
+    clat (usec): min=3, max=3672.4k, avg=837102.32, stdev=170367.89
+     lat (msec): min=7, max=3688, avg=850.41, stdev=172.35
+    clat percentiles (msec):
+     |  1.00th=[  584],  5.00th=[  625], 10.00th=[  659], 20.00th=[  701],
+     | 30.00th=[  735], 40.00th=[  776], 50.00th=[  810], 60.00th=[  852],
+     | 70.00th=[  894], 80.00th=[  953], 90.00th=[ 1053], 95.00th=[ 1150],
+     | 99.00th=[ 1368], 99.50th=[ 1469], 99.90th=[ 1754], 99.95th=[ 1905],
+     | 99.99th=[ 2467]
+   bw (  MiB/s): min= 1639, max= 9599, per=100.00%, avg=7216.00, stdev=12.70, samples=57353
+   iops        : min= 1634, max= 9596, avg=7210.71, stdev=12.71, samples=57353
+  lat (usec)   : 4=0.01%, 10=0.01%, 20=0.01%
+  lat (msec)   : 10=0.01%, 20=0.01%, 50=0.01%, 100=0.02%, 250=0.05%
+  lat (msec)   : 500=0.08%, 750=33.79%, 1000=51.48%, 2000=14.53%, >=2000=0.03%
+  cpu          : usr=0.08%, sys=0.82%, ctx=2198433, majf=2, minf=44628047
+  IO depths    : 1=0.1%, 2=0.1%, 4=0.1%, 8=0.1%, 16=0.1%, 32=0.1%, >=64=99.7%
+     submit    : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.0%, >=64=0.0%
+     complete  : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.1%, >=64=0.0%
+     issued rwts: total=2162384,0,0,0 short=0,0,0,0 dropped=0,0,0,0
+     latency   : target=0, window=0, percentile=100.00%, depth=64
+
+Run status group 0 (all jobs):
+   READ: bw=7206MiB/s (7556MB/s), 7206MiB/s-7206MiB/s (7556MB/s-7556MB/s), io=2112GiB (2267GB), run=300096-300096msec
+multi_threaded_seq_read_over_single_file: (g=0): rw=randread, bs=(R) 1024KiB-1024KiB, (W) 1024KiB-1024KiB, (T) 1024KiB-1024KiB, ioengine=libaio, iodepth=64
+...
+fio-3.16
+Starting 96 threads
+
+multi_threaded_seq_read_over_single_file: (groupid=0, jobs=96): err= 0: pid=3215934: Tue Jun 24 14:23:22 2025
+  read: IOPS=876, BW=876MiB/s (919MB/s)(257GiB/300118msec)
+    slat (msec): min=7, max=963, avg=109.56, stdev=14.07
+    clat (usec): min=2, max=7720.0k, avg=6807693.23, stdev=624440.87
+     lat (msec): min=119, max=8330, avg=6917.26, stdev=624.76
+    clat percentiles (msec):
+     |  1.00th=[ 3104],  5.00th=[ 6611], 10.00th=[ 6678], 20.00th=[ 6678],
+     | 30.00th=[ 6745], 40.00th=[ 6812], 50.00th=[ 6812], 60.00th=[ 6879],
+     | 70.00th=[ 6946], 80.00th=[ 7013], 90.00th=[ 7215], 95.00th=[ 7282],
+     | 99.00th=[ 7617], 99.50th=[ 7684], 99.90th=[ 7684], 99.95th=[ 7684],
+     | 99.99th=[ 7684]
+   bw (  KiB/s): min=544668, max=1015808, per=100.00%, avg=898515.57, stdev=1035.17, samples=56177
+   iops        : min=  524, max=  992, avg=871.72, stdev= 1.04, samples=56177
+  lat (usec)   : 4=0.01%, 10=0.02%
+  lat (msec)   : 250=0.07%, 500=0.07%, 750=0.07%, 1000=0.07%, 2000=0.33%
+  lat (msec)   : >=2000=99.34%
+  cpu          : usr=0.01%, sys=0.04%, ctx=263472, majf=0, minf=1572960
+  IO depths    : 1=0.1%, 2=0.1%, 4=0.1%, 8=0.3%, 16=0.6%, 32=1.2%, >=64=97.7%
+     submit    : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.0%, >=64=0.0%
+     complete  : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.1%, >=64=0.0%
+     issued rwts: total=262910,0,0,0 short=0,0,0,0 dropped=0,0,0,0
+     latency   : target=0, window=0, percentile=100.00%, depth=64
+
+Run status group 0 (all jobs):
+   READ: bw=876MiB/s (919MB/s), 876MiB/s-876MiB/s (919MB/s-919MB/s), io=257GiB (276GB), run=300118-300118msec
+multi_threaded_seq_read_over_single_file: (g=0): rw=randread, bs=(R) 4096B-4096B, (W) 4096B-4096B, (T) 4096B-4096B, ioengine=libaio, iodepth=64
+...
+fio-3.16
+Starting 96 threads
+
+multi_threaded_seq_read_over_single_file: (groupid=0, jobs=96): err= 0: pid=3217201: Tue Jun 24 14:33:29 2025
+  read: IOPS=8664, BW=33.8MiB/s (35.5MB/s)(9.92GiB/300013msec)
+    slat (usec): min=819, max=314513, avg=11077.68, stdev=2410.62
+    clat (nsec): min=1739, max=840003k, avg=696616451.17, stdev=46557456.26
+     lat (msec): min=10, max=1138, avg=707.69, stdev=47.08
+    clat percentiles (msec):
+     |  1.00th=[  625],  5.00th=[  642], 10.00th=[  651], 20.00th=[  659],
+     | 30.00th=[  667], 40.00th=[  676], 50.00th=[  693], 60.00th=[  701],
+     | 70.00th=[  718], 80.00th=[  735], 90.00th=[  760], 95.00th=[  776],
+     | 99.00th=[  810], 99.50th=[  818], 99.90th=[  827], 99.95th=[  827],
+     | 99.99th=[  835]
+   bw (  KiB/s): min=10999, max=39894, per=99.94%, avg=34637.55, stdev=25.26, samples=57489
+   iops        : min= 2743, max= 9972, avg=8655.47, stdev= 6.32, samples=57489
+  lat (usec)   : 2=0.01%, 4=0.01%, 10=0.01%
+  lat (msec)   : 20=0.01%, 50=0.01%, 100=0.01%, 250=0.05%, 500=0.09%
+  lat (msec)   : 750=87.19%, 1000=12.64%
+  cpu          : usr=0.02%, sys=0.08%, ctx=2599918, majf=0, minf=6240
+  IO depths    : 1=0.1%, 2=0.1%, 4=0.1%, 8=0.1%, 16=0.1%, 32=0.1%, >=64=99.8%
+     submit    : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.0%, >=64=0.0%
+     complete  : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.1%, >=64=0.0%
+     issued rwts: total=2599472,0,0,0 short=0,0,0,0 dropped=0,0,0,0
+     latency   : target=0, window=0, percentile=100.00%, depth=64
+
+Run status group 0 (all jobs):
+   READ: bw=33.8MiB/s (35.5MB/s), 33.8MiB/s-33.8MiB/s (35.5MB/s-35.5MB/s), io=9.92GiB (10.6GB), run=300013-300013msec
+multi_threaded_seq_read_over_single_file: (g=0): rw=read, bs=(R) 4096B-4096B, (W) 4096B-4096B, (T) 4096B-4096B, ioengine=libaio, iodepth=64
+...
+fio-3.16
+Starting 96 threads
+
+multi_threaded_seq_read_over_single_file: (groupid=0, jobs=96): err= 0: pid=3218943: Tue Jun 24 14:47:31 2025
+  read: IOPS=189k, BW=737MiB/s (772MB/s)(216GiB/300002msec)
+    slat (usec): min=18, max=422498, avg=507.97, stdev=431.04
+    clat (nsec): min=1381, max=226224k, avg=32045023.58, stdev=2160009.16
+     lat (usec): min=102, max=457113, avg=32553.16, stdev=2216.91
+    clat percentiles (usec):
+     |  1.00th=[27395],  5.00th=[29230], 10.00th=[30016], 20.00th=[30802],
+     | 30.00th=[31327], 40.00th=[31851], 50.00th=[32113], 60.00th=[32375],
+     | 70.00th=[32637], 80.00th=[33162], 90.00th=[33817], 95.00th=[34341],
+     | 99.00th=[36963], 99.50th=[39060], 99.90th=[58459], 99.95th=[64226],
+     | 99.99th=[74974]
+   bw (  KiB/s): min=342140, max=920676, per=99.98%, avg=754019.84, stdev=386.99, samples=57517
+   iops        : min=85534, max=230169, avg=188503.80, stdev=96.74, samples=57517
+  lat (usec)   : 2=0.01%, 4=0.01%, 10=0.01%, 250=0.01%, 500=0.01%
+  lat (usec)   : 750=0.01%, 1000=0.01%
+  lat (msec)   : 2=0.01%, 4=0.01%, 10=0.01%, 20=0.02%, 50=99.84%
+  lat (msec)   : 100=0.12%, 250=0.01%
+  cpu          : usr=0.34%, sys=1.00%, ctx=56566067, majf=39, minf=194441
+  IO depths    : 1=0.1%, 2=0.1%, 4=0.1%, 8=0.1%, 16=0.1%, 32=0.1%, >=64=100.0%
+     submit    : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.0%, >=64=0.0%
+     complete  : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.1%, >=64=0.0%
+     issued rwts: total=56564029,0,0,0 short=0,0,0,0 dropped=0,0,0,0
+     latency   : target=0, window=0, percentile=100.00%, depth=64
+
+Run status group 0 (all jobs):
+   READ: bw=737MiB/s (772MB/s), 737MiB/s-737MiB/s (772MB/s-772MB/s), io=216GiB (232GB), run=300002-300002msec
+96threads_2G_4K_seq_read_singlefile: (g=0): rw=read, bs=(R) 4096B-4096B, (W) 4096B-4096B, (T) 4096B-4096B, ioengine=libaio, iodepth=64
+...
+fio-3.16
+Starting 96 threads
+96threads_2G_4K_seq_read_multifiles: (g=0): rw=read, bs=(R) 4096B-4096B, (W) 4096B-4096B, (T) 4096B-4096B, ioengine=libaio, iodepth=64
+...
+fio-3.16
+Starting 96 threads
+96threads_2G_4K_rand_read_singlefile: (g=0): rw=randread, bs=(R) 4096B-4096B, (W) 4096B-4096B, (T) 4096B-4096B, ioengine=libaio, iodepth=64
+...
+fio-3.16
+Starting 96 threads
+96threads_2G_4K_rand_read_multifiles: (g=0): rw=randread, bs=(R) 4096B-4096B, (W) 4096B-4096B, (T) 4096B-4096B, ioengine=libaio, iodepth=64
+...
+fio-3.16
+Starting 96 threads
+96threads_2G_1M_seq_read_singlefile: (g=0): rw=read, bs=(R) 1024KiB-1024KiB, (W) 1024KiB-1024KiB, (T) 1024KiB-1024KiB, ioengine=libaio, iodepth=64
+...
+fio-3.16
+Starting 96 threads
+96threads_2G_1M_seq_read_multifiles: (g=0): rw=read, bs=(R) 1024KiB-1024KiB, (W) 1024KiB-1024KiB, (T) 1024KiB-1024KiB, ioengine=libaio, iodepth=64
+...
+fio-3.16
+Starting 96 threads
+96threads_2G_4K_seq_read_singlefile: (g=0): rw=read, bs=(R) 4096B-4096B, (W) 4096B-4096B, (T) 4096B-4096B, ioengine=libaio, iodepth=64
+...
+fio-3.16
+Starting 96 threads
+
+96threads_2G_4K_seq_read_singlefile: (groupid=0, jobs=96): err= 0: pid=3223874: Tue Jun 24 15:06:03 2025
+  read: IOPS=158k, BW=617MiB/s (647MB/s)(1235MiB/2002msec)
+    slat (usec): min=13, max=501841, avg=605.74, stdev=5148.32
+    clat (nsec): min=1388, max=162456k, avg=32494303.97, stdev=6966595.51
+     lat (usec): min=265, max=538450, avg=33100.23, stdev=8624.79
+    clat percentiles (msec):
+     |  1.00th=[    6],  5.00th=[   16], 10.00th=[   32], 20.00th=[   33],
+     | 30.00th=[   33], 40.00th=[   34], 50.00th=[   34], 60.00th=[   34],
+     | 70.00th=[   35], 80.00th=[   35], 90.00th=[   37], 95.00th=[   40],
+     | 99.00th=[   45], 99.50th=[   46], 99.90th=[   46], 99.95th=[   47],
+     | 99.99th=[  163]
+   bw (  KiB/s): min=332549, max=734281, per=92.72%, avg=585602.42, stdev=2026.81, samples=292
+   iops        : min=83135, max=183568, avg=146399.00, stdev=506.71, samples=292
+  lat (usec)   : 2=0.02%, 4=0.01%, 10=0.01%, 500=0.02%, 750=0.02%
+  lat (usec)   : 1000=0.01%
+  lat (msec)   : 2=0.06%, 4=0.57%, 10=3.64%, 20=1.67%, 50=93.95%
+  lat (msec)   : 250=0.02%
+  cpu          : usr=0.32%, sys=0.79%, ctx=316315, majf=0, minf=6240
+  IO depths    : 1=0.1%, 2=0.1%, 4=0.1%, 8=0.2%, 16=0.5%, 32=1.0%, >=64=98.1%
+     submit    : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.0%, >=64=0.0%
+     complete  : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.1%, >=64=0.0%
+     issued rwts: total=316095,0,0,0 short=0,0,0,0 dropped=0,0,0,0
+     latency   : target=0, window=0, percentile=100.00%, depth=64
+
+Run status group 0 (all jobs):
+   READ: bw=617MiB/s (647MB/s), 617MiB/s-617MiB/s (647MB/s-647MB/s), io=1235MiB (1295MB), run=2002-2002msec
+96threads_2G_4K_seq_read_multifiles: (g=0): rw=read, bs=(R) 4096B-4096B, (W) 4096B-4096B, (T) 4096B-4096B, ioengine=libaio, iodepth=64
+...
+fio-3.16
+Starting 96 threads
+
+96threads_2G_4K_seq_read_multifiles: (groupid=0, jobs=96): err= 0: pid=3224242: Tue Jun 24 15:06:08 2025
+  read: IOPS=176k, BW=686MiB/s (719MB/s)(1373MiB/2002msec)
+    slat (usec): min=17, max=361487, avg=544.39, stdev=2732.89
+    clat (nsec): min=1340, max=43057k, avg=31637214.44, stdev=4496241.27
+     lat (usec): min=105, max=395397, avg=32181.79, stdev=5248.68
+    clat percentiles (usec):
+     |  1.00th=[ 9765],  5.00th=[22152], 10.00th=[29492], 20.00th=[31327],
+     | 30.00th=[31851], 40.00th=[32375], 50.00th=[32637], 60.00th=[32900],
+     | 70.00th=[33162], 80.00th=[33817], 90.00th=[34341], 95.00th=[34341],
+     | 99.00th=[39584], 99.50th=[39584], 99.90th=[40109], 99.95th=[40633],
+     | 99.99th=[42730]
+   bw (  KiB/s): min=527105, max=770016, per=96.23%, avg=675625.67, stdev=1324.36, samples=295
+   iops        : min=131776, max=192504, avg=168906.33, stdev=331.09, samples=295
+  lat (usec)   : 2=0.01%, 4=0.01%, 10=0.01%, 250=0.01%, 500=0.02%
+  lat (usec)   : 750=0.02%, 1000=0.02%
+  lat (msec)   : 2=0.06%, 4=0.21%, 10=0.72%, 20=1.85%, 50=97.06%
+  cpu          : usr=0.35%, sys=0.87%, ctx=351626, majf=0, minf=6240
+  IO depths    : 1=0.1%, 2=0.1%, 4=0.1%, 8=0.2%, 16=0.4%, 32=0.9%, >=64=98.3%
+     submit    : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.0%, >=64=0.0%
+     complete  : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.1%, >=64=0.0%
+     issued rwts: total=351408,0,0,0 short=0,0,0,0 dropped=0,0,0,0
+     latency   : target=0, window=0, percentile=100.00%, depth=64
+
+Run status group 0 (all jobs):
+   READ: bw=686MiB/s (719MB/s), 686MiB/s-686MiB/s (719MB/s-719MB/s), io=1373MiB (1439MB), run=2002-2002msec
+96threads_2G_4K_rand_read_singlefile: (g=0): rw=randread, bs=(R) 4096B-4096B, (W) 4096B-4096B, (T) 4096B-4096B, ioengine=libaio, iodepth=64
+...
+fio-3.16
+Starting 96 threads
+
+96threads_2G_4K_rand_read_singlefile: (groupid=0, jobs=96): err= 0: pid=3224554: Tue Jun 24 15:06:11 2025
+  read: IOPS=6592, BW=25.8MiB/s (27.0MB/s)(51.8MiB/2011msec)
+    slat (msec): min=3, max=389, avg=14.50, stdev=26.98
+    clat (nsec): min=1845, max=865805k, avg=587811361.20, stdev=245603761.53
+     lat (msec): min=10, max=1231, avg=602.31, stdev=248.85
+    clat percentiles (msec):
+     |  1.00th=[   12],  5.00th=[   69], 10.00th=[  155], 20.00th=[  321],
+     | 30.00th=[  506], 40.00th=[  676], 50.00th=[  751], 60.00th=[  760],
+     | 70.00th=[  760], 80.00th=[  768], 90.00th=[  776], 95.00th=[  776],
+     | 99.00th=[  785], 99.50th=[  785], 99.90th=[  810], 99.95th=[  827],
+     | 99.99th=[  860]
+   bw (  KiB/s): min=25896, max=30738, per=100.00%, avg=28317.00, stdev=31.85, samples=187
+   iops        : min= 6468, max= 7668, avg=7068.00, stdev= 7.91, samples=187
+  lat (usec)   : 2=0.05%, 4=0.60%, 10=0.07%
+  lat (msec)   : 20=0.72%, 50=2.17%, 100=2.90%, 250=8.97%, 500=14.20%
+  lat (msec)   : 750=17.99%, 1000=52.32%
+  cpu          : usr=0.04%, sys=0.02%, ctx=13640, majf=0, minf=6240
+  IO depths    : 1=0.7%, 2=1.4%, 4=2.9%, 8=5.8%, 16=11.6%, 32=23.2%, >=64=54.4%
+     submit    : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.0%, >=64=0.0%
+     complete  : 0=0.0%, 4=98.7%, 8=0.0%, 16=0.0%, 32=0.0%, 64=1.3%, >=64=0.0%
+     issued rwts: total=13257,0,0,0 short=0,0,0,0 dropped=0,0,0,0
+     latency   : target=0, window=0, percentile=100.00%, depth=64
+
+Run status group 0 (all jobs):
+   READ: bw=25.8MiB/s (27.0MB/s), 25.8MiB/s-25.8MiB/s (27.0MB/s-27.0MB/s), io=51.8MiB (54.3MB), run=2011-2011msec
+96threads_2G_4K_rand_read_multifiles: (g=0): rw=randread, bs=(R) 4096B-4096B, (W) 4096B-4096B, (T) 4096B-4096B, ioengine=libaio, iodepth=64
+...
+fio-3.16
+Starting 96 threads
+
+96threads_2G_4K_rand_read_multifiles: (groupid=0, jobs=96): err= 0: pid=3224891: Tue Jun 24 15:06:16 2025
+  read: IOPS=54.8k, BW=214MiB/s (225MB/s)(430MiB/2009msec)
+    slat (usec): min=616, max=203433, avg=1740.49, stdev=4257.92
+    clat (nsec): min=1642, max=477012k, avg=95021877.52, stdev=32078261.01
+     lat (usec): min=737, max=558483, avg=96762.74, stdev=33293.58
+    clat percentiles (msec):
+     |  1.00th=[   14],  5.00th=[   61], 10.00th=[   68], 20.00th=[   74],
+     | 30.00th=[   79], 40.00th=[   84], 50.00th=[   89], 60.00th=[   96],
+     | 70.00th=[  105], 80.00th=[  116], 90.00th=[  134], 95.00th=[  153],
+     | 99.00th=[  203], 99.50th=[  228], 99.90th=[  275], 99.95th=[  355],
+     | 99.99th=[  388]
+   bw (  KiB/s): min=63101, max=271473, per=85.84%, avg=188250.08, stdev=918.05, samples=316
+   iops        : min=15775, max=67865, avg=47058.67, stdev=229.50, samples=316
+  lat (usec)   : 2=0.01%, 4=0.07%, 10=0.02%, 750=0.01%, 1000=0.02%
+  lat (msec)   : 2=0.08%, 4=0.14%, 10=0.43%, 20=0.70%, 50=1.79%
+  lat (msec)   : 100=62.52%, 250=34.03%, 500=0.19%
+  cpu          : usr=0.20%, sys=0.43%, ctx=110437, majf=0, minf=6240
+  IO depths    : 1=0.1%, 2=0.2%, 4=0.3%, 8=0.7%, 16=1.4%, 32=2.8%, >=64=94.5%
+     submit    : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.0%, >=64=0.0%
+     complete  : 0=0.0%, 4=99.9%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.1%, >=64=0.0%
+     issued rwts: total=110147,0,0,0 short=0,0,0,0 dropped=0,0,0,0
+     latency   : target=0, window=0, percentile=100.00%, depth=64
+
+Run status group 0 (all jobs):
+   READ: bw=214MiB/s (225MB/s), 214MiB/s-214MiB/s (225MB/s-225MB/s), io=430MiB (451MB), run=2009-2009msec
+96threads_2G_1M_seq_read_singlefile: (g=0): rw=read, bs=(R) 1024KiB-1024KiB, (W) 1024KiB-1024KiB, (T) 1024KiB-1024KiB, ioengine=libaio, iodepth=64
+...
+fio-3.16
+Starting 96 threads
+
+96threads_2G_1M_seq_read_singlefile: (groupid=0, jobs=96): err= 0: pid=3225232: Tue Jun 24 15:06:19 2025
+  read: IOPS=7406, BW=7407MiB/s (7767MB/s)(14.8GiB/2045msec)
+    slat (usec): min=461, max=304342, avg=12789.28, stdev=29984.87
+    clat (nsec): min=1916, max=1819.6M, avg=419084267.12, stdev=427351775.24
+     lat (usec): min=514, max=2041.6k, avg=431874.49, stdev=438945.45
+    clat percentiles (msec):
+     |  1.00th=[   11],  5.00th=[   82], 10.00th=[  100], 20.00th=[  115],
+     | 30.00th=[  133], 40.00th=[  159], 50.00th=[  194], 60.00th=[  257],
+     | 70.00th=[  493], 80.00th=[  810], 90.00th=[ 1167], 95.00th=[ 1334],
+     | 99.00th=[ 1636], 99.50th=[ 1720], 99.90th=[ 1770], 99.95th=[ 1787],
+     | 99.99th=[ 1821]
+   bw (  MiB/s): min= 2703, max= 8158, per=77.74%, avg=5757.77, stdev=91.22, samples=122
+   iops        : min= 2699, max= 8158, avg=5755.50, stdev=91.27, samples=122
+  lat (usec)   : 2=0.01%, 4=0.34%, 10=0.28%, 750=0.01%
+  lat (msec)   : 2=0.01%, 4=0.09%, 10=0.21%, 20=0.40%, 50=1.60%
+  lat (msec)   : 100=7.83%, 250=48.70%, 500=11.00%, 750=8.27%, 1000=5.32%
+  lat (msec)   : 2000=15.92%
+  cpu          : usr=0.03%, sys=1.26%, ctx=15415, majf=0, minf=1421152
+  IO depths    : 1=0.6%, 2=1.3%, 4=2.5%, 8=5.1%, 16=10.1%, 32=16.6%, >=64=63.8%
+     submit    : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.0%, >=64=0.0%
+     complete  : 0=0.0%, 4=99.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=1.0%, >=64=0.0%
+     issued rwts: total=15147,0,0,0 short=0,0,0,0 dropped=0,0,0,0
+     latency   : target=0, window=0, percentile=100.00%, depth=64
+
+Run status group 0 (all jobs):
+   READ: bw=7407MiB/s (7767MB/s), 7407MiB/s-7407MiB/s (7767MB/s-7767MB/s), io=14.8GiB (15.9GB), run=2045-2045msec
+96threads_2G_1M_seq_read_multifiles: (g=0): rw=read, bs=(R) 1024KiB-1024KiB, (W) 1024KiB-1024KiB, (T) 1024KiB-1024KiB, ioengine=libaio, iodepth=64
+...
+fio-3.16
+Starting 96 threads
+
+96threads_2G_1M_seq_read_multifiles: (groupid=0, jobs=96): err= 0: pid=3225620: Tue Jun 24 15:06:24 2025
+  read: IOPS=4621, BW=4622MiB/s (4847MB/s)(9586MiB/2074msec)
+    slat (usec): min=387, max=1013.0k, avg=20384.78, stdev=58571.93
+    clat (nsec): min=1650, max=1991.6M, avg=489011097.13, stdev=518966508.95
+     lat (msec): min=2, max=2072, avg=509.40, stdev=536.13
+    clat percentiles (usec):
+     |  1.00th=[      8],  5.00th=[  71828], 10.00th=[  78119],
+     | 20.00th=[  87557], 30.00th=[ 100140], 40.00th=[ 120062],
+     | 50.00th=[ 156238], 60.00th=[ 346031], 70.00th=[ 734004],
+     | 80.00th=[1098908], 90.00th=[1266680], 95.00th=[1501561],
+     | 99.00th=[1820328], 99.50th=[1870660], 99.90th=[1904215],
+     | 99.95th=[1937769], 99.99th=[1988101]
+   bw (  MiB/s): min= 1903, max= 4121, per=69.54%, avg=3213.96, stdev=81.91, samples=56
+   iops        : min= 1902, max= 4120, avg=3213.25, stdev=81.91, samples=56
+  lat (usec)   : 2=0.08%, 4=0.75%, 10=0.17%
+  lat (msec)   : 4=0.06%, 10=0.13%, 20=0.29%, 50=0.88%, 100=27.58%
+  lat (msec)   : 250=27.57%, 500=6.10%, 750=6.78%, 1000=6.68%, 2000=22.93%
+  cpu          : usr=0.03%, sys=0.74%, ctx=9968, majf=0, minf=1105248
+  IO depths    : 1=1.0%, 2=2.0%, 4=4.0%, 8=8.0%, 16=15.0%, 32=14.8%, >=64=55.2%
+     submit    : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.0%, >=64=0.0%
+     complete  : 0=0.0%, 4=98.2%, 8=0.0%, 16=0.0%, 32=0.5%, 64=1.3%, >=64=0.0%
+     issued rwts: total=9586,0,0,0 short=0,0,0,0 dropped=0,0,0,0
+     latency   : target=0, window=0, percentile=100.00%, depth=64
+
+Run status group 0 (all jobs):
+   READ: bw=4622MiB/s (4847MB/s), 4622MiB/s-4622MiB/s (4847MB/s-4847MB/s), io=9586MiB (10.1GB), run=2074-2074msec
+96threads_2G_1M_rand_read_singlefile: (g=0): rw=randread, bs=(R) 1024KiB-1024KiB, (W) 1024KiB-1024KiB, (T) 1024KiB-1024KiB, ioengine=libaio, iodepth=64
+...
+fio-3.16
+Starting 96 threads
+
+96threads_2G_1M_rand_read_singlefile: (groupid=0, jobs=96): err= 0: pid=3225972: Tue Jun 24 15:06:27 2025
+  read: IOPS=725, BW=725MiB/s (761MB/s)(1526MiB/2104msec)
+    slat (msec): min=17, max=394, avg=129.23, stdev=59.67
+    clat (usec): min=2, max=1847.0k, avg=873466.47, stdev=564103.99
+     lat (msec): min=103, max=2102, avg=1002.69, stdev=584.20
+    clat percentiles (usec):
+     |  1.00th=[      3],  5.00th=[      4], 10.00th=[ 107480],
+     | 20.00th=[ 316670], 30.00th=[ 429917], 40.00th=[ 666895],
+     | 50.00th=[ 801113], 60.00th=[1061159], 70.00th=[1300235],
+     | 80.00th=[1451230], 90.00th=[1686111], 95.00th=[1736442],
+     | 99.00th=[1803551], 99.50th=[1820328], 99.90th=[1853883],
+     | 99.95th=[1853883], 99.99th=[1853883]
+  lat (usec)   : 4=5.83%, 10=0.46%
+  lat (msec)   : 250=12.58%, 500=12.58%, 750=12.58%, 1000=12.58%, 2000=43.38%
+  cpu          : usr=0.07%, sys=0.14%, ctx=1749, majf=0, minf=390752
+  IO depths    : 1=6.3%, 2=12.6%, 4=25.2%, 8=49.7%, 16=6.3%, 32=0.0%, >=64=0.0%
+     submit    : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.0%, >=64=0.0%
+     complete  : 0=0.0%, 4=0.0%, 8=0.0%, 16=71.9%, 32=28.1%, 64=0.0%, >=64=0.0%
+     issued rwts: total=1526,0,0,0 short=0,0,0,0 dropped=0,0,0,0
+     latency   : target=0, window=0, percentile=100.00%, depth=64
+
+Run status group 0 (all jobs):
+   READ: bw=725MiB/s (761MB/s), 725MiB/s-725MiB/s (761MB/s-761MB/s), io=1526MiB (1600MB), run=2104-2104msec
+96threads_2G_1M_rand_read_multifiles: (g=0): rw=randread, bs=(R) 1024KiB-1024KiB, (W) 1024KiB-1024KiB, (T) 1024KiB-1024KiB, ioengine=libaio, iodepth=64
+...
+fio-3.16
+Starting 96 threads
+
+96threads_2G_1M_rand_read_multifiles: (groupid=0, jobs=96): err= 0: pid=3226315: Tue Jun 24 15:06:32 2025
+  read: IOPS=5078, BW=5079MiB/s (5325MB/s)(10.8GiB/2176msec)
+    slat (msec): min=5, max=426, avg=17.43, stdev=29.00
+    clat (usec): min=3, max=1541.9k, avg=653857.01, stdev=314168.24
+     lat (msec): min=7, max=1873, avg=671.29, stdev=318.98
+    clat percentiles (msec):
+     |  1.00th=[   10],  5.00th=[   74], 10.00th=[  157], 20.00th=[  326],
+     | 30.00th=[  485], 40.00th=[  651], 50.00th=[  760], 60.00th=[  810],
+     | 70.00th=[  852], 80.00th=[  902], 90.00th=[  995], 95.00th=[ 1070],
+     | 99.00th=[ 1234], 99.50th=[ 1318], 99.90th=[ 1452], 99.95th=[ 1502],
+     | 99.99th=[ 1519]
+   bw (  MiB/s): min= 3255, max= 6272, per=94.29%, avg=4788.83, stdev=20.83, samples=174
+   iops        : min= 3251, max= 6261, avg=4780.33, stdev=20.78, samples=174
+  lat (usec)   : 4=0.07%, 10=0.76%, 20=0.04%
+  lat (msec)   : 10=0.16%, 20=0.78%, 50=1.79%, 100=2.99%, 250=8.97%
+  lat (msec)   : 500=15.31%, 750=17.57%, 1000=41.78%, 2000=9.78%
+  cpu          : usr=0.03%, sys=1.72%, ctx=11401, majf=0, minf=1572960
+  IO depths    : 1=0.9%, 2=1.7%, 4=3.5%, 8=6.9%, 16=13.9%, 32=27.8%, >=64=45.3%
+     submit    : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.0%, >=64=0.0%
+     complete  : 0=0.0%, 4=98.1%, 8=0.0%, 16=0.0%, 32=0.0%, 64=1.9%, >=64=0.0%
+     issued rwts: total=11051,0,0,0 short=0,0,0,0 dropped=0,0,0,0
+     latency   : target=0, window=0, percentile=100.00%, depth=64
+
+Run status group 0 (all jobs):
+   READ: bw=5079MiB/s (5325MB/s), 5079MiB/s-5079MiB/s (5325MB/s-5325MB/s), io=10.8GiB (11.6GB), run=2176-2176msec
