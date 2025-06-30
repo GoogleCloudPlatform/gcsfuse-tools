@@ -562,7 +562,7 @@ function ensureGkeCluster() {
     fi
   else
     # Create a new cluster
-    cluster_creation_args="--project=${project_id} --zone \"${zone}\" --workload-pool=${project_id}.svc.id.goog --machine-type \"${machine_type}\" --image-type \"COS_CONTAINERD\" --num-nodes ${num_nodes} --ephemeral-storage-local-ssd count=${num_ssd} --network-performance-configs=total-egress-bandwidth-tier=TIER_1 --workload-metadata=GKE_METADATA --enable-gvnic \"${extra_args_for_cluster_creation}\""
+    cluster_creation_args="--project=${project_id} --zone ${zone} --workload-pool=${project_id}.svc.id.goog --machine-type ${machine_type} --image-type COS_CONTAINERD --num-nodes ${num_nodes} --ephemeral-storage-local-ssd count=${num_ssd} --network-performance-configs=total-egress-bandwidth-tier=TIER_1 --workload-metadata=GKE_METADATA --enable-gvnic"
     if ${zonal}; then
       cluster_creation_args+=" --private-ipv6-google-access-type=bidirectional"
     fi
