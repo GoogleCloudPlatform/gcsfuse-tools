@@ -17,6 +17,7 @@
 
 # How to run this script:
 # ./create_csi_driver.sh --branch-name <commit-id/branch-name/tag> --bucket <bucket-name> --project <project-id>
+# Pass --skip-prerequisites to skip prerequisite installations (Docker, Go).
 
 # Exit immediately if a command exits with a non-zero status.
 set -e
@@ -25,6 +26,7 @@ set -e
 BRANCH=""
 BUCKET=""
 PROJECT=""
+SKIP_PREREQUISITES=false
 
 # --- Functions ---
 
@@ -42,20 +44,27 @@ parse_arguments() {
         BUCKET="$2"; shift 2;;
       --project)
         PROJECT="$2"; shift 2;;
+      --skip-prerequisites)
+        SKIP_PREREQUISITES=true; shift 1;;
       *)
-        echo "Unknown parameter passed: $1"
+        log "Unknown parameter passed: $1"
         exit 1
         ;;
     esac
   done
 
   if [[ -z "$BRANCH" || -z "$BUCKET" || -z "$PROJECT" ]]; then
-    echo "Usage: $0 --branch-name <branch> --bucket <bucket> --project <project>"
+    log "Usage: $0 --branch-name <branch> --bucket <bucket> --project <project> [--skip-prerequisites]"
     exit 1
   fi
 }
 
 install_prerequisites() {
+  if $SKIP_PREREQUISITES; then
+    log "Skipping prerequisite installation as requested."
+    return
+  fi
+
   log "Installing prerequisites (Docker, Go)..."
   
   sudo apt-get update
@@ -84,16 +93,16 @@ build_and_upload_gcsfuse() {
   log "Building and uploading gcsfuse..."
 
   if [ -d "gcsfuse" ]; then
-    echo "gcsfuse directory already exists. Resetting to branch '$BRANCH'."
+    log "gcsfuse directory already exists. Resetting to branch '$BRANCH'."
     cd gcsfuse
     git fetch origin
     git checkout "$BRANCH"
     git reset --hard "origin/$BRANCH"
   else
-    echo "Cloning gcsfuse repository."
+    log "Cloning gcsfuse repository."
     git clone https://github.com/googleCloudPlatform/gcsfuse
     cd gcsfuse
-    echo "--- Checking out branch: $BRANCH ---"
+    log "--- Checking out branch: $BRANCH ---"
     git checkout "$BRANCH"
   fi
 
@@ -111,13 +120,13 @@ build_and_push_csi_driver() {
   log "Building and pushing gcs-fuse-csi-driver image..."
 
   if [ -d "gcs-fuse-csi-driver" ]; then
-    echo "gcs-fuse-csi-driver directory already exists. Resetting to latest on main."
+    log "gcs-fuse-csi-driver directory already exists. Resetting to latest on main."
     cd gcs-fuse-csi-driver
     git fetch origin
     git checkout main
     git reset --hard origin/main
   else
-    echo "Cloning gcs-fuse-csi-driver repository."
+    log "Cloning gcs-fuse-csi-driver repository."
     git clone https://github.com/GoogleCloudPlatform/gcs-fuse-csi-driver.git
     cd gcs-fuse-csi-driver
   fi
@@ -125,7 +134,8 @@ build_and_push_csi_driver() {
   USER_NAME=$(whoami)
   ID=$(date +%Y%m%d%H%M%S)
   sudo make build-image-and-push-multi-arch REGISTRY="gcr.io/${PROJECT}/${USER_NAME}_${ID}" GCSFUSE_PATH="gs://$BUCKET" > /tmp/output.log
-  log "Sidecar image ID:----------------"
+
+  log "Sidecar image ID:"
   grep "gcr.io/$PROJECT/${USER_NAME}_${ID}/gcs-fuse-csi-driver-sidecar-mounter:" /tmp/output.log
 
   cd ..
@@ -135,12 +145,12 @@ build_and_push_csi_driver() {
 main() {
   parse_arguments "$@"
 
-  # To keep the current directory clean. 
   cd /tmp
 
   install_prerequisites
   build_and_upload_gcsfuse
   build_and_push_csi_driver
+
   log "Script execution completed successfully!"
 }
 
