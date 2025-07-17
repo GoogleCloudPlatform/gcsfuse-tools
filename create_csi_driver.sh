@@ -13,6 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# Note: The script uses apt-get and dpkg for installing dependencies, which ties it to Debian-based Linux distributions like Ubuntu/Debian.
+
 # How to run this script:
 # ./create_csi_driver.sh --branch-name <commit-id/branch-name/tag> --bucket <bucket-name> --project <project-id>
 
