@@ -17,12 +17,7 @@
 # ./create_csi_driver.sh --branch-name <commit-id/branch-name/tag> --bucket <bucket-name> --project <project-id>
 
 # Exit immediately if a command exits with a non-zero status.
-#!/bin/bash
-# Copyright 2025 Google LLC
-# Licensed under the Apache License, Version 2.0.
-
 set -e
-set +x
 
 # --- Global Variables ---
 BRANCH=""
@@ -86,15 +81,20 @@ install_prerequisites() {
 build_and_upload_gcsfuse() {
   log "Building and uploading gcsfuse..."
 
-  if [[ -d "gcsfuse" ]]; then
-    log "gcsfuse repo exists. Pulling latest..."
-    cd gcsfuse && git pull origin "$BRANCH"
+  if [ -d "gcsfuse" ]; then
+    echo "gcsfuse directory already exists. Resetting to branch '$BRANCH'."
+    cd gcsfuse
+    git fetch origin
+    git checkout "$BRANCH"
+    git reset --hard "origin/$BRANCH"
   else
+    echo "Cloning gcsfuse repository."
     git clone https://github.com/googleCloudPlatform/gcsfuse
     cd gcsfuse
+    echo "--- Checking out branch: $BRANCH ---"
+    git checkout "$BRANCH"
   fi
 
-  git checkout "$BRANCH"
   GOOS=linux GOARCH=amd64 go run tools/build_gcsfuse/main.go . . v3
 
   log "Uploading gcsfuse binary to gs://$BUCKET/linux/amd64/"
@@ -108,18 +108,23 @@ build_and_upload_gcsfuse() {
 build_and_push_csi_driver() {
   log "Building and pushing gcs-fuse-csi-driver image..."
 
-  if [[ -d "gcs-fuse-csi-driver" ]]; then
-    cd gcs-fuse-csi-driver && git pull origin main
+  if [ -d "gcs-fuse-csi-driver" ]; then
+    echo "gcs-fuse-csi-driver directory already exists. Resetting to latest on main."
+    cd gcs-fuse-csi-driver
+    git fetch origin
+    git checkout main
+    git reset --hard origin/main
   else
+    echo "Cloning gcs-fuse-csi-driver repository."
     git clone https://github.com/GoogleCloudPlatform/gcs-fuse-csi-driver.git
     cd gcs-fuse-csi-driver
   fi
 
   USER_NAME=$(whoami)
-  sudo make build-image-and-push-multi-arch REGISTRY="gcr.io/$PROJECT/${USER_NAME}_${BRANCH}" GCSFUSE_PATH="gs://$BUCKET" > ~/output.log
-
+  ID=$(date +%Y%m%d%H%M%S)
+  sudo make build-image-and-push-multi-arch REGISTRY="gcr.io/${PROJECT}/${USER_NAME}_${ID}" GCSFUSE_PATH="gs://$BUCKET" > /tmp/output.log
   log "Sidecar image ID:----------------"
-  grep "gcr.io/$PROJECT/${USER_NAME}_${BRANCH}/gcs-fuse-csi-driver-sidecar-mounter:" ~/output.log
+  grep "gcr.io/$PROJECT/${USER_NAME}_${ID}/gcs-fuse-csi-driver-sidecar-mounter:" /tmp/output.log
 
   cd ..
   sudo rm -rf gcs-fuse-csi-driver
@@ -132,7 +137,6 @@ main() {
   cd /tmp
 
   install_prerequisites
-  
   build_and_upload_gcsfuse
   build_and_push_csi_driver
   log "Script execution completed successfully!"
