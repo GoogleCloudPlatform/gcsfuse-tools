@@ -54,7 +54,7 @@ parse_arguments() {
   done
 
   if [[ -z "$BRANCH" || -z "$BUCKET" || -z "$PROJECT" ]]; then
-    log "Usage: $0 --branch-name <branch> --bucket <bucket> --project <project> [--skip-prerequisites]"
+    log "Usage: $0 --branch-name <branch> --bucket <bucket> --project <project> [--skip-prerequisites](optional)"
     exit 1
   fi
 }
@@ -109,7 +109,7 @@ build_and_upload_gcsfuse() {
   GOOS=linux GOARCH=amd64 go run tools/build_gcsfuse/main.go . . v3
 
   log "Uploading gcsfuse binary to gs://$BUCKET/linux/amd64/"
-  gsutil cp "./bin/gcsfuse" "gs://$BUCKET/linux/amd64/"
+  gcloud storage cp "./bin/gcsfuse" "gs://$BUCKET/linux/amd64/"
 
   rm -rf ./bin ./sbin || true
   cd ..
@@ -145,6 +145,7 @@ build_and_push_csi_driver() {
 main() {
   parse_arguments "$@"
 
+  # To make sure the script runs in a clean environment
   cd /tmp
 
   install_prerequisites
