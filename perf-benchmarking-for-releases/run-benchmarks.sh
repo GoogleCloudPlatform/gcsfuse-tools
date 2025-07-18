@@ -19,7 +19,7 @@ if [ "$#" -ne 6 ]; then
     echo ""
     echo "<GCSFUSE_VERSION> can be a Git tag (e.g. v1.0.0), branch name (e.g. main), or a commit ID on master."
     echo ""
-    echo "This script should be run from the 'perf_benchmarking_for_releases' directory."
+    echo "This script should be run from the 'perf-benchmarking-for-releases' directory."
     echo ""
     echo "Example:"
     echo "  bash run-benchmarks.sh v2.12.0 gcs-fuse-test us-south1 n2-standard-96 ubuntu-2204-lts ubuntu-os-cloud"
@@ -108,8 +108,8 @@ echo "Creating GCS test data bucket: gs://${GCS_BUCKET_WITH_FIO_TEST_DATA} in re
 gcloud storage buckets create "gs://${GCS_BUCKET_WITH_FIO_TEST_DATA}" --project="${PROJECT_ID}" --location="${REGION}"
 
 # Upload FIO job files to the results bucket for the VM to download
-echo "Uploading all .fio job files from local 'fio_job_files/' directory to ${RESULT_PATH}/fio_job_files/..."
-gcloud storage cp fio_job_files/*.fio "${RESULT_PATH}/fio_job_files/"
+echo "Uploading all .fio job files from local 'fio-job-files/' directory to ${RESULT_PATH}/fio_job_files/..."
+gcloud storage cp fio_job_files/*.fio "${RESULT_PATH}/fio-job-files/"
 echo "FIO job files uploaded."
 
 # Get the project number
@@ -143,7 +143,7 @@ gcloud compute instances create "${VM_NAME}" \
     --machine-type="${MACHINE_TYPE}" \
     --image-project="${IMAGE_PROJECT}" \
     --zone="${VM_ZONE}" \
-    --boot-disk-size=1000GB \
+    --boot-disk-size=100GB \
     --network-interface=network-tier=PREMIUM,nic-type=GVNIC \
     --scopes=https://www.googleapis.com/auth/cloud-platform,https://www.googleapis.com/auth/devstorage.read_write \
     --network-performance-configs=total-egress-bandwidth-tier=TIER_1 \

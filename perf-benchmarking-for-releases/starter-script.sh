@@ -35,10 +35,10 @@ fi
 
 if [[ "$OS_FAMILY" == "debian_ubuntu" ]]; then
     sudo apt-get update
-    sudo apt-get install -y wget git fio libaio-dev gcc make mdadm build-essential python3-setuptools python3-crcmod python3-pip fuse jq bc procps
+    sudo apt-get install -y wget git fio libaio-dev gcc make mdadm build-essential python3-setuptools python3-crcmod python3-pip fuse jq bc procps gawk
 elif [[ "$OS_FAMILY" == "rhel_centos" ]]; then
     sudo yum makecache
-    sudo yum -y install git fio fuse libaio libaio-devel gcc make mdadm redhat-rpm-config python3-devel python3-setuptools python3-pip jq bc procps-ng wget
+    sudo yum -y install git fio fuse libaio libaio-devel gcc make mdadm redhat-rpm-config python3-devel python3-setuptools python3-pip jq bc procps-ng wget gawk
     pip3 install crcmod
 fi
 
@@ -104,11 +104,11 @@ monitor_gcsfuse_usage() {
     # Calculate CPU Usage as a normalized percentage of total system capacity
     local cpu_usage="0.00"
     if [ "$total_delta" -ne 0 ]; then
-      cpu_usage=$(awk -v proc_delta="$proc_total_delta" -v total_delta="$total_delta" 'BEGIN { printf "%.2f", 100 * proc_delta / total_delta }')
+      cpu_usage=$(gawk -v proc_delta="$proc_total_delta" -v total_delta="$total_delta" 'BEGIN { printf "%.2f", 100 * proc_delta / total_delta }')
     fi
     
     # Get Memory usage (VmRSS - Resident Set Size) for the specific PID in MiB
-    local mem_used_kb=$(grep 'VmRSS:' /proc/$gcsfuse_pid/status | awk '{print $2}')
+    local mem_used_kb=$(grep 'VmRSS:' /proc/$gcsfuse_pid/status | gawk '{print $2}')
     local mem_used_mb=0
     if [ -n "$mem_used_kb" ]; then
         mem_used_mb=$((mem_used_kb / 1024))
@@ -227,9 +227,9 @@ for master_fio_file in "$FIO_JOB_DIR"/*.fio; do
     RESULTS_SUBDIR_PATH="${RESULT_PATH}/fio_results/${master_basename}"
     SPLIT_DIR=$(mktemp -d)
     
-    # Awk script to split a single FIO master job file (potentially containing multiple job definitions)
+    # Gawk script to split a single FIO master job file (potentially containing multiple job definitions)
     # into individual FIO job files. Each split file gets the global section prepended.
-    awk -v split_dir="$SPLIT_DIR" '
+    gawk -v split_dir="$SPLIT_DIR" '
     /^\[global\]/ { in_global=1; global_section=""; next }
     in_global && /^\[/ && NR > 1 { in_global=0 }
     in_global { global_section = global_section $0 "\n"; next }
@@ -278,8 +278,8 @@ for master_fio_file in "$FIO_JOB_DIR"/*.fio; do
             sudo umount "$MNT" || echo "Failed to unmount $MNT"
         fi
 
-        read -r LOWEST_CPU HIGHEST_CPU <<< $(awk 'BEGIN{min="inf";max="-inf"} {if($2<min)min=$2; if($2>max)max=$2} END{if(min=="inf")print "0.0 0.0"; else print min, max}' "$monitor_log")
-        read -r LOWEST_MEM HIGHEST_MEM <<< $(awk 'BEGIN{min="inf";max="-inf"} {if($3<min)min=$3; if($3>max)max=$3} END{if(min=="inf")print "0 0"; else print min, max}' "$monitor_log")
+        read -r LOWEST_CPU HIGHEST_CPU <<< $(gawk 'BEGIN{min="inf";max="-inf"} {if($2<min)min=$2; if($2>max)max=$2} END{if(min=="inf")print "0.0 0.0"; else print min, max}' "$monitor_log")
+        read -r LOWEST_MEM HIGHEST_MEM <<< $(gawk 'BEGIN{min="inf";max="-inf"} {if($3<min)min=$3; if($3>max)max=$3} END{if(min=="inf")print "0 0"; else print min, max}' "$monitor_log")
 
         python3 gcsfuse-tools/perf_benchmarking_for_releases/upload_fio_output_to_bigquery.py \
           --result-file "$RESULT_FILE" \

@@ -33,7 +33,7 @@ Before running the benchmarks, ensure you have:
   Install the required Python packages:
 
     ```bash
-    pip install -r perf_benchmarking_for_releases/requirements.txt
+    pip install -r perf-benchmarking-for-releases/requirements.txt
     ```
 
   The key Python packages include:
@@ -47,7 +47,7 @@ Before running the benchmarks, ensure you have:
 ## Usage
 
 The main script to run the benchmarks is `run-benchmarks.sh`.  
-It should be executed from the `perf_benchmarking_for_releases` directory.
+It should be executed from the `perf-benchmarking-for-releases` directory.
 
 ### Syntax
 
@@ -82,7 +82,7 @@ bash run-benchmarks.sh v2.12.0 gcs-fuse-test us-south1 n2-standard-96 ubuntu-220
    A GCS bucket `gcsfuse-release-benchmark-data-<UNIQUE_ID>` is created in the specified region to store FIO test data.
 
 3. **FIO Job File Upload**:  
-   All `.fio` job files from the local `fio_job_files/` directory are uploaded to the results bucket.
+   All `.fio` job files from the local `fio-job-files/` directory are uploaded to the results bucket.
 
 4. **Data Transfer**:  
    A Storage Transfer Service job copies read data from `gs://gcsfuse-release-benchmark-fio-data` to the newly created test data bucket.
