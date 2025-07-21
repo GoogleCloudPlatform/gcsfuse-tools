@@ -776,8 +776,8 @@ function waitTillAllPodsComplete() {
     if [ ${num_completed_pods} -gt 0 ]; then
       printf ${num_completed_pods}" pod(s) have completed.\n"
     fi
-    num_noncompleted_pods=$(echo "${podslist}" | tail -n +2 | grep -i -v 'completed\|succeeded\|fail\|error\|unknown' | wc -l)
-    num_failed_pods=$(echo "${podslist}" | tail -n +2 | grep -i 'failed' | wc -l)
+    num_noncompleted_pods=$(echo "${podslist}" | tail -n +2 | grep -i -v 'completed\|succeeded\|fail\|error\|unknown\|oomkilled' | wc -l)
+    num_failed_pods=$(echo "${podslist}" | tail -n +2 | grep -i 'failed\|oomkilled\|error\|unknown' | wc -l)
     if [ ${num_failed_pods} -gt 0 ]; then
       printf ${num_failed_pods}" pod(s) have failed.\n\n"
     fi
