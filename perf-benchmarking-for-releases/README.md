@@ -49,6 +49,8 @@ Before running the benchmarks, ensure you have:
 The main script to run the benchmarks is `run-benchmarks.sh`.  
 It should be executed from the `perf-benchmarking-for-releases` directory.
 
+**Note:** This framework currently only supports benchmarking against regional GCS buckets with a flat object namespace (i.e., non-hierarchical).
+
 ### Syntax
 
 ```bash
@@ -62,13 +64,13 @@ bash run-benchmarks.sh <GCSFUSE_VERSION> <PROJECT_ID> <REGION> <MACHINE_TYPE> <I
 - `<REGION>`: The GCP region where the VM and GCS buckets will be created (e.g., `us-south1`).
 - `<MACHINE_TYPE>`: The GCE machine type for the benchmark VM (e.g., `n2-standard-96`). This script supports attaching 16 local NVMe SSDs (375GB each) for LSSD-supported machine types.
    - **Note:** If your machine type supports LSSD but is not included in the `LSSD_SUPPORTED_MACHINES` array within `run-benchmarks.sh` script, you may need to manually add it to ensure LSSDs are attached.
-- `<IMAGE_FAMILY>`: The image family for the VM (e.g., `ubuntu-2204-lts`).
+- `<IMAGE_FAMILY>`: The image family for the VM (e.g., `ubuntu-2504-amd64`).
 - `<IMAGE_PROJECT>`: The image project for the VM (e.g., `ubuntu-os-cloud`).
 
 ### Example:
 
 ```bash
-bash run-benchmarks.sh v2.12.0 gcs-fuse-test us-south1 n2-standard-96 ubuntu-2204-lts ubuntu-os-cloud
+bash run-benchmarks.sh master gcs-fuse-test us-south1 n2-standard-96 ubuntu-2504-amd64 ubuntu-os-cloud
 ```
 
 ---

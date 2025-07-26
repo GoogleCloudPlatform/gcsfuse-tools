@@ -33,9 +33,10 @@ else
     exit 1
 fi
 
+# Install common dependencies before adding starterscriptuser
 if [[ "$OS_FAMILY" == "debian_ubuntu" ]]; then
     sudo apt-get update
-    sudo apt-get install -y wget git fio libaio-dev gcc make mdadm build-essential python3-setuptools python3-crcmod python3-pip fuse jq bc procps gawk
+    sudo apt-get install -y wget git fio libaio-dev gcc make mdadm build-essential python3-setuptools python3-crcmod python3-pip python3-venv fuse jq bc procps gawk
 elif [[ "$OS_FAMILY" == "rhel_centos" ]]; then
     sudo yum makecache
     sudo yum -y install git fio fuse libaio libaio-devel gcc make mdadm redhat-rpm-config python3-devel python3-setuptools python3-pip jq bc procps-ng wget gawk
@@ -59,6 +60,8 @@ fi
 sudo -u starterscriptuser OS_FAMILY="$OS_FAMILY" bash <<'EOF'
 set -x
 set -e
+
+UPLOAD_FAILED=false
 
 # Function to monitor GCSFuse CPU and memory usage
 monitor_gcsfuse_usage() {
@@ -122,6 +125,7 @@ monitor_gcsfuse_usage() {
 }
 
 BENCHMARK_LOG_FILE="/tmp/benchmark_run.log"
+# Redirect stdout and stderr to BENCHMARK_LOG_FILE and also to original stdout/stderr
 exec > >(tee -a "$BENCHMARK_LOG_FILE") 2>&1
 
 cleanup() {
@@ -144,6 +148,7 @@ cd ~/
 echo "Current directory: $(pwd)"
 echo "User: $(whoami)"
 
+# Fetch metadata parameters
 GCSFUSE_VERSION=$(curl -s "http://metadata.google.internal/computeMetadata/v1/instance/attributes/GCSFUSE_VERSION" -H "Metadata-Flavor: Google")
 GCS_BUCKET_WITH_FIO_TEST_DATA=$(curl -s "http://metadata.google.internal/computeMetadata/v1/instance/attributes/GCS_BUCKET_WITH_FIO_TEST_DATA" -H "Metadata-Flavor: Google")
 RESULT_PATH=$(curl -s "http://metadata.google.internal/computeMetadata/v1/instance/attributes/RESULT_PATH" -H "Metadata-Flavor: Google")
@@ -153,6 +158,7 @@ VM_NAME=$(hostname)
 UNIQUE_ID=$(curl -s "http://metadata.google.internal/computeMetadata/v1/instance/attributes/UNIQUE_ID" -H "Metadata-Flavor: Google")
 GCSFUSE_MOUNT_OPTIONS_STR="implicit-dirs"
 
+# Determine system architecture
 ARCHITECTURE=""
 if [[ "$OS_FAMILY" == "debian_ubuntu" ]]; then
     ARCHITECTURE=$(dpkg --print-architecture)
@@ -167,9 +173,13 @@ elif [[ "$OS_FAMILY" == "rhel_centos" ]]; then
         exit 1
     fi
 fi
+
+# Install Go
 wget -nv --tries=3 --waitretry=5 -O go_tar.tar.gz "https://go.dev/dl/go1.24.0.linux-${ARCHITECTURE}.tar.gz"
 sudo tar -C /usr/local -xzf go_tar.tar.gz
 export PATH=$PATH:/usr/local/go/bin
+
+# Clone and build gcsfuse
 git clone https://github.com/GoogleCloudPlatform/gcsfuse.git
 cd gcsfuse
 git checkout "$GCSFUSE_VERSION"
@@ -182,15 +192,19 @@ GCSFUSE_BIN="$CURR_DIR/gcsfuse/gcsfuse"
 MNT="$CURR_DIR/$MOUNT_POINT"
 SSD_MOUNT_DIR="/mnt/disks/local_ssd"
 FIO_JOB_DIR="/tmp/fio_jobs"
-mkdir -p "$FIO_JOB_DIR"
-gcloud storage cp "${RESULT_PATH}/fio_job_files/*.fio" "$FIO_JOB_DIR/"
 
+# Download all FIO job spec files
+mkdir -p "$FIO_JOB_DIR"
+gcloud storage cp "${RESULT_PATH}/fio-job-files/*.fio" "$FIO_JOB_DIR/"
+
+# Capture versions
 {
     echo "GCSFuse version: $GCSFUSE_VERSION"
     echo "Go version     : $(go version)"
     echo "FIO version    : $(fio --version)"
 } >> details.txt
 
+# Create LSSD if enabled
 if [[ "$LSSD_ENABLED" == "true" ]]; then
     LSSD_DEVICES=()
     for i in {0..15}; do
@@ -213,7 +227,12 @@ if [[ "$LSSD_ENABLED" == "true" ]]; then
 fi
 
 git clone --single-branch --branch fio-to-bigquery https://github.com/GoogleCloudPlatform/gcsfuse-tools.git
-python3 -m pip install --user -r gcsfuse-tools/perf_benchmarking_for_releases/requirements.txt
+cd gcsfuse-tools
+
+python3 -m venv py_venv
+source py_venv/bin/activate
+python3 -m pip install -r perf-benchmarking-for-releases/requirements.txt
+
 IFS=',' read -r -a GCSFUSE_FLAGS_ARRAY <<< "$GCSFUSE_MOUNT_OPTIONS_STR"
 GCSFUSE_FLAGS=()
 for flag in "${GCSFUSE_FLAGS_ARRAY[@]}"; do
@@ -255,6 +274,7 @@ for master_fio_file in "$FIO_JOB_DIR"/*.fio; do
         [[ "$LSSD_ENABLED" == "true" ]] && reformat_and_remount_lssd
         sudo sh -c "echo 3 > /proc/sys/vm/drop_caches"
 
+        # Mount GCS bucket using gcsfuse
         mkdir -p "$MNT"
         "$GCSFUSE_BIN" "${GCSFUSE_FLAGS[@]}" "$GCS_BUCKET_WITH_FIO_TEST_DATA" "$MNT"
         
@@ -281,7 +301,7 @@ for master_fio_file in "$FIO_JOB_DIR"/*.fio; do
         read -r LOWEST_CPU HIGHEST_CPU <<< $(gawk 'BEGIN{min="inf";max="-inf"} {if($2<min)min=$2; if($2>max)max=$2} END{if(min=="inf")print "0.0 0.0"; else print min, max}' "$monitor_log")
         read -r LOWEST_MEM HIGHEST_MEM <<< $(gawk 'BEGIN{min="inf";max="-inf"} {if($3<min)min=$3; if($3>max)max=$3} END{if(min=="inf")print "0 0"; else print min, max}' "$monitor_log")
 
-        python3 gcsfuse-tools/perf_benchmarking_for_releases/upload_fio_output_to_bigquery.py \
+        if python3 perf-benchmarking-for-releases/upload_fio_output_to_bigquery.py \
           --result-file "$RESULT_FILE" \
           --fio-job-file "$single_fio_file" \
           --master-fio-file "$master_fio_file" \
@@ -289,18 +309,32 @@ for master_fio_file in "$FIO_JOB_DIR"/*.fio; do
           --highest-cpu "$HIGHEST_CPU" \
           --lowest-mem "$LOWEST_MEM" \
           --highest-mem "$HIGHEST_MEM" \
-          --gcsfuse-mount-options "$GCSFUSE_MOUNT_OPTIONS_STR"
-
-        rm -f "$RESULT_FILE" "$monitor_log"
+          --gcsfuse-mount-options "$GCSFUSE_MOUNT_OPTIONS_STR"; then
+            echo "Successfully uploaded results to BigQuery for job: $job_file_basename"
+            rm -f "$RESULT_FILE" "$monitor_log"
+        else
+            echo "Warning: Failed to upload results to BigQuery for job: $job_file_basename. Uploading monitor log to GCS for debugging."
+            gcloud storage cp "$monitor_log" "${RESULTS_SUBDIR_PATH}/" || echo "Warning: Failed to upload monitor log for ${job_file_basename}"
+            UPLOAD_FAILED=true
+        fi
     done
 
     rm -rf "$SPLIT_DIR"
 done
 
-touch success.txt
-gcloud storage cp success.txt "$RESULT_PATH"
-rm success.txt
+cd ..
+
+if [[ "$UPLOAD_FAILED" == "false" ]]; then
+    # All tests ran successfully; create a success.txt file in GCS
+    touch success.txt
+    gcloud storage cp success.txt "$RESULT_PATH"
+    rm success.txt
+else
+    echo "One or more BigQuery uploads failed. Not creating success.txt to indicate benchmark failure."
+fi
 
 EOF
 
 echo "Starter script finished execution on VM."
+
+# The trap command will handle the cleanup on script exit.

@@ -22,7 +22,7 @@ if [ "$#" -ne 6 ]; then
     echo "This script should be run from the 'perf-benchmarking-for-releases' directory."
     echo ""
     echo "Example:"
-    echo "  bash run-benchmarks.sh v2.12.0 gcs-fuse-test us-south1 n2-standard-96 ubuntu-2204-lts ubuntu-os-cloud"
+    echo "  bash run-benchmarks.sh master gcs-fuse-test us-south1 n2-standard-96 ubuntu-2504-amd64 ubuntu-os-cloud"
     exit 1
 fi
 
@@ -50,6 +50,7 @@ UNIQUE_ID="${TIMESTAMP}-${RAND_SUFFIX}"
 VM_NAME="gcsfuse-perf-benchmark-${UNIQUE_ID}"
 GCS_BUCKET_WITH_FIO_TEST_DATA="gcsfuse-release-benchmark-data-${UNIQUE_ID}"
 RESULTS_BUCKET_NAME="gcsfuse-release-benchmarks-results"
+BQ_TABLE="gcs-fuse-test-ml.gke_test_tool_outputs.fio_outputs"
 RESULT_PATH="gs://${RESULTS_BUCKET_NAME}/${GCSFUSE_VERSION}-${UNIQUE_ID}"
 
 
@@ -108,8 +109,8 @@ echo "Creating GCS test data bucket: gs://${GCS_BUCKET_WITH_FIO_TEST_DATA} in re
 gcloud storage buckets create "gs://${GCS_BUCKET_WITH_FIO_TEST_DATA}" --project="${PROJECT_ID}" --location="${REGION}"
 
 # Upload FIO job files to the results bucket for the VM to download
-echo "Uploading all .fio job files from local 'fio-job-files/' directory to ${RESULT_PATH}/fio_job_files/..."
-gcloud storage cp fio_job_files/*.fio "${RESULT_PATH}/fio-job-files/"
+echo "Uploading all .fio job files from local 'fio-job-files/' directory to ${RESULT_PATH}/fio-job-files/..."
+gcloud storage cp fio-job-files/*.fio "${RESULT_PATH}/fio-job-files/"
 echo "FIO job files uploaded."
 
 # Get the project number
@@ -119,11 +120,14 @@ PROJECT_NUMBER=$(gcloud projects describe "$PROJECT_ID" --format="value(projectN
 STS_ACCOUNT="project-${PROJECT_NUMBER}@storage-transfer-service.iam.gserviceaccount.com"
 
 # Grant the service account 'roles/storage.admin' permissions on the newly created bucket
+# This allows the service account to manage the bucket and perform transfers
 gcloud storage buckets add-iam-policy-binding "gs://${GCS_BUCKET_WITH_FIO_TEST_DATA}" \
   --member="serviceAccount:${STS_ACCOUNT}" \
   --role="roles/storage.admin"
 
-# Use storage transfer job to copy test data from a fixed GCS bucket.
+# Since file generation with fio is painfully slow, we will use storage transfer
+# job to transfer test data from a fixed GCS bucket to the newly created bucket.
+# Note : We need to copy only read data.
 echo "Creating storage transfer job to copy read data to gs://${GCS_BUCKET_WITH_FIO_TEST_DATA}..."
 gcloud transfer jobs create \
   gs://gcsfuse-release-benchmark-fio-data \
@@ -158,16 +162,18 @@ SUCCESS_FILE_PATH="${RESULT_PATH}/success.txt"
 LOG_FILE_PATH="${RESULT_PATH}/benchmark_run.log"
 SLEEP_TIME=300  # 5 minutes
 sleep "$SLEEP_TIME"
+#max 18 retries amounting to ~1hr30mins time
 MAX_RETRIES=18
 
 for ((i=1; i<=MAX_RETRIES; i++)); do
     if gcloud storage objects describe "${SUCCESS_FILE_PATH}" &> /dev/null; then
         echo "Benchmarks completed. success.txt found."
-        echo "Results are available in BigQuery: gcs-fuse-test-ml.gke_test_tool_outputs.fio_outputs"
+        echo "Results are available in BigQuery: ${BQ_TABLE}"
         echo "Benchmark log file: $LOG_FILE_PATH"
         exit 0
     fi
 
+    # Check for early failure indicators
     if gcloud storage objects describe "${RESULT_PATH}/details.txt" &> /dev/null || \
        gcloud storage objects describe "$LOG_FILE_PATH" &> /dev/null; then
         echo "Benchmark log or details.txt found, but success.txt is missing. Possible error in benchmark execution."
@@ -179,7 +185,9 @@ for ((i=1; i<=MAX_RETRIES; i++)); do
     sleep "$SLEEP_TIME"
 done
 
-
+# Failure case: success.txt was not found after retries
 echo "Timed out waiting for success.txt after $((MAX_RETRIES * SLEEP_TIME / 60)) minutes. Perhaps there is some error."
 echo "Benchmark log file (for troubleshooting): $LOG_FILE_PATH"
 exit 1
+
+# The trap command will handle the cleanup on script exit.
