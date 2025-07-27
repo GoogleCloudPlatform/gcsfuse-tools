@@ -83,4 +83,4 @@ directory=${DIR}
 bs=1M
 filesize=1GB
 rw=read
-nrfiles=2
+nrfiles=10

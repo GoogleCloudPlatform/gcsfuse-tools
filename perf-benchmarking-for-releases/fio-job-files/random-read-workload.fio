@@ -75,4 +75,4 @@ stonewall
 directory=${DIR}
 bs=1M
 filesize=1GB
-nrfiles=2
+nrfiles=10
