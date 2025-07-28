@@ -71,7 +71,7 @@ parser.add_argument("--fio-job-file", required=True, help="Path to the temporary
 parser.add_argument("--master-fio-file", required=True, help="Path to the original master FIO job file")
 parser.add_argument("--project-id", default="gcs-fuse-test-ml", help="GCP project ID")
 parser.add_argument("--dataset-id", default="gke_test_tool_outputs", help="BigQuery dataset ID")
-parser.add_argument("--table-id", default="vipinydv_fio_outputs", help="BigQuery table ID")
+parser.add_argument("--table-id", default="fio_outputs", help="BigQuery table ID")
 parser.add_argument("--lowest-cpu", required=True, type=float, help="Lowest CPU usage")
 parser.add_argument("--highest-cpu", required=True, type=float, help="Highest CPU usage")
 parser.add_argument("--lowest-mem", required=True, type=float, help="Lowest Memory usage")
