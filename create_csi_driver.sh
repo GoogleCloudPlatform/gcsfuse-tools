@@ -106,7 +106,9 @@ build_and_upload_gcsfuse() {
     git checkout "$BRANCH"
   fi
 
-  GOOS=linux GOARCH=amd64 go run tools/build_gcsfuse/main.go . . v3
+COMMIT_HASH=$(git rev-parse --short HEAD)
+log "Building gcsfuse from commit ${COMMIT_HASH}"
+GOOS=linux GOARCH=amd64 go run tools/build_gcsfuse/main.go . . "${COMMIT_HASH}"
 
   log "Uploading gcsfuse binary to gs://$BUCKET/linux/amd64/"
   gcloud storage cp "./bin/gcsfuse" "gs://$BUCKET/linux/amd64/"
