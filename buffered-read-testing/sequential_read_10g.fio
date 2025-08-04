@@ -1,0 +1,31 @@
+[global]
+# I/O Engine and Behavior
+ioengine=libaio
+direct=1
+fadvise_hint=0
+verify=0
+rw=read
+bs=1M
+iodepth=1
+invalidate=1
+
+# Timing and Load
+ramp_time=30s
+runtime=5m
+time_based=1
+
+# Files and Jobs
+nrfiles=1
+numjobs=1
+thread=1
+fsync=1
+openfiles=1
+group_reporting=1
+
+# File configuration - set via environment variables
+directory=${MOUNT_POINT}
+filename=test_file_10G
+filesize=10G
+
+# Output format for easy parsing
+output-format=json
