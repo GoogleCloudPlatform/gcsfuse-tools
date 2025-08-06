@@ -15,8 +15,9 @@ TEST_FILE_SIZE=${TEST_FILE_SIZE:-"10G"}
 BLOCK_SIZE=${BLOCK_SIZE:-"1M"}
 
 # Buffered read configurations to test
-declare -a BLOCK_SIZE_MB_VALUES=(16 32)
-declare -a MAX_READ_BLOCK_HANDLES=(20)
+# declare -a BLOCK_SIZE_MB_VALUES=(2 4 6 8 10 12 14 16 18 20 22 24 26 28 30 32)
+declare -a BLOCK_SIZE_MB_VALUES=(48 64 80 96 112)
+declare -a MAX_READ_BLOCK_HANDLES=(2 4 6 8 10 12 14 16 18 20 22 24 26 28 30 32)
 
 # Colors for output
 RED='\033[0;31m'
