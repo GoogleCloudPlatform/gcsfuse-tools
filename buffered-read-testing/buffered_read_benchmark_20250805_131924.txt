@@ -1,0 +1,1288 @@
+GCSFuse Buffered Read Benchmark Results
+Generated on: Tue Aug  5 13:19:24 UTC 2025
+Test configuration: Single-threaded, 10G file, sequential read, 1M block-size
+Each test run 3 times, average reported
+
+=== SUMMARY RESULTS ===
+BlockSize(MB)   MaxHandles           Run1(MB/s)      Run2(MB/s)      Run3(MB/s)      Average(MB/s)  
+-----------------------------------------------------------------------------------------------
+=== Iteration 1: block-size-mb=48, max-handles=2 ===
+Timestamp: Tue Aug  5 13:20:11 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 48 --read-max-blocks-per-handle 2 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 258.30 MB/s (258304 KB/s)
+
+=== Iteration 2: block-size-mb=48, max-handles=2 ===
+Timestamp: Tue Aug  5 13:20:46 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 48 --read-max-blocks-per-handle 2 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 357.80 MB/s (357798 KB/s)
+
+=== Iteration 3: block-size-mb=48, max-handles=2 ===
+Timestamp: Tue Aug  5 13:21:15 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 48 --read-max-blocks-per-handle 2 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 449.89 MB/s (449891 KB/s)
+
+48              2                    258.30          357.80          449.89          355.33         
+=== Iteration 1: block-size-mb=48, max-handles=4 ===
+Timestamp: Tue Aug  5 13:21:34 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 48 --read-max-blocks-per-handle 4 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 788.75 MB/s (788749 KB/s)
+
+=== Iteration 2: block-size-mb=48, max-handles=4 ===
+Timestamp: Tue Aug  5 13:21:54 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 48 --read-max-blocks-per-handle 4 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 741.09 MB/s (741086 KB/s)
+
+=== Iteration 3: block-size-mb=48, max-handles=4 ===
+Timestamp: Tue Aug  5 13:22:15 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 48 --read-max-blocks-per-handle 4 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 713.36 MB/s (713356 KB/s)
+
+48              4                    788.75          741.09          713.36          747.73         
+=== Iteration 1: block-size-mb=48, max-handles=6 ===
+Timestamp: Tue Aug  5 13:22:29 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 48 --read-max-blocks-per-handle 6 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1231.86 MB/s (1231864 KB/s)
+
+=== Iteration 2: block-size-mb=48, max-handles=6 ===
+Timestamp: Tue Aug  5 13:22:45 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 48 --read-max-blocks-per-handle 6 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1058.73 MB/s (1058726 KB/s)
+
+=== Iteration 3: block-size-mb=48, max-handles=6 ===
+Timestamp: Tue Aug  5 13:23:00 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 48 --read-max-blocks-per-handle 6 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1137.64 MB/s (1137640 KB/s)
+
+48              6                    1231.86         1058.73         1137.64         1142.74        
+=== Iteration 1: block-size-mb=48, max-handles=8 ===
+Timestamp: Tue Aug  5 13:23:12 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 48 --read-max-blocks-per-handle 8 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1543.82 MB/s (1543820 KB/s)
+
+=== Iteration 2: block-size-mb=48, max-handles=8 ===
+Timestamp: Tue Aug  5 13:23:25 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 48 --read-max-blocks-per-handle 8 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1534.78 MB/s (1534782 KB/s)
+
+=== Iteration 3: block-size-mb=48, max-handles=8 ===
+Timestamp: Tue Aug  5 13:23:38 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 48 --read-max-blocks-per-handle 8 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1454.52 MB/s (1454519 KB/s)
+
+48              8                    1543.82         1534.78         1454.52         1511.04        
+=== Iteration 1: block-size-mb=48, max-handles=10 ===
+Timestamp: Tue Aug  5 13:23:50 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 48 --read-max-blocks-per-handle 10 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1842.17 MB/s (1842170 KB/s)
+
+=== Iteration 2: block-size-mb=48, max-handles=10 ===
+Timestamp: Tue Aug  5 13:24:02 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 48 --read-max-blocks-per-handle 10 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1583.45 MB/s (1583453 KB/s)
+
+=== Iteration 3: block-size-mb=48, max-handles=10 ===
+Timestamp: Tue Aug  5 13:24:14 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 48 --read-max-blocks-per-handle 10 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1744.99 MB/s (1744987 KB/s)
+
+48              10                   1842.17         1583.45         1744.99         1723.54        
+=== Iteration 1: block-size-mb=48, max-handles=12 ===
+Timestamp: Tue Aug  5 13:24:25 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 48 --read-max-blocks-per-handle 12 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 2029.35 MB/s (2029346 KB/s)
+
+=== Iteration 2: block-size-mb=48, max-handles=12 ===
+Timestamp: Tue Aug  5 13:24:36 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 48 --read-max-blocks-per-handle 12 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1844.76 MB/s (1844762 KB/s)
+
+=== Iteration 3: block-size-mb=48, max-handles=12 ===
+Timestamp: Tue Aug  5 13:24:48 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 48 --read-max-blocks-per-handle 12 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1891.01 MB/s (1891006 KB/s)
+
+48              12                   2029.35         1844.76         1891.01         1921.71        
+=== Iteration 1: block-size-mb=48, max-handles=14 ===
+Timestamp: Tue Aug  5 13:24:59 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 48 --read-max-blocks-per-handle 14 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1938.55 MB/s (1938552 KB/s)
+
+=== Iteration 2: block-size-mb=48, max-handles=14 ===
+Timestamp: Tue Aug  5 13:25:10 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 48 --read-max-blocks-per-handle 14 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1862.13 MB/s (1862126 KB/s)
+
+=== Iteration 3: block-size-mb=48, max-handles=14 ===
+Timestamp: Tue Aug  5 13:25:22 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 48 --read-max-blocks-per-handle 14 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1824.22 MB/s (1824222 KB/s)
+
+48              14                   1938.55         1862.13         1824.22         1874.97        
+=== Iteration 1: block-size-mb=48, max-handles=16 ===
+Timestamp: Tue Aug  5 13:25:33 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 48 --read-max-blocks-per-handle 16 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1978.79 MB/s (1978794 KB/s)
+
+=== Iteration 2: block-size-mb=48, max-handles=16 ===
+Timestamp: Tue Aug  5 13:25:45 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 48 --read-max-blocks-per-handle 16 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1846.39 MB/s (1846387 KB/s)
+
+=== Iteration 3: block-size-mb=48, max-handles=16 ===
+Timestamp: Tue Aug  5 13:25:56 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 48 --read-max-blocks-per-handle 16 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1889.30 MB/s (1889303 KB/s)
+
+48              16                   1978.79         1846.39         1889.30         1904.83        
+=== Iteration 1: block-size-mb=48, max-handles=18 ===
+Timestamp: Tue Aug  5 13:26:07 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 48 --read-max-blocks-per-handle 18 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1859.81 MB/s (1859814 KB/s)
+
+=== Iteration 2: block-size-mb=48, max-handles=18 ===
+Timestamp: Tue Aug  5 13:26:19 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 48 --read-max-blocks-per-handle 18 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1964.70 MB/s (1964705 KB/s)
+
+=== Iteration 3: block-size-mb=48, max-handles=18 ===
+Timestamp: Tue Aug  5 13:26:29 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 48 --read-max-blocks-per-handle 18 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 2091.69 MB/s (2091688 KB/s)
+
+48              18                   1859.81         1964.70         2091.69         1972.07        
+=== Iteration 1: block-size-mb=48, max-handles=20 ===
+Timestamp: Tue Aug  5 13:26:40 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 48 --read-max-blocks-per-handle 20 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 2049.58 MB/s (2049576 KB/s)
+
+=== Iteration 2: block-size-mb=48, max-handles=20 ===
+Timestamp: Tue Aug  5 13:26:51 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 48 --read-max-blocks-per-handle 20 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 2102.59 MB/s (2102593 KB/s)
+
+=== Iteration 3: block-size-mb=48, max-handles=20 ===
+Timestamp: Tue Aug  5 13:27:03 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 48 --read-max-blocks-per-handle 20 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1926.09 MB/s (1926089 KB/s)
+
+48              20                   2049.58         2102.59         1926.09         2026.09        
+=== Iteration 1: block-size-mb=48, max-handles=22 ===
+Timestamp: Tue Aug  5 13:27:13 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 48 --read-max-blocks-per-handle 22 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 2087.94 MB/s (2087939 KB/s)
+
+=== Iteration 2: block-size-mb=48, max-handles=22 ===
+Timestamp: Tue Aug  5 13:27:24 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 48 --read-max-blocks-per-handle 22 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 2043.98 MB/s (2043982 KB/s)
+
+=== Iteration 3: block-size-mb=48, max-handles=22 ===
+Timestamp: Tue Aug  5 13:27:35 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 48 --read-max-blocks-per-handle 22 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 2132.09 MB/s (2132092 KB/s)
+
+48              22                   2087.94         2043.98         2132.09         2088.00        
+=== Iteration 1: block-size-mb=48, max-handles=24 ===
+Timestamp: Tue Aug  5 13:27:46 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 48 --read-max-blocks-per-handle 24 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 2128.63 MB/s (2128630 KB/s)
+
+=== Iteration 2: block-size-mb=48, max-handles=24 ===
+Timestamp: Tue Aug  5 13:27:57 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 48 --read-max-blocks-per-handle 24 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1951.90 MB/s (1951904 KB/s)
+
+=== Iteration 3: block-size-mb=48, max-handles=24 ===
+Timestamp: Tue Aug  5 13:28:08 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 48 --read-max-blocks-per-handle 24 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 2104.28 MB/s (2104280 KB/s)
+
+48              24                   2128.63         1951.90         2104.28         2061.60        
+=== Iteration 1: block-size-mb=48, max-handles=26 ===
+Timestamp: Tue Aug  5 13:28:19 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 48 --read-max-blocks-per-handle 26 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1968.39 MB/s (1968393 KB/s)
+
+=== Iteration 2: block-size-mb=48, max-handles=26 ===
+Timestamp: Tue Aug  5 13:28:30 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 48 --read-max-blocks-per-handle 26 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 2061.26 MB/s (2061260 KB/s)
+
+=== Iteration 3: block-size-mb=48, max-handles=26 ===
+Timestamp: Tue Aug  5 13:28:41 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 48 --read-max-blocks-per-handle 26 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 2038.42 MB/s (2038419 KB/s)
+
+48              26                   1968.39         2061.26         2038.42         2022.69        
+=== Iteration 1: block-size-mb=48, max-handles=28 ===
+Timestamp: Tue Aug  5 13:28:52 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 48 --read-max-blocks-per-handle 28 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 2050.38 MB/s (2050377 KB/s)
+
+=== Iteration 2: block-size-mb=48, max-handles=28 ===
+Timestamp: Tue Aug  5 13:29:03 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 48 --read-max-blocks-per-handle 28 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1928.21 MB/s (1928214 KB/s)
+
+=== Iteration 3: block-size-mb=48, max-handles=28 ===
+Timestamp: Tue Aug  5 13:29:14 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 48 --read-max-blocks-per-handle 28 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 2180.42 MB/s (2180418 KB/s)
+
+48              28                   2050.38         1928.21         2180.42         2053.00        
+=== Iteration 1: block-size-mb=48, max-handles=30 ===
+Timestamp: Tue Aug  5 13:29:25 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 48 --read-max-blocks-per-handle 30 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 2094.61 MB/s (2094612 KB/s)
+
+=== Iteration 2: block-size-mb=48, max-handles=30 ===
+Timestamp: Tue Aug  5 13:29:36 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 48 --read-max-blocks-per-handle 30 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1997.64 MB/s (1997643 KB/s)
+
+=== Iteration 3: block-size-mb=48, max-handles=30 ===
+Timestamp: Tue Aug  5 13:29:47 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 48 --read-max-blocks-per-handle 30 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 2028.95 MB/s (2028953 KB/s)
+
+48              30                   2094.61         1997.64         2028.95         2040.40        
+=== Iteration 1: block-size-mb=48, max-handles=32 ===
+Timestamp: Tue Aug  5 13:29:59 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 48 --read-max-blocks-per-handle 32 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1919.74 MB/s (1919742 KB/s)
+
+=== Iteration 2: block-size-mb=48, max-handles=32 ===
+Timestamp: Tue Aug  5 13:30:09 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 48 --read-max-blocks-per-handle 32 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 2063.69 MB/s (2063694 KB/s)
+
+=== Iteration 3: block-size-mb=48, max-handles=32 ===
+Timestamp: Tue Aug  5 13:30:21 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 48 --read-max-blocks-per-handle 32 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1965.07 MB/s (1965073 KB/s)
+
+48              32                   1919.74         2063.69         1965.07         1982.83        
+=== Iteration 1: block-size-mb=64, max-handles=2 ===
+Timestamp: Tue Aug  5 13:30:50 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 64 --read-max-blocks-per-handle 2 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 440.24 MB/s (440239 KB/s)
+
+=== Iteration 2: block-size-mb=64, max-handles=2 ===
+Timestamp: Tue Aug  5 13:31:20 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 64 --read-max-blocks-per-handle 2 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 444.61 MB/s (444607 KB/s)
+
+=== Iteration 3: block-size-mb=64, max-handles=2 ===
+Timestamp: Tue Aug  5 13:31:49 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 64 --read-max-blocks-per-handle 2 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 447.82 MB/s (447816 KB/s)
+
+64              2                    440.24          444.61          447.82          444.22         
+=== Iteration 1: block-size-mb=64, max-handles=4 ===
+Timestamp: Tue Aug  5 13:32:07 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 64 --read-max-blocks-per-handle 4 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 843.37 MB/s (843371 KB/s)
+
+=== Iteration 2: block-size-mb=64, max-handles=4 ===
+Timestamp: Tue Aug  5 13:32:29 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 64 --read-max-blocks-per-handle 4 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 670.61 MB/s (670608 KB/s)
+
+=== Iteration 3: block-size-mb=64, max-handles=4 ===
+Timestamp: Tue Aug  5 13:32:47 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 64 --read-max-blocks-per-handle 4 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 857.23 MB/s (857229 KB/s)
+
+64              4                    843.37          670.61          857.23          790.40         
+=== Iteration 1: block-size-mb=64, max-handles=6 ===
+Timestamp: Tue Aug  5 13:33:02 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 64 --read-max-blocks-per-handle 6 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1111.83 MB/s (1111826 KB/s)
+
+=== Iteration 2: block-size-mb=64, max-handles=6 ===
+Timestamp: Tue Aug  5 13:33:18 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 64 --read-max-blocks-per-handle 6 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1069.53 MB/s (1069525 KB/s)
+
+=== Iteration 3: block-size-mb=64, max-handles=6 ===
+Timestamp: Tue Aug  5 13:33:33 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 64 --read-max-blocks-per-handle 6 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1041.89 MB/s (1041895 KB/s)
+
+64              6                    1111.83         1069.53         1041.89         1074.42        
+=== Iteration 1: block-size-mb=64, max-handles=8 ===
+Timestamp: Tue Aug  5 13:33:46 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 64 --read-max-blocks-per-handle 8 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1532.76 MB/s (1532763 KB/s)
+
+=== Iteration 2: block-size-mb=64, max-handles=8 ===
+Timestamp: Tue Aug  5 13:33:59 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 64 --read-max-blocks-per-handle 8 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1461.21 MB/s (1461208 KB/s)
+
+=== Iteration 3: block-size-mb=64, max-handles=8 ===
+Timestamp: Tue Aug  5 13:34:11 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 64 --read-max-blocks-per-handle 8 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1615.41 MB/s (1615410 KB/s)
+
+64              8                    1532.76         1461.21         1615.41         1536.46        
+=== Iteration 1: block-size-mb=64, max-handles=10 ===
+Timestamp: Tue Aug  5 13:34:24 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 64 --read-max-blocks-per-handle 10 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1658.07 MB/s (1658069 KB/s)
+
+=== Iteration 2: block-size-mb=64, max-handles=10 ===
+Timestamp: Tue Aug  5 13:34:36 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 64 --read-max-blocks-per-handle 10 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1663.59 MB/s (1663593 KB/s)
+
+=== Iteration 3: block-size-mb=64, max-handles=10 ===
+Timestamp: Tue Aug  5 13:34:47 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 64 --read-max-blocks-per-handle 10 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1767.94 MB/s (1767936 KB/s)
+
+64              10                   1658.07         1663.59         1767.94         1696.53        
+=== Iteration 1: block-size-mb=64, max-handles=12 ===
+Timestamp: Tue Aug  5 13:35:01 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 64 --read-max-blocks-per-handle 12 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1433.25 MB/s (1433246 KB/s)
+
+=== Iteration 2: block-size-mb=64, max-handles=12 ===
+Timestamp: Tue Aug  5 13:35:12 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 64 --read-max-blocks-per-handle 12 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1791.80 MB/s (1791803 KB/s)
+
+=== Iteration 3: block-size-mb=64, max-handles=12 ===
+Timestamp: Tue Aug  5 13:35:24 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 64 --read-max-blocks-per-handle 12 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1752.57 MB/s (1752570 KB/s)
+
+64              12                   1433.25         1791.80         1752.57         1659.21        
+=== Iteration 1: block-size-mb=64, max-handles=14 ===
+Timestamp: Tue Aug  5 13:35:35 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 64 --read-max-blocks-per-handle 14 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 2004.90 MB/s (2004900 KB/s)
+
+=== Iteration 2: block-size-mb=64, max-handles=14 ===
+Timestamp: Tue Aug  5 13:35:46 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 64 --read-max-blocks-per-handle 14 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 2010.67 MB/s (2010667 KB/s)
+
+=== Iteration 3: block-size-mb=64, max-handles=14 ===
+Timestamp: Tue Aug  5 13:35:57 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 64 --read-max-blocks-per-handle 14 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1950.09 MB/s (1950089 KB/s)
+
+64              14                   2004.90         2010.67         1950.09         1988.55        
+=== Iteration 1: block-size-mb=64, max-handles=16 ===
+Timestamp: Tue Aug  5 13:36:09 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 64 --read-max-blocks-per-handle 16 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1937.84 MB/s (1937836 KB/s)
+
+=== Iteration 2: block-size-mb=64, max-handles=16 ===
+Timestamp: Tue Aug  5 13:36:19 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 64 --read-max-blocks-per-handle 16 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 2102.59 MB/s (2102593 KB/s)
+
+=== Iteration 3: block-size-mb=64, max-handles=16 ===
+Timestamp: Tue Aug  5 13:36:31 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 64 --read-max-blocks-per-handle 16 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1892.03 MB/s (1892030 KB/s)
+
+64              16                   1937.84         2102.59         1892.03         1977.49        
+=== Iteration 1: block-size-mb=64, max-handles=18 ===
+Timestamp: Tue Aug  5 13:36:42 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 64 --read-max-blocks-per-handle 18 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1888.96 MB/s (1888962 KB/s)
+
+=== Iteration 2: block-size-mb=64, max-handles=18 ===
+Timestamp: Tue Aug  5 13:36:54 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 64 --read-max-blocks-per-handle 18 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1901.98 MB/s (1901982 KB/s)
+
+=== Iteration 3: block-size-mb=64, max-handles=18 ===
+Timestamp: Tue Aug  5 13:37:04 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 64 --read-max-blocks-per-handle 18 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 2148.70 MB/s (2148695 KB/s)
+
+64              18                   1888.96         1901.98         2148.70         1979.88        
+=== Iteration 1: block-size-mb=64, max-handles=20 ===
+Timestamp: Tue Aug  5 13:37:16 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 64 --read-max-blocks-per-handle 20 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1934.62 MB/s (1934618 KB/s)
+
+=== Iteration 2: block-size-mb=64, max-handles=20 ===
+Timestamp: Tue Aug  5 13:37:27 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 64 --read-max-blocks-per-handle 20 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1857.18 MB/s (1857178 KB/s)
+
+=== Iteration 3: block-size-mb=64, max-handles=20 ===
+Timestamp: Tue Aug  5 13:37:38 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 64 --read-max-blocks-per-handle 20 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1961.76 MB/s (1961764 KB/s)
+
+64              20                   1934.62         1857.18         1961.76         1917.85        
+=== Iteration 1: block-size-mb=64, max-handles=22 ===
+Timestamp: Tue Aug  5 13:37:50 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 64 --read-max-blocks-per-handle 22 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1909.60 MB/s (1909603 KB/s)
+
+=== Iteration 2: block-size-mb=64, max-handles=22 ===
+Timestamp: Tue Aug  5 13:38:01 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 64 --read-max-blocks-per-handle 22 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 2026.60 MB/s (2026600 KB/s)
+
+=== Iteration 3: block-size-mb=64, max-handles=22 ===
+Timestamp: Tue Aug  5 13:38:12 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 64 --read-max-blocks-per-handle 22 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1968.76 MB/s (1968763 KB/s)
+
+64              22                   1909.60         2026.60         1968.76         1968.32        
+=== Iteration 1: block-size-mb=64, max-handles=24 ===
+Timestamp: Tue Aug  5 13:38:23 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 64 --read-max-blocks-per-handle 24 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1940.35 MB/s (1940346 KB/s)
+
+=== Iteration 2: block-size-mb=64, max-handles=24 ===
+Timestamp: Tue Aug  5 13:38:34 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 64 --read-max-blocks-per-handle 24 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 2049.18 MB/s (2049175 KB/s)
+
+=== Iteration 3: block-size-mb=64, max-handles=24 ===
+Timestamp: Tue Aug  5 13:38:46 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 64 --read-max-blocks-per-handle 24 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1884.89 MB/s (1884888 KB/s)
+
+64              24                   1940.35         2049.18         1884.89         1958.14        
+=== Iteration 1: block-size-mb=64, max-handles=26 ===
+Timestamp: Tue Aug  5 13:38:57 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 64 --read-max-blocks-per-handle 26 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1919.04 MB/s (1919039 KB/s)
+
+=== Iteration 2: block-size-mb=64, max-handles=26 ===
+Timestamp: Tue Aug  5 13:39:08 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 64 --read-max-blocks-per-handle 26 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 2038.02 MB/s (2038023 KB/s)
+
+=== Iteration 3: block-size-mb=64, max-handles=26 ===
+Timestamp: Tue Aug  5 13:39:19 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 64 --read-max-blocks-per-handle 26 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 2003.37 MB/s (2003368 KB/s)
+
+64              26                   1919.04         2038.02         2003.37         1986.81        
+=== Iteration 1: block-size-mb=64, max-handles=28 ===
+Timestamp: Tue Aug  5 13:39:30 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 64 --read-max-blocks-per-handle 28 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1981.79 MB/s (1981786 KB/s)
+
+=== Iteration 2: block-size-mb=64, max-handles=28 ===
+Timestamp: Tue Aug  5 13:39:42 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 64 --read-max-blocks-per-handle 28 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1975.44 MB/s (1975439 KB/s)
+
+=== Iteration 3: block-size-mb=64, max-handles=28 ===
+Timestamp: Tue Aug  5 13:39:53 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 64 --read-max-blocks-per-handle 28 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 2031.70 MB/s (2031705 KB/s)
+
+64              28                   1981.79         1975.44         2031.70         1996.31        
+=== Iteration 1: block-size-mb=64, max-handles=30 ===
+Timestamp: Tue Aug  5 13:40:04 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 64 --read-max-blocks-per-handle 30 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 2062.48 MB/s (2062476 KB/s)
+
+=== Iteration 2: block-size-mb=64, max-handles=30 ===
+Timestamp: Tue Aug  5 13:40:15 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 64 --read-max-blocks-per-handle 30 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1982.91 MB/s (1982910 KB/s)
+
+=== Iteration 3: block-size-mb=64, max-handles=30 ===
+Timestamp: Tue Aug  5 13:40:26 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 64 --read-max-blocks-per-handle 30 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 2022.30 MB/s (2022301 KB/s)
+
+64              30                   2062.48         1982.91         2022.30         2022.56        
+=== Iteration 1: block-size-mb=64, max-handles=32 ===
+Timestamp: Tue Aug  5 13:40:37 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 64 --read-max-blocks-per-handle 32 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 2106.39 MB/s (2106394 KB/s)
+
+=== Iteration 2: block-size-mb=64, max-handles=32 ===
+Timestamp: Tue Aug  5 13:40:48 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 64 --read-max-blocks-per-handle 32 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 2068.58 MB/s (2068579 KB/s)
+
+=== Iteration 3: block-size-mb=64, max-handles=32 ===
+Timestamp: Tue Aug  5 13:40:59 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 64 --read-max-blocks-per-handle 32 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1943.22 MB/s (1943223 KB/s)
+
+64              32                   2106.39         2068.58         1943.22         2039.40        
+=== Iteration 1: block-size-mb=80, max-handles=2 ===
+Timestamp: Tue Aug  5 13:41:26 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 80 --read-max-blocks-per-handle 2 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 504.17 MB/s (504165 KB/s)
+
+=== Iteration 2: block-size-mb=80, max-handles=2 ===
+Timestamp: Tue Aug  5 13:41:54 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 80 --read-max-blocks-per-handle 2 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 473.16 MB/s (473156 KB/s)
+
+=== Iteration 3: block-size-mb=80, max-handles=2 ===
+Timestamp: Tue Aug  5 13:42:21 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 80 --read-max-blocks-per-handle 2 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 482.52 MB/s (482519 KB/s)
+
+80              2                    504.17          473.16          482.52          486.62         
+=== Iteration 1: block-size-mb=80, max-handles=4 ===
+Timestamp: Tue Aug  5 13:42:38 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 80 --read-max-blocks-per-handle 4 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 939.99 MB/s (939993 KB/s)
+
+=== Iteration 2: block-size-mb=80, max-handles=4 ===
+Timestamp: Tue Aug  5 13:42:55 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 80 --read-max-blocks-per-handle 4 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 961.28 MB/s (961279 KB/s)
+
+=== Iteration 3: block-size-mb=80, max-handles=4 ===
+Timestamp: Tue Aug  5 13:43:12 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 80 --read-max-blocks-per-handle 4 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 884.12 MB/s (884117 KB/s)
+
+80              4                    939.99          961.28          884.12          928.46         
+=== Iteration 1: block-size-mb=80, max-handles=6 ===
+Timestamp: Tue Aug  5 13:43:27 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 80 --read-max-blocks-per-handle 6 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1256.07 MB/s (1256065 KB/s)
+
+=== Iteration 2: block-size-mb=80, max-handles=6 ===
+Timestamp: Tue Aug  5 13:43:41 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 80 --read-max-blocks-per-handle 6 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1167.54 MB/s (1167535 KB/s)
+
+=== Iteration 3: block-size-mb=80, max-handles=6 ===
+Timestamp: Tue Aug  5 13:43:56 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 80 --read-max-blocks-per-handle 6 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1261.05 MB/s (1261050 KB/s)
+
+80              6                    1256.07         1167.54         1261.05         1228.22        
+=== Iteration 1: block-size-mb=80, max-handles=8 ===
+Timestamp: Tue Aug  5 13:44:09 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 80 --read-max-blocks-per-handle 8 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1481.86 MB/s (1481858 KB/s)
+
+=== Iteration 2: block-size-mb=80, max-handles=8 ===
+Timestamp: Tue Aug  5 13:44:21 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 80 --read-max-blocks-per-handle 8 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1524.96 MB/s (1524961 KB/s)
+
+=== Iteration 3: block-size-mb=80, max-handles=8 ===
+Timestamp: Tue Aug  5 13:44:34 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 80 --read-max-blocks-per-handle 8 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1472.49 MB/s (1472494 KB/s)
+
+80              8                    1481.86         1524.96         1472.49         1493.10        
+=== Iteration 1: block-size-mb=80, max-handles=10 ===
+Timestamp: Tue Aug  5 13:44:49 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 80 --read-max-blocks-per-handle 10 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1214.88 MB/s (1214880 KB/s)
+
+=== Iteration 2: block-size-mb=80, max-handles=10 ===
+Timestamp: Tue Aug  5 13:45:01 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 80 --read-max-blocks-per-handle 10 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1658.59 MB/s (1658594 KB/s)
+
+=== Iteration 3: block-size-mb=80, max-handles=10 ===
+Timestamp: Tue Aug  5 13:45:13 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 80 --read-max-blocks-per-handle 10 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1760.52 MB/s (1760515 KB/s)
+
+80              10                   1214.88         1658.59         1760.52         1544.66        
+=== Iteration 1: block-size-mb=80, max-handles=12 ===
+Timestamp: Tue Aug  5 13:45:24 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 80 --read-max-blocks-per-handle 12 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1947.19 MB/s (1947192 KB/s)
+
+=== Iteration 2: block-size-mb=80, max-handles=12 ===
+Timestamp: Tue Aug  5 13:45:35 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 80 --read-max-blocks-per-handle 12 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1874.78 MB/s (1874777 KB/s)
+
+=== Iteration 3: block-size-mb=80, max-handles=12 ===
+Timestamp: Tue Aug  5 13:45:46 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 80 --read-max-blocks-per-handle 12 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1936.05 MB/s (1936047 KB/s)
+
+80              12                   1947.19         1874.78         1936.05         1919.34        
+=== Iteration 1: block-size-mb=80, max-handles=14 ===
+Timestamp: Tue Aug  5 13:45:57 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 80 --read-max-blocks-per-handle 14 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 2026.21 MB/s (2026209 KB/s)
+
+=== Iteration 2: block-size-mb=80, max-handles=14 ===
+Timestamp: Tue Aug  5 13:46:09 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 80 --read-max-blocks-per-handle 14 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1860.80 MB/s (1860804 KB/s)
+
+=== Iteration 3: block-size-mb=80, max-handles=14 ===
+Timestamp: Tue Aug  5 13:46:20 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 80 --read-max-blocks-per-handle 14 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1956.64 MB/s (1956639 KB/s)
+
+80              14                   2026.21         1860.80         1956.64         1947.88        
+=== Iteration 1: block-size-mb=80, max-handles=16 ===
+Timestamp: Tue Aug  5 13:46:32 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 80 --read-max-blocks-per-handle 16 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1895.45 MB/s (1895450 KB/s)
+
+=== Iteration 2: block-size-mb=80, max-handles=16 ===
+Timestamp: Tue Aug  5 13:46:43 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 80 --read-max-blocks-per-handle 16 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1920.80 MB/s (1920797 KB/s)
+
+=== Iteration 3: block-size-mb=80, max-handles=16 ===
+Timestamp: Tue Aug  5 13:46:54 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 80 --read-max-blocks-per-handle 16 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 2010.67 MB/s (2010667 KB/s)
+
+80              16                   1895.45         1920.80         2010.67         1942.31        
+=== Iteration 1: block-size-mb=80, max-handles=18 ===
+Timestamp: Tue Aug  5 13:47:05 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 80 --read-max-blocks-per-handle 18 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 2007.20 MB/s (2007203 KB/s)
+
+=== Iteration 2: block-size-mb=80, max-handles=18 ===
+Timestamp: Tue Aug  5 13:47:16 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 80 --read-max-blocks-per-handle 18 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1958.83 MB/s (1958832 KB/s)
+
+=== Iteration 3: block-size-mb=80, max-handles=18 ===
+Timestamp: Tue Aug  5 13:47:27 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 80 --read-max-blocks-per-handle 18 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 2012.98 MB/s (2012983 KB/s)
+
+80              18                   2007.20         1958.83         2012.98         1993.00        
+=== Iteration 1: block-size-mb=80, max-handles=20 ===
+Timestamp: Tue Aug  5 13:47:39 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 80 --read-max-blocks-per-handle 20 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1981.41 MB/s (1981411 KB/s)
+
+=== Iteration 2: block-size-mb=80, max-handles=20 ===
+Timestamp: Tue Aug  5 13:47:50 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 80 --read-max-blocks-per-handle 20 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1977.30 MB/s (1977301 KB/s)
+
+=== Iteration 3: block-size-mb=80, max-handles=20 ===
+Timestamp: Tue Aug  5 13:48:01 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 80 --read-max-blocks-per-handle 20 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1925.38 MB/s (1925382 KB/s)
+
+80              20                   1981.41         1977.30         1925.38         1961.36        
+=== Iteration 1: block-size-mb=80, max-handles=22 ===
+Timestamp: Tue Aug  5 13:48:13 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 80 --read-max-blocks-per-handle 22 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1844.76 MB/s (1844762 KB/s)
+
+=== Iteration 2: block-size-mb=80, max-handles=22 ===
+Timestamp: Tue Aug  5 13:48:24 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 80 --read-max-blocks-per-handle 22 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 2002.22 MB/s (2002221 KB/s)
+
+=== Iteration 3: block-size-mb=80, max-handles=22 ===
+Timestamp: Tue Aug  5 13:48:35 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 80 --read-max-blocks-per-handle 22 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1984.04 MB/s (1984036 KB/s)
+
+80              22                   1844.76         2002.22         1984.04         1943.67        
+=== Iteration 1: block-size-mb=80, max-handles=24 ===
+Timestamp: Tue Aug  5 13:48:46 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 80 --read-max-blocks-per-handle 24 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1974.69 MB/s (1974695 KB/s)
+
+=== Iteration 2: block-size-mb=80, max-handles=24 ===
+Timestamp: Tue Aug  5 13:48:57 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 80 --read-max-blocks-per-handle 24 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 2056.01 MB/s (2056006 KB/s)
+
+=== Iteration 3: block-size-mb=80, max-handles=24 ===
+Timestamp: Tue Aug  5 13:49:08 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 80 --read-max-blocks-per-handle 24 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1996.50 MB/s (1996502 KB/s)
+
+80              24                   1974.69         2056.01         1996.50         2009.07        
+=== Iteration 1: block-size-mb=80, max-handles=26 ===
+Timestamp: Tue Aug  5 13:49:20 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 80 --read-max-blocks-per-handle 26 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1944.66 MB/s (1944664 KB/s)
+
+=== Iteration 2: block-size-mb=80, max-handles=26 ===
+Timestamp: Tue Aug  5 13:49:31 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 80 --read-max-blocks-per-handle 26 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1976.93 MB/s (1976929 KB/s)
+
+=== Iteration 3: block-size-mb=80, max-handles=26 ===
+Timestamp: Tue Aug  5 13:49:43 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 80 --read-max-blocks-per-handle 26 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1720.65 MB/s (1720648 KB/s)
+
+80              26                   1944.66         1976.93         1720.65         1880.75        
+=== Iteration 1: block-size-mb=80, max-handles=28 ===
+Timestamp: Tue Aug  5 13:49:54 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 80 --read-max-blocks-per-handle 28 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 2065.73 MB/s (2065727 KB/s)
+
+=== Iteration 2: block-size-mb=80, max-handles=28 ===
+Timestamp: Tue Aug  5 13:50:05 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 80 --read-max-blocks-per-handle 28 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1957.37 MB/s (1957370 KB/s)
+
+=== Iteration 3: block-size-mb=80, max-handles=28 ===
+Timestamp: Tue Aug  5 13:50:16 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 80 --read-max-blocks-per-handle 28 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1994.60 MB/s (1994603 KB/s)
+
+80              28                   2065.73         1957.37         1994.60         2005.90        
+=== Iteration 1: block-size-mb=80, max-handles=30 ===
+Timestamp: Tue Aug  5 13:50:27 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 80 --read-max-blocks-per-handle 30 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1988.93 MB/s (1988928 KB/s)
+
+=== Iteration 2: block-size-mb=80, max-handles=30 ===
+Timestamp: Tue Aug  5 13:50:39 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 80 --read-max-blocks-per-handle 30 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1896.82 MB/s (1896821 KB/s)
+
+=== Iteration 3: block-size-mb=80, max-handles=30 ===
+Timestamp: Tue Aug  5 13:50:50 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 80 --read-max-blocks-per-handle 30 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1915.53 MB/s (1915533 KB/s)
+
+80              30                   1988.93         1896.82         1915.53         1933.76        
+=== Iteration 1: block-size-mb=80, max-handles=32 ===
+Timestamp: Tue Aug  5 13:51:01 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 80 --read-max-blocks-per-handle 32 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 2055.60 MB/s (2055603 KB/s)
+
+=== Iteration 2: block-size-mb=80, max-handles=32 ===
+Timestamp: Tue Aug  5 13:51:12 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 80 --read-max-blocks-per-handle 32 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 2056.41 MB/s (2056409 KB/s)
+
+=== Iteration 3: block-size-mb=80, max-handles=32 ===
+Timestamp: Tue Aug  5 13:51:23 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 80 --read-max-blocks-per-handle 32 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 2004.90 MB/s (2004900 KB/s)
+
+80              32                   2055.60         2056.41         2004.90         2038.97        
+=== Iteration 1: block-size-mb=96, max-handles=2 ===
+Timestamp: Tue Aug  5 13:51:49 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 96 --read-max-blocks-per-handle 2 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 540.58 MB/s (540580 KB/s)
+
+=== Iteration 2: block-size-mb=96, max-handles=2 ===
+Timestamp: Tue Aug  5 13:52:15 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 96 --read-max-blocks-per-handle 2 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 499.72 MB/s (499720 KB/s)
+
+=== Iteration 3: block-size-mb=96, max-handles=2 ===
+Timestamp: Tue Aug  5 13:52:44 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 96 --read-max-blocks-per-handle 2 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 451.11 MB/s (451111 KB/s)
+
+96              2                    540.58          499.72          451.11          497.14         
+=== Iteration 1: block-size-mb=96, max-handles=4 ===
+Timestamp: Tue Aug  5 13:53:01 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 96 --read-max-blocks-per-handle 4 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 931.64 MB/s (931642 KB/s)
+
+=== Iteration 2: block-size-mb=96, max-handles=4 ===
+Timestamp: Tue Aug  5 13:53:19 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 96 --read-max-blocks-per-handle 4 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 880.04 MB/s (880036 KB/s)
+
+=== Iteration 3: block-size-mb=96, max-handles=4 ===
+Timestamp: Tue Aug  5 13:53:36 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 96 --read-max-blocks-per-handle 4 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 935.80 MB/s (935799 KB/s)
+
+96              4                    931.64          880.04          935.80          915.83         
+=== Iteration 1: block-size-mb=96, max-handles=6 ===
+Timestamp: Tue Aug  5 13:53:50 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 96 --read-max-blocks-per-handle 6 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1286.42 MB/s (1286422 KB/s)
+
+=== Iteration 2: block-size-mb=96, max-handles=6 ===
+Timestamp: Tue Aug  5 13:54:05 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 96 --read-max-blocks-per-handle 6 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1167.02 MB/s (1167015 KB/s)
+
+=== Iteration 3: block-size-mb=96, max-handles=6 ===
+Timestamp: Tue Aug  5 13:54:20 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 96 --read-max-blocks-per-handle 6 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1095.22 MB/s (1095219 KB/s)
+
+96              6                    1286.42         1167.02         1095.22         1182.89        
+=== Iteration 1: block-size-mb=96, max-handles=8 ===
+Timestamp: Tue Aug  5 13:54:33 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 96 --read-max-blocks-per-handle 8 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1484.80 MB/s (1484796 KB/s)
+
+=== Iteration 2: block-size-mb=96, max-handles=8 ===
+Timestamp: Tue Aug  5 13:54:47 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 96 --read-max-blocks-per-handle 8 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1383.15 MB/s (1383146 KB/s)
+
+=== Iteration 3: block-size-mb=96, max-handles=8 ===
+Timestamp: Tue Aug  5 13:54:59 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 96 --read-max-blocks-per-handle 8 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1515.26 MB/s (1515264 KB/s)
+
+96              8                    1484.80         1383.15         1515.26         1461.07        
+=== Iteration 1: block-size-mb=96, max-handles=10 ===
+Timestamp: Tue Aug  5 13:55:11 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 96 --read-max-blocks-per-handle 10 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1900.95 MB/s (1900948 KB/s)
+
+=== Iteration 2: block-size-mb=96, max-handles=10 ===
+Timestamp: Tue Aug  5 13:55:22 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 96 --read-max-blocks-per-handle 10 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1836.04 MB/s (1836041 KB/s)
+
+=== Iteration 3: block-size-mb=96, max-handles=10 ===
+Timestamp: Tue Aug  5 13:55:34 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 96 --read-max-blocks-per-handle 10 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1870.10 MB/s (1870096 KB/s)
+
+96              10                   1900.95         1836.04         1870.10         1869.03        
+=== Iteration 1: block-size-mb=96, max-handles=12 ===
+Timestamp: Tue Aug  5 13:55:45 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 96 --read-max-blocks-per-handle 12 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1834.43 MB/s (1834435 KB/s)
+
+=== Iteration 2: block-size-mb=96, max-handles=12 ===
+Timestamp: Tue Aug  5 13:55:57 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 96 --read-max-blocks-per-handle 12 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1808.18 MB/s (1808179 KB/s)
+
+=== Iteration 3: block-size-mb=96, max-handles=12 ===
+Timestamp: Tue Aug  5 13:56:08 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 96 --read-max-blocks-per-handle 12 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1930.70 MB/s (1930700 KB/s)
+
+96              12                   1834.43         1808.18         1930.70         1857.77        
+=== Iteration 1: block-size-mb=96, max-handles=14 ===
+Timestamp: Tue Aug  5 13:56:20 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 96 --read-max-blocks-per-handle 14 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1974.32 MB/s (1974323 KB/s)
+
+=== Iteration 2: block-size-mb=96, max-handles=14 ===
+Timestamp: Tue Aug  5 13:56:31 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 96 --read-max-blocks-per-handle 14 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1812.24 MB/s (1812241 KB/s)
+
+=== Iteration 3: block-size-mb=96, max-handles=14 ===
+Timestamp: Tue Aug  5 13:56:42 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 96 --read-max-blocks-per-handle 14 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1951.18 MB/s (1951178 KB/s)
+
+96              14                   1974.32         1812.24         1951.18         1912.58        
+=== Iteration 1: block-size-mb=96, max-handles=16 ===
+Timestamp: Tue Aug  5 13:56:54 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 96 --read-max-blocks-per-handle 16 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1776.62 MB/s (1776623 KB/s)
+
+=== Iteration 2: block-size-mb=96, max-handles=16 ===
+Timestamp: Tue Aug  5 13:57:05 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 96 --read-max-blocks-per-handle 16 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 2132.96 MB/s (2132960 KB/s)
+
+=== Iteration 3: block-size-mb=96, max-handles=16 ===
+Timestamp: Tue Aug  5 13:57:16 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 96 --read-max-blocks-per-handle 16 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1920.80 MB/s (1920797 KB/s)
+
+96              16                   1776.62         2132.96         1920.80         1943.46        
+=== Iteration 1: block-size-mb=96, max-handles=18 ===
+Timestamp: Tue Aug  5 13:57:28 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 96 --read-max-blocks-per-handle 18 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1930.34 MB/s (1930344 KB/s)
+
+=== Iteration 2: block-size-mb=96, max-handles=18 ===
+Timestamp: Tue Aug  5 13:57:39 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 96 --read-max-blocks-per-handle 18 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1919.39 MB/s (1919390 KB/s)
+
+=== Iteration 3: block-size-mb=96, max-handles=18 ===
+Timestamp: Tue Aug  5 13:57:50 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 96 --read-max-blocks-per-handle 18 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 2011.44 MB/s (2011439 KB/s)
+
+96              18                   1930.34         1919.39         2011.44         1953.72        
+=== Iteration 1: block-size-mb=96, max-handles=20 ===
+Timestamp: Tue Aug  5 13:58:01 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 96 --read-max-blocks-per-handle 20 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1922.20 MB/s (1922205 KB/s)
+
+=== Iteration 2: block-size-mb=96, max-handles=20 ===
+Timestamp: Tue Aug  5 13:58:13 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 96 --read-max-blocks-per-handle 20 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1855.21 MB/s (1855207 KB/s)
+
+=== Iteration 3: block-size-mb=96, max-handles=20 ===
+Timestamp: Tue Aug  5 13:58:24 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 96 --read-max-blocks-per-handle 20 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 2013.76 MB/s (2013756 KB/s)
+
+96              20                   1922.20         1855.21         2013.76         1930.39        
+=== Iteration 1: block-size-mb=96, max-handles=22 ===
+Timestamp: Tue Aug  5 13:58:35 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 96 --read-max-blocks-per-handle 22 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 2069.80 MB/s (2069804 KB/s)
+
+=== Iteration 2: block-size-mb=96, max-handles=22 ===
+Timestamp: Tue Aug  5 13:58:46 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 96 --read-max-blocks-per-handle 22 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1892.37 MB/s (1892371 KB/s)
+
+=== Iteration 3: block-size-mb=96, max-handles=22 ===
+Timestamp: Tue Aug  5 13:58:58 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 96 --read-max-blocks-per-handle 22 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1750.23 MB/s (1750230 KB/s)
+
+96              22                   2069.80         1892.37         1750.23         1904.13        
+=== Iteration 1: block-size-mb=96, max-handles=24 ===
+Timestamp: Tue Aug  5 13:59:09 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 96 --read-max-blocks-per-handle 24 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 2028.95 MB/s (2028953 KB/s)
+
+=== Iteration 2: block-size-mb=96, max-handles=24 ===
+Timestamp: Tue Aug  5 13:59:21 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 96 --read-max-blocks-per-handle 24 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1900.95 MB/s (1900948 KB/s)
+
+=== Iteration 3: block-size-mb=96, max-handles=24 ===
+Timestamp: Tue Aug  5 13:59:33 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 96 --read-max-blocks-per-handle 24 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1745.28 MB/s (1745278 KB/s)
+
+96              24                   2028.95         1900.95         1745.28         1891.73        
+=== Iteration 1: block-size-mb=96, max-handles=26 ===
+Timestamp: Tue Aug  5 13:59:44 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 96 --read-max-blocks-per-handle 26 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 2088.36 MB/s (2088355 KB/s)
+
+=== Iteration 2: block-size-mb=96, max-handles=26 ===
+Timestamp: Tue Aug  5 13:59:55 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 96 --read-max-blocks-per-handle 26 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 2023.86 MB/s (2023862 KB/s)
+
+=== Iteration 3: block-size-mb=96, max-handles=26 ===
+Timestamp: Tue Aug  5 14:00:06 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 96 --read-max-blocks-per-handle 26 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1926.80 MB/s (1926797 KB/s)
+
+96              26                   2088.36         2023.86         1926.80         2013.01        
+=== Iteration 1: block-size-mb=96, max-handles=28 ===
+Timestamp: Tue Aug  5 14:00:18 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 96 --read-max-blocks-per-handle 28 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1875.78 MB/s (1875783 KB/s)
+
+=== Iteration 2: block-size-mb=96, max-handles=28 ===
+Timestamp: Tue Aug  5 14:00:29 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 96 --read-max-blocks-per-handle 28 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1935.33 MB/s (1935332 KB/s)
+
+=== Iteration 3: block-size-mb=96, max-handles=28 ===
+Timestamp: Tue Aug  5 14:00:40 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 96 --read-max-blocks-per-handle 28 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 2018.02 MB/s (2018020 KB/s)
+
+96              28                   1875.78         1935.33         2018.02         1943.04        
+=== Iteration 1: block-size-mb=96, max-handles=30 ===
+Timestamp: Tue Aug  5 14:00:51 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 96 --read-max-blocks-per-handle 30 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 2047.17 MB/s (2047175 KB/s)
+
+=== Iteration 2: block-size-mb=96, max-handles=30 ===
+Timestamp: Tue Aug  5 14:01:02 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 96 --read-max-blocks-per-handle 30 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 2058.43 MB/s (2058427 KB/s)
+
+=== Iteration 3: block-size-mb=96, max-handles=30 ===
+Timestamp: Tue Aug  5 14:01:13 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 96 --read-max-blocks-per-handle 30 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1986.29 MB/s (1986291 KB/s)
+
+96              30                   2047.17         2058.43         1986.29         2030.63        
+=== Iteration 1: block-size-mb=96, max-handles=32 ===
+Timestamp: Tue Aug  5 14:01:25 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 96 --read-max-blocks-per-handle 32 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 2001.84 MB/s (2001838 KB/s)
+
+=== Iteration 2: block-size-mb=96, max-handles=32 ===
+Timestamp: Tue Aug  5 14:01:36 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 96 --read-max-blocks-per-handle 32 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 2030.92 MB/s (2030918 KB/s)
+
+=== Iteration 3: block-size-mb=96, max-handles=32 ===
+Timestamp: Tue Aug  5 14:01:47 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 96 --read-max-blocks-per-handle 32 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 2049.58 MB/s (2049576 KB/s)
+
+96              32                   2001.84         2030.92         2049.58         2027.45        
+=== Iteration 1: block-size-mb=112, max-handles=2 ===
+Timestamp: Tue Aug  5 14:02:14 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 112 --read-max-blocks-per-handle 2 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 497.00 MB/s (496996 KB/s)
+
+=== Iteration 2: block-size-mb=112, max-handles=2 ===
+Timestamp: Tue Aug  5 14:02:45 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 112 --read-max-blocks-per-handle 2 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 407.48 MB/s (407478 KB/s)
+
+=== Iteration 3: block-size-mb=112, max-handles=2 ===
+Timestamp: Tue Aug  5 14:03:12 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 112 --read-max-blocks-per-handle 2 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 497.66 MB/s (497656 KB/s)
+
+112             2                    497.00          407.48          497.66          467.38         
+=== Iteration 1: block-size-mb=112, max-handles=4 ===
+Timestamp: Tue Aug  5 14:03:29 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 112 --read-max-blocks-per-handle 4 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 919.79 MB/s (919792 KB/s)
+
+=== Iteration 2: block-size-mb=112, max-handles=4 ===
+Timestamp: Tue Aug  5 14:03:48 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 112 --read-max-blocks-per-handle 4 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 799.21 MB/s (799209 KB/s)
+
+=== Iteration 3: block-size-mb=112, max-handles=4 ===
+Timestamp: Tue Aug  5 14:04:07 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 112 --read-max-blocks-per-handle 4 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 811.96 MB/s (811958 KB/s)
+
+112             4                    919.79          799.21          811.96          843.65         
+=== Iteration 1: block-size-mb=112, max-handles=6 ===
+Timestamp: Tue Aug  5 14:04:22 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 112 --read-max-blocks-per-handle 6 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1096.94 MB/s (1096938 KB/s)
+
+=== Iteration 2: block-size-mb=112, max-handles=6 ===
+Timestamp: Tue Aug  5 14:04:36 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 112 --read-max-blocks-per-handle 6 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1310.38 MB/s (1310376 KB/s)
+
+=== Iteration 3: block-size-mb=112, max-handles=6 ===
+Timestamp: Tue Aug  5 14:04:50 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 112 --read-max-blocks-per-handle 6 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1310.70 MB/s (1310704 KB/s)
+
+112             6                    1096.94         1310.38         1310.70         1239.34        
+=== Iteration 1: block-size-mb=112, max-handles=8 ===
+Timestamp: Tue Aug  5 14:05:03 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 112 --read-max-blocks-per-handle 8 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1486.48 MB/s (1486480 KB/s)
+
+=== Iteration 2: block-size-mb=112, max-handles=8 ===
+Timestamp: Tue Aug  5 14:05:17 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 112 --read-max-blocks-per-handle 8 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1324.78 MB/s (1324779 KB/s)
+
+=== Iteration 3: block-size-mb=112, max-handles=8 ===
+Timestamp: Tue Aug  5 14:05:29 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 112 --read-max-blocks-per-handle 8 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1517.46 MB/s (1517457 KB/s)
+
+112             8                    1486.48         1324.78         1517.46         1442.91        
+=== Iteration 1: block-size-mb=112, max-handles=10 ===
+Timestamp: Tue Aug  5 14:05:42 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 112 --read-max-blocks-per-handle 10 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1659.64 MB/s (1659644 KB/s)
+
+=== Iteration 2: block-size-mb=112, max-handles=10 ===
+Timestamp: Tue Aug  5 14:05:54 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 112 --read-max-blocks-per-handle 10 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1552.05 MB/s (1552047 KB/s)
+
+=== Iteration 3: block-size-mb=112, max-handles=10 ===
+Timestamp: Tue Aug  5 14:06:08 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 112 --read-max-blocks-per-handle 10 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1416.02 MB/s (1416020 KB/s)
+
+112             10                   1659.64         1552.05         1416.02         1542.57        
+=== Iteration 1: block-size-mb=112, max-handles=12 ===
+Timestamp: Tue Aug  5 14:06:19 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 112 --read-max-blocks-per-handle 12 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 2032.89 MB/s (2032887 KB/s)
+
+=== Iteration 2: block-size-mb=112, max-handles=12 ===
+Timestamp: Tue Aug  5 14:06:30 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 112 --read-max-blocks-per-handle 12 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1957.37 MB/s (1957370 KB/s)
+
+=== Iteration 3: block-size-mb=112, max-handles=12 ===
+Timestamp: Tue Aug  5 14:06:42 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 112 --read-max-blocks-per-handle 12 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1771.82 MB/s (1771820 KB/s)
+
+112             12                   2032.89         1957.37         1771.82         1920.69        
+=== Iteration 1: block-size-mb=112, max-handles=14 ===
+Timestamp: Tue Aug  5 14:06:53 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 112 --read-max-blocks-per-handle 14 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1876.12 MB/s (1876119 KB/s)
+
+=== Iteration 2: block-size-mb=112, max-handles=14 ===
+Timestamp: Tue Aug  5 14:07:04 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 112 --read-max-blocks-per-handle 14 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1943.22 MB/s (1943223 KB/s)
+
+=== Iteration 3: block-size-mb=112, max-handles=14 ===
+Timestamp: Tue Aug  5 14:07:16 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 112 --read-max-blocks-per-handle 14 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1701.94 MB/s (1701936 KB/s)
+
+112             14                   1876.12         1943.22         1701.94         1840.43        
+=== Iteration 1: block-size-mb=112, max-handles=16 ===
+Timestamp: Tue Aug  5 14:07:28 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 112 --read-max-blocks-per-handle 16 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1858.49 MB/s (1858495 KB/s)
+
+=== Iteration 2: block-size-mb=112, max-handles=16 ===
+Timestamp: Tue Aug  5 14:07:39 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 112 --read-max-blocks-per-handle 16 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1867.10 MB/s (1867099 KB/s)
+
+=== Iteration 3: block-size-mb=112, max-handles=16 ===
+Timestamp: Tue Aug  5 14:07:51 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 112 --read-max-blocks-per-handle 16 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1939.27 MB/s (1939269 KB/s)
+
+112             16                   1858.49         1867.10         1939.27         1888.29        
+=== Iteration 1: block-size-mb=112, max-handles=18 ===
+Timestamp: Tue Aug  5 14:08:02 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 112 --read-max-blocks-per-handle 18 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1850.95 MB/s (1850950 KB/s)
+
+=== Iteration 2: block-size-mb=112, max-handles=18 ===
+Timestamp: Tue Aug  5 14:08:14 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 112 --read-max-blocks-per-handle 18 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1751.40 MB/s (1751400 KB/s)
+
+=== Iteration 3: block-size-mb=112, max-handles=18 ===
+Timestamp: Tue Aug  5 14:08:25 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 112 --read-max-blocks-per-handle 18 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1944.30 MB/s (1944304 KB/s)
+
+112             18                   1850.95         1751.40         1944.30         1848.88        
+=== Iteration 1: block-size-mb=112, max-handles=20 ===
+Timestamp: Tue Aug  5 14:08:37 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 112 --read-max-blocks-per-handle 20 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1760.81 MB/s (1760811 KB/s)
+
+=== Iteration 2: block-size-mb=112, max-handles=20 ===
+Timestamp: Tue Aug  5 14:08:51 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 112 --read-max-blocks-per-handle 20 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1368.35 MB/s (1368345 KB/s)
+
+=== Iteration 3: block-size-mb=112, max-handles=20 ===
+Timestamp: Tue Aug  5 14:09:02 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 112 --read-max-blocks-per-handle 20 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1975.44 MB/s (1975439 KB/s)
+
+112             20                   1760.81         1368.35         1975.44         1701.53        
+=== Iteration 1: block-size-mb=112, max-handles=22 ===
+Timestamp: Tue Aug  5 14:09:14 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 112 --read-max-blocks-per-handle 22 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1803.51 MB/s (1803514 KB/s)
+
+=== Iteration 2: block-size-mb=112, max-handles=22 ===
+Timestamp: Tue Aug  5 14:09:26 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 112 --read-max-blocks-per-handle 22 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1711.66 MB/s (1711660 KB/s)
+
+=== Iteration 3: block-size-mb=112, max-handles=22 ===
+Timestamp: Tue Aug  5 14:09:37 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 112 --read-max-blocks-per-handle 22 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1889.64 MB/s (1889643 KB/s)
+
+112             22                   1803.51         1711.66         1889.64         1801.60        
+=== Iteration 1: block-size-mb=112, max-handles=24 ===
+Timestamp: Tue Aug  5 14:09:49 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 112 --read-max-blocks-per-handle 24 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1921.85 MB/s (1921853 KB/s)
+
+=== Iteration 2: block-size-mb=112, max-handles=24 ===
+Timestamp: Tue Aug  5 14:10:00 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 112 --read-max-blocks-per-handle 24 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 2027.78 MB/s (2027776 KB/s)
+
+=== Iteration 3: block-size-mb=112, max-handles=24 ===
+Timestamp: Tue Aug  5 14:10:11 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 112 --read-max-blocks-per-handle 24 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1936.40 MB/s (1936404 KB/s)
+
+112             24                   1921.85         2027.78         1936.40         1962.01        
+=== Iteration 1: block-size-mb=112, max-handles=26 ===
+Timestamp: Tue Aug  5 14:10:23 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 112 --read-max-blocks-per-handle 26 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1907.17 MB/s (1907172 KB/s)
+
+=== Iteration 2: block-size-mb=112, max-handles=26 ===
+Timestamp: Tue Aug  5 14:10:34 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 112 --read-max-blocks-per-handle 26 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1943.22 MB/s (1943223 KB/s)
+
+=== Iteration 3: block-size-mb=112, max-handles=26 ===
+Timestamp: Tue Aug  5 14:10:45 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 112 --read-max-blocks-per-handle 26 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1988.93 MB/s (1988928 KB/s)
+
+112             26                   1907.17         1943.22         1988.93         1946.44        
+=== Iteration 1: block-size-mb=112, max-handles=28 ===
+Timestamp: Tue Aug  5 14:10:57 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 112 --read-max-blocks-per-handle 28 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1892.37 MB/s (1892371 KB/s)
+
+=== Iteration 2: block-size-mb=112, max-handles=28 ===
+Timestamp: Tue Aug  5 14:11:08 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 112 --read-max-blocks-per-handle 28 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 2017.63 MB/s (2017631 KB/s)
+
+=== Iteration 3: block-size-mb=112, max-handles=28 ===
+Timestamp: Tue Aug  5 14:11:19 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 112 --read-max-blocks-per-handle 28 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1988.17 MB/s (1988174 KB/s)
+
+112             28                   1892.37         2017.63         1988.17         1966.06        
+=== Iteration 1: block-size-mb=112, max-handles=30 ===
+Timestamp: Tue Aug  5 14:11:30 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 112 --read-max-blocks-per-handle 30 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 2064.51 MB/s (2064507 KB/s)
+
+=== Iteration 2: block-size-mb=112, max-handles=30 ===
+Timestamp: Tue Aug  5 14:11:41 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 112 --read-max-blocks-per-handle 30 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1952.63 MB/s (1952631 KB/s)
+
+=== Iteration 3: block-size-mb=112, max-handles=30 ===
+Timestamp: Tue Aug  5 14:11:53 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 112 --read-max-blocks-per-handle 30 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1985.16 MB/s (1985163 KB/s)
+
+112             30                   2064.51         1952.63         1985.16         2000.77        
+=== Iteration 1: block-size-mb=112, max-handles=32 ===
+Timestamp: Tue Aug  5 14:12:04 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 112 --read-max-blocks-per-handle 32 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1971.35 MB/s (1971354 KB/s)
+
+=== Iteration 2: block-size-mb=112, max-handles=32 ===
+Timestamp: Tue Aug  5 14:12:16 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 112 --read-max-blocks-per-handle 32 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1820.42 MB/s (1820422 KB/s)
+
+=== Iteration 3: block-size-mb=112, max-handles=32 ===
+Timestamp: Tue Aug  5 14:12:27 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --read-global-max-blocks 100 --read-block-size-mb 112 --read-max-blocks-per-handle 32 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 1933.55 MB/s (1933548 KB/s)
+
+112             32                   1971.35         1820.42         1933.55         1908.44        
