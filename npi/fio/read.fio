@@ -11,7 +11,7 @@ invalidate=1
 numjobs=128
 openfiles=1
 # Change "read" to "randread" to test random reads.
-rw=read 
+rw=${READ_TYPE} 
 thread=1
 filename_format=${FILE_SIZE}/$jobname.$jobnum/$filenum
 
