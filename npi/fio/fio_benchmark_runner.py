@@ -100,7 +100,7 @@ def parse_fio_output(filename):
                 stats = job[op]
                 # Bandwidth is in KiB/s, convert to MiB/s
                 bw_mibps = stats.get("bw", 0) / 1024.0
-                if bw == 0:
+                if bw_mibps == 0:
                     continue
                 iops = stats.get("iops", 0)
 
