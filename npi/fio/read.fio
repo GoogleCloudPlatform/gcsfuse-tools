@@ -13,7 +13,7 @@ openfiles=1
 # Change "read" to "randread" to test random reads.
 rw=${READ_TYPE} 
 thread=1
-filename_format=read/${FILE_SIZE}/${NR_FILES}/$jobname.$jobnum/$filenum
+filename_format=read/${FILE_SIZE}/${NR_FILES}/$jobname.$jobnum.$filenum
 
 [experiment]
 stonewall
