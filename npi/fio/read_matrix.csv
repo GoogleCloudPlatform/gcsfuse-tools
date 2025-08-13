@@ -1,0 +1,17 @@
+READ_TYPE,FILE_SIZE,BLOCK_SIZE,NR_FILES
+read,128K,128K,30
+read,256K,128K,30
+read,1M,1M,30
+read,5M,1M,20
+read,10M,1M,20
+read,50M,1M,20
+read,100M,1M,10
+read,200M,1M,10
+read,1G,1M,10
+randread,256K,128K,30
+randread,5M,1M,20
+randread,10M,1M,20
+randread,50M,1M,20
+randread,100M,1M,10
+randread,200M,1M,10
+randread,1G,1M,10
