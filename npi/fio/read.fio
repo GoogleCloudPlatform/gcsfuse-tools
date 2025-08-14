@@ -15,7 +15,7 @@ rw=${READ_TYPE}
 thread=1
 filename_format=read/${FILE_SIZE}/${NR_FILES}/experiment.$jobnum.$filenum
 
-[experiment]
+[read]
 stonewall
 directory=${DIR}
 # Update the block size value from the table for different experiments.
