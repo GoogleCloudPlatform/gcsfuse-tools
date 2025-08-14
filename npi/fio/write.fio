@@ -15,10 +15,10 @@ rw=write
 thread=1
 time_based=0
 verify=0
-filename_format=write/${FILE_SIZE}/${BLOCK_SIZE}/${NR_FILES}/$jobname.$jobnum.$filenum
+filename_format=write/${FILE_SIZE}/${BLOCK_SIZE}/${NR_FILES}/experiment.$jobnum.$filenum
 
  
-[experiment]
+[write]
 stonewall
 directory=${DIR}
 # Every file is written only once. Set nrfiles per thread in such a way that the test runs for 1-2 min. 

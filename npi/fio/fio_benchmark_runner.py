@@ -98,6 +98,7 @@ def parse_fio_output(filename):
         for op in ["read", "write"]:
             if op in job:
                 stats = job[op]
+                options = job.get("job options", {})
                 # Bandwidth is in KiB/s, convert to MiB/s
                 bw_mibps = stats.get("bw", 0) / 1024.0
                 if bw_mibps == 0:
@@ -120,7 +121,10 @@ def parse_fio_output(filename):
 
                 results.append({
                     "job_name": job_name,
-                    "operation": op,
+                    "block_size": options.get("bs", 0),
+                    "file_size": options.get("filesize", 0),
+                    "nr_files": options.get("nrfiles", 0),
+                    "operation": data["global options"].get("rw", "unknown"),
                     "bw_mibps": bw_mibps,
                     "iops": iops,
                     "mean_lat_ms": mean_lat_ms,
@@ -136,7 +140,8 @@ def print_summary(all_results):
         return
 
     logging.info("\n--- FIO Benchmark Summary ---")
-    header = (f"{'Iter':<5} {'Job Name':<20} {'Op':<6} {'Bandwidth (MiB/s)':<20} "
+    header = (f"{'Iter':<5} {'Job Name':<20} {'Op':<8} {'Block Size':<10} {'File Size':<10} {'NR_Files':<3} "
+              f"{'Bandwidth (MiB/s)':<20} "
               f"{'IOPS':<12} {'Mean Latency (ms)':<20} {'P99 Latency (ms)':<20}")
     print(header)
     print("-" * len(header))
@@ -145,7 +150,7 @@ def print_summary(all_results):
             print(f"{i:<5} No results for this iteration.")
             continue
         for result in iteration_results:
-            print(f"{i:<5} {result['job_name']:<20} {result['operation']:<6} "
+            print(f"{i:<5} {result['job_name']:<20} {result['operation']:<8} {result['block_size']:<10} {result['file_size']:<10} {result['nr_files']:<8} "
                   f"{result['bw_mibps']:<20.2f} {result['iops']:<12.2f} "
                   f"{result['mean_lat_ms']:<20.4f} {result['p99_lat_ms']:<20.4f}")
     print("-" * len(header))
