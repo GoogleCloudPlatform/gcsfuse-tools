@@ -113,11 +113,8 @@ def compare_and_visualize(results, output_dir="benchmark_plots"):
         print(f"No test cases found in benchmark {sample_bid}")
         return
 
-    n_benchmarks = len(benchmark_ids)
     n_test_cases = len(test_cases)
-    ind = np.arange(n_test_cases)
-    width = 0.9 / (n_benchmarks + 1)
-
+    
     metric_configs = {
         "Read Throughput (KiB/s)": ("fio_metrics", "avg_read_throughput_kibps", "stdev_read_throughput_kibps"),
         "Write Throughput (KiB/s)": ("fio_metrics", "avg_write_throughput_kibps", "stdev_write_throughput_kibps"),
@@ -132,33 +129,43 @@ def compare_and_visualize(results, output_dir="benchmark_plots"):
     print(get_plot_summary(benchmark_ids, metric_configs, output_dir))
 
     for metric_name, (data_group, avg_key, std_key) in metric_configs.items():
-        fig, ax = plt.subplots(figsize=(max(12, n_test_cases * n_benchmarks * 0.4), 8))
+        fig, ax = plt.subplots(figsize=(max(12, n_test_cases * len(benchmark_ids) * 0.4), 8))
         has_data_in_metric = False
         all_vals = []
-
-        for i, bid in enumerate(benchmark_ids):
-            means = []
-            stdevs = []
-            for test_case in test_cases:
+        
+        # Iterate through test cases first to group points vertically
+        for i, test_case in enumerate(test_cases):
+            for bid in benchmark_ids:
                 test_data = results[bid].get(test_case, {})
                 if data_group:
                     source = test_data.get(data_group, {})
                 else:
                     source = test_data
 
-                mean_val = source.get(avg_key, 0.0)
-                std_val = source.get(std_key, 0.0) if std_key else 0.0
-                means.append(mean_val)
-                stdevs.append(std_val)
+                mean_val = source.get(avg_key)
+                std_val = source.get(std_key) if std_key else None
+                
+                # Handle None values gracefully
+                mean_val = 0.0 if mean_val is None else mean_val
+                std_val = 0.0 if std_val is None else std_val
+
+                # Determine a consistent position for all points in this test case
+                x_position = i
+                
+                # Use a specific color for each benchmark ID
+                label = f"{bid}"
+                
+                ax.errorbar(x_position, mean_val, yerr=std_val, fmt='o', linestyle='', label=label, capsize=5, markersize=6, elinewidth=1.5)
+
                 if mean_val > 0:
                     has_data_in_metric = True
-                if mean_val is not None:
-                    all_vals.extend([mean_val - std_val, mean_val + std_val])
+                
+                all_vals.extend([mean_val - std_val, mean_val + std_val])
 
-            offset = (i - (n_benchmarks - 1) / 2) * width
-            positions = ind + offset
-            ax.errorbar(positions, means, yerr=stdevs, fmt='o', linestyle='', label=bid, capsize=5, markersize=6, elinewidth=1.5)
-
+        # Remove duplicate labels from the legend
+        handles, labels = ax.get_legend_handles_labels()
+        unique_labels = dict(zip(labels, handles))
+        
         if not has_data_in_metric:
             print(f"Skipping plot for {metric_name}: No positive data found.")
             plt.close(fig)
@@ -166,9 +173,12 @@ def compare_and_visualize(results, output_dir="benchmark_plots"):
 
         ax.set_ylabel(metric_name, fontsize=12)
         ax.set_title(f"Comparison of {metric_name}", fontsize=16)
-        ax.set_xticks(ind)
+        
+        # Set ticks at the center of each group
+        ax.set_xticks(np.arange(n_test_cases))
         ax.set_xticklabels(test_cases, rotation=45, ha="right", fontsize=10)
-        ax.legend(title="Benchmark ID", bbox_to_anchor=(1.04, 1), loc='upper left', fontsize=9)
+        
+        ax.legend(unique_labels.values(), unique_labels.keys(), title="Benchmark ID", bbox_to_anchor=(1.04, 1), loc='upper left', fontsize=9)
         ax.grid(axis='y', linestyle='--', alpha=0.7)
         ax.tick_params(axis='x', labelsize=10)
         ax.tick_params(axis='y', labelsize=10)
@@ -189,7 +199,6 @@ def compare_and_visualize(results, output_dir="benchmark_plots"):
 
         try:
             plt.savefig(plot_path, dpi=150, bbox_inches='tight')
-            # print(f"Saved plot: {plot_path}") # Removed this to avoid duplicate info
         except Exception as e:
             print(f"Error saving plot {plot_path}: {e}")
         finally:
@@ -236,6 +245,3 @@ if __name__ == '__main__':
         compare_and_visualize(results, args.output_dir)
     else:
         print("No results were successfully loaded, skipping visualization.")
-
-
-
