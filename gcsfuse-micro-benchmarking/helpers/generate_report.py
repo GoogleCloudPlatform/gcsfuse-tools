@@ -1,6 +1,6 @@
 import json
 from tabulate import tabulate
-import os 
+import os
 
 
 def pretty_print_metrics_table(metrics, output_file=None):
@@ -19,14 +19,15 @@ def pretty_print_metrics_table(metrics, output_file=None):
         print("Metrics dictionary is empty.")
         return
 
-    # Define the headers for the table.
+    # Define the headers for the table, including IOPS and CPU metrics.
     headers = [
         # Test Case Parameters
         "bs", "file_size", "iodepth", "iotype", "threads", "nrfiles",
         # Metrics from 'fio_metrics'
-        "Read BW (KiB/s)", "Read Lat (us)", "Write BW (KiB/s)", "Write Lat (us)",
+        "Read BW (KiB/s)", "Read Lat (us)", "Read IOPS", "Write BW (KiB/s)",
+        "Write Lat (us)", "Write IOPS",
         # Other top-level metrics
-        "CPU % / Gbps"
+        "Avg CPU %", "Stdev CPU %", "CPU % / Gbps"
     ]
 
     table_data = []
@@ -54,12 +55,27 @@ def pretty_print_metrics_table(metrics, output_file=None):
         read_lat_ns = fio_metrics.get("avg_read_latency_ns")
         row.append(f"{read_lat_ns / 1000:.2f}" if isinstance(read_lat_ns, (int, float)) else "-")
 
+        read_iops = fio_metrics.get("avg_read_iops")
+        row.append(f"{read_iops:.2f}" if isinstance(read_iops, (int, float)) else "-")
+
         row.append(fio_metrics.get("avg_write_throughput_kibps", "-"))
 
         write_lat_ns = fio_metrics.get("avg_write_latency_ns")
         row.append(f"{write_lat_ns / 1000:.2f}" if isinstance(write_lat_ns, (int, float)) else "-")
 
-        # Other top-level metrics
+        write_iops = fio_metrics.get("avg_write_iops")
+        row.append(f"{write_iops:.2f}" if isinstance(write_iops, (int, float)) else "-")
+
+        # Extract metrics from the nested 'vm_metrics' dictionary
+        vm_metrics = value.get("vm_metrics", {})
+
+        avg_cpu = vm_metrics.get("avg_cpu_utilization_percent")
+        row.append(f"{avg_cpu:.2f}" if isinstance(avg_cpu, (int, float)) else "-")
+
+        stdev_cpu = vm_metrics.get("stdev_cpu_utilization_percent")
+        row.append(f"{stdev_cpu:.2f}" if isinstance(stdev_cpu, (int, float)) else "-")
+
+        # Extract top-level 'cpu_percent_per_gbps' metric
         cpu_per_gbps = value.get("cpu_percent_per_gbps")
         row.append(f"{cpu_per_gbps:.4f}" if isinstance(cpu_per_gbps, (int, float)) else cpu_per_gbps if cpu_per_gbps is not None else "-")
 
@@ -91,12 +107,54 @@ def pretty_print_metrics_table(metrics, output_file=None):
 if __name__ == '__main__':
     metrics = {
         '4KB_1MB_1_read_1_1': {
-            'fio_metrics': {'avg_read_throughput_kibps': 3172.0, 'stdev_read_throughput_kibps': 63.6396, 'avg_write_throughput_kibps': 0.0, 'stdev_write_throughput_kibps': 0.0, 'avg_read_latency_ns': 2705.68, 'stdev_read_latency_ns': 225.296, 'avg_write_latency_ns': 0.0, 'stdev_write_latency_ns': 0.0},
-            'vm_metrics': {}, 'cpu_percent_per_gbps': 0.12345, 'bs': '4KB', 'file_size': '1MB', 'iodepth': '1', 'iotype': 'read', 'threads': '1', 'nrfiles': '1'
+            'fio_metrics': {
+                'avg_read_throughput_kibps': 3172.0,
+                'stdev_read_throughput_kibps': 63.6396,
+                'avg_write_throughput_kibps': 0.0,
+                'stdev_write_throughput_kibps': 0.0,
+                'avg_read_latency_ns': 2705.68,
+                'stdev_read_latency_ns': 225.296,
+                'avg_write_latency_ns': 0.0,
+                'stdev_write_latency_ns': 0.0,
+                'avg_read_iops': 793.0,
+                'stdev_read_iops': 15.9099
+            },
+            'vm_metrics': {
+                'avg_cpu_utilization_percent': 12.5,
+                'stdev_cpu_utilization_percent': 1.1
+            },
+            'cpu_percent_per_gbps': 0.12345,
+            'bs': '4KB',
+            'file_size': '1MB',
+            'iodepth': '1',
+            'iotype': 'read',
+            'threads': '1',
+            'nrfiles': '1'
         },
         '8KB_2MB_2_write_1_1': {
-            'fio_metrics': {'avg_read_throughput_kibps': 0.0, 'stdev_read_throughput_kibps': 0.0, 'avg_write_throughput_kibps': 5200.0, 'stdev_write_throughput_kibps': 150.0, 'avg_read_latency_ns': 0.0, 'stdev_write_latency_ns': 0.0, 'avg_write_latency_ns': 1800.0, 'stdev_write_latency_ns': 100.0},
-            'vm_metrics': {}, 'cpu_percent_per_gbps': 0.23456, 'bs': '8KB', 'file_size': '2MB', 'iodepth': '2', 'iotype': 'write', 'threads': '1', 'nrfiles': '1'
+            'fio_metrics': {
+                'avg_read_throughput_kibps': 0.0,
+                'stdev_read_throughput_kibps': 0.0,
+                'avg_write_throughput_kibps': 5200.0,
+                'stdev_write_throughput_kibps': 150.0,
+                'avg_read_latency_ns': 0.0,
+                'stdev_read_latency_ns': 0.0,
+                'avg_write_latency_ns': 1800.0,
+                'stdev_write_latency_ns': 100.0,
+                'avg_write_iops': 650.0,
+                'stdev_write_iops': 18.75
+            },
+            'vm_metrics': {
+                'avg_cpu_utilization_percent': 15.8,
+                'stdev_cpu_utilization_percent': 2.3
+            },
+            'cpu_percent_per_gbps': 0.23456,
+            'bs': '8KB',
+            'file_size': '2MB',
+            'iodepth': '2',
+            'iotype': 'write',
+            'threads': '1',
+            'nrfiles': '1'
         }
     }
 

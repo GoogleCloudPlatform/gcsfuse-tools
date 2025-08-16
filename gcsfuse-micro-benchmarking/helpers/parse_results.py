@@ -65,6 +65,20 @@ def process_fio_metrics_and_vm_metrics(fio_metrics, timestamps, vm_cfg):
         if 'write' in job and 'clat_ns' in job['write']
     ]
 
+    read_iops = [
+        job['read']['iops']
+        for metrics in fio_metrics
+        for job in metrics['jobs']
+        if 'read' in job and 'iops' in job['read']
+    ]
+
+    write_iops = [
+        job['write']['iops']
+        for metrics in fio_metrics
+        for job in metrics['jobs']
+        if 'write' in job and 'iops' in job['write']
+    ]
+
     # Calculate average and standard deviation for FIO metrics.
     # Note: statistics.fmean and statistics.stdev are used for floating point data.
     fio_report = {}
@@ -87,6 +101,15 @@ def process_fio_metrics_and_vm_metrics(fio_metrics, timestamps, vm_cfg):
     if avg_write_lat is not None:
         fio_report['avg_write_latency_ns'] = avg_write_lat
         fio_report['stdev_write_latency_ns'] = stdev_write_lat
+    
+    avg_read_iops, stdev_read_iops = calculate_stats(read_iops)
+    if avg_read_iops is not None:
+        fio_report['avg_read_iops'] = avg_read_iops
+        fio_report['stdev_read_iops'] = stdev_read_iops
+    avg_write_iops, stdev_write_iops = calculate_stats(write_iops)
+    if avg_write_iops is not None:
+        fio_report['avg_write_iops'] = avg_write_iops
+        fio_report['stdev_write_iops'] = stdev_write_iops
 
     # --- 2. Process VM Metrics ---
     vm_name = vm_cfg['instance_name']

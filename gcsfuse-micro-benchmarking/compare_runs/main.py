@@ -123,6 +123,9 @@ def compare_and_visualize(results, output_dir="benchmark_plots"):
         "Write Throughput (KiB/s)": ("fio_metrics", "avg_write_throughput_kibps", "stdev_write_throughput_kibps"),
         "Read Latency (ns)": ("fio_metrics", "avg_read_latency_ns", "stdev_read_latency_ns"),
         "Write Latency (ns)": ("fio_metrics", "avg_write_latency_ns", "stdev_write_latency_ns"),
+        "Read IOPS": ("fio_metrics", "avg_read_iops", "stdev_read_iops"),
+        "Write IOPS": ("fio_metrics", "avg_write_iops", "stdev_write_iops"),
+        "Average CPU %": ("vm_metrics", "avg_cpu_utilization_percent", "stdev_cpu_utilization_percent"),
         "CPU per GBps": (None, "cpu_percent_per_gbps", None),
     }
 

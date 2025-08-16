@@ -4,7 +4,7 @@ import tempfile
 import os
 import shlex
 
-def store_metrics_in_artifacts_bucket_gcloud(
+def store_metrics_in_artifacts_bucket(
     metrics: dict,
     benchmark_id: str,
     artifacts_bucket_name: str,
