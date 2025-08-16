@@ -47,12 +47,19 @@ Whenever necessary, a GCE VM of name `{benchmark_id}-vm` and a GCS bucket of nam
 Cleanup is handled as part of the script itself if the resources are created in runtime and explicitly stated via the config to delete after use. In case of tool failure, the resources are persisted.
 
 
-
 ### 7. Benchmark Results
-The results from the benchmark run is available at the location `results/{benchmark_id}_result.txt}` locally, at the end of benchmarking.
+The results from the benchmark run is available at the location `results/{benchmark_id}_result.txt}` locally, at the end of benchmarking and remotely, in the artifacts bucket at `gs://{ARTIFACTS_BUCKET}/{benchmark_id}/result.json`
 
 The raw results are also persisted in the artifacts bucket at  `gs://{ARTIFACTS_BUCKET}/{benchmark_id}/raw-results/`
 
+### 8. Compare Benchmark Runs
+With identical benchmark runs for baseline/topline/feature , the results can be compared using the following steps:
+```
+cd compare_runs
+python3 main.py --benchmark_ids=id1,id2,... --output_dir=output_dir
+```
+
+Visual plots are generated and stored under `output_dir/`
 
 #### Note: 
 * The benchmark_id passed as argument to the script, is used for creating the test bucket and VM instance if required, hence ensure the benchmark_id is complaint with the naming guidelines for such resources

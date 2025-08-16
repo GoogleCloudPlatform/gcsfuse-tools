@@ -1,6 +1,6 @@
 import argparse
 import sys
-from helpers import helper, rationalize, validate, bucket, environment, record_bench_id, parse_results, generate_report
+from helpers import helper, upload,rationalize, validate, bucket, environment, record_bench_id, parse_results, generate_report
 import os
 import shutil
 
@@ -78,6 +78,9 @@ if __name__ == '__main__':
 
         # Parse the benchmark results and generate the result file.
         raw_data_dir, metrics= parse_results.parse_benchmark_results(benchmark_id, ARTIFACTS_BUCKET, cfg)
+        
+        upload.store_metrics_in_artifacts_bucket(metrics, benchmark_id, ARTIFACTS_BUCKET, cfg.get('bench_env').get('project'))
+        
         output_filename="./results/"+benchmark_id+"_result.txt"
         generate_report.pretty_print_metrics_table(metrics,output_filename)
         

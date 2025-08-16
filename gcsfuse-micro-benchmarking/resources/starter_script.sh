@@ -322,7 +322,7 @@ start_benchmarking_runs() {
 
         echo "Experiment config: ${bs}, ${file_size}, ${iodepth}, ${iotype}, ${threads}, ${nrfiles}"
 
-        testdir="${dir}/raw-results/fio_output_${bs}_${file_size}_${iodepth}_${iotype}_${threads}_${nrfiles}/"
+        testdir="${dir}/raw-results/fio_output_${bs}_${file_size}_${iodepth}_${iotype}_${threads}_${nrfiles}"
         mkdir -p "$testdir"
         
         timestamps_file="${testdir}/timestamps.csv"
