@@ -10,7 +10,7 @@ cd gcsfuse-micro-benchmarking
 
 ### 2. Setup the environment
 ```
-python -m venv venv
+python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
 ```
