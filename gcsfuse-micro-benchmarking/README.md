@@ -65,4 +65,4 @@ Visual plots are generated and stored under `output_dir/`
 * The benchmark_id passed as argument to the script, is used for creating the test bucket and VM instance if required, hence ensure the benchmark_id is complaint with the naming guidelines for such resources
 * In case the GCE VM instance is pre-existing, please ensure that the VM scope is set to 
 `https://www.googleapis.com/auth/cloud-platform` for full access to all Cloud APIs
-* For future reference, the benchmark ids are also stored in the artifacts bucket at `gs://{ARTIFACTS_BUCKET}/user/runs.json` . The runs can be labelled by setting the bench_type flag passed to the script`.
+* For future reference, the benchmark ids are also stored in the artifacts bucket at `gs://{ARTIFACTS_BUCKET}/${user}$/runs.json` . The runs can be labelled by setting the bench_type flag passed to the script`.
