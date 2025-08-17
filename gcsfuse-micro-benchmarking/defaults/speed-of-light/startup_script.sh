@@ -356,13 +356,7 @@ start_benchmarking_runs() {
         echo "Error: FIO job file not found at ${fio_job_file}"
         return 1
     fi
-    
-    # Check if the mount config file  exists
-    if [ ! -f "$mount_config" ]; then
-        echo "Error: mount config file not found at ${mount_config}"
-        return 1
-    fi
-    
+        
     # Read the CSV file line by line, skipping the header
     tail -n +2 "$fio_job_cases" | while IFS=, read -r bs file_size iodepth iotype threads nrfiles; do
         # Iterate for the specified number of runs for this job case       
