@@ -19,6 +19,8 @@ pip install -r requirements.txt
 ```
 eval "$(ssh-agent -s)"
 ssh-add ~/.ssh/google_compute_engine
+
+#pkill ssh-agent  # to kill the active the ssh session, Having multiple ssh-agent processes running can lead to unexpected behavior and connection issues
 ```
 
 ### 4. Setup the configurations as per your requirement
