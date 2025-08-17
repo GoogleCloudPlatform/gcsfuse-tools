@@ -287,26 +287,26 @@ build_custom_cpp_fio_engine() {
 
     # Check if a custom fio engine is already built.
     if [ -f "${engine_dir}/libcpp-storage-fio-engine.so" ]; then
-        echo "Custom C++ FIO engine is already built. Skipping build process."
+        echo "Custom C++ FIO engine is already built. Skipping build process." >&2
         echo "${engine_dir}/libcpp-storage-fio-engine.so"
         return 0
     fi
 
     # Check for bazelisk and install if it's not present.
     if ! command -v bazelisk &> /dev/null; then
-        echo "bazelisk not found. Installing now..."
+        echo "bazelisk not found. Installing now..." >&2
         go install github.com/bazelbuild/bazelisk@latest
     fi
 
-    echo "Downloading C++ fio engine source from GCS bucket..."
+    echo "Downloading C++ fio engine source from GCS bucket..." >&2
     gcloud storage cp "gs://${artifacts_bucket}/benchmarking-resources/${download_file_name}" "${dir}/"
     
-    echo "Unzipping source code..."
+    echo "Unzipping source code..." >&2
     unzip -q "${dir}/${download_file_name}" -d "${dir}"
     
-    echo "Building the custom fio engine with bazelisk..."
+    echo "Building the custom fio engine with bazelisk..." >&2
     (
-        cd "${dir}/${source_dir_name}" || { echo "Error: Failed to cd into the source directory."; exit 1; }
+        cd "${dir}/${source_dir_name}" || { echo "Error: Failed to cd into the source directory." >&2; exit 1; }
         # Get the path to the bazelisk binary
         BAZELISK_BIN="$(go env GOPATH)/bin/bazelisk"
         # Run the build command
@@ -318,14 +318,14 @@ build_custom_cpp_fio_engine() {
 
     # Check if the build was successful
     if [ -f "${engine_dir}/libcpp-storage-fio-engine.so" ]; then
-        echo "Build complete. Engine located at: ${engine_dir}/libcpp-storage-fio-engine.so"
+        echo "Build complete. Engine located at: ${engine_dir}/libcpp-storage-fio-engine.so" >&2
         echo "${engine_dir}/libcpp-storage-fio-engine.so"
         # Clean up the downloaded files
         rm -rf "${dir}/${source_dir_name}"
         rm "${dir}/${download_file_name}"
         return 0
     else
-        echo "Fio engine build failed."
+        echo "Fio engine build failed." >&2
         return 1
     fi
 }
@@ -374,7 +374,7 @@ start_benchmarking_runs() {
             echo "Starting FIO run ${i} of ${iterations} for case: bs=${bs}, file_size=${file_size}, iodepth=${iodepth}, iotype=${iotype}, threads=${threads}, nrfiles=${nrfiles}"
             start_time=$(date +"%Y-%m-%dT%H:%M:%S%z")
 
-            filename_format="${iotype}-\$jobnum/\$filenum"
+            filename_format="${bucket}/${iotype}-\$jobnum/\$filenum"
             output_file="${testdir}/fio_output_iter${i}.json"
 
             # Use the custom engine if the path is provided
@@ -384,7 +384,7 @@ start_benchmarking_runs() {
                 echo "Using custom fio engine: ${fio_custom_engine_path}"
             fi
 
-            MNTDIR=${bucket} IODEPTH=${iodepth} IOTYPE=${iotype} BLOCKSIZE=${bs} FILESIZE=${file_size} NRFILES=${nrfiles} NUMJOBS=${threads} FILENAME_FORMAT=${filename_format} fio $fio_job_file --output-format=json "${engine_option}" > "$output_file" 2>&1 
+            IODEPTH=${iodepth} IOTYPE=${iotype} BLOCKSIZE=${bs} FILESIZE=${file_size} NRFILES=${nrfiles} NUMJOBS=${threads} FILENAME_FORMAT=${filename_format} fio $fio_job_file --output-format=json "${engine_option}" > "$output_file" 2>&1 
             
             end_time=$(date +"%Y-%m-%dT%H:%M:%S%z")
             echo "${i},${start_time},${end_time}" >> "$timestamps_file"
