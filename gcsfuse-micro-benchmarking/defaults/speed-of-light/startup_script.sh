@@ -10,9 +10,11 @@ benchmark_id=$(curl -H "Metadata-Flavor: Google" http://metadata.google.internal
 iterations=$(curl -H "Metadata-Flavor: Google" http://metadata.google.internal/computeMetadata/v1/instance/attributes/iterations)
 reuse_same_mount=$(curl -H "Metadata-Flavor: Google" http://metadata.google.internal/computeMetadata/v1/instance/attributes/reuse_same_mount)
 
+
 echo "The value of 'bucket' is: $bucket"
 echo "The value of 'artifacts_bucket' is: $artifacts_bucket"
 echo "The value of 'benchmark_id' is: $benchmark_id"
+
 
 # A helper function to check if a command exists
 command_exists () {
@@ -238,125 +240,92 @@ install_golang_on_vm() {
     go version
 }
 
-build_gcsfuse() {
-    # dir contains the path to the directory with version_details.yml
-    local dir=$1
-    set -e
 
-    # Check if yq is installed and install it if it's not.
-    if ! command -v yq &> /dev/null; then
-        echo "yq not found. Installing yq..."
-            return 1
+install_unzip_on_vm() {
+    # Check if unzip is installed
+    if ! command -v unzip &> /dev/null; then
+        echo "unzip not found, installing..."
+
+        # Detect platform
+        if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+            if command -v apt &> /dev/null; then
+                sudo apt update && sudo apt install -y unzip
+            elif command -v yum &> /dev/null; then
+                sudo yum install -y unzip
+            elif command -v dnf &> /dev/null; then
+                sudo dnf install -y unzip
+            elif command -v pacman &> /dev/null; then
+                sudo pacman -Sy unzip
+            else
+                echo "Unsupported Linux package manager."
+                exit 1
+            fi
+        elif [[ "$OSTYPE" == "darwin"* ]]; then
+            # macOS
+            if command -v brew &> /dev/null; then
+                brew install unzip
+            else
+                echo "Homebrew not found. Please install Homebrew and rerun."
+                exit 1
+            fi
+        else
+            echo "Unsupported OS: $OSTYPE"
+            exit 1
+        fi
+    else
+        echo "unzip is already installed."
+    fi
+}
+
+build_custom_cpp_fio_engine() {
+    local artifacts_bucket=$1
+    local dir=$2
+    
+    local download_file_name="cpp-storage-fio-engine-main.zip"
+    local source_dir_name="cpp-storage-fio-engine-main"
+    local engine_dir="${dir}/custom-engine"
+
+    # Check if a custom fio engine is already built.
+    if [ -f "${engine_dir}/libcpp-storage-fio-engine.so" ]; then
+        echo "Custom C++ FIO engine is already built. Skipping build process."
+        echo "${engine_dir}/libcpp-storage-fio-engine.so"
+        return 0
     fi
 
-    echo "Fetching gcsfuse version from ${dir}/version_details.yml"
-    local gcsfuse_version=$(yq e '.gcsfuse_version_or_commit' "${dir}/version_details.yml")
-
-    if [ -z "$gcsfuse_version" ]; then
-        echo "Error: Could not find gcsfuse_version in the YAML file."
-        return 1
+    # Check for bazelisk and install if it's not present.
+    if ! command -v bazelisk &> /dev/null; then
+        echo "bazelisk not found. Installing now..."
+        go install github.com/bazelbuild/bazelisk@latest
     fi
 
-    echo "Building gcsfuse binary with version: ${gcsfuse_version}"
-
-    # Use a subshell to avoid changing the script's main working directory
+    echo "Downloading C++ fio engine source from GCS bucket..."
+    gcloud storage cp "gs://${artifacts_bucket}/benchmarking-resources/${download_file_name}" "${dir}/"
+    
+    echo "Unzipping source code..."
+    unzip -q "${dir}/${download_file_name}" -d "${dir}"
+    
+    echo "Building the custom fio engine with bazelisk..."
     (
-        # Remove existing gcsfuse directory if it exists
-        echo "Removing existing gcsfuse directory..."
-        rm -rf gcsfuse
-
-        # Clone the gcsfuse repository
-        echo "Cloning gcsfuse repository..."
-        git clone https://github.com/GoogleCloudPlatform/gcsfuse.git
-
-        # Navigate into the cloned directory
-        cd gcsfuse
-
-        # Check out the specific version or commit
-        echo "Checking out version/commit: ${gcsfuse_version}"
-        git checkout "${gcsfuse_version}"
-
-        # Build the gcsfuse binary
-        echo "Building the binary..."
-        go build
-
-        # Install the binary to a system path
-        echo "Installing gcsfuse to /usr/local/bin/"
-        sudo cp -f gcsfuse /usr/local/bin/gcsfuse
+        cd "${dir}/${source_dir_name}" || { echo "Error: Failed to cd into the source directory."; exit 1; }
+        # Get the path to the bazelisk binary
+        BAZELISK_BIN="$(go env GOPATH)/bin/bazelisk"
+        # Run the build command
+        "${BAZELISK_BIN}" build -c opt //:ioengine_shared
+        # Move the built library to the designated directory
+        mkdir -p "${engine_dir}"
+        mv bazel-bin/libcpp-storage-fio-engine.so "${engine_dir}/"
     )
 
-    if command -v gcsfuse &> /dev/null; then
-        echo "gcsfuse installed successfully."
-        gcsfuse --version
-    else
-        echo "Error: gcsfuse binary not found in PATH."
-        return 1
-    fi
-}
-
-mount_gcsfuse() {
-    local mntdir="$1"
-    local bucketname="$2"
-    local mount_config="$3"
-
-    # Create the mount directory if it doesn't exist
-    if [ ! -d "$mntdir" ]; then
-        mkdir -p "$mntdir"
-    fi
-
-    # Check if the directory is already mounted
-    if mountpoint -q "$mntdir"; then
-        echo "Directory '$mntdir' is already a mount point. Skipping."
-        return 0
-    fi
-    
-    # Check if the mount config file exists
-    if [ ! -f "$mount_config" ]; then
-        echo "Error: Mount config file not found at '$mount_config'."
-        return 1
-    fi
-
-    # Mount the GCS bucket using the config file
-    echo "Mounting bucket '$bucketname' to '$mntdir' with config '$mount_config'..."
-    gcsfuse --config-file="$mount_config" "$bucketname" "$mntdir"
-
-    # Verify the mount was successful
-    if mountpoint -q "$mntdir"; then
-        echo "Successfully mounted '$bucketname' to '$mntdir'."
+    # Check if the build was successful
+    if [ -f "${engine_dir}/libcpp-storage-fio-engine.so" ]; then
+        echo "Build complete. Engine located at: ${engine_dir}/libcpp-storage-fio-engine.so"
+        echo "${engine_dir}/libcpp-storage-fio-engine.so"
+        # Clean up the downloaded files
+        rm -rf "${dir}/${source_dir_name}"
+        rm "${dir}/${download_file_name}"
         return 0
     else
-        echo "Error: Failed to mount '$bucketname' to '$mntdir'."
-        return 1
-    fi
-}
-
-unmount_gcsfuse() {
-    local mntdir="$1"
-
-    # Check if the directory is a mount point
-    if ! mountpoint -q "$mntdir"; then
-        echo "Directory '$mntdir' is not a mount point. Skipping."
-        return 0
-    fi
-    
-    echo "Unmounting '$mntdir'..."
-
-    # Use the correct unmount command based on the OS
-    if [[ "$(uname)" == "Linux" ]]; then
-        fusermount -uz "$mntdir"
-    elif [[ "$(uname)" == "Darwin" ]]; then
-        umount "$mntdir"
-    else
-        echo "Warning: Unsupported OS for unmounting."
-        return 1
-    fi
-
-    # Verify the unmount was successful
-    if ! mountpoint -q "$mntdir"; then
-        echo "Successfully unmounted '$mntdir'."
-        return 0
-    else
-        echo "Error: Failed to unmount '$mntdir'."
+        echo "Fio engine build failed."
         return 1
     fi
 }
@@ -364,6 +333,12 @@ unmount_gcsfuse() {
 start_benchmarking_runs() {
     dir="$1"
     iterations="$2"
+    fio_custom_engine_path="$3"
+    # Check if the custom engine path is empty
+    if [ -z "$fio_custom_engine_path" ]; then
+        echo "Error: The path to the custom FIO engine is empty. Exiting."
+        exit 1
+    fi
 
     mkdir -p "${dir}/raw-results/"
 
@@ -382,9 +357,6 @@ start_benchmarking_runs() {
         return 1
     fi
     
-    mntdir="${dir}/mntdir/"
-    mount_config="${dir}/mount_config.yml"
-
     # Check if the mount config file  exists
     if [ ! -f "$mount_config" ]; then
         echo "Error: mount config file not found at ${mount_config}"
@@ -393,11 +365,7 @@ start_benchmarking_runs() {
     
     # Read the CSV file line by line, skipping the header
     tail -n +2 "$fio_job_cases" | while IFS=, read -r bs file_size iodepth iotype threads nrfiles; do
-        # Iterate for the specified number of runs for this job case
-            # Mount the bucket once before the loop if reuse_same_mount is 'true'
-        if [[ "$reuse_same_mount" == "true" ]]; then
-            mount_gcsfuse "$mntdir" "$bucket" "$mount_config"
-        fi
+        # Iterate for the specified number of runs for this job case       
         nrfiles="${nrfiles%$'\r'}"
 
         echo "Experiment config: ${bs}, ${file_size}, ${iodepth}, ${iotype}, ${threads}, ${nrfiles}"
@@ -410,33 +378,27 @@ start_benchmarking_runs() {
 
         for ((i = 1; i <= iterations; i++)); do
             echo "Starting FIO run ${i} of ${iterations} for case: bs=${bs}, file_size=${file_size}, iodepth=${iodepth}, iotype=${iotype}, threads=${threads}, nrfiles=${nrfiles}"
-            # If reuse_same_mount is 'false', mount the bucket for this run
-            if [[ "$reuse_same_mount" != "true" ]]; then
-                mount_gcsfuse "$mntdir" "$bucket" "$mount_config"
-            fi
-
             start_time=$(date +"%Y-%m-%dT%H:%M:%S%z")
 
             filename_format="${iotype}-\$jobnum/\$filenum"
             output_file="${testdir}/fio_output_iter${i}.json"
-            MNTDIR=${mntdir} IODEPTH=${iodepth} IOTYPE=${iotype} BLOCKSIZE=${bs} FILESIZE=${file_size} NRFILES=${nrfiles} NUMJOBS=${threads} FILENAME_FORMAT=${filename_format} fio $fio_job_file --output-format=json > "$output_file" 2>&1 
+
+            # Use the custom engine if the path is provided
+            local engine_option="--ioengine=psync"
+            if [ -n "$fio_custom_engine_path" ]; then
+                engine_option="--ioengine=external:${fio_custom_engine_path}"
+                echo "Using custom fio engine: ${fio_custom_engine_path}"
+            fi
+
+            MNTDIR=${bucket} IODEPTH=${iodepth} IOTYPE=${iotype} BLOCKSIZE=${bs} FILESIZE=${file_size} NRFILES=${nrfiles} NUMJOBS=${threads} FILENAME_FORMAT=${filename_format} fio $fio_job_file --output-format=json "${engine_option}" > "$output_file" 2>&1 
             
             end_time=$(date +"%Y-%m-%dT%H:%M:%S%z")
             echo "${i},${start_time},${end_time}" >> "$timestamps_file"
-
-            # If reuse_same_mount is 'false', unmount after this run
-            if [[ "$reuse_same_mount" != "true" ]]; then
-                unmount_gcsfuse "$mntdir"
-            fi
 
             echo "Sleeping for 20 seconds to keep VM metrics independent for each iteration...."
             sleep 20
 
         done
-            # Unmount the bucket once after the loop if reuse_same_mount is 'true'
-        if [[ "$reuse_same_mount" == "true" ]]; then
-            unmount_gcsfuse "$mntdir"
-        fi
     done
 
 
@@ -455,9 +417,13 @@ if [ -n "$bucket" ] && [ -n "$artifacts_bucket" ] && [ -n "$benchmark_id" ]; the
 
     install_fio_on_vm "$dir"
     install_golang_on_vm "$dir"
-    build_gcsfuse "$dir"
+    install_unzip_on_vm "$dir"
 
-    start_benchmarking_runs "$dir" "$iterations"
+    # Build the custom C++ FIO engine and get its path
+    fio_engine_path=$(build_custom_cpp_fio_engine "$artifacts_bucket" "$dir")
+
+    # Start the benchmarking runs with the custom engine
+    start_benchmarking_runs "$dir" "$iterations" "$fio_engine_path"
 
     copy_raw_results_to_artifacts_bucket "$artifacts_bucket" "$benchmark_id" "$dir"
 
