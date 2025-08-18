@@ -34,9 +34,10 @@ For more details on setting the configurations as per requirement, follow the gu
 
 ### 5. (Optional) Start the tmux session
 ```
-tmux new -s benchmarking-session
+tmx2 new -A -s benchmarking-session
 ```
 Running the script can be blocking and any failure (for e.g. SSH issues of the local machine from which the script is triggered, etc.) can cause the entire script to retriggered , thus it is advised to run the benchmark in a tmux session.
+Note: tmx2 is recommended as tmux doesn't work well with propagated ssh-keys.
 
 ### 5. Run the benchmark 
 ```
