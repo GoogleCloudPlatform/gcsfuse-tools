@@ -262,6 +262,7 @@ def rationalize_bench_env(zonal ,bench_env):
         
         if bench_env.get('zone') and bench_env.get('zone') != "":
             zone= bench_env.get('zone')
+            cfg['zone']=zone
             gcs_bucket_cfg['placement']=zone if zonal else ""
 
         if bench_env.get("gce_env") and bench_env.get("gce_env") != "":
