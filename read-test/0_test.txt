@@ -1,0 +1,1519 @@
+{"timestamp":{"seconds":1754920942,"nanos":708206205},"severity":"INFO","message":"Start gcsfuse/unknown (Go version go1.24.5) for app \"\" using mount point: /home/princer_google_com/bucket\n"}
+{"timestamp":{"seconds":1754920942,"nanos":708254023},"severity":"INFO","message":"GCSFuse config","config":{"AppName":"","CacheDir":"","Debug":{"ExitOnInvariantViolation":false,"Fuse":false,"Gcs":false,"LogMutex":false},"DisableAutoconfig":false,"EnableAtomicRenameObject":true,"EnableGoogleLibAuth":false,"EnableHns":true,"EnableNewReader":true,"FileCache":{"CacheFileForRangeRead":false,"DownloadChunkSizeMb":200,"EnableCrc":false,"EnableODirect":false,"EnableParallelDownloads":false,"ExperimentalExcludeRegex":"","ExperimentalParallelDownloadsDefaultOn":true,"MaxParallelDownloads":192,"MaxSizeMb":-1,"ParallelDownloadsPerFile":16,"WriteBufferSize":4194304},"FileSystem":{"DirMode":"755","DisableParallelDirops":false,"ExperimentalEnableDentryCache":false,"ExperimentalEnableReaddirplus":false,"FileMode":"644","FuseOptions":[],"Gid":-1,"IgnoreInterrupts":true,"KernelListCacheTtlSecs":0,"PreconditionErrors":true,"RenameDirLimit":0,"TempDir":"","Uid":-1},"Foreground":false,"GcsAuth":{"AnonymousAccess":false,"KeyFile":"","ReuseTokenFromUrl":true,"TokenUrl":""},"GcsConnection":{"BillingProject":"","ClientProtocol":"grpc","CustomEndpoint":"","ExperimentalEnableJsonRead":false,"GrpcConnPoolSize":1,"HttpClientTimeout":0,"LimitBytesPerSec":-1,"LimitOpsPerSec":-1,"MaxConnsPerHost":0,"MaxIdleConnsPerHost":100,"SequentialReadSizeMb":200},"GcsRetries":{"ChunkTransferTimeoutSecs":10,"MaxRetryAttempts":0,"MaxRetrySleep":30000000000,"Multiplier":2,"ReadStall":{"Enable":true,"InitialReqTimeout":20000000000,"MaxReqTimeout":1200000000000,"MinReqTimeout":1500000000,"ReqIncreaseRate":15,"ReqTargetPercentile":0.99}},"ImplicitDirs":true,"List":{"EnableEmptyManagedFolders":false},"Logging":{"FilePath":"","Format":"json","LogRotate":{"BackupFileCount":10,"Compress":true,"MaxFileSizeMb":512},"Severity":"INFO"},"MachineType":"","MetadataCache":{"DeprecatedStatCacheCapacity":20460,"DeprecatedStatCacheTtl":60000000000,"DeprecatedTypeCacheTtl":60000000000,"EnableNonexistentTypeCache":false,"ExperimentalMetadataPrefetchOnMount":"disabled","NegativeTtlSecs":5,"StatCacheMaxSizeMb":33,"TtlSecs":60,"TypeCacheMaxSizeMb":4},"Metrics":{"BufferSize":256,"CloudMetricsExportIntervalSecs":0,"PrometheusPort":0,"StackdriverExportInterval":0,"UseNewNames":false,"Workers":3},"Monitoring":{"ExperimentalTracingMode":"","ExperimentalTracingSamplingRatio":0},"OnlyDir":"","Profiling":{"AllocatedHeap":true,"Cpu":true,"Enabled":false,"Goroutines":false,"Heap":true,"Label":"gcsfuse-0.0.0","Mutex":false},"Read":{"BlockSizeMb":32,"EnableBufferedRead":true,"GlobalMaxBlocks":80,"InactiveStreamTimeout":10000000000,"MaxBlocksPerHandle":14,"StartBlocksPerHandle":1},"Write":{"BlockSizeMb":33554432,"CreateEmptyFile":false,"EnableRapidAppends":true,"EnableStreamingWrites":true,"GlobalMaxBlocks":4,"MaxBlocksPerFile":1}}}
+{"timestamp":{"seconds":1754920943,"nanos":669535684},"severity":"INFO","message":"2025/08/11 14:02:23.669504 Error occurred during command execution on gcsfuse/unknown (Go version go1.24.5): daemonize.Run: readFromProcess: sub-process: Error while mounting gcsfuse: mountWithArgs: mountWithStorageHandle: mount: stat /home/princer_google_com/bucket: no such file or directory"}
+{"timestamp":{"seconds":1754920968,"nanos":274360756},"severity":"INFO","message":"Start gcsfuse/unknown (Go version go1.24.5) for app \"\" using mount point: /home/princer_google_com/bucket\n"}
+{"timestamp":{"seconds":1754920968,"nanos":274396507},"severity":"INFO","message":"GCSFuse config","config":{"AppName":"","CacheDir":"","Debug":{"ExitOnInvariantViolation":false,"Fuse":false,"Gcs":false,"LogMutex":false},"DisableAutoconfig":false,"EnableAtomicRenameObject":true,"EnableGoogleLibAuth":false,"EnableHns":true,"EnableNewReader":true,"FileCache":{"CacheFileForRangeRead":false,"DownloadChunkSizeMb":200,"EnableCrc":false,"EnableODirect":false,"EnableParallelDownloads":false,"ExperimentalExcludeRegex":"","ExperimentalParallelDownloadsDefaultOn":true,"MaxParallelDownloads":192,"MaxSizeMb":-1,"ParallelDownloadsPerFile":16,"WriteBufferSize":4194304},"FileSystem":{"DirMode":"755","DisableParallelDirops":false,"ExperimentalEnableDentryCache":false,"ExperimentalEnableReaddirplus":false,"FileMode":"644","FuseOptions":[],"Gid":-1,"IgnoreInterrupts":true,"KernelListCacheTtlSecs":0,"PreconditionErrors":true,"RenameDirLimit":0,"TempDir":"","Uid":-1},"Foreground":false,"GcsAuth":{"AnonymousAccess":false,"KeyFile":"","ReuseTokenFromUrl":true,"TokenUrl":""},"GcsConnection":{"BillingProject":"","ClientProtocol":"grpc","CustomEndpoint":"","ExperimentalEnableJsonRead":false,"GrpcConnPoolSize":1,"HttpClientTimeout":0,"LimitBytesPerSec":-1,"LimitOpsPerSec":-1,"MaxConnsPerHost":0,"MaxIdleConnsPerHost":100,"SequentialReadSizeMb":200},"GcsRetries":{"ChunkTransferTimeoutSecs":10,"MaxRetryAttempts":0,"MaxRetrySleep":30000000000,"Multiplier":2,"ReadStall":{"Enable":true,"InitialReqTimeout":20000000000,"MaxReqTimeout":1200000000000,"MinReqTimeout":1500000000,"ReqIncreaseRate":15,"ReqTargetPercentile":0.99}},"ImplicitDirs":true,"List":{"EnableEmptyManagedFolders":false},"Logging":{"FilePath":"","Format":"json","LogRotate":{"BackupFileCount":10,"Compress":true,"MaxFileSizeMb":512},"Severity":"INFO"},"MachineType":"","MetadataCache":{"DeprecatedStatCacheCapacity":20460,"DeprecatedStatCacheTtl":60000000000,"DeprecatedTypeCacheTtl":60000000000,"EnableNonexistentTypeCache":false,"ExperimentalMetadataPrefetchOnMount":"disabled","NegativeTtlSecs":5,"StatCacheMaxSizeMb":33,"TtlSecs":60,"TypeCacheMaxSizeMb":4},"Metrics":{"BufferSize":256,"CloudMetricsExportIntervalSecs":0,"PrometheusPort":0,"StackdriverExportInterval":0,"UseNewNames":false,"Workers":3},"Monitoring":{"ExperimentalTracingMode":"","ExperimentalTracingSamplingRatio":0},"OnlyDir":"","Profiling":{"AllocatedHeap":true,"Cpu":true,"Enabled":false,"Goroutines":false,"Heap":true,"Label":"gcsfuse-0.0.0","Mutex":false},"Read":{"BlockSizeMb":32,"EnableBufferedRead":true,"GlobalMaxBlocks":80,"InactiveStreamTimeout":10000000000,"MaxBlocksPerHandle":14,"StartBlocksPerHandle":1},"Write":{"BlockSizeMb":33554432,"CreateEmptyFile":false,"EnableRapidAppends":true,"EnableStreamingWrites":true,"GlobalMaxBlocks":4,"MaxBlocksPerFile":1}}}
+{"timestamp":{"seconds":1754920969,"nanos":259466607},"severity":"INFO","message":"File system has been successfully mounted."}
+Running for read over 120M files with 96 jobs...
+single_group: (g=0): rw=read, bs=(R) 1024KiB-1024KiB, (W) 1024KiB-1024KiB, (T) 1024KiB-1024KiB, ioengine=libaio, iodepth=64
+...
+fio-3.16
+Starting 96 threads
+{"timestamp":{"seconds":1754921106,"nanos":839614132},"severity":"INFO","message":"Start gcsfuse/unknown (Go version go1.24.5) for app \"\" using mount point: /home/princer_google_com/bucket\n"}
+{"timestamp":{"seconds":1754921106,"nanos":839649970},"severity":"INFO","message":"GCSFuse config","config":{"AppName":"","CacheDir":"","Debug":{"ExitOnInvariantViolation":false,"Fuse":false,"Gcs":false,"LogMutex":false},"DisableAutoconfig":false,"EnableAtomicRenameObject":true,"EnableGoogleLibAuth":false,"EnableHns":true,"EnableNewReader":true,"FileCache":{"CacheFileForRangeRead":false,"DownloadChunkSizeMb":200,"EnableCrc":false,"EnableODirect":false,"EnableParallelDownloads":false,"ExperimentalExcludeRegex":"","ExperimentalParallelDownloadsDefaultOn":true,"MaxParallelDownloads":192,"MaxSizeMb":-1,"ParallelDownloadsPerFile":16,"WriteBufferSize":4194304},"FileSystem":{"DirMode":"755","DisableParallelDirops":false,"ExperimentalEnableDentryCache":false,"ExperimentalEnableReaddirplus":false,"FileMode":"644","FuseOptions":[],"Gid":-1,"IgnoreInterrupts":true,"KernelListCacheTtlSecs":0,"PreconditionErrors":true,"RenameDirLimit":0,"TempDir":"","Uid":-1},"Foreground":false,"GcsAuth":{"AnonymousAccess":false,"KeyFile":"","ReuseTokenFromUrl":true,"TokenUrl":""},"GcsConnection":{"BillingProject":"","ClientProtocol":"grpc","CustomEndpoint":"","ExperimentalEnableJsonRead":false,"GrpcConnPoolSize":1,"HttpClientTimeout":0,"LimitBytesPerSec":-1,"LimitOpsPerSec":-1,"MaxConnsPerHost":0,"MaxIdleConnsPerHost":100,"SequentialReadSizeMb":200},"GcsRetries":{"ChunkTransferTimeoutSecs":10,"MaxRetryAttempts":0,"MaxRetrySleep":30000000000,"Multiplier":2,"ReadStall":{"Enable":true,"InitialReqTimeout":20000000000,"MaxReqTimeout":1200000000000,"MinReqTimeout":1500000000,"ReqIncreaseRate":15,"ReqTargetPercentile":0.99}},"ImplicitDirs":true,"List":{"EnableEmptyManagedFolders":false},"Logging":{"FilePath":"","Format":"json","LogRotate":{"BackupFileCount":10,"Compress":true,"MaxFileSizeMb":512},"Severity":"INFO"},"MachineType":"","MetadataCache":{"DeprecatedStatCacheCapacity":20460,"DeprecatedStatCacheTtl":60000000000,"DeprecatedTypeCacheTtl":60000000000,"EnableNonexistentTypeCache":false,"ExperimentalMetadataPrefetchOnMount":"disabled","NegativeTtlSecs":5,"StatCacheMaxSizeMb":33,"TtlSecs":60,"TypeCacheMaxSizeMb":4},"Metrics":{"BufferSize":256,"CloudMetricsExportIntervalSecs":0,"PrometheusPort":0,"StackdriverExportInterval":0,"UseNewNames":false,"Workers":3},"Monitoring":{"ExperimentalTracingMode":"","ExperimentalTracingSamplingRatio":0},"OnlyDir":"","Profiling":{"AllocatedHeap":true,"Cpu":true,"Enabled":false,"Goroutines":false,"Heap":true,"Label":"gcsfuse-0.0.0","Mutex":false},"Read":{"BlockSizeMb":32,"EnableBufferedRead":true,"GlobalMaxBlocks":80,"InactiveStreamTimeout":10000000000,"MaxBlocksPerHandle":14,"StartBlocksPerHandle":1},"Write":{"BlockSizeMb":33554432,"CreateEmptyFile":false,"EnableRapidAppends":true,"EnableStreamingWrites":true,"GlobalMaxBlocks":4,"MaxBlocksPerFile":1}}}
+{"timestamp":{"seconds":1754921107,"nanos":868656498},"severity":"INFO","message":"File system has been successfully mounted."}
+Running for read over 120M files with 16 jobs...
+single_group: (g=0): rw=read, bs=(R) 1024KiB-1024KiB, (W) 1024KiB-1024KiB, (T) 1024KiB-1024KiB, ioengine=libaio, iodepth=64
+...
+fio-3.16
+Starting 16 threads
+
+single_group: (groupid=0, jobs=16): err= 0: pid=4009754: Mon Aug 11 14:05:24 2025
+  read: IOPS=193, BW=194MiB/s (203MB/s)(1920MiB/9907msec)
+    slat (usec): min=379, max=5207.8k, avg=81828.65, stdev=623334.84
+    clat (nsec): min=1361, max=4679.3M, avg=2421939502.71, stdev=2293396407.59
+     lat (usec): min=381, max=5259.4k, avg=2503768.53, stdev=2294883.50
+    clat percentiles (usec):
+     |  1.00th=[    474],  5.00th=[   2900], 10.00th=[   6194],
+     | 20.00th=[  12649], 30.00th=[  19530], 40.00th=[  26084],
+     | 50.00th=[4143973], 60.00th=[4664067], 70.00th=[4664067],
+     | 80.00th=[4664067], 90.00th=[4664067], 95.00th=[4664067],
+     | 99.00th=[4664067], 99.50th=[4664067], 99.90th=[4664067],
+     | 99.95th=[4664067], 99.99th=[4664067]
+   bw (  KiB/s): min=32768, max=32768, per=16.51%, avg=32768.00, stdev= 0.00, samples=16
+   iops        : min=   32, max=   32, avg=32.00, stdev= 0.00, samples=16
+  lat (usec)   : 2=0.68%, 4=0.10%, 10=0.05%, 500=0.31%, 750=0.52%
+  lat (usec)   : 1000=0.21%
+  lat (msec)   : 2=1.51%, 4=3.18%, 10=9.22%, 20=14.95%, 50=16.35%
+  lat (msec)   : 100=0.36%, 750=0.05%, >=2000=52.50%
+  cpu          : usr=0.00%, sys=0.23%, ctx=1972, majf=0, minf=262160
+  IO depths    : 1=0.8%, 2=1.7%, 4=3.3%, 8=6.7%, 16=13.3%, 32=26.7%, >=64=47.5%
+     submit    : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.0%, >=64=0.0%
+     complete  : 0=0.0%, 4=98.3%, 8=0.0%, 16=0.0%, 32=0.0%, 64=1.7%, >=64=0.0%
+     issued rwts: total=1920,0,0,0 short=0,0,0,0 dropped=0,0,0,0
+     latency   : target=0, window=0, percentile=100.00%, depth=64
+
+Run status group 0 (all jobs):
+   READ: bw=194MiB/s (203MB/s), 194MiB/s-194MiB/s (203MB/s-203MB/s), io=1920MiB (2013MB), run=9907-9907msec
+Running for read over 120M files with 16 jobs completed.
+{"timestamp":{"seconds":1754921183,"nanos":128872476},"severity":"INFO","message":"Start gcsfuse/unknown (Go version go1.24.5) for app \"\" using mount point: /home/princer_google_com/bucket\n"}
+{"timestamp":{"seconds":1754921183,"nanos":128907050},"severity":"INFO","message":"GCSFuse config","config":{"AppName":"","CacheDir":"","Debug":{"ExitOnInvariantViolation":false,"Fuse":false,"Gcs":false,"LogMutex":false},"DisableAutoconfig":false,"EnableAtomicRenameObject":true,"EnableGoogleLibAuth":false,"EnableHns":true,"EnableNewReader":true,"FileCache":{"CacheFileForRangeRead":false,"DownloadChunkSizeMb":200,"EnableCrc":false,"EnableODirect":false,"EnableParallelDownloads":false,"ExperimentalExcludeRegex":"","ExperimentalParallelDownloadsDefaultOn":true,"MaxParallelDownloads":192,"MaxSizeMb":-1,"ParallelDownloadsPerFile":16,"WriteBufferSize":4194304},"FileSystem":{"DirMode":"755","DisableParallelDirops":false,"ExperimentalEnableDentryCache":false,"ExperimentalEnableReaddirplus":false,"FileMode":"644","FuseOptions":[],"Gid":-1,"IgnoreInterrupts":true,"KernelListCacheTtlSecs":0,"PreconditionErrors":true,"RenameDirLimit":0,"TempDir":"","Uid":-1},"Foreground":false,"GcsAuth":{"AnonymousAccess":false,"KeyFile":"","ReuseTokenFromUrl":true,"TokenUrl":""},"GcsConnection":{"BillingProject":"","ClientProtocol":"grpc","CustomEndpoint":"","ExperimentalEnableJsonRead":false,"GrpcConnPoolSize":1,"HttpClientTimeout":0,"LimitBytesPerSec":-1,"LimitOpsPerSec":-1,"MaxConnsPerHost":0,"MaxIdleConnsPerHost":100,"SequentialReadSizeMb":200},"GcsRetries":{"ChunkTransferTimeoutSecs":10,"MaxRetryAttempts":0,"MaxRetrySleep":30000000000,"Multiplier":2,"ReadStall":{"Enable":true,"InitialReqTimeout":20000000000,"MaxReqTimeout":1200000000000,"MinReqTimeout":1500000000,"ReqIncreaseRate":15,"ReqTargetPercentile":0.99}},"ImplicitDirs":true,"List":{"EnableEmptyManagedFolders":false},"Logging":{"FilePath":"","Format":"json","LogRotate":{"BackupFileCount":10,"Compress":true,"MaxFileSizeMb":512},"Severity":"INFO"},"MachineType":"","MetadataCache":{"DeprecatedStatCacheCapacity":20460,"DeprecatedStatCacheTtl":60000000000,"DeprecatedTypeCacheTtl":60000000000,"EnableNonexistentTypeCache":false,"ExperimentalMetadataPrefetchOnMount":"disabled","NegativeTtlSecs":5,"StatCacheMaxSizeMb":33,"TtlSecs":60,"TypeCacheMaxSizeMb":4},"Metrics":{"BufferSize":256,"CloudMetricsExportIntervalSecs":0,"PrometheusPort":0,"StackdriverExportInterval":0,"UseNewNames":false,"Workers":3},"Monitoring":{"ExperimentalTracingMode":"","ExperimentalTracingSamplingRatio":0},"OnlyDir":"","Profiling":{"AllocatedHeap":true,"Cpu":true,"Enabled":false,"Goroutines":false,"Heap":true,"Label":"gcsfuse-0.0.0","Mutex":false},"Read":{"BlockSizeMb":16,"EnableBufferedRead":false,"GlobalMaxBlocks":20,"InactiveStreamTimeout":10000000000,"MaxBlocksPerHandle":20,"StartBlocksPerHandle":1},"Write":{"BlockSizeMb":33554432,"CreateEmptyFile":false,"EnableRapidAppends":true,"EnableStreamingWrites":true,"GlobalMaxBlocks":4,"MaxBlocksPerFile":1}}}
+{"timestamp":{"seconds":1754921183,"nanos":955315291},"severity":"INFO","message":"File system has been successfully mounted."}
+Running for read over 120M files with 16 jobs...
+single_group: (g=0): rw=read, bs=(R) 1024KiB-1024KiB, (W) 1024KiB-1024KiB, (T) 1024KiB-1024KiB, ioengine=libaio, iodepth=64
+...
+fio-3.16
+Starting 16 threads
+
+single_group: (groupid=0, jobs=16): err= 0: pid=4010162: Mon Aug 11 14:06:41 2025
+  read: IOPS=173, BW=174MiB/s (182MB/s)(1920MiB/11048msec)
+    slat (usec): min=417, max=780946, avg=91754.03, stdev=103794.47
+    clat (nsec): min=1403, max=5692.7M, avg=3982761078.82, stdev=1813591698.64
+     lat (usec): min=470, max=6273.0k, avg=4074515.69, stdev=1818623.56
+    clat percentiles (usec):
+     |  1.00th=[    498],  5.00th=[ 367002], 10.00th=[ 918553],
+     | 20.00th=[2055209], 30.00th=[3036677], 40.00th=[4076864],
+     | 50.00th=[5133829], 60.00th=[5335155], 70.00th=[5402264],
+     | 80.00th=[5469373], 90.00th=[5536482], 95.00th=[5603591],
+     | 99.00th=[5670700], 99.50th=[5670700], 99.90th=[5670700],
+     | 99.95th=[5670700], 99.99th=[5670700]
+   bw (  KiB/s): min=106453, max=200704, per=100.00%, avg=180210.10, stdev=2054.83, samples=160
+   iops        : min=  101, max=  196, avg=175.30, stdev= 2.05, samples=160
+  lat (usec)   : 2=0.62%, 4=0.21%, 500=0.21%, 750=0.62%
+  lat (msec)   : 100=0.73%, 250=1.35%, 500=2.81%, 750=1.98%, 1000=2.19%
+  lat (msec)   : 2000=8.65%, >=2000=80.62%
+  cpu          : usr=0.00%, sys=0.16%, ctx=1987, majf=0, minf=262160
+  IO depths    : 1=0.8%, 2=1.7%, 4=3.3%, 8=6.7%, 16=13.3%, 32=26.7%, >=64=47.5%
+     submit    : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.0%, >=64=0.0%
+     complete  : 0=0.0%, 4=98.3%, 8=0.0%, 16=0.0%, 32=0.0%, 64=1.7%, >=64=0.0%
+     issued rwts: total=1920,0,0,0 short=0,0,0,0 dropped=0,0,0,0
+     latency   : target=0, window=0, percentile=100.00%, depth=64
+
+Run status group 0 (all jobs):
+   READ: bw=174MiB/s (182MB/s), 174MiB/s-174MiB/s (182MB/s-182MB/s), io=1920MiB (2013MB), run=11048-11048msec
+Running for read over 120M files with 16 jobs completed.
+{"timestamp":{"seconds":1754921273,"nanos":361261376},"severity":"INFO","message":"Start gcsfuse/unknown (Go version go1.24.5) for app \"\" using mount point: /home/princer_google_com/bucket\n"}
+{"timestamp":{"seconds":1754921273,"nanos":361301154},"severity":"INFO","message":"GCSFuse config","config":{"AppName":"","CacheDir":"","Debug":{"ExitOnInvariantViolation":false,"Fuse":false,"Gcs":false,"LogMutex":false},"DisableAutoconfig":false,"EnableAtomicRenameObject":true,"EnableGoogleLibAuth":false,"EnableHns":true,"EnableNewReader":true,"FileCache":{"CacheFileForRangeRead":false,"DownloadChunkSizeMb":200,"EnableCrc":false,"EnableODirect":false,"EnableParallelDownloads":false,"ExperimentalExcludeRegex":"","ExperimentalParallelDownloadsDefaultOn":true,"MaxParallelDownloads":192,"MaxSizeMb":-1,"ParallelDownloadsPerFile":16,"WriteBufferSize":4194304},"FileSystem":{"DirMode":"755","DisableParallelDirops":false,"ExperimentalEnableDentryCache":false,"ExperimentalEnableReaddirplus":false,"FileMode":"644","FuseOptions":[],"Gid":-1,"IgnoreInterrupts":true,"KernelListCacheTtlSecs":0,"PreconditionErrors":true,"RenameDirLimit":0,"TempDir":"","Uid":-1},"Foreground":false,"GcsAuth":{"AnonymousAccess":false,"KeyFile":"","ReuseTokenFromUrl":true,"TokenUrl":""},"GcsConnection":{"BillingProject":"","ClientProtocol":"grpc","CustomEndpoint":"","ExperimentalEnableJsonRead":false,"GrpcConnPoolSize":1,"HttpClientTimeout":0,"LimitBytesPerSec":-1,"LimitOpsPerSec":-1,"MaxConnsPerHost":0,"MaxIdleConnsPerHost":100,"SequentialReadSizeMb":200},"GcsRetries":{"ChunkTransferTimeoutSecs":10,"MaxRetryAttempts":0,"MaxRetrySleep":30000000000,"Multiplier":2,"ReadStall":{"Enable":true,"InitialReqTimeout":20000000000,"MaxReqTimeout":1200000000000,"MinReqTimeout":1500000000,"ReqIncreaseRate":15,"ReqTargetPercentile":0.99}},"ImplicitDirs":true,"List":{"EnableEmptyManagedFolders":false},"Logging":{"FilePath":"","Format":"json","LogRotate":{"BackupFileCount":10,"Compress":true,"MaxFileSizeMb":512},"Severity":"INFO"},"MachineType":"","MetadataCache":{"DeprecatedStatCacheCapacity":20460,"DeprecatedStatCacheTtl":60000000000,"DeprecatedTypeCacheTtl":60000000000,"EnableNonexistentTypeCache":false,"ExperimentalMetadataPrefetchOnMount":"disabled","NegativeTtlSecs":5,"StatCacheMaxSizeMb":33,"TtlSecs":60,"TypeCacheMaxSizeMb":4},"Metrics":{"BufferSize":256,"CloudMetricsExportIntervalSecs":0,"PrometheusPort":0,"StackdriverExportInterval":0,"UseNewNames":false,"Workers":3},"Monitoring":{"ExperimentalTracingMode":"","ExperimentalTracingSamplingRatio":0},"OnlyDir":"","Profiling":{"AllocatedHeap":true,"Cpu":true,"Enabled":false,"Goroutines":false,"Heap":true,"Label":"gcsfuse-0.0.0","Mutex":false},"Read":{"BlockSizeMb":16,"EnableBufferedRead":false,"GlobalMaxBlocks":20,"InactiveStreamTimeout":10000000000,"MaxBlocksPerHandle":20,"StartBlocksPerHandle":1},"Write":{"BlockSizeMb":33554432,"CreateEmptyFile":false,"EnableRapidAppends":true,"EnableStreamingWrites":true,"GlobalMaxBlocks":4,"MaxBlocksPerFile":1}}}
+{"timestamp":{"seconds":1754921274,"nanos":408991081},"severity":"INFO","message":"File system has been successfully mounted."}
+Running for randread over 120M files with 16 jobs...
+single_group: (g=0): rw=randread, bs=(R) 1024KiB-1024KiB, (W) 1024KiB-1024KiB, (T) 1024KiB-1024KiB, ioengine=libaio, iodepth=64
+...
+fio-3.16
+Starting 16 threads
+
+single_group: (groupid=0, jobs=16): err= 0: pid=4010765: Mon Aug 11 14:08:21 2025
+  read: IOPS=92, BW=92.4MiB/s (96.9MB/s)(1920MiB/20769msec)
+    slat (usec): min=456, max=727928, avg=167099.97, stdev=109389.38
+    clat (nsec): min=1437, max=12752M, avg=7075630058.41, stdev=3842893184.51
+     lat (usec): min=464, max=13301k, avg=7242730.81, stdev=3878723.37
+    clat percentiles (usec):
+     |  1.00th=[     685],  5.00th=[  526386], 10.00th=[ 1266680],
+     | 20.00th=[ 2734687], 30.00th=[ 4328522], 40.00th=[ 6006244],
+     | 50.00th=[ 7751074], 60.00th=[10401874], 70.00th=[10536092],
+     | 80.00th=[10670310], 90.00th=[10938745], 95.00th=[11072963],
+     | 99.00th=[12012487], 99.50th=[12280923], 99.90th=[12683576],
+     | 99.95th=[12817794], 99.99th=[12817794]
+   bw (  KiB/s): min=67571, max=172011, per=100.00%, avg=122087.46, stdev=1791.55, samples=229
+   iops        : min=   65, max=  167, avg=117.99, stdev= 1.75, samples=229
+  lat (usec)   : 2=0.31%, 4=0.36%, 10=0.16%, 500=0.05%, 750=0.16%
+  lat (msec)   : 100=0.05%, 250=1.25%, 500=2.24%, 750=1.93%, 1000=1.82%
+  lat (msec)   : 2000=6.88%, >=2000=84.79%
+  cpu          : usr=0.00%, sys=0.09%, ctx=1985, majf=0, minf=262160
+  IO depths    : 1=0.8%, 2=1.7%, 4=3.3%, 8=6.7%, 16=13.3%, 32=26.7%, >=64=47.5%
+     submit    : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.0%, >=64=0.0%
+     complete  : 0=0.0%, 4=98.3%, 8=0.0%, 16=0.0%, 32=0.0%, 64=1.7%, >=64=0.0%
+     issued rwts: total=1920,0,0,0 short=0,0,0,0 dropped=0,0,0,0
+     latency   : target=0, window=0, percentile=100.00%, depth=64
+
+Run status group 0 (all jobs):
+   READ: bw=92.4MiB/s (96.9MB/s), 92.4MiB/s-92.4MiB/s (96.9MB/s-96.9MB/s), io=1920MiB (2013MB), run=20769-20769msec
+Running for randread over 120M files with 16 jobs completed.
+{"timestamp":{"seconds":1754921337,"nanos":764439121},"severity":"INFO","message":"Start gcsfuse/unknown (Go version go1.24.5) for app \"\" using mount point: /home/princer_google_com/bucket\n"}
+{"timestamp":{"seconds":1754921337,"nanos":764463561},"severity":"INFO","message":"GCSFuse config","config":{"AppName":"","CacheDir":"","Debug":{"ExitOnInvariantViolation":false,"Fuse":false,"Gcs":false,"LogMutex":false},"DisableAutoconfig":false,"EnableAtomicRenameObject":true,"EnableGoogleLibAuth":false,"EnableHns":true,"EnableNewReader":true,"FileCache":{"CacheFileForRangeRead":false,"DownloadChunkSizeMb":200,"EnableCrc":false,"EnableODirect":false,"EnableParallelDownloads":false,"ExperimentalExcludeRegex":"","ExperimentalParallelDownloadsDefaultOn":true,"MaxParallelDownloads":192,"MaxSizeMb":-1,"ParallelDownloadsPerFile":16,"WriteBufferSize":4194304},"FileSystem":{"DirMode":"755","DisableParallelDirops":false,"ExperimentalEnableDentryCache":false,"ExperimentalEnableReaddirplus":false,"FileMode":"644","FuseOptions":[],"Gid":-1,"IgnoreInterrupts":true,"KernelListCacheTtlSecs":0,"PreconditionErrors":true,"RenameDirLimit":0,"TempDir":"","Uid":-1},"Foreground":false,"GcsAuth":{"AnonymousAccess":false,"KeyFile":"","ReuseTokenFromUrl":true,"TokenUrl":""},"GcsConnection":{"BillingProject":"","ClientProtocol":"grpc","CustomEndpoint":"","ExperimentalEnableJsonRead":false,"GrpcConnPoolSize":1,"HttpClientTimeout":0,"LimitBytesPerSec":-1,"LimitOpsPerSec":-1,"MaxConnsPerHost":0,"MaxIdleConnsPerHost":100,"SequentialReadSizeMb":200},"GcsRetries":{"ChunkTransferTimeoutSecs":10,"MaxRetryAttempts":0,"MaxRetrySleep":30000000000,"Multiplier":2,"ReadStall":{"Enable":true,"InitialReqTimeout":20000000000,"MaxReqTimeout":1200000000000,"MinReqTimeout":1500000000,"ReqIncreaseRate":15,"ReqTargetPercentile":0.99}},"ImplicitDirs":true,"List":{"EnableEmptyManagedFolders":false},"Logging":{"FilePath":"","Format":"json","LogRotate":{"BackupFileCount":10,"Compress":true,"MaxFileSizeMb":512},"Severity":"INFO"},"MachineType":"","MetadataCache":{"DeprecatedStatCacheCapacity":20460,"DeprecatedStatCacheTtl":60000000000,"DeprecatedTypeCacheTtl":60000000000,"EnableNonexistentTypeCache":false,"ExperimentalMetadataPrefetchOnMount":"disabled","NegativeTtlSecs":5,"StatCacheMaxSizeMb":33,"TtlSecs":60,"TypeCacheMaxSizeMb":4},"Metrics":{"BufferSize":256,"CloudMetricsExportIntervalSecs":0,"PrometheusPort":0,"StackdriverExportInterval":0,"UseNewNames":false,"Workers":3},"Monitoring":{"ExperimentalTracingMode":"","ExperimentalTracingSamplingRatio":0},"OnlyDir":"","Profiling":{"AllocatedHeap":true,"Cpu":true,"Enabled":false,"Goroutines":false,"Heap":true,"Label":"gcsfuse-0.0.0","Mutex":false},"Read":{"BlockSizeMb":32,"EnableBufferedRead":true,"GlobalMaxBlocks":80,"InactiveStreamTimeout":10000000000,"MaxBlocksPerHandle":14,"StartBlocksPerHandle":1},"Write":{"BlockSizeMb":33554432,"CreateEmptyFile":false,"EnableRapidAppends":true,"EnableStreamingWrites":true,"GlobalMaxBlocks":4,"MaxBlocksPerFile":1}}}
+{"timestamp":{"seconds":1754921338,"nanos":748810838},"severity":"INFO","message":"File system has been successfully mounted."}
+Running for randread over 120M files with 16 jobs...
+single_group: (g=0): rw=randread, bs=(R) 1024KiB-1024KiB, (W) 1024KiB-1024KiB, (T) 1024KiB-1024KiB, ioengine=libaio, iodepth=64
+...
+fio-3.16
+Starting 16 threads
+
+single_group: (groupid=0, jobs=16): err= 0: pid=4011156: Mon Aug 11 14:09:35 2025
+  read: IOPS=61, BW=61.7MiB/s (64.7MB/s)(1920MiB/31129msec)
+    slat (usec): min=437, max=4209.7k, avg=251279.63, stdev=555559.53
+    clat (nsec): min=1448, max=18545M, avg=7316215937.48, stdev=3779847924.32
+     lat (usec): min=448, max=22446k, avg=7567496.53, stdev=3998343.97
+    clat percentiles (usec):
+     |  1.00th=[     594],  5.00th=[  549454], 10.00th=[ 1400898],
+     | 20.00th=[ 3271558], 30.00th=[ 5133829], 40.00th=[ 6945768],
+     | 50.00th=[ 8925479], 60.00th=[ 9730786], 70.00th=[ 9865004],
+     | 80.00th=[10133439], 90.00th=[10401874], 95.00th=[11072963],
+     | 99.00th=[17112761], 99.50th=[17112761], 99.90th=[17112761],
+     | 99.95th=[17112761], 99.99th=[17112761]
+   bw (  KiB/s): min=59374, max=167907, per=100.00%, avg=106166.14, stdev=1807.85, samples=269
+   iops        : min=   56, max=  163, avg=102.68, stdev= 1.76, samples=269
+  lat (usec)   : 2=0.21%, 4=0.52%, 10=0.05%, 20=0.05%, 500=0.05%
+  lat (usec)   : 750=0.16%
+  lat (msec)   : 100=0.05%, 250=1.61%, 500=1.93%, 750=1.77%, 1000=1.30%
+  lat (msec)   : 2000=5.68%, >=2000=86.61%
+  cpu          : usr=0.00%, sys=0.06%, ctx=1978, majf=0, minf=262160
+  IO depths    : 1=0.8%, 2=1.7%, 4=3.3%, 8=6.7%, 16=13.3%, 32=26.7%, >=64=47.5%
+     submit    : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.0%, >=64=0.0%
+     complete  : 0=0.0%, 4=98.3%, 8=0.0%, 16=0.0%, 32=0.0%, 64=1.7%, >=64=0.0%
+     issued rwts: total=1920,0,0,0 short=0,0,0,0 dropped=0,0,0,0
+     latency   : target=0, window=0, percentile=100.00%, depth=64
+
+Run status group 0 (all jobs):
+   READ: bw=61.7MiB/s (64.7MB/s), 61.7MiB/s-61.7MiB/s (64.7MB/s-64.7MB/s), io=1920MiB (2013MB), run=31129-31129msec
+Running for randread over 120M files with 16 jobs completed.
+time="11/08/2025 02:15:09.227667" severity=INFO message="Start gcsfuse/unknown (Go version go1.24.5) for app \"\" using mount point: /home/princer_google_com/bucket\n"
+time="11/08/2025 02:15:10.045340" severity=INFO message="File system has been successfully mounted."
+Running for randread over 120M files with 16 jobs...
+single_group: (g=0): rw=randread, bs=(R) 1024KiB-1024KiB, (W) 1024KiB-1024KiB, (T) 1024KiB-1024KiB, ioengine=libaio, iodepth=64
+...
+fio-3.16
+Starting 16 threads
+
+single_group: (groupid=0, jobs=16): err= 0: pid=4012466: Mon Aug 11 14:15:42 2025
+  read: IOPS=64, BW=64.7MiB/s (67.9MB/s)(1920MiB/29667msec)
+    slat (usec): min=498, max=3728.8k, avg=242439.27, stdev=507922.59
+    clat (nsec): min=1492, max=17530M, avg=7565476209.49, stdev=3890353163.95
+     lat (usec): min=667, max=21091k, avg=7807916.54, stdev=4060728.72
+    clat percentiles (usec):
+     |  1.00th=[     889],  5.00th=[  608175], 10.00th=[ 1451230],
+     | 20.00th=[ 3238003], 30.00th=[ 5200937], 40.00th=[ 7147095],
+     | 50.00th=[ 9193915], 60.00th=[10267657], 70.00th=[10536092],
+     | 80.00th=[10670310], 90.00th=[10804528], 95.00th=[10938745],
+     | 99.00th=[16710108], 99.50th=[16978543], 99.90th=[17112761],
+     | 99.95th=[17112761], 99.99th=[17112761]
+   bw (  KiB/s): min=57344, max=159723, per=100.00%, avg=101934.23, stdev=1698.22, samples=276
+   iops        : min=   56, max=  155, avg=98.97, stdev= 1.65, samples=276
+  lat (usec)   : 2=0.21%, 4=0.52%, 10=0.10%, 750=0.16%, 1000=0.05%
+  lat (msec)   : 100=0.10%, 250=1.30%, 500=1.93%, 750=1.61%, 1000=1.46%
+  lat (msec)   : 2000=5.94%, >=2000=86.61%
+  cpu          : usr=0.00%, sys=0.06%, ctx=1985, majf=0, minf=262160
+  IO depths    : 1=0.8%, 2=1.7%, 4=3.3%, 8=6.7%, 16=13.3%, 32=26.7%, >=64=47.5%
+     submit    : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.0%, >=64=0.0%
+     complete  : 0=0.0%, 4=98.3%, 8=0.0%, 16=0.0%, 32=0.0%, 64=1.7%, >=64=0.0%
+     issued rwts: total=1920,0,0,0 short=0,0,0,0 dropped=0,0,0,0
+     latency   : target=0, window=0, percentile=100.00%, depth=64
+
+Run status group 0 (all jobs):
+   READ: bw=64.7MiB/s (67.9MB/s), 64.7MiB/s-64.7MiB/s (67.9MB/s-67.9MB/s), io=1920MiB (2013MB), run=29667-29667msec
+Running for randread over 120M files with 16 jobs completed.
+time="11/08/2025 02:15:52.395911" severity=INFO message="Start gcsfuse/unknown (Go version go1.24.5) for app \"\" using mount point: /home/princer_google_com/bucket\n"
+time="11/08/2025 02:15:53.319733" severity=INFO message="File system has been successfully mounted."
+Running for randread over 120M files with 16 jobs...
+single_group: (g=0): rw=randread, bs=(R) 1024KiB-1024KiB, (W) 1024KiB-1024KiB, (T) 1024KiB-1024KiB, ioengine=libaio, iodepth=64
+...
+fio-3.16
+Starting 16 threads
+
+single_group: (groupid=0, jobs=16): err= 0: pid=4013010: Mon Aug 11 14:16:29 2025
+  read: IOPS=63, BW=63.0MiB/s (67.1MB/s)(1920MiB/30010msec)
+    slat (usec): min=488, max=3990.0k, avg=243865.55, stdev=523283.47
+    clat (nsec): min=1586, max=17963M, avg=7458753640.04, stdev=3914560008.68
+     lat (usec): min=524, max=21443k, avg=7702620.20, stdev=4096017.68
+    clat percentiles (usec):
+     |  1.00th=[     611],  5.00th=[  513803], 10.00th=[ 1300235],
+     | 20.00th=[ 3036677], 30.00th=[ 5066720], 40.00th=[ 7079986],
+     | 50.00th=[ 9059697], 60.00th=[10133439], 70.00th=[10401874],
+     | 80.00th=[10670310], 90.00th=[10804528], 95.00th=[11072963],
+     | 99.00th=[16710108], 99.50th=[17112761], 99.90th=[17112761],
+     | 99.95th=[17112761], 99.99th=[17112761]
+   bw (  KiB/s): min=55269, max=163840, per=100.00%, avg=103707.11, stdev=1793.38, samples=271
+   iops        : min=   51, max=  160, avg=100.23, stdev= 1.80, samples=271
+  lat (usec)   : 2=0.05%, 4=0.68%, 10=0.10%, 750=0.21%
+  lat (msec)   : 100=0.05%, 250=1.51%, 500=2.29%, 750=1.61%, 1000=1.67%
+  lat (msec)   : 2000=6.35%, >=2000=85.47%
+  cpu          : usr=0.00%, sys=0.06%, ctx=1989, majf=0, minf=262160
+  IO depths    : 1=0.8%, 2=1.7%, 4=3.3%, 8=6.7%, 16=13.3%, 32=26.7%, >=64=47.5%
+     submit    : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.0%, >=64=0.0%
+     complete  : 0=0.0%, 4=98.3%, 8=0.0%, 16=0.0%, 32=0.0%, 64=1.7%, >=64=0.0%
+     issued rwts: total=1920,0,0,0 short=0,0,0,0 dropped=0,0,0,0
+     latency   : target=0, window=0, percentile=100.00%, depth=64
+
+Run status group 0 (all jobs):
+   READ: bw=63.0MiB/s (67.1MB/s), 63.0MiB/s-63.0MiB/s (67.1MB/s-67.1MB/s), io=1920MiB (2013MB), run=30010-30010msec
+Running for randread over 120M files with 16 jobs completed.
+time="11/08/2025 02:23:08.216849" severity=INFO message="Start gcsfuse/unknown (Go version go1.24.5) for app \"\" using mount point: /home/princer_google_com/bucket\n"
+time="11/08/2025 02:23:09.266027" severity=INFO message="File system has been successfully mounted."
+Running for randread over 120M files with 1 jobs...
+single_group: (g=0): rw=randread, bs=(R) 1024KiB-1024KiB, (W) 1024KiB-1024KiB, (T) 1024KiB-1024KiB, ioengine=libaio, iodepth=64
+fio-3.16
+Starting 1 thread
+
+single_group: (groupid=0, jobs=1): err= 0: pid=4014600: Mon Aug 11 14:23:50 2025
+  read: IOPS=3, BW=3106KiB/s (3181kB/s)(120MiB/39559msec)
+    slat (usec): min=549, max=1575.3k, avg=329643.01, stdev=205319.47
+    clat (usec): min=2, max=20797k, avg=14220301.25, stdev=6609391.31
+     lat (msec): min=321, max=22372, avg=14549.95, stdev=6635.93
+    clat percentiles (msec):
+     |  1.00th=[  321],  5.00th=[ 1250], 10.00th=[ 3171], 20.00th=[ 6745],
+     | 30.00th=[10000], 40.00th=[14429], 50.00th=[17113], 60.00th=[17113],
+     | 70.00th=[17113], 80.00th=[17113], 90.00th=[17113], 95.00th=[17113],
+     | 99.00th=[17113], 99.50th=[17113], 99.90th=[17113], 99.95th=[17113],
+     | 99.99th=[17113]
+   bw (  KiB/s): min= 2043, max= 6144, per=100.00%, avg=3474.70, stdev=1198.99, samples=33
+   iops        : min=    1, max=    6, avg= 3.30, stdev= 1.21, samples=33
+  lat (usec)   : 4=0.83%
+  lat (msec)   : 500=1.67%, 750=0.83%, 1000=0.83%, 2000=2.50%, >=2000=93.33%
+  cpu          : usr=0.00%, sys=0.05%, ctx=123, majf=0, minf=16385
+  IO depths    : 1=0.8%, 2=1.7%, 4=3.3%, 8=6.7%, 16=13.3%, 32=26.7%, >=64=47.5%
+     submit    : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.0%, >=64=0.0%
+     complete  : 0=0.0%, 4=98.3%, 8=0.0%, 16=0.0%, 32=0.0%, 64=1.7%, >=64=0.0%
+     issued rwts: total=120,0,0,0 short=0,0,0,0 dropped=0,0,0,0
+     latency   : target=0, window=0, percentile=100.00%, depth=64
+
+Run status group 0 (all jobs):
+   READ: bw=3106KiB/s (3181kB/s), 3106KiB/s-3106KiB/s (3181kB/s-3181kB/s), io=120MiB (126MB), run=39559-39559msec
+Running for randread over 120M files with 1 jobs completed.
+time="11/08/2025 02:28:19.524147" severity=INFO message="Start gcsfuse/unknown (Go version go1.24.5) for app \"\" using mount point: /home/princer_google_com/bucket\n"
+time="11/08/2025 02:28:19.997968" severity=INFO message="File system has been successfully mounted."
+Running for randread over 120M files with 1 jobs...
+single_group: (g=0): rw=randread, bs=(R) 1024KiB-1024KiB, (W) 1024KiB-1024KiB, (T) 1024KiB-1024KiB, ioengine=libaio, iodepth=64
+fio-3.16
+Starting 1 thread
+single_group: Laying out IO file (1 file / 120MiB)
+
+single_group: (groupid=0, jobs=1): err= 0: pid=4015311: Mon Aug 11 14:28:26 2025
+  read: IOPS=26, BW=26.5MiB/s (27.8MB/s)(120MiB/4531msec)
+    slat (usec): min=515, max=142999, avg=37748.44, stdev=17830.75
+    clat (nsec): min=1880, max=2651.0M, avg=1594128779.69, stdev=816624486.18
+     lat (msec): min=32, max=2794, avg=1631.88, stdev=823.51
+    clat percentiles (msec):
+     |  1.00th=[   33],  5.00th=[  113], 10.00th=[  296], 20.00th=[  676],
+     | 30.00th=[ 1070], 40.00th=[ 1418], 50.00th=[ 1854], 60.00th=[ 2140],
+     | 70.00th=[ 2265], 80.00th=[ 2366], 90.00th=[ 2467], 95.00th=[ 2534],
+     | 99.00th=[ 2567], 99.50th=[ 2668], 99.90th=[ 2668], 99.95th=[ 2668],
+     | 99.99th=[ 2668]
+   bw (  KiB/s): min=12263, max=36864, per=100.00%, avg=28665.75, stdev=11229.53, samples=4
+   iops        : min=   11, max=   36, avg=27.75, stdev=11.44, samples=4
+  lat (usec)   : 2=0.83%
+  lat (msec)   : 50=1.67%, 100=1.67%, 250=4.17%, 500=6.67%, 750=5.83%
+  lat (msec)   : 1000=6.67%, 2000=25.00%, >=2000=47.50%
+  cpu          : usr=0.00%, sys=0.44%, ctx=124, majf=0, minf=16385
+  IO depths    : 1=0.8%, 2=1.7%, 4=3.3%, 8=6.7%, 16=13.3%, 32=26.7%, >=64=47.5%
+     submit    : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.0%, >=64=0.0%
+     complete  : 0=0.0%, 4=98.3%, 8=0.0%, 16=0.0%, 32=0.0%, 64=1.7%, >=64=0.0%
+     issued rwts: total=120,0,0,0 short=0,0,0,0 dropped=0,0,0,0
+     latency   : target=0, window=0, percentile=100.00%, depth=64
+
+Run status group 0 (all jobs):
+   READ: bw=26.5MiB/s (27.8MB/s), 26.5MiB/s-26.5MiB/s (27.8MB/s-27.8MB/s), io=120MiB (126MB), run=4531-4531msec
+Running for randread over 120M files with 1 jobs completed.
+time="11/08/2025 02:28:37.231315" severity=INFO message="Start gcsfuse/unknown (Go version go1.24.5) for app \"\" using mount point: /home/princer_google_com/bucket\n"
+time="11/08/2025 02:28:37.710263" severity=INFO message="File system has been successfully mounted."
+Running for randread over 120M files with 1 jobs...
+single_group: (g=0): rw=randread, bs=(R) 1024KiB-1024KiB, (W) 1024KiB-1024KiB, (T) 1024KiB-1024KiB, ioengine=libaio, iodepth=64
+fio-3.16
+Starting 1 thread
+
+single_group: (groupid=0, jobs=1): err= 0: pid=4015595: Mon Aug 11 14:28:42 2025
+  read: IOPS=26, BW=26.9MiB/s (28.2MB/s)(120MiB/4457msec)
+    slat (usec): min=528, max=93151, avg=37133.85, stdev=12434.72
+    clat (usec): min=4, max=2575.5k, avg=1649444.25, stdev=823981.12
+     lat (msec): min=34, max=2618, avg=1686.58, stdev=828.18
+    clat percentiles (msec):
+     |  1.00th=[   35],  5.00th=[  186], 10.00th=[  368], 20.00th=[  751],
+     | 30.00th=[ 1062], 40.00th=[ 1469], 50.00th=[ 1989], 60.00th=[ 2198],
+     | 70.00th=[ 2299], 80.00th=[ 2400], 90.00th=[ 2534], 95.00th=[ 2534],
+     | 99.00th=[ 2567], 99.50th=[ 2567], 99.90th=[ 2567], 99.95th=[ 2567],
+     | 99.99th=[ 2567]
+   bw (  KiB/s): min=20439, max=36864, per=100.00%, avg=29341.00, stdev=8298.88, samples=3
+   iops        : min=   19, max=   36, avg=28.33, stdev= 8.62, samples=3
+  lat (usec)   : 10=0.83%
+  lat (msec)   : 50=1.67%, 100=1.67%, 250=2.50%, 500=6.67%, 750=6.67%
+  lat (msec)   : 1000=7.50%, 2000=22.50%, >=2000=50.00%
+  cpu          : usr=0.00%, sys=0.36%, ctx=124, majf=0, minf=16385
+  IO depths    : 1=0.8%, 2=1.7%, 4=3.3%, 8=6.7%, 16=13.3%, 32=26.7%, >=64=47.5%
+     submit    : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.0%, >=64=0.0%
+     complete  : 0=0.0%, 4=98.3%, 8=0.0%, 16=0.0%, 32=0.0%, 64=1.7%, >=64=0.0%
+     issued rwts: total=120,0,0,0 short=0,0,0,0 dropped=0,0,0,0
+     latency   : target=0, window=0, percentile=100.00%, depth=64
+
+Run status group 0 (all jobs):
+   READ: bw=26.9MiB/s (28.2MB/s), 26.9MiB/s-26.9MiB/s (28.2MB/s-28.2MB/s), io=120MiB (126MB), run=4457-4457msec
+Running for randread over 120M files with 1 jobs completed.
+time="11/08/2025 02:29:30.966424" severity=INFO message="Start gcsfuse/unknown (Go version go1.24.5) for app \"\" using mount point: /home/princer_google_com/bucket\n"
+time="11/08/2025 02:29:31.378283" severity=INFO message="File system has been successfully mounted."
+Running for randread over 120M files with 16 jobs...
+single_group: (g=0): rw=randread, bs=(R) 1024KiB-1024KiB, (W) 1024KiB-1024KiB, (T) 1024KiB-1024KiB, ioengine=libaio, iodepth=64
+...
+fio-3.16
+Starting 16 threads
+single_group: Laying out IO file (1 file / 120MiB)
+single_group: Laying out IO file (1 file / 120MiB)
+single_group: Laying out IO file (1 file / 120MiB)
+single_group: Laying out IO file (1 file / 120MiB)
+single_group: Laying out IO file (1 file / 120MiB)
+single_group: Laying out IO file (1 file / 120MiB)
+single_group: Laying out IO file (1 file / 120MiB)
+single_group: Laying out IO file (1 file / 120MiB)
+single_group: Laying out IO file (1 file / 120MiB)
+single_group: Laying out IO file (1 file / 120MiB)
+single_group: Laying out IO file (1 file / 120MiB)
+single_group: Laying out IO file (1 file / 120MiB)
+single_group: Laying out IO file (1 file / 120MiB)
+single_group: Laying out IO file (1 file / 120MiB)
+single_group: Laying out IO file (1 file / 120MiB)
+
+single_group: (groupid=0, jobs=16): err= 0: pid=4016611: Mon Aug 11 14:29:55 2025
+  read: IOPS=415, BW=415MiB/s (435MB/s)(1920MiB/4623msec)
+    slat (usec): min=461, max=213180, avg=31690.41, stdev=17764.37
+    clat (nsec): min=1468, max=2987.5M, avg=1323888078.46, stdev=720267180.91
+     lat (usec): min=516, max=3043.7k, avg=1355579.27, stdev=727335.54
+    clat percentiles (usec):
+     |  1.00th=[    611],  5.00th=[  95945], 10.00th=[ 235930],
+     | 20.00th=[ 549454], 30.00th=[ 859833], 40.00th=[1182794],
+     | 50.00th=[1518339], 60.00th=[1669333], 70.00th=[1803551],
+     | 80.00th=[1937769], 90.00th=[2139096], 95.00th=[2432697],
+     | 99.00th=[2734687], 99.50th=[2801796], 99.90th=[2936013],
+     | 99.95th=[3003122], 99.99th=[3003122]
+   bw (  KiB/s): min=350208, max=644956, per=100.00%, avg=521043.00, stdev=9952.40, samples=42
+   iops        : min=  342, max=  628, avg=508.00, stdev= 9.67, samples=42
+  lat (usec)   : 2=0.31%, 4=0.47%, 10=0.05%, 750=0.21%
+  lat (msec)   : 20=0.05%, 50=1.98%, 100=2.19%, 250=5.42%, 500=7.76%
+  lat (msec)   : 750=8.12%, 1000=7.86%, 2000=48.96%, >=2000=16.61%
+  cpu          : usr=0.01%, sys=0.50%, ctx=1975, majf=0, minf=262160
+  IO depths    : 1=0.8%, 2=1.7%, 4=3.3%, 8=6.7%, 16=13.3%, 32=26.7%, >=64=47.5%
+     submit    : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.0%, >=64=0.0%
+     complete  : 0=0.0%, 4=98.3%, 8=0.0%, 16=0.0%, 32=0.0%, 64=1.7%, >=64=0.0%
+     issued rwts: total=1920,0,0,0 short=0,0,0,0 dropped=0,0,0,0
+     latency   : target=0, window=0, percentile=100.00%, depth=64
+
+Run status group 0 (all jobs):
+   READ: bw=415MiB/s (435MB/s), 415MiB/s-415MiB/s (435MB/s-435MB/s), io=1920MiB (2013MB), run=4623-4623msec
+Running for randread over 120M files with 16 jobs completed.
+time="11/08/2025 02:31:05.517525" severity=INFO message="Start gcsfuse/unknown (Go version go1.24.5) for app \"\" using mount point: /home/princer_google_com/bucket\n"
+time="11/08/2025 02:31:05.935515" severity=INFO message="File system has been successfully mounted."
+Running for randread over 120M files with 16 jobs...
+single_group: (g=0): rw=randread, bs=(R) 1024KiB-1024KiB, (W) 1024KiB-1024KiB, (T) 1024KiB-1024KiB, ioengine=libaio, iodepth=64
+...
+fio-3.16
+Starting 16 threads
+
+single_group: (groupid=0, jobs=16): err= 0: pid=4016982: Mon Aug 11 14:31:10 2025
+  read: IOPS=515, BW=515MiB/s (540MB/s)(1920MiB/3726msec)
+    slat (usec): min=429, max=264288, avg=28065.60, stdev=24112.21
+    clat (nsec): min=1578, max=2326.5M, avg=1118368997.72, stdev=558964111.64
+     lat (usec): min=467, max=2461.8k, avg=1146435.49, stdev=565591.94
+    clat percentiles (usec):
+     |  1.00th=[    619],  5.00th=[  93848], 10.00th=[ 221250],
+     | 20.00th=[ 488637], 30.00th=[ 775947], 40.00th=[1069548],
+     | 50.00th=[1367344], 60.00th=[1484784], 70.00th=[1551893],
+     | 80.00th=[1602225], 90.00th=[1652556], 95.00th=[1702888],
+     | 99.00th=[1954546], 99.50th=[2122318], 99.90th=[2332034],
+     | 99.95th=[2332034], 99.99th=[2332034]
+   bw (  KiB/s): min=454656, max=691597, per=100.00%, avg=598461.00, stdev=11312.31, samples=37
+   iops        : min=  444, max=  674, avg=583.67, stdev=10.98, samples=37
+  lat (usec)   : 2=0.21%, 4=0.57%, 10=0.05%, 500=0.10%, 750=0.10%
+  lat (msec)   : 20=0.16%, 50=1.82%, 100=2.50%, 250=5.62%, 500=9.01%
+  lat (msec)   : 750=8.91%, 1000=8.28%, 2000=61.77%, >=2000=0.89%
+  cpu          : usr=0.08%, sys=0.48%, ctx=1974, majf=0, minf=262160
+  IO depths    : 1=0.8%, 2=1.7%, 4=3.3%, 8=6.7%, 16=13.3%, 32=26.7%, >=64=47.5%
+     submit    : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.0%, >=64=0.0%
+     complete  : 0=0.0%, 4=98.3%, 8=0.0%, 16=0.0%, 32=0.0%, 64=1.7%, >=64=0.0%
+     issued rwts: total=1920,0,0,0 short=0,0,0,0 dropped=0,0,0,0
+     latency   : target=0, window=0, percentile=100.00%, depth=64
+
+Run status group 0 (all jobs):
+   READ: bw=515MiB/s (540MB/s), 515MiB/s-515MiB/s (540MB/s-540MB/s), io=1920MiB (2013MB), run=3726-3726msec
+Running for randread over 120M files with 16 jobs completed.
+time="11/08/2025 02:31:19.122935" severity=INFO message="Start gcsfuse/unknown (Go version go1.24.5) for app \"\" using mount point: /home/princer_google_com/bucket\n"
+time="11/08/2025 02:31:19.537167" severity=INFO message="File system has been successfully mounted."
+Running for randread over 120M files with 16 jobs...
+single_group: (g=0): rw=randread, bs=(R) 1024KiB-1024KiB, (W) 1024KiB-1024KiB, (T) 1024KiB-1024KiB, ioengine=libaio, iodepth=64
+...
+fio-3.16
+Starting 16 threads
+
+single_group: (groupid=0, jobs=16): err= 0: pid=4017286: Mon Aug 11 14:31:23 2025
+  read: IOPS=592, BW=593MiB/s (622MB/s)(1920MiB/3238msec)
+    slat (usec): min=449, max=178414, avg=26211.96, stdev=18452.61
+    clat (nsec): min=1499, max=1873.2M, avg=1084211967.04, stdev=531722010.65
+     lat (usec): min=499, max=1972.5k, avg=1110424.63, stdev=536268.77
+    clat percentiles (usec):
+     |  1.00th=[    627],  5.00th=[  90702], 10.00th=[ 223347],
+     | 20.00th=[ 488637], 30.00th=[ 767558], 40.00th=[1052771],
+     | 50.00th=[1333789], 60.00th=[1468007], 70.00th=[1518339],
+     | 80.00th=[1535116], 90.00th=[1585447], 95.00th=[1619002],
+     | 99.00th=[1736442], 99.50th=[1786774], 99.90th=[1853883],
+     | 99.95th=[1870660], 99.99th=[1870660]
+   bw (  KiB/s): min=167936, max=759808, per=88.03%, avg=534528.00, stdev=16805.25, samples=48
+   iops        : min=  164, max=  742, avg=522.00, stdev=16.41, samples=48
+  lat (usec)   : 2=0.47%, 4=0.21%, 10=0.16%, 750=0.21%
+  lat (msec)   : 50=2.03%, 100=2.34%, 250=5.73%, 500=9.38%, 750=8.96%
+  lat (msec)   : 1000=8.54%, 2000=61.98%
+  cpu          : usr=0.02%, sys=0.58%, ctx=1982, majf=0, minf=262160
+  IO depths    : 1=0.8%, 2=1.7%, 4=3.3%, 8=6.7%, 16=13.3%, 32=26.7%, >=64=47.5%
+     submit    : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.0%, >=64=0.0%
+     complete  : 0=0.0%, 4=98.3%, 8=0.0%, 16=0.0%, 32=0.0%, 64=1.7%, >=64=0.0%
+     issued rwts: total=1920,0,0,0 short=0,0,0,0 dropped=0,0,0,0
+     latency   : target=0, window=0, percentile=100.00%, depth=64
+
+Run status group 0 (all jobs):
+   READ: bw=593MiB/s (622MB/s), 593MiB/s-593MiB/s (622MB/s-622MB/s), io=1920MiB (2013MB), run=3238-3238msec
+Running for randread over 120M files with 16 jobs completed.
+time="11/08/2025 02:31:33.983594" severity=INFO message="Start gcsfuse/unknown (Go version go1.24.5) for app \"\" using mount point: /home/princer_google_com/bucket\n"
+time="11/08/2025 02:31:34.373258" severity=INFO message="File system has been successfully mounted."
+Running for randread over 120M files with 16 jobs...
+single_group: (g=0): rw=randread, bs=(R) 1024KiB-1024KiB, (W) 1024KiB-1024KiB, (T) 1024KiB-1024KiB, ioengine=libaio, iodepth=64
+...
+fio-3.16
+Starting 16 threads
+
+single_group: (groupid=0, jobs=16): err= 0: pid=4017571: Mon Aug 11 14:31:38 2025
+  read: IOPS=624, BW=624MiB/s (655MB/s)(1920MiB/3076msec)
+    slat (usec): min=441, max=76603, avg=24198.42, stdev=7319.13
+    clat (nsec): min=1662, max=1692.7M, avg=1074559163.66, stdev=522787261.20
+     lat (usec): min=459, max=1741.8k, avg=1098758.37, stdev=524930.17
+    clat percentiles (usec):
+     |  1.00th=[    611],  5.00th=[  96994], 10.00th=[ 223347],
+     | 20.00th=[ 488637], 30.00th=[ 767558], 40.00th=[1044382],
+     | 50.00th=[1333789], 60.00th=[1451230], 70.00th=[1501561],
+     | 80.00th=[1535116], 90.00th=[1568670], 95.00th=[1602225],
+     | 99.00th=[1635779], 99.50th=[1652556], 99.90th=[1686111],
+     | 99.95th=[1686111], 99.99th=[1686111]
+   bw (  KiB/s): min=495616, max=714752, per=95.38%, avg=609621.33, stdev=7300.50, samples=34
+   iops        : min=  484, max=  698, avg=595.33, stdev= 7.13, samples=34
+  lat (usec)   : 2=0.31%, 4=0.42%, 10=0.10%, 500=0.10%, 750=0.10%
+  lat (msec)   : 50=1.82%, 100=2.19%, 250=6.15%, 500=9.27%, 750=8.91%
+  lat (msec)   : 1000=8.80%, 2000=61.82%
+  cpu          : usr=0.03%, sys=0.63%, ctx=1979, majf=0, minf=262160
+  IO depths    : 1=0.8%, 2=1.7%, 4=3.3%, 8=6.7%, 16=13.3%, 32=26.7%, >=64=47.5%
+     submit    : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.0%, >=64=0.0%
+     complete  : 0=0.0%, 4=98.3%, 8=0.0%, 16=0.0%, 32=0.0%, 64=1.7%, >=64=0.0%
+     issued rwts: total=1920,0,0,0 short=0,0,0,0 dropped=0,0,0,0
+     latency   : target=0, window=0, percentile=100.00%, depth=64
+
+Run status group 0 (all jobs):
+   READ: bw=624MiB/s (655MB/s), 624MiB/s-624MiB/s (655MB/s-655MB/s), io=1920MiB (2013MB), run=3076-3076msec
+Running for randread over 120M files with 16 jobs completed.
+time="11/08/2025 02:31:45.821758" severity=INFO message="Start gcsfuse/unknown (Go version go1.24.5) for app \"\" using mount point: /home/princer_google_com/bucket\n"
+time="11/08/2025 02:31:46.194880" severity=INFO message="File system has been successfully mounted."
+Running for randread over 120M files with 16 jobs...
+single_group: (g=0): rw=randread, bs=(R) 1024KiB-1024KiB, (W) 1024KiB-1024KiB, (T) 1024KiB-1024KiB, ioengine=libaio, iodepth=64
+...
+fio-3.16
+Starting 16 threads
+
+single_group: (groupid=0, jobs=16): err= 0: pid=4017850: Mon Aug 11 14:31:50 2025
+  read: IOPS=646, BW=646MiB/s (678MB/s)(1920MiB/2971msec)
+    slat (usec): min=481, max=64733, avg=24062.09, stdev=6633.82
+    clat (nsec): min=1773, max=1635.2M, avg=1079656473.60, stdev=520352848.86
+     lat (usec): min=554, max=1660.8k, avg=1103719.36, stdev=522047.69
+    clat percentiles (usec):
+     |  1.00th=[    603],  5.00th=[  94897], 10.00th=[ 225444],
+     | 20.00th=[ 497026], 30.00th=[ 784335], 40.00th=[1061159],
+     | 50.00th=[1350566], 60.00th=[1468007], 70.00th=[1518339],
+     | 80.00th=[1535116], 90.00th=[1551893], 95.00th=[1568670],
+     | 99.00th=[1585447], 99.50th=[1602225], 99.90th=[1635779],
+     | 99.95th=[1635779], 99.99th=[1635779]
+   bw (  KiB/s): min=542720, max=688128, per=93.00%, avg=615424.00, stdev=5103.46, samples=32
+   iops        : min=  530, max=  672, avg=601.00, stdev= 4.98, samples=32
+  lat (usec)   : 2=0.21%, 4=0.62%, 750=0.21%
+  lat (msec)   : 20=0.21%, 50=1.77%, 100=2.34%, 250=5.73%, 500=8.96%
+  lat (msec)   : 750=8.91%, 1000=8.59%, 2000=62.45%
+  cpu          : usr=0.05%, sys=0.60%, ctx=1971, majf=0, minf=262160
+  IO depths    : 1=0.8%, 2=1.7%, 4=3.3%, 8=6.7%, 16=13.3%, 32=26.7%, >=64=47.5%
+     submit    : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.0%, >=64=0.0%
+     complete  : 0=0.0%, 4=98.3%, 8=0.0%, 16=0.0%, 32=0.0%, 64=1.7%, >=64=0.0%
+     issued rwts: total=1920,0,0,0 short=0,0,0,0 dropped=0,0,0,0
+     latency   : target=0, window=0, percentile=100.00%, depth=64
+
+Run status group 0 (all jobs):
+   READ: bw=646MiB/s (678MB/s), 646MiB/s-646MiB/s (678MB/s-678MB/s), io=1920MiB (2013MB), run=2971-2971msec
+Running for randread over 120M files with 16 jobs completed.
+time="11/08/2025 02:32:00.443908" severity=INFO message="Start gcsfuse/unknown (Go version go1.24.5) for app \"\" using mount point: /home/princer_google_com/bucket\n"
+time="11/08/2025 02:32:00.885221" severity=INFO message="File system has been successfully mounted."
+Running for randread over 120M files with 16 jobs...
+single_group: (g=0): rw=randread, bs=(R) 1024KiB-1024KiB, (W) 1024KiB-1024KiB, (T) 1024KiB-1024KiB, ioengine=libaio, iodepth=64
+...
+fio-3.16
+Starting 16 threads
+
+single_group: (groupid=0, jobs=16): err= 0: pid=4018183: Mon Aug 11 14:32:05 2025
+  read: IOPS=590, BW=590MiB/s (619MB/s)(1920MiB/3252msec)
+    slat (usec): min=406, max=223870, avg=25827.89, stdev=18827.49
+    clat (nsec): min=1529, max=1823.9M, avg=1067123572.56, stdev=519778339.78
+     lat (usec): min=477, max=1947.8k, avg=1092952.29, stdev=524164.32
+    clat percentiles (usec):
+     |  1.00th=[    922],  5.00th=[  94897], 10.00th=[ 221250],
+     | 20.00th=[ 488637], 30.00th=[ 759170], 40.00th=[1044382],
+     | 50.00th=[1317012], 60.00th=[1451230], 70.00th=[1484784],
+     | 80.00th=[1518339], 90.00th=[1551893], 95.00th=[1585447],
+     | 99.00th=[1702888], 99.50th=[1736442], 99.90th=[1803551],
+     | 99.95th=[1820328], 99.99th=[1820328]
+   bw (  KiB/s): min=217088, max=765952, per=91.60%, avg=553814.67, stdev=15672.43, samples=47
+   iops        : min=  212, max=  748, avg=539.00, stdev=15.25, samples=47
+  lat (usec)   : 2=0.21%, 4=0.57%, 10=0.05%, 500=0.10%, 750=0.05%
+  lat (usec)   : 1000=0.05%
+  lat (msec)   : 20=0.10%, 50=2.14%, 100=1.98%, 250=5.83%, 500=9.43%
+  lat (msec)   : 750=9.17%, 1000=8.75%, 2000=61.56%
+  cpu          : usr=0.01%, sys=0.60%, ctx=1975, majf=0, minf=262160
+  IO depths    : 1=0.8%, 2=1.7%, 4=3.3%, 8=6.7%, 16=13.3%, 32=26.7%, >=64=47.5%
+     submit    : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.0%, >=64=0.0%
+     complete  : 0=0.0%, 4=98.3%, 8=0.0%, 16=0.0%, 32=0.0%, 64=1.7%, >=64=0.0%
+     issued rwts: total=1920,0,0,0 short=0,0,0,0 dropped=0,0,0,0
+     latency   : target=0, window=0, percentile=100.00%, depth=64
+
+Run status group 0 (all jobs):
+   READ: bw=590MiB/s (619MB/s), 590MiB/s-590MiB/s (619MB/s-619MB/s), io=1920MiB (2013MB), run=3252-3252msec
+Running for randread over 120M files with 16 jobs completed.
+time="11/08/2025 02:32:11.930239" severity=INFO message="Start gcsfuse/unknown (Go version go1.24.5) for app \"\" using mount point: /home/princer_google_com/bucket\n"
+time="11/08/2025 02:32:12.329561" severity=INFO message="File system has been successfully mounted."
+Running for randread over 120M files with 16 jobs...
+single_group: (g=0): rw=randread, bs=(R) 1024KiB-1024KiB, (W) 1024KiB-1024KiB, (T) 1024KiB-1024KiB, ioengine=libaio, iodepth=64
+...
+fio-3.16
+Starting 16 threads
+
+single_group: (groupid=0, jobs=16): err= 0: pid=4018462: Mon Aug 11 14:32:16 2025
+  read: IOPS=603, BW=603MiB/s (633MB/s)(1920MiB/3183msec)
+    slat (usec): min=403, max=299027, avg=25333.10, stdev=17184.42
+    clat (nsec): min=1391, max=1787.8M, avg=1063169507.05, stdev=516333761.06
+     lat (usec): min=491, max=1970.5k, avg=1088503.51, stdev=520087.32
+    clat percentiles (usec):
+     |  1.00th=[    570],  5.00th=[  94897], 10.00th=[ 219153],
+     | 20.00th=[ 488637], 30.00th=[ 759170], 40.00th=[1044382],
+     | 50.00th=[1333789], 60.00th=[1451230], 70.00th=[1484784],
+     | 80.00th=[1518339], 90.00th=[1551893], 95.00th=[1568670],
+     | 99.00th=[1669333], 99.50th=[1686111], 99.90th=[1769997],
+     | 99.95th=[1786774], 99.99th=[1786774]
+   bw (  KiB/s): min=303104, max=726950, per=88.08%, avg=544026.67, stdev=13169.39, samples=40
+   iops        : min=  296, max=  709, avg=530.67, stdev=12.82, samples=40
+  lat (usec)   : 2=0.26%, 4=0.57%, 500=0.05%, 750=0.16%
+  lat (msec)   : 20=0.26%, 50=1.93%, 100=2.29%, 250=5.68%, 500=9.38%
+  lat (msec)   : 750=9.22%, 1000=8.70%, 2000=61.51%
+  cpu          : usr=0.02%, sys=0.62%, ctx=1976, majf=0, minf=262160
+  IO depths    : 1=0.8%, 2=1.7%, 4=3.3%, 8=6.7%, 16=13.3%, 32=26.7%, >=64=47.5%
+     submit    : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.0%, >=64=0.0%
+     complete  : 0=0.0%, 4=98.3%, 8=0.0%, 16=0.0%, 32=0.0%, 64=1.7%, >=64=0.0%
+     issued rwts: total=1920,0,0,0 short=0,0,0,0 dropped=0,0,0,0
+     latency   : target=0, window=0, percentile=100.00%, depth=64
+
+Run status group 0 (all jobs):
+   READ: bw=603MiB/s (633MB/s), 603MiB/s-603MiB/s (633MB/s-633MB/s), io=1920MiB (2013MB), run=3183-3183msec
+Running for randread over 120M files with 16 jobs completed.
+time="11/08/2025 02:32:25.388895" severity=INFO message="Start gcsfuse/unknown (Go version go1.24.5) for app \"\" using mount point: /home/princer_google_com/bucket\n"
+time="11/08/2025 02:32:25.760982" severity=INFO message="File system has been successfully mounted."
+Running for randread over 120M files with 16 jobs...
+single_group: (g=0): rw=randread, bs=(R) 1024KiB-1024KiB, (W) 1024KiB-1024KiB, (T) 1024KiB-1024KiB, ioengine=libaio, iodepth=64
+...
+fio-3.16
+Starting 16 threads
+
+single_group: (groupid=0, jobs=16): err= 0: pid=4018751: Mon Aug 11 14:32:29 2025
+  read: IOPS=607, BW=608MiB/s (638MB/s)(1920MiB/3158msec)
+    slat (usec): min=446, max=182756, avg=25237.61, stdev=17039.12
+    clat (nsec): min=1591, max=1786.7M, avg=1052318869.07, stdev=511209965.31
+     lat (usec): min=482, max=1865.9k, avg=1077557.34, stdev=515184.56
+    clat percentiles (usec):
+     |  1.00th=[    570],  5.00th=[  94897], 10.00th=[ 221250],
+     | 20.00th=[ 480248], 30.00th=[ 750781], 40.00th=[1027605],
+     | 50.00th=[1300235], 60.00th=[1417675], 70.00th=[1468007],
+     | 80.00th=[1484784], 90.00th=[1535116], 95.00th=[1568670],
+     | 99.00th=[1669333], 99.50th=[1719665], 99.90th=[1769997],
+     | 99.95th=[1786774], 99.99th=[1786774]
+   bw (  KiB/s): min=290816, max=761856, per=91.89%, avg=572074.67, stdev=13818.63, samples=44
+   iops        : min=  284, max=  744, avg=558.67, stdev=13.49, samples=44
+  lat (usec)   : 2=0.31%, 4=0.47%, 10=0.05%, 500=0.05%, 750=0.16%
+  lat (msec)   : 20=0.05%, 50=2.14%, 100=2.14%, 250=5.94%, 500=9.43%
+  lat (msec)   : 750=9.22%, 1000=9.11%, 2000=60.94%
+  cpu          : usr=0.02%, sys=0.61%, ctx=1975, majf=0, minf=262160
+  IO depths    : 1=0.8%, 2=1.7%, 4=3.3%, 8=6.7%, 16=13.3%, 32=26.7%, >=64=47.5%
+     submit    : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.0%, >=64=0.0%
+     complete  : 0=0.0%, 4=98.3%, 8=0.0%, 16=0.0%, 32=0.0%, 64=1.7%, >=64=0.0%
+     issued rwts: total=1920,0,0,0 short=0,0,0,0 dropped=0,0,0,0
+     latency   : target=0, window=0, percentile=100.00%, depth=64
+
+Run status group 0 (all jobs):
+   READ: bw=608MiB/s (638MB/s), 608MiB/s-608MiB/s (638MB/s-638MB/s), io=1920MiB (2013MB), run=3158-3158msec
+Running for randread over 120M files with 16 jobs completed.
+time="11/08/2025 02:32:40.900210" severity=INFO message="Start gcsfuse/unknown (Go version go1.24.5) for app \"\" using mount point: /home/princer_google_com/bucket\n"
+time="11/08/2025 02:32:41.261853" severity=INFO message="File system has been successfully mounted."
+Running for randread over 120M files with 16 jobs...
+single_group: (g=0): rw=randread, bs=(R) 1024KiB-1024KiB, (W) 1024KiB-1024KiB, (T) 1024KiB-1024KiB, ioengine=libaio, iodepth=64
+...
+fio-3.16
+Starting 16 threads
+
+single_group: (groupid=0, jobs=16): err= 0: pid=4019083: Mon Aug 11 14:32:45 2025
+  read: IOPS=650, BW=650MiB/s (682MB/s)(1920MiB/2953msec)
+    slat (usec): min=429, max=76536, avg=23720.75, stdev=6879.09
+    clat (nsec): min=1522, max=1653.8M, avg=1052547052.11, stdev=511753965.87
+     lat (usec): min=461, max=1694.8k, avg=1076268.54, stdev=513865.37
+    clat percentiles (usec):
+     |  1.00th=[    578],  5.00th=[  95945], 10.00th=[ 221250],
+     | 20.00th=[ 480248], 30.00th=[ 750781], 40.00th=[1027605],
+     | 50.00th=[1300235], 60.00th=[1434452], 70.00th=[1468007],
+     | 80.00th=[1501561], 90.00th=[1535116], 95.00th=[1568670],
+     | 99.00th=[1602225], 99.50th=[1619002], 99.90th=[1652556],
+     | 99.95th=[1652556], 99.99th=[1652556]
+   bw (  KiB/s): min=548864, max=733184, per=96.28%, avg=641024.00, stdev=6242.31, samples=32
+   iops        : min=  536, max=  716, avg=626.00, stdev= 6.10, samples=32
+  lat (usec)   : 2=0.16%, 4=0.52%, 10=0.16%, 500=0.10%, 750=0.10%
+  lat (msec)   : 20=0.05%, 50=1.98%, 100=2.08%, 250=6.04%, 500=9.69%
+  lat (msec)   : 750=9.17%, 1000=8.96%, 2000=60.99%
+  cpu          : usr=0.02%, sys=0.65%, ctx=1978, majf=0, minf=262160
+  IO depths    : 1=0.8%, 2=1.7%, 4=3.3%, 8=6.7%, 16=13.3%, 32=26.7%, >=64=47.5%
+     submit    : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.0%, >=64=0.0%
+     complete  : 0=0.0%, 4=98.3%, 8=0.0%, 16=0.0%, 32=0.0%, 64=1.7%, >=64=0.0%
+     issued rwts: total=1920,0,0,0 short=0,0,0,0 dropped=0,0,0,0
+     latency   : target=0, window=0, percentile=100.00%, depth=64
+
+Run status group 0 (all jobs):
+   READ: bw=650MiB/s (682MB/s), 650MiB/s-650MiB/s (682MB/s-682MB/s), io=1920MiB (2013MB), run=2953-2953msec
+Running for randread over 120M files with 16 jobs completed.
+time="11/08/2025 02:32:56.519441" severity=INFO message="Start gcsfuse/unknown (Go version go1.24.5) for app \"\" using mount point: /home/princer_google_com/bucket\n"
+time="11/08/2025 02:32:56.874968" severity=INFO message="File system has been successfully mounted."
+Running for randread over 120M files with 16 jobs...
+single_group: (g=0): rw=randread, bs=(R) 1024KiB-1024KiB, (W) 1024KiB-1024KiB, (T) 1024KiB-1024KiB, ioengine=libaio, iodepth=64
+...
+fio-3.16
+Starting 16 threads
+
+single_group: (groupid=0, jobs=16): err= 0: pid=4019391: Mon Aug 11 14:33:01 2025
+  read: IOPS=607, BW=608MiB/s (637MB/s)(1920MiB/3160msec)
+    slat (usec): min=424, max=234780, avg=25456.72, stdev=16994.42
+    clat (nsec): min=1487, max=1783.7M, avg=1065280483.03, stdev=516115452.93
+     lat (usec): min=452, max=1869.8k, avg=1090738.01, stdev=519969.94
+    clat percentiles (usec):
+     |  1.00th=[    594],  5.00th=[  95945], 10.00th=[ 221250],
+     | 20.00th=[ 488637], 30.00th=[ 759170], 40.00th=[1044382],
+     | 50.00th=[1333789], 60.00th=[1451230], 70.00th=[1484784],
+     | 80.00th=[1518339], 90.00th=[1551893], 95.00th=[1568670],
+     | 99.00th=[1669333], 99.50th=[1702888], 99.90th=[1769997],
+     | 99.95th=[1786774], 99.99th=[1786774]
+   bw (  KiB/s): min=278528, max=747520, per=90.90%, avg=565589.33, stdev=13878.20, samples=45
+   iops        : min=  272, max=  730, avg=552.33, stdev=13.55, samples=45
+  lat (usec)   : 2=0.26%, 4=0.47%, 10=0.10%, 500=0.05%, 750=0.16%
+  lat (msec)   : 20=0.10%, 50=1.88%, 100=2.03%, 250=5.99%, 500=9.38%
+  lat (msec)   : 750=9.17%, 1000=8.80%, 2000=61.61%
+  cpu          : usr=0.05%, sys=0.57%, ctx=1973, majf=0, minf=262160
+  IO depths    : 1=0.8%, 2=1.7%, 4=3.3%, 8=6.7%, 16=13.3%, 32=26.7%, >=64=47.5%
+     submit    : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.0%, >=64=0.0%
+     complete  : 0=0.0%, 4=98.3%, 8=0.0%, 16=0.0%, 32=0.0%, 64=1.7%, >=64=0.0%
+     issued rwts: total=1920,0,0,0 short=0,0,0,0 dropped=0,0,0,0
+     latency   : target=0, window=0, percentile=100.00%, depth=64
+
+Run status group 0 (all jobs):
+   READ: bw=608MiB/s (637MB/s), 608MiB/s-608MiB/s (637MB/s-637MB/s), io=1920MiB (2013MB), run=3160-3160msec
+Running for randread over 120M files with 16 jobs completed.
+time="11/08/2025 02:33:34.572297" severity=INFO message="Start gcsfuse/unknown (Go version go1.24.5) for app \"\" using mount point: /home/princer_google_com/bucket\n"
+time="11/08/2025 02:33:34.945726" severity=INFO message="File system has been successfully mounted."
+Running for randread over 120M files with 96 jobs...
+single_group: (g=0): rw=randread, bs=(R) 1024KiB-1024KiB, (W) 1024KiB-1024KiB, (T) 1024KiB-1024KiB, ioengine=libaio, iodepth=64
+...
+fio-3.16
+Starting 96 threads
+single_group: Laying out IO file (1 file / 120MiB)
+single_group: Laying out IO file (1 file / 120MiB)
+single_group: Laying out IO file (1 file / 120MiB)
+single_group: Laying out IO file (1 file / 120MiB)
+single_group: Laying out IO file (1 file / 120MiB)
+single_group: Laying out IO file (1 file / 120MiB)
+single_group: Laying out IO file (1 file / 120MiB)
+single_group: Laying out IO file (1 file / 120MiB)
+single_group: Laying out IO file (1 file / 120MiB)
+single_group: Laying out IO file (1 file / 120MiB)
+single_group: Laying out IO file (1 file / 120MiB)
+single_group: Laying out IO file (1 file / 120MiB)
+single_group: Laying out IO file (1 file / 120MiB)
+single_group: Laying out IO file (1 file / 120MiB)
+single_group: Laying out IO file (1 file / 120MiB)
+single_group: Laying out IO file (1 file / 120MiB)
+single_group: Laying out IO file (1 file / 120MiB)
+single_group: Laying out IO file (1 file / 120MiB)
+single_group: Laying out IO file (1 file / 120MiB)
+single_group: Laying out IO file (1 file / 120MiB)
+single_group: Laying out IO file (1 file / 120MiB)
+single_group: Laying out IO file (1 file / 120MiB)
+single_group: Laying out IO file (1 file / 120MiB)
+single_group: Laying out IO file (1 file / 120MiB)
+single_group: Laying out IO file (1 file / 120MiB)
+single_group: Laying out IO file (1 file / 120MiB)
+single_group: Laying out IO file (1 file / 120MiB)
+single_group: Laying out IO file (1 file / 120MiB)
+single_group: Laying out IO file (1 file / 120MiB)
+single_group: Laying out IO file (1 file / 120MiB)
+single_group: Laying out IO file (1 file / 120MiB)
+single_group: Laying out IO file (1 file / 120MiB)
+single_group: Laying out IO file (1 file / 120MiB)
+single_group: Laying out IO file (1 file / 120MiB)
+single_group: Laying out IO file (1 file / 120MiB)
+single_group: Laying out IO file (1 file / 120MiB)
+single_group: Laying out IO file (1 file / 120MiB)
+single_group: Laying out IO file (1 file / 120MiB)
+single_group: Laying out IO file (1 file / 120MiB)
+single_group: Laying out IO file (1 file / 120MiB)
+single_group: Laying out IO file (1 file / 120MiB)
+single_group: Laying out IO file (1 file / 120MiB)
+single_group: Laying out IO file (1 file / 120MiB)
+single_group: Laying out IO file (1 file / 120MiB)
+single_group: Laying out IO file (1 file / 120MiB)
+single_group: Laying out IO file (1 file / 120MiB)
+single_group: Laying out IO file (1 file / 120MiB)
+single_group: Laying out IO file (1 file / 120MiB)
+single_group: Laying out IO file (1 file / 120MiB)
+single_group: Laying out IO file (1 file / 120MiB)
+single_group: Laying out IO file (1 file / 120MiB)
+single_group: Laying out IO file (1 file / 120MiB)
+single_group: Laying out IO file (1 file / 120MiB)
+single_group: Laying out IO file (1 file / 120MiB)
+single_group: Laying out IO file (1 file / 120MiB)
+single_group: Laying out IO file (1 file / 120MiB)
+single_group: Laying out IO file (1 file / 120MiB)
+single_group: Laying out IO file (1 file / 120MiB)
+single_group: Laying out IO file (1 file / 120MiB)
+single_group: Laying out IO file (1 file / 120MiB)
+single_group: Laying out IO file (1 file / 120MiB)
+single_group: Laying out IO file (1 file / 120MiB)
+single_group: Laying out IO file (1 file / 120MiB)
+single_group: Laying out IO file (1 file / 120MiB)
+single_group: Laying out IO file (1 file / 120MiB)
+single_group: Laying out IO file (1 file / 120MiB)
+single_group: Laying out IO file (1 file / 120MiB)
+single_group: Laying out IO file (1 file / 120MiB)
+single_group: Laying out IO file (1 file / 120MiB)
+single_group: Laying out IO file (1 file / 120MiB)
+single_group: Laying out IO file (1 file / 120MiB)
+single_group: Laying out IO file (1 file / 120MiB)
+single_group: Laying out IO file (1 file / 120MiB)
+single_group: Laying out IO file (1 file / 120MiB)
+single_group: Laying out IO file (1 file / 120MiB)
+single_group: Laying out IO file (1 file / 120MiB)
+single_group: Laying out IO file (1 file / 120MiB)
+single_group: Laying out IO file (1 file / 120MiB)
+single_group: Laying out IO file (1 file / 120MiB)
+single_group: Laying out IO file (1 file / 120MiB)
+
+single_group: (groupid=0, jobs=96): err= 0: pid=4020066: Mon Aug 11 14:35:18 2025
+  read: IOPS=1986, BW=1987MiB/s (2083MB/s)(11.2GiB/5798msec)
+    slat (usec): min=453, max=802625, avg=37414.75, stdev=40466.66
+    clat (nsec): min=1688, max=3880.9M, avg=1428184461.62, stdev=829907024.63
+     lat (usec): min=503, max=4002.1k, avg=1465600.61, stdev=843692.66
+    clat percentiles (usec):
+     |  1.00th=[    709],  5.00th=[ 108528], 10.00th=[ 250610],
+     | 20.00th=[ 557843], 30.00th=[ 893387], 40.00th=[1266680],
+     | 50.00th=[1585447], 60.00th=[1702888], 70.00th=[1820328],
+     | 80.00th=[2088764], 90.00th=[2499806], 95.00th=[2868904],
+     | 99.00th=[3372221], 99.50th=[3506439], 99.90th=[3707765],
+     | 99.95th=[3741320], 99.99th=[3841983]
+   bw (  MiB/s): min= 1593, max= 3555, per=100.00%, avg=2740.49, stdev=10.13, samples=288
+   iops        : min= 1560, max= 3517, avg=2704.08, stdev=10.10, samples=288
+  lat (usec)   : 2=0.13%, 4=0.48%, 10=0.23%, 750=0.19%
+  lat (msec)   : 2=0.01%, 20=0.15%, 50=1.57%, 100=1.94%, 250=5.29%
+  lat (msec)   : 500=7.95%, 750=7.75%, 1000=7.14%, 2000=44.82%, >=2000=22.37%
+  cpu          : usr=0.02%, sys=0.53%, ctx=11884, majf=0, minf=1572961
+  IO depths    : 1=0.8%, 2=1.7%, 4=3.3%, 8=6.7%, 16=13.3%, 32=26.7%, >=64=47.5%
+     submit    : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.0%, >=64=0.0%
+     complete  : 0=0.0%, 4=98.3%, 8=0.0%, 16=0.0%, 32=0.0%, 64=1.7%, >=64=0.0%
+     issued rwts: total=11520,0,0,0 short=0,0,0,0 dropped=0,0,0,0
+     latency   : target=0, window=0, percentile=100.00%, depth=64
+
+Run status group 0 (all jobs):
+   READ: bw=1987MiB/s (2083MB/s), 1987MiB/s-1987MiB/s (2083MB/s-2083MB/s), io=11.2GiB (12.1GB), run=5798-5798msec
+Running for randread over 120M files with 96 jobs completed.
+time="11/08/2025 02:35:58.722314" severity=INFO message="Start gcsfuse/unknown (Go version go1.24.5) for app \"\" using mount point: /home/princer_google_com/bucket\n"
+time="11/08/2025 02:35:59.133263" severity=INFO message="File system has been successfully mounted."
+Running for randread over 120M files with 96 jobs...
+single_group: (g=0): rw=randread, bs=(R) 1024KiB-1024KiB, (W) 1024KiB-1024KiB, (T) 1024KiB-1024KiB, ioengine=libaio, iodepth=64
+...
+fio-3.16
+Starting 96 threads
+
+single_group: (groupid=0, jobs=96): err= 0: pid=4020501: Mon Aug 11 14:36:06 2025
+  read: IOPS=2483, BW=2483MiB/s (2604MB/s)(11.2GiB/4639msec)
+    slat (usec): min=463, max=152720, avg=33544.54, stdev=17524.17
+    clat (nsec): min=1607, max=3120.4M, avg=1430588561.89, stdev=767620842.29
+     lat (usec): min=491, max=3214.5k, avg=1464134.70, stdev=774199.34
+    clat percentiles (usec):
+     |  1.00th=[   1418],  5.00th=[ 112722], 10.00th=[ 254804],
+     | 20.00th=[ 574620], 30.00th=[ 926942], 40.00th=[1317012],
+     | 50.00th=[1652556], 60.00th=[1803551], 70.00th=[2004878],
+     | 80.00th=[2139096], 90.00th=[2332034], 95.00th=[2466251],
+     | 99.00th=[2667578], 99.50th=[2768241], 99.90th=[2936013],
+     | 99.95th=[2969568], 99.99th=[3103785]
+   bw (  MiB/s): min= 1463, max= 3382, per=100.00%, avg=2639.48, stdev= 9.41, samples=300
+   iops        : min= 1454, max= 3337, avg=2608.17, stdev= 9.25, samples=300
+  lat (usec)   : 2=0.12%, 4=0.41%, 10=0.29%, 20=0.01%, 50=0.01%
+  lat (usec)   : 500=0.01%, 750=0.15%, 1000=0.01%
+  lat (msec)   : 2=0.02%, 4=0.01%, 10=0.01%, 20=0.06%, 50=1.60%
+  lat (msec)   : 100=1.78%, 250=5.30%, 500=7.94%, 750=7.44%, 1000=6.83%
+  lat (msec)   : 2000=37.96%, >=2000=30.05%
+  cpu          : usr=0.02%, sys=0.58%, ctx=11912, majf=0, minf=1572960
+  IO depths    : 1=0.8%, 2=1.7%, 4=3.3%, 8=6.7%, 16=13.3%, 32=26.7%, >=64=47.5%
+     submit    : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.0%, >=64=0.0%
+     complete  : 0=0.0%, 4=98.3%, 8=0.0%, 16=0.0%, 32=0.0%, 64=1.7%, >=64=0.0%
+     issued rwts: total=11520,0,0,0 short=0,0,0,0 dropped=0,0,0,0
+     latency   : target=0, window=0, percentile=100.00%, depth=64
+
+Run status group 0 (all jobs):
+   READ: bw=2483MiB/s (2604MB/s), 2483MiB/s-2483MiB/s (2604MB/s-2604MB/s), io=11.2GiB (12.1GB), run=4639-4639msec
+Running for randread over 120M files with 96 jobs completed.
+time="11/08/2025 02:36:33.541845" severity=INFO message="Start gcsfuse/unknown (Go version go1.24.5) for app \"\" using mount point: /home/princer_google_com/bucket\n"
+time="11/08/2025 02:36:34.142241" severity=INFO message="File system has been successfully mounted."
+Running for randread over 120M files with 96 jobs...
+single_group: (g=0): rw=randread, bs=(R) 1024KiB-1024KiB, (W) 1024KiB-1024KiB, (T) 1024KiB-1024KiB, ioengine=libaio, iodepth=64
+...
+fio-3.16
+Starting 96 threads
+
+single_group: (groupid=0, jobs=96): err= 0: pid=4020915: Mon Aug 11 14:36:41 2025
+  read: IOPS=2596, BW=2596MiB/s (2722MB/s)(11.2GiB/4437msec)
+    slat (usec): min=449, max=281933, avg=33056.48, stdev=17188.90
+    clat (nsec): min=1370, max=2610.3M, avg=1461436367.10, stdev=731677124.19
+     lat (usec): min=486, max=2688.2k, avg=1494494.44, stdev=735319.69
+    clat percentiles (usec):
+     |  1.00th=[    865],  5.00th=[ 117965], 10.00th=[ 291505],
+     | 20.00th=[ 641729], 30.00th=[1010828], 40.00th=[1384121],
+     | 50.00th=[1769997], 60.00th=[1954546], 70.00th=[2055209],
+     | 80.00th=[2122318], 90.00th=[2197816], 95.00th=[2264925],
+     | 99.00th=[2365588], 99.50th=[2432697], 99.90th=[2533360],
+     | 99.95th=[2566915], 99.99th=[2600469]
+   bw (  MiB/s): min= 1509, max= 3390, per=100.00%, avg=2632.07, stdev= 9.06, samples=307
+   iops        : min= 1505, max= 3383, avg=2625.67, stdev= 9.05, samples=307
+  lat (usec)   : 2=0.09%, 4=0.42%, 10=0.32%, 50=0.01%, 500=0.01%
+  lat (usec)   : 750=0.13%, 1000=0.03%
+  lat (msec)   : 2=0.01%, 4=0.02%, 20=0.16%, 50=1.49%, 100=1.76%
+  lat (msec)   : 250=4.33%, 500=7.13%, 750=7.10%, 1000=6.74%, 2000=34.52%
+  lat (msec)   : >=2000=35.73%
+  cpu          : usr=0.02%, sys=0.66%, ctx=11906, majf=0, minf=1572960
+  IO depths    : 1=0.8%, 2=1.7%, 4=3.3%, 8=6.7%, 16=13.3%, 32=26.7%, >=64=47.5%
+     submit    : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.0%, >=64=0.0%
+     complete  : 0=0.0%, 4=98.3%, 8=0.0%, 16=0.0%, 32=0.0%, 64=1.7%, >=64=0.0%
+     issued rwts: total=11520,0,0,0 short=0,0,0,0 dropped=0,0,0,0
+     latency   : target=0, window=0, percentile=100.00%, depth=64
+
+Run status group 0 (all jobs):
+   READ: bw=2596MiB/s (2722MB/s), 2596MiB/s-2596MiB/s (2722MB/s-2722MB/s), io=11.2GiB (12.1GB), run=4437-4437msec
+Running for randread over 120M files with 96 jobs completed.
+time="11/08/2025 02:36:49.957204" severity=INFO message="Start gcsfuse/unknown (Go version go1.24.5) for app \"\" using mount point: /home/princer_google_com/bucket\n"
+time="11/08/2025 02:36:50.371263" severity=INFO message="File system has been successfully mounted."
+Running for randread over 120M files with 96 jobs...
+single_group: (g=0): rw=randread, bs=(R) 1024KiB-1024KiB, (W) 1024KiB-1024KiB, (T) 1024KiB-1024KiB, ioengine=libaio, iodepth=64
+...
+fio-3.16
+Starting 96 threads
+
+single_group: (groupid=0, jobs=96): err= 0: pid=4021333: Mon Aug 11 14:36:57 2025
+  read: IOPS=2713, BW=2713MiB/s (2845MB/s)(11.2GiB/4246msec)
+    slat (usec): min=468, max=229899, avg=33132.49, stdev=12738.45
+    clat (nsec): min=1480, max=2476.4M, avg=1463864577.57, stdev=745010549.98
+     lat (usec): min=479, max=2553.1k, avg=1496998.79, stdev=748870.61
+    clat percentiles (usec):
+     |  1.00th=[    832],  5.00th=[ 104334], 10.00th=[ 248513],
+     | 20.00th=[ 616563], 30.00th=[ 994051], 40.00th=[1400898],
+     | 50.00th=[1803551], 60.00th=[2004878], 70.00th=[2071987],
+     | 80.00th=[2122318], 90.00th=[2197816], 95.00th=[2231370],
+     | 99.00th=[2298479], 99.50th=[2332034], 99.90th=[2432697],
+     | 99.95th=[2466251], 99.99th=[2466251]
+   bw (  MiB/s): min= 1347, max= 3312, per=93.91%, avg=2547.78, stdev= 9.25, samples=318
+   iops        : min= 1347, max= 3288, avg=2539.08, stdev= 9.16, samples=318
+  lat (usec)   : 2=0.07%, 4=0.40%, 10=0.36%, 20=0.01%, 500=0.01%
+  lat (usec)   : 750=0.11%, 1000=0.06%
+  lat (msec)   : 2=0.02%, 20=0.16%, 50=1.55%, 100=2.12%, 250=5.21%
+  lat (msec)   : 500=6.87%, 750=6.50%, 1000=6.61%, 2000=28.84%, >=2000=41.12%
+  cpu          : usr=0.02%, sys=0.67%, ctx=11867, majf=0, minf=1572960
+  IO depths    : 1=0.8%, 2=1.7%, 4=3.3%, 8=6.7%, 16=13.3%, 32=26.7%, >=64=47.5%
+     submit    : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.0%, >=64=0.0%
+     complete  : 0=0.0%, 4=98.3%, 8=0.0%, 16=0.0%, 32=0.0%, 64=1.7%, >=64=0.0%
+     issued rwts: total=11520,0,0,0 short=0,0,0,0 dropped=0,0,0,0
+     latency   : target=0, window=0, percentile=100.00%, depth=64
+
+Run status group 0 (all jobs):
+   READ: bw=2713MiB/s (2845MB/s), 2713MiB/s-2713MiB/s (2845MB/s-2845MB/s), io=11.2GiB (12.1GB), run=4246-4246msec
+Running for randread over 120M files with 96 jobs completed.
+time="11/08/2025 02:37:06.002603" severity=INFO message="Start gcsfuse/unknown (Go version go1.24.5) for app \"\" using mount point: /home/princer_google_com/bucket\n"
+time="11/08/2025 02:37:06.364792" severity=INFO message="File system has been successfully mounted."
+Running for randread over 120M files with 96 jobs...
+single_group: (g=0): rw=randread, bs=(R) 1024KiB-1024KiB, (W) 1024KiB-1024KiB, (T) 1024KiB-1024KiB, ioengine=libaio, iodepth=64
+...
+fio-3.16
+Starting 96 threads
+
+single_group: (groupid=0, jobs=96): err= 0: pid=4021734: Mon Aug 11 14:37:13 2025
+  read: IOPS=2676, BW=2677MiB/s (2807MB/s)(11.2GiB/4304msec)
+    slat (usec): min=463, max=191415, avg=33483.38, stdev=12038.21
+    clat (nsec): min=1720, max=2418.7M, avg=1492784008.40, stdev=725199309.42
+     lat (usec): min=524, max=2493.5k, avg=1526269.17, stdev=727774.50
+    clat percentiles (usec):
+     |  1.00th=[   1045],  5.00th=[ 116917], 10.00th=[ 295699],
+     | 20.00th=[ 675283], 30.00th=[1082131], 40.00th=[1484784],
+     | 50.00th=[1870660], 60.00th=[2021655], 70.00th=[2071987],
+     | 80.00th=[2105541], 90.00th=[2164261], 95.00th=[2231370],
+     | 99.00th=[2298479], 99.50th=[2332034], 99.90th=[2365588],
+     | 99.95th=[2365588], 99.99th=[2432697]
+   bw (  MiB/s): min= 1537, max= 3155, per=93.91%, avg=2513.55, stdev= 7.50, samples=319
+   iops        : min= 1529, max= 3135, avg=2502.00, stdev= 7.46, samples=319
+  lat (usec)   : 2=0.07%, 4=0.28%, 10=0.47%, 20=0.01%, 50=0.01%
+  lat (usec)   : 750=0.10%, 1000=0.06%
+  lat (msec)   : 2=0.03%, 20=0.08%, 50=1.42%, 100=1.89%, 250=4.38%
+  lat (msec)   : 500=6.49%, 750=6.65%, 1000=6.22%, 2000=29.20%, >=2000=42.63%
+  cpu          : usr=0.02%, sys=0.67%, ctx=11849, majf=0, minf=1572960
+  IO depths    : 1=0.8%, 2=1.7%, 4=3.3%, 8=6.7%, 16=13.3%, 32=26.7%, >=64=47.5%
+     submit    : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.0%, >=64=0.0%
+     complete  : 0=0.0%, 4=98.3%, 8=0.0%, 16=0.0%, 32=0.0%, 64=1.7%, >=64=0.0%
+     issued rwts: total=11520,0,0,0 short=0,0,0,0 dropped=0,0,0,0
+     latency   : target=0, window=0, percentile=100.00%, depth=64
+
+Run status group 0 (all jobs):
+   READ: bw=2677MiB/s (2807MB/s), 2677MiB/s-2677MiB/s (2807MB/s-2807MB/s), io=11.2GiB (12.1GB), run=4304-4304msec
+Running for randread over 120M files with 96 jobs completed.
+time="11/08/2025 02:37:40.321392" severity=INFO message="Start gcsfuse/unknown (Go version go1.24.5) for app \"\" using mount point: /home/princer_google_com/bucket\n"
+time="11/08/2025 02:37:40.729110" severity=INFO message="File system has been successfully mounted."
+Running for randread over 120M files with 96 jobs...
+single_group: (g=0): rw=randread, bs=(R) 1024KiB-1024KiB, (W) 1024KiB-1024KiB, (T) 1024KiB-1024KiB, ioengine=libaio, iodepth=64
+...
+fio-3.16
+Starting 96 threads
+
+single_group: (groupid=0, jobs=96): err= 0: pid=4022144: Mon Aug 11 14:37:47 2025
+  read: IOPS=2812, BW=2813MiB/s (2949MB/s)(11.2GiB/4096msec)
+    slat (usec): min=441, max=115272, avg=31829.33, stdev=11106.08
+    clat (nsec): min=1415, max=2297.2M, avg=1430466777.24, stdev=709836867.51
+     lat (usec): min=498, max=2362.5k, avg=1462297.71, stdev=712376.97
+    clat percentiles (usec):
+     |  1.00th=[   1012],  5.00th=[ 109577], 10.00th=[ 256902],
+     | 20.00th=[ 624952], 30.00th=[1010828], 40.00th=[1417675],
+     | 50.00th=[1803551], 60.00th=[1954546], 70.00th=[2004878],
+     | 80.00th=[2055209], 90.00th=[2105541], 95.00th=[2139096],
+     | 99.00th=[2197816], 99.50th=[2231370], 99.90th=[2231370],
+     | 99.95th=[2264925], 99.99th=[2264925]
+   bw (  MiB/s): min= 2017, max= 3118, per=94.68%, avg=2662.90, stdev= 5.89, samples=296
+   iops        : min= 2012, max= 3108, avg=2654.33, stdev= 5.85, samples=296
+  lat (usec)   : 2=0.08%, 4=0.41%, 10=0.32%, 20=0.02%, 50=0.01%
+  lat (usec)   : 750=0.07%, 1000=0.10%
+  lat (msec)   : 2=0.03%, 4=0.01%, 20=0.10%, 50=1.48%, 100=1.99%
+  lat (msec)   : 250=5.13%, 500=7.14%, 750=6.41%, 1000=6.38%, 2000=39.93%
+  lat (msec)   : >=2000=30.40%
+  cpu          : usr=0.03%, sys=0.69%, ctx=11858, majf=0, minf=1572960
+  IO depths    : 1=0.8%, 2=1.7%, 4=3.3%, 8=6.7%, 16=13.3%, 32=26.7%, >=64=47.5%
+     submit    : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.0%, >=64=0.0%
+     complete  : 0=0.0%, 4=98.3%, 8=0.0%, 16=0.0%, 32=0.0%, 64=1.7%, >=64=0.0%
+     issued rwts: total=11520,0,0,0 short=0,0,0,0 dropped=0,0,0,0
+     latency   : target=0, window=0, percentile=100.00%, depth=64
+
+Run status group 0 (all jobs):
+   READ: bw=2813MiB/s (2949MB/s), 2813MiB/s-2813MiB/s (2949MB/s-2949MB/s), io=11.2GiB (12.1GB), run=4096-4096msec
+Running for randread over 120M files with 96 jobs completed.
+time="11/08/2025 02:37:55.451866" severity=INFO message="Start gcsfuse/unknown (Go version go1.24.5) for app \"\" using mount point: /home/princer_google_com/bucket\n"
+time="11/08/2025 02:37:55.811244" severity=INFO message="File system has been successfully mounted."
+Running for randread over 120M files with 96 jobs...
+single_group: (g=0): rw=randread, bs=(R) 1024KiB-1024KiB, (W) 1024KiB-1024KiB, (T) 1024KiB-1024KiB, ioengine=libaio, iodepth=64
+...
+fio-3.16
+Starting 96 threads
+
+single_group: (groupid=0, jobs=96): err= 0: pid=4022546: Mon Aug 11 14:38:03 2025
+  read: IOPS=2455, BW=2456MiB/s (2575MB/s)(11.2GiB/4691msec)
+    slat (usec): min=467, max=491063, avg=35811.52, stdev=28714.95
+    clat (nsec): min=1666, max=2771.7M, avg=1466898930.86, stdev=742032632.49
+     lat (usec): min=469, max=2976.4k, avg=1502712.13, stdev=749173.86
+    clat percentiles (usec):
+     |  1.00th=[   1123],  5.00th=[ 110625], 10.00th=[ 263193],
+     | 20.00th=[ 616563], 30.00th=[1010828], 40.00th=[1417675],
+     | 50.00th=[1803551], 60.00th=[2004878], 70.00th=[2071987],
+     | 80.00th=[2139096], 90.00th=[2197816], 95.00th=[2231370],
+     | 99.00th=[2298479], 99.50th=[2365588], 99.90th=[2566915],
+     | 99.95th=[2667578], 99.99th=[2734687]
+   bw (  MiB/s): min= 1811, max= 3175, per=100.00%, avg=2652.00, stdev= 7.76, samples=309
+   iops        : min= 1804, max= 3167, avg=2644.83, stdev= 7.78, samples=309
+  lat (usec)   : 2=0.06%, 4=0.40%, 10=0.37%, 500=0.01%, 750=0.13%
+  lat (usec)   : 1000=0.03%
+  lat (msec)   : 2=0.02%, 4=0.02%, 20=0.05%, 50=1.53%, 100=1.96%
+  lat (msec)   : 250=5.04%, 500=7.19%, 750=6.53%, 1000=6.41%, 2000=30.56%
+  lat (msec)   : >=2000=39.70%
+  cpu          : usr=0.02%, sys=0.60%, ctx=11899, majf=0, minf=1572960
+  IO depths    : 1=0.8%, 2=1.7%, 4=3.3%, 8=6.7%, 16=13.3%, 32=26.7%, >=64=47.5%
+     submit    : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.0%, >=64=0.0%
+     complete  : 0=0.0%, 4=98.3%, 8=0.0%, 16=0.0%, 32=0.0%, 64=1.7%, >=64=0.0%
+     issued rwts: total=11520,0,0,0 short=0,0,0,0 dropped=0,0,0,0
+     latency   : target=0, window=0, percentile=100.00%, depth=64
+
+Run status group 0 (all jobs):
+   READ: bw=2456MiB/s (2575MB/s), 2456MiB/s-2456MiB/s (2575MB/s-2575MB/s), io=11.2GiB (12.1GB), run=4691-4691msec
+Running for randread over 120M files with 96 jobs completed.
+time="11/08/2025 02:38:31.387545" severity=INFO message="Start gcsfuse/unknown (Go version go1.24.5) for app \"\" using mount point: /home/princer_google_com/bucket\n"
+time="11/08/2025 02:38:31.782482" severity=INFO message="File system has been successfully mounted."
+Running for randread over 120M files with 96 jobs...
+single_group: (g=0): rw=randread, bs=(R) 1024KiB-1024KiB, (W) 1024KiB-1024KiB, (T) 1024KiB-1024KiB, ioengine=libaio, iodepth=64
+...
+fio-3.16
+Starting 96 threads
+
+single_group: (groupid=0, jobs=96): err= 0: pid=4022988: Mon Aug 11 14:38:39 2025
+  read: IOPS=2392, BW=2392MiB/s (2508MB/s)(11.2GiB/4816msec)
+    slat (usec): min=476, max=750913, avg=37478.76, stdev=30228.46
+    clat (nsec): min=1443, max=2931.1M, avg=1500349648.24, stdev=767101715.49
+     lat (usec): min=511, max=3262.5k, avg=1537829.97, stdev=776019.63
+    clat percentiles (usec):
+     |  1.00th=[   1680],  5.00th=[ 112722], 10.00th=[ 270533],
+     | 20.00th=[ 641729], 30.00th=[1019216], 40.00th=[1417675],
+     | 50.00th=[1820328], 60.00th=[1988101], 70.00th=[2071987],
+     | 80.00th=[2164261], 90.00th=[2332034], 95.00th=[2399142],
+     | 99.00th=[2600469], 99.50th=[2667578], 99.90th=[2801796],
+     | 99.95th=[2868904], 99.99th=[2902459]
+   bw (  MiB/s): min= 1425, max= 3273, per=100.00%, avg=2561.20, stdev= 8.98, samples=323
+   iops        : min= 1425, max= 3255, avg=2551.75, stdev= 8.91, samples=323
+  lat (usec)   : 2=0.07%, 4=0.28%, 10=0.47%, 20=0.02%, 750=0.13%
+  lat (usec)   : 1000=0.02%
+  lat (msec)   : 2=0.03%, 4=0.01%, 10=0.01%, 20=0.09%, 50=1.48%
+  lat (msec)   : 100=1.97%, 250=4.92%, 500=6.72%, 750=6.77%, 1000=6.41%
+  lat (msec)   : 2000=31.22%, >=2000=39.38%
+  cpu          : usr=0.02%, sys=0.52%, ctx=11897, majf=0, minf=1572960
+  IO depths    : 1=0.8%, 2=1.7%, 4=3.3%, 8=6.7%, 16=13.3%, 32=26.7%, >=64=47.5%
+     submit    : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.0%, >=64=0.0%
+     complete  : 0=0.0%, 4=98.3%, 8=0.0%, 16=0.0%, 32=0.0%, 64=1.7%, >=64=0.0%
+     issued rwts: total=11520,0,0,0 short=0,0,0,0 dropped=0,0,0,0
+     latency   : target=0, window=0, percentile=100.00%, depth=64
+
+Run status group 0 (all jobs):
+   READ: bw=2392MiB/s (2508MB/s), 2392MiB/s-2392MiB/s (2508MB/s-2508MB/s), io=11.2GiB (12.1GB), run=4816-4816msec
+Running for randread over 120M files with 96 jobs completed.
+time="11/08/2025 02:38:56.640167" severity=INFO message="Start gcsfuse/unknown (Go version go1.24.5) for app \"\" using mount point: /home/princer_google_com/bucket\n"
+time="11/08/2025 02:38:57.008949" severity=INFO message="File system has been successfully mounted."
+Running for read over 120M files with 96 jobs...
+single_group: (g=0): rw=read, bs=(R) 1024KiB-1024KiB, (W) 1024KiB-1024KiB, (T) 1024KiB-1024KiB, ioengine=libaio, iodepth=64
+...
+fio-3.16
+Starting 96 threads
+
+single_group: (groupid=0, jobs=96): err= 0: pid=4023429: Mon Aug 11 14:39:01 2025
+  read: IOPS=6127, BW=6128MiB/s (6425MB/s)(11.2GiB/1880msec)
+    slat (usec): min=412, max=911819, avg=13137.02, stdev=63687.70
+    clat (nsec): min=1395, max=1588.1M, avg=431558550.47, stdev=386497542.95
+     lat (usec): min=469, max=1842.4k, avg=444696.62, stdev=393989.61
+    clat percentiles (usec):
+     |  1.00th=[    652],  5.00th=[   6718], 10.00th=[  15664],
+     | 20.00th=[  40633], 30.00th=[  84411], 40.00th=[ 187696],
+     | 50.00th=[ 350225], 60.00th=[ 517997], 70.00th=[ 658506],
+     | 80.00th=[ 817890], 90.00th=[ 977273], 95.00th=[1132463],
+     | 99.00th=[1317012], 99.50th=[1384121], 99.90th=[1551893],
+     | 99.95th=[1585447], 99.99th=[1585447]
+   bw (  MiB/s): min= 2295, max= 2960, per=42.89%, avg=2628.04, stdev=15.74, samples=84
+   iops        : min= 2262, max= 2929, avg=2595.50, stdev=15.79, samples=84
+  lat (usec)   : 2=0.12%, 4=0.49%, 10=0.21%, 20=0.01%, 500=0.01%
+  lat (usec)   : 750=0.23%, 1000=0.12%
+  lat (msec)   : 2=0.73%, 4=1.43%, 10=3.57%, 20=5.06%, 50=10.69%
+  lat (msec)   : 100=9.90%, 250=12.16%, 500=14.25%, 750=15.88%, 1000=15.87%
+  lat (msec)   : 2000=9.28%
+  cpu          : usr=0.03%, sys=1.85%, ctx=12091, majf=0, minf=1572960
+  IO depths    : 1=0.8%, 2=1.7%, 4=3.3%, 8=6.7%, 16=13.3%, 32=26.7%, >=64=47.5%
+     submit    : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.0%, >=64=0.0%
+     complete  : 0=0.0%, 4=98.3%, 8=0.0%, 16=0.0%, 32=0.0%, 64=1.7%, >=64=0.0%
+     issued rwts: total=11520,0,0,0 short=0,0,0,0 dropped=0,0,0,0
+     latency   : target=0, window=0, percentile=100.00%, depth=64
+
+Run status group 0 (all jobs):
+   READ: bw=6128MiB/s (6425MB/s), 6128MiB/s-6128MiB/s (6425MB/s-6425MB/s), io=11.2GiB (12.1GB), run=1880-1880msec
+Running for read over 120M files with 96 jobs completed.
+time="11/08/2025 02:39:12.932438" severity=INFO message="Start gcsfuse/unknown (Go version go1.24.5) for app \"\" using mount point: /home/princer_google_com/bucket\n"
+time="11/08/2025 02:39:13.310468" severity=INFO message="File system has been successfully mounted."
+Running for read over 120M files with 96 jobs...
+single_group: (g=0): rw=read, bs=(R) 1024KiB-1024KiB, (W) 1024KiB-1024KiB, (T) 1024KiB-1024KiB, ioengine=libaio, iodepth=64
+...
+fio-3.16
+Starting 96 threads
+
+single_group: (groupid=0, jobs=96): err= 0: pid=4023836: Mon Aug 11 14:39:17 2025
+  read: IOPS=6632, BW=6632MiB/s (6954MB/s)(11.2GiB/1737msec)
+    slat (usec): min=419, max=277657, avg=10553.56, stdev=15063.90
+    clat (nsec): min=1387, max=1502.0M, avg=415742434.99, stdev=312437241.19
+     lat (usec): min=475, max=1552.6k, avg=426297.36, stdev=317266.16
+    clat percentiles (usec):
+     |  1.00th=[    644],  5.00th=[  16057], 10.00th=[  40109],
+     | 20.00th=[ 102237], 30.00th=[ 179307], 40.00th=[ 283116],
+     | 50.00th=[ 362808], 60.00th=[ 463471], 70.00th=[ 599786],
+     | 80.00th=[ 717226], 90.00th=[ 826278], 95.00th=[ 935330],
+     | 99.00th=[1283458], 99.50th=[1350566], 99.90th=[1451230],
+     | 99.95th=[1468007], 99.99th=[1501561]
+   bw (  MiB/s): min= 3198, max= 3198, per=48.22%, avg=3198.10, stdev= 0.00, samples=80
+   iops        : min= 3168, max= 3168, avg=3168.00, stdev= 0.00, samples=80
+  lat (usec)   : 2=0.22%, 4=0.38%, 10=0.22%, 20=0.01%, 50=0.01%
+  lat (usec)   : 500=0.01%, 750=0.42%, 1000=0.24%
+  lat (msec)   : 2=0.26%, 4=0.30%, 10=1.53%, 20=2.34%, 50=5.84%
+  lat (msec)   : 100=7.83%, 250=17.41%, 500=25.69%, 750=20.89%, 1000=12.60%
+  lat (msec)   : 2000=3.83%
+  cpu          : usr=0.05%, sys=2.33%, ctx=12182, majf=0, minf=1572960
+  IO depths    : 1=0.8%, 2=1.7%, 4=3.3%, 8=6.7%, 16=13.3%, 32=26.7%, >=64=47.5%
+     submit    : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.0%, >=64=0.0%
+     complete  : 0=0.0%, 4=98.3%, 8=0.0%, 16=0.0%, 32=0.0%, 64=1.7%, >=64=0.0%
+     issued rwts: total=11520,0,0,0 short=0,0,0,0 dropped=0,0,0,0
+     latency   : target=0, window=0, percentile=100.00%, depth=64
+
+Run status group 0 (all jobs):
+   READ: bw=6632MiB/s (6954MB/s), 6632MiB/s-6632MiB/s (6954MB/s-6954MB/s), io=11.2GiB (12.1GB), run=1737-1737msec
+Running for read over 120M files with 96 jobs completed.
+time="11/08/2025 02:39:43.743372" severity=INFO message="Start gcsfuse/unknown (Go version go1.24.5) for app \"\" using mount point: /home/princer_google_com/bucket\n"
+time="11/08/2025 02:39:44.104585" severity=INFO message="File system has been successfully mounted."
+Running for read over 120M files with 96 jobs...
+single_group: (g=0): rw=read, bs=(R) 1024KiB-1024KiB, (W) 1024KiB-1024KiB, (T) 1024KiB-1024KiB, ioengine=libaio, iodepth=64
+...
+fio-3.16
+Starting 96 threads
+
+single_group: (groupid=0, jobs=96): err= 0: pid=4024908: Mon Aug 11 14:39:48 2025
+  read: IOPS=6986, BW=6986MiB/s (7325MB/s)(11.2GiB/1649msec)
+    slat (usec): min=414, max=881387, avg=10892.01, stdev=46305.69
+    clat (nsec): min=1561, max=1306.2M, avg=349310551.69, stdev=272407717.32
+     lat (usec): min=510, max=1571.2k, avg=360204.11, stdev=278054.46
+    clat percentiles (usec):
+     |  1.00th=[    717],  5.00th=[   9241], 10.00th=[  21365],
+     | 20.00th=[  57934], 30.00th=[ 119014], 40.00th=[ 217056],
+     | 50.00th=[ 346031], 60.00th=[ 434111], 70.00th=[ 501220],
+     | 80.00th=[ 591397], 90.00th=[ 708838], 95.00th=[ 834667],
+     | 99.00th=[1027605], 99.50th=[1098908], 99.90th=[1216349],
+     | 99.95th=[1233126], 99.99th=[1300235]
+   bw (  MiB/s): min= 1355, max= 1355, per=19.41%, avg=1355.86, stdev= 0.00, samples=69
+   iops        : min= 1330, max= 1330, avg=1330.00, stdev= 0.00, samples=69
+  lat (usec)   : 2=0.11%, 4=0.35%, 10=0.37%, 750=0.20%, 1000=0.19%
+  lat (msec)   : 2=0.31%, 4=1.05%, 10=2.73%, 20=4.21%, 50=8.82%
+  lat (msec)   : 100=9.02%, 250=14.96%, 500=27.46%, 750=21.80%, 1000=7.12%
+  lat (msec)   : 2000=1.31%
+  cpu          : usr=0.05%, sys=2.60%, ctx=12010, majf=0, minf=1572960
+  IO depths    : 1=0.8%, 2=1.7%, 4=3.3%, 8=6.7%, 16=13.3%, 32=26.7%, >=64=47.5%
+     submit    : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.0%, >=64=0.0%
+     complete  : 0=0.0%, 4=98.3%, 8=0.0%, 16=0.0%, 32=0.0%, 64=1.7%, >=64=0.0%
+     issued rwts: total=11520,0,0,0 short=0,0,0,0 dropped=0,0,0,0
+     latency   : target=0, window=0, percentile=100.00%, depth=64
+
+Run status group 0 (all jobs):
+   READ: bw=6986MiB/s (7325MB/s), 6986MiB/s-6986MiB/s (7325MB/s-7325MB/s), io=11.2GiB (12.1GB), run=1649-1649msec
+Running for read over 120M files with 96 jobs completed.
+time="11/08/2025 02:39:58.201637" severity=INFO message="Start gcsfuse/unknown (Go version go1.24.5) for app \"\" using mount point: /home/princer_google_com/bucket\n"
+time="11/08/2025 02:39:58.551654" severity=INFO message="File system has been successfully mounted."
+Running for read over 120M files with 96 jobs...
+single_group: (g=0): rw=read, bs=(R) 1024KiB-1024KiB, (W) 1024KiB-1024KiB, (T) 1024KiB-1024KiB, ioengine=libaio, iodepth=64
+...
+fio-3.16
+Starting 96 threads
+
+single_group: (groupid=0, jobs=96): err= 0: pid=4025328: Mon Aug 11 14:40:02 2025
+  read: IOPS=7475, BW=7476MiB/s (7839MB/s)(11.2GiB/1541msec)
+    slat (usec): min=430, max=438303, avg=10093.37, stdev=13958.52
+    clat (nsec): min=1629, max=1392.2M, avg=392752609.38, stdev=282428470.57
+     lat (usec): min=522, max=1445.5k, avg=402847.43, stdev=286734.06
+    clat percentiles (usec):
+     |  1.00th=[    693],  5.00th=[  15139], 10.00th=[  36439],
+     | 20.00th=[  90702], 30.00th=[ 164627], 40.00th=[ 283116],
+     | 50.00th=[ 404751], 60.00th=[ 484443], 70.00th=[ 557843],
+     | 80.00th=[ 633340], 90.00th=[ 734004], 95.00th=[ 893387],
+     | 99.00th=[1115685], 99.50th=[1199571], 99.90th=[1317012],
+     | 99.95th=[1350566], 99.99th=[1384121]
+   bw (  MiB/s): min= 3415, max= 3415, per=45.69%, avg=3415.81, stdev= 0.00, samples=54
+   iops        : min= 3391, max= 3392, avg=3392.00, stdev= 0.00, samples=54
+  lat (usec)   : 2=0.14%, 4=0.34%, 10=0.33%, 20=0.03%, 750=0.27%
+  lat (usec)   : 1000=0.34%
+  lat (msec)   : 2=0.29%, 4=0.38%, 10=1.54%, 20=2.64%, 50=6.52%
+  lat (msec)   : 100=8.81%, 250=15.87%, 500=25.10%, 750=28.24%, 1000=6.48%
+  lat (msec)   : 2000=2.71%
+  cpu          : usr=0.05%, sys=2.49%, ctx=12178, majf=0, minf=1572960
+  IO depths    : 1=0.8%, 2=1.7%, 4=3.3%, 8=6.7%, 16=13.3%, 32=26.7%, >=64=47.5%
+     submit    : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.0%, >=64=0.0%
+     complete  : 0=0.0%, 4=98.3%, 8=0.0%, 16=0.0%, 32=0.0%, 64=1.7%, >=64=0.0%
+     issued rwts: total=11520,0,0,0 short=0,0,0,0 dropped=0,0,0,0
+     latency   : target=0, window=0, percentile=100.00%, depth=64
+
+Run status group 0 (all jobs):
+   READ: bw=7476MiB/s (7839MB/s), 7476MiB/s-7476MiB/s (7839MB/s-7839MB/s), io=11.2GiB (12.1GB), run=1541-1541msec
+Running for read over 120M files with 96 jobs completed.
+time="11/08/2025 02:40:44.412327" severity=INFO message="Start gcsfuse/unknown (Go version go1.24.5) for app \"\" using mount point: /home/princer_google_com/bucket\n"
+time="11/08/2025 02:40:44.804667" severity=INFO message="File system has been successfully mounted."
+Running for read over 120M files with 96 jobs...
+single_group: (g=0): rw=read, bs=(R) 1024KiB-1024KiB, (W) 1024KiB-1024KiB, (T) 1024KiB-1024KiB, ioengine=libaio, iodepth=64
+...
+fio-3.16
+Starting 96 threads
+single_group: Laying out IO files (59 files / total 7080MiB)
+single_group: Laying out IO files (59 files / total 7080MiB)
+single_group: Laying out IO files (59 files / total 7080MiB)
+single_group: Laying out IO files (59 files / total 7080MiB)
+single_group: Laying out IO files (59 files / total 7080MiB)
+single_group: Laying out IO files (59 files / total 7080MiB)
+single_group: Laying out IO files (59 files / total 7080MiB)
+single_group: Laying out IO files (59 files / total 7080MiB)
+single_group: Laying out IO files (59 files / total 7080MiB)
+single_group: Laying out IO files (59 files / total 7080MiB)
+single_group: Laying out IO files (59 files / total 7080MiB)
+single_group: Laying out IO files (59 files / total 7080MiB)
+single_group: Laying out IO files (59 files / total 7080MiB)
+single_group: Laying out IO files (59 files / total 7080MiB)
+single_group: Laying out IO files (59 files / total 7080MiB)
+single_group: Laying out IO files (59 files / total 7080MiB)
+single_group: Laying out IO files (59 files / total 7080MiB)
+single_group: Laying out IO files (59 files / total 7080MiB)
+single_group: Laying out IO files (59 files / total 7080MiB)
+single_group: Laying out IO files (59 files / total 7080MiB)
+single_group: Laying out IO files (59 files / total 7080MiB)
+single_group: Laying out IO files (59 files / total 7080MiB)
+single_group: Laying out IO files (59 files / total 7080MiB)
+single_group: Laying out IO files (59 files / total 7080MiB)
+single_group: Laying out IO files (59 files / total 7080MiB)
+single_group: Laying out IO files (59 files / total 7080MiB)
+single_group: Laying out IO files (59 files / total 7080MiB)
+single_group: Laying out IO files (59 files / total 7080MiB)
+single_group: Laying out IO files (59 files / total 7080MiB)
+single_group: Laying out IO files (59 files / total 7080MiB)
+single_group: Laying out IO files (59 files / total 7080MiB)
+single_group: Laying out IO files (59 files / total 7080MiB)
+single_group: Laying out IO files (59 files / total 7080MiB)
+single_group: Laying out IO files (59 files / total 7080MiB)
+single_group: Laying out IO files (59 files / total 7080MiB)
+single_group: Laying out IO files (59 files / total 7080MiB)
+single_group: Laying out IO files (59 files / total 7080MiB)
+single_group: Laying out IO files (59 files / total 7080MiB)
+single_group: Laying out IO files (59 files / total 7080MiB)
+single_group: Laying out IO files (59 files / total 7080MiB)
+single_group: Laying out IO files (59 files / total 7080MiB)
+single_group: Laying out IO files (59 files / total 7080MiB)
+single_group: Laying out IO files (59 files / total 7080MiB)
+single_group: Laying out IO files (59 files / total 7080MiB)
+single_group: Laying out IO files (59 files / total 7080MiB)
+single_group: Laying out IO files (59 files / total 7080MiB)
+single_group: Laying out IO files (59 files / total 7080MiB)
+single_group: Laying out IO files (59 files / total 7080MiB)
+single_group: Laying out IO files (59 files / total 7080MiB)
+single_group: Laying out IO files (59 files / total 7080MiB)
+single_group: Laying out IO files (59 files / total 7080MiB)
+single_group: Laying out IO files (59 files / total 7080MiB)
+single_group: Laying out IO files (59 files / total 7080MiB)
+single_group: Laying out IO files (59 files / total 7080MiB)
+single_group: Laying out IO files (59 files / total 7080MiB)
+single_group: Laying out IO files (59 files / total 7080MiB)
+single_group: Laying out IO files (59 files / total 7080MiB)
+single_group: Laying out IO files (59 files / total 7080MiB)
+single_group: Laying out IO files (59 files / total 7080MiB)
+single_group: Laying out IO files (59 files / total 7080MiB)
+single_group: Laying out IO files (59 files / total 7080MiB)
+single_group: Laying out IO files (59 files / total 7080MiB)
+single_group: Laying out IO files (59 files / total 7080MiB)
+single_group: Laying out IO files (59 files / total 7080MiB)
+single_group: Laying out IO files (59 files / total 7080MiB)
+single_group: Laying out IO files (59 files / total 7080MiB)
+single_group: Laying out IO files (59 files / total 7080MiB)
+single_group: Laying out IO files (59 files / total 7080MiB)
+single_group: Laying out IO files (59 files / total 7080MiB)
+single_group: Laying out IO files (59 files / total 7080MiB)
+single_group: Laying out IO files (59 files / total 7080MiB)
+single_group: Laying out IO files (59 files / total 7080MiB)
+single_group: Laying out IO files (59 files / total 7080MiB)
+single_group: Laying out IO files (59 files / total 7080MiB)
+single_group: Laying out IO files (59 files / total 7080MiB)
+single_group: Laying out IO files (59 files / total 7080MiB)
+single_group: Laying out IO files (59 files / total 7080MiB)
+single_group: Laying out IO files (59 files / total 7080MiB)
+single_group: Laying out IO files (59 files / total 7080MiB)
+single_group: Laying out IO files (59 files / total 7080MiB)
+single_group: Laying out IO files (59 files / total 7080MiB)
+single_group: Laying out IO files (59 files / total 7080MiB)
+single_group: Laying out IO files (59 files / total 7080MiB)
+single_group: Laying out IO files (59 files / total 7080MiB)
+single_group: Laying out IO files (59 files / total 7080MiB)
+single_group: Laying out IO files (59 files / total 7080MiB)
+single_group: Laying out IO files (59 files / total 7080MiB)
+single_group: Laying out IO files (59 files / total 7080MiB)
+single_group: Laying out IO files (59 files / total 7080MiB)
+single_group: Laying out IO files (59 files / total 7080MiB)
+single_group: Laying out IO files (59 files / total 7080MiB)
+single_group: Laying out IO files (59 files / total 7080MiB)
+single_group: Laying out IO files (59 files / total 7080MiB)
+single_group: Laying out IO files (59 files / total 7080MiB)
+single_group: Laying out IO files (59 files / total 7080MiB)
+single_group: Laying out IO files (59 files / total 7080MiB)
+
+single_group: (groupid=0, jobs=96): err= 0: pid=4035670: Mon Aug 11 16:30:12 2025
+  read: IOPS=8063, BW=8063MiB/s (8455MB/s)(675GiB/85721msec)
+    slat (usec): min=389, max=768094, avg=9175.61, stdev=18160.67
+    clat (nsec): min=1252, max=3973.1M, avg=365015277.70, stdev=400142358.32
+     lat (usec): min=440, max=3974.1k, avg=374192.03, stdev=405280.81
+    clat percentiles (usec):
+     |  1.00th=[     34],  5.00th=[  16712], 10.00th=[  47449],
+     | 20.00th=[ 109577], 30.00th=[ 156238], 40.00th=[ 193987],
+     | 50.00th=[ 240124], 60.00th=[ 295699], 70.00th=[ 375391],
+     | 80.00th=[ 513803], 90.00th=[ 834667], 95.00th=[1182794],
+     | 99.00th=[2004878], 99.50th=[2298479], 99.90th=[2969568],
+     | 99.95th=[3170894], 99.99th=[3741320]
+   bw (  MiB/s): min=  165, max=23706, per=100.00%, avg=10650.62, stdev=86.42, samples=12017
+   iops        : min=  107, max=23705, avg=10642.85, stdev=86.44, samples=12017
+  lat (usec)   : 2=0.02%, 4=0.51%, 10=0.28%, 20=0.01%, 50=0.50%
+  lat (usec)   : 100=0.32%, 250=0.01%, 500=0.01%, 750=0.09%, 1000=0.34%
+  lat (msec)   : 2=0.43%, 4=0.27%, 10=1.03%, 20=1.76%, 50=4.81%
+  lat (msec)   : 100=8.09%, 250=33.47%, 500=27.34%, 750=8.81%, 1000=4.71%
+  lat (msec)   : 2000=6.20%, >=2000=1.01%
+  cpu          : usr=0.05%, sys=0.61%, ctx=718317, majf=0, minf=12204875
+  IO depths    : 1=1.7%, 2=1.7%, 4=3.3%, 8=6.7%, 16=13.3%, 32=26.7%, >=64=46.7%
+     submit    : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.0%, >=64=0.0%
+     complete  : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.1%, >=64=0.0%
+     issued rwts: total=691200,0,0,0 short=0,0,0,0 dropped=0,0,0,0
+     latency   : target=0, window=0, percentile=100.00%, depth=64
+
+Run status group 0 (all jobs):
+   READ: bw=8063MiB/s (8455MB/s), 8063MiB/s-8063MiB/s (8455MB/s-8455MB/s), io=675GiB (725GB), run=85721-85721msec
+Running for read over 120M files with 96 jobs completed.
+time="13/08/2025 05:51:43.111656" severity=INFO message="Start gcsfuse/unknown (Go version go1.24.5) for app \"\" using mount point: /home/princer_google_com/bucket\n"
+time="13/08/2025 05:51:43.643965" severity=INFO message="File system has been successfully mounted."
+Running for read over 120M files with 1 jobs...
+single_group: (g=0): rw=read, bs=(R) 1024KiB-1024KiB, (W) 1024KiB-1024KiB, (T) 1024KiB-1024KiB, ioengine=libaio, iodepth=64
+fio-3.16
+Starting 1 thread
+
+single_group: (groupid=0, jobs=1): err= 0: pid=4190675: Wed Aug 13 05:52:21 2025
+  read: IOPS=202, BW=203MiB/s (212MB/s)(7200MiB/35547msec)
+    slat (usec): min=350, max=416158, avg=4931.12, stdev=33101.37
+    clat (nsec): min=984, max=397343k, avg=151977803.30, stdev=132150992.71
+     lat (usec): min=397, max=416163, avg=156909.06, stdev=132025.60
+    clat percentiles (usec):
+     |  1.00th=[    28],  5.00th=[  1975], 10.00th=[  4621], 20.00th=[ 10028],
+     | 30.00th=[ 18220], 40.00th=[ 35390], 50.00th=[185598], 60.00th=[235930],
+     | 70.00th=[252707], 80.00th=[283116], 90.00th=[320865], 95.00th=[354419],
+     | 99.00th=[387974], 99.50th=[387974], 99.90th=[396362], 99.95th=[396362],
+     | 99.99th=[396362]
+   bw (  KiB/s): min= 2048, max=311296, per=98.46%, avg=204224.28, stdev=86756.52, samples=71
+   iops        : min=    2, max=  304, avg=199.41, stdev=84.71, samples=71
+  lat (nsec)   : 1000=0.01%
+  lat (usec)   : 2=0.12%, 4=0.39%, 10=0.31%, 50=0.82%, 500=0.72%
+  lat (usec)   : 750=0.11%, 1000=0.78%
+  lat (msec)   : 2=1.78%, 4=3.81%, 10=11.17%, 20=12.17%, 50=10.92%
+  lat (msec)   : 100=3.07%, 250=22.26%, 500=31.57%
+  cpu          : usr=0.02%, sys=0.57%, ctx=7439, majf=0, minf=16385
+  IO depths    : 1=1.7%, 2=1.7%, 4=3.3%, 8=6.7%, 16=13.3%, 32=26.7%, >=64=46.7%
+     submit    : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.0%, >=64=0.0%
+     complete  : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.1%, >=64=0.0%
+     issued rwts: total=7200,0,0,0 short=0,0,0,0 dropped=0,0,0,0
+     latency   : target=0, window=0, percentile=100.00%, depth=64
+
+Run status group 0 (all jobs):
+   READ: bw=203MiB/s (212MB/s), 203MiB/s-203MiB/s (212MB/s-212MB/s), io=7200MiB (7550MB), run=35547-35547msec
+Running for read over 120M files with 1 jobs completed.
+time="13/08/2025 05:52:41.195081" severity=INFO message="Start gcsfuse/unknown (Go version go1.24.5) for app \"\" using mount point: /home/princer_google_com/bucket\n"
+time="13/08/2025 05:52:41.653470" severity=INFO message="File system has been successfully mounted."
+Running for read over 120M files with 1 jobs...
+single_group: (g=0): rw=read, bs=(R) 1024KiB-1024KiB, (W) 1024KiB-1024KiB, (T) 1024KiB-1024KiB, ioengine=libaio, iodepth=64
+fio-3.16
+Starting 1 thread
+
+single_group: (groupid=0, jobs=1): err= 0: pid=4191035: Wed Aug 13 05:53:06 2025
+  read: IOPS=323, BW=324MiB/s (340MB/s)(7200MiB/22225msec)
+    slat (usec): min=382, max=108016, avg=3081.10, stdev=9285.48
+    clat (nsec): min=801, max=434127k, avg=98400175.30, stdev=53928573.02
+     lat (usec): min=484, max=434756, avg=101481.45, stdev=53839.81
+    clat percentiles (usec):
+     |  1.00th=[    28],  5.00th=[  5800], 10.00th=[ 17957], 20.00th=[ 45876],
+     | 30.00th=[ 76022], 40.00th=[ 92799], 50.00th=[104334], 60.00th=[115868],
+     | 70.00th=[126354], 80.00th=[137364], 90.00th=[158335], 95.00th=[175113],
+     | 99.00th=[246416], 99.50th=[287310], 99.90th=[354419], 99.95th=[383779],
+     | 99.99th=[434111]
+   bw (  KiB/s): min=243712, max=489472, per=99.31%, avg=329459.00, stdev=91602.46, samples=44
+   iops        : min=  238, max=  478, avg=321.73, stdev=89.44, samples=44
+  lat (nsec)   : 1000=0.26%
+  lat (usec)   : 2=0.39%, 4=0.12%, 10=0.06%, 50=0.81%, 100=0.01%
+  lat (usec)   : 500=0.03%, 750=0.79%, 1000=0.01%
+  lat (msec)   : 2=0.25%, 4=1.25%, 10=3.00%, 20=3.85%, 50=10.26%
+  lat (msec)   : 100=24.46%, 250=53.56%, 500=0.89%
+  cpu          : usr=0.06%, sys=0.98%, ctx=7439, majf=0, minf=16385
+  IO depths    : 1=1.7%, 2=1.7%, 4=3.3%, 8=6.7%, 16=13.3%, 32=26.7%, >=64=46.7%
+     submit    : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.0%, >=64=0.0%
+     complete  : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.1%, >=64=0.0%
+     issued rwts: total=7200,0,0,0 short=0,0,0,0 dropped=0,0,0,0
+     latency   : target=0, window=0, percentile=100.00%, depth=64
+
+Run status group 0 (all jobs):
+   READ: bw=324MiB/s (340MB/s), 324MiB/s-324MiB/s (340MB/s-340MB/s), io=7200MiB (7550MB), run=22225-22225msec
+Running for read over 120M files with 1 jobs completed.
+time="13/08/2025 05:53:30.483063" severity=INFO message="Start gcsfuse/unknown (Go version go1.24.5) for app \"\" using mount point: /home/princer_google_com/bucket\n"
+time="13/08/2025 05:53:30.921850" severity=INFO message="File system has been successfully mounted."
+Running for read over 120M files with 1 jobs...
+single_group: (g=0): rw=read, bs=(R) 1024KiB-1024KiB, (W) 1024KiB-1024KiB, (T) 1024KiB-1024KiB, ioengine=libaio, iodepth=64
+fio-3.16
+Starting 1 thread
+
+single_group: (groupid=0, jobs=1): err= 0: pid=4191383: Wed Aug 13 05:53:48 2025
+  read: IOPS=483, BW=483MiB/s (507MB/s)(7200MiB/14899msec)
+    slat (usec): min=327, max=195887, avg=2063.37, stdev=12564.35
+    clat (nsec): min=876, max=224554k, avg=63329156.85, stdev=52775908.32
+     lat (usec): min=353, max=224985, avg=65392.68, stdev=52743.07
+    clat percentiles (usec):
+     |  1.00th=[    26],  5.00th=[  1975], 10.00th=[  4490], 20.00th=[  9765],
+     | 30.00th=[ 15664], 40.00th=[ 21365], 50.00th=[ 76022], 60.00th=[ 90702],
+     | 70.00th=[100140], 80.00th=[110625], 90.00th=[127402], 95.00th=[145753],
+     | 99.00th=[198181], 99.50th=[223347], 99.90th=[225444], 99.95th=[225444],
+     | 99.99th=[225444]
+   bw (  KiB/s): min=247808, max=735232, per=99.32%, avg=491486.14, stdev=107618.33, samples=29
+   iops        : min=  242, max=  718, avg=479.97, stdev=105.10, samples=29
+  lat (nsec)   : 1000=0.03%
+  lat (usec)   : 2=0.35%, 4=0.28%, 10=0.18%, 50=0.82%, 500=0.75%
+  lat (usec)   : 750=0.10%, 1000=0.78%
+  lat (msec)   : 2=1.81%, 4=3.78%, 10=11.58%, 20=17.10%, 50=10.38%
+  lat (msec)   : 100=22.04%, 250=30.04%
+  cpu          : usr=0.06%, sys=1.33%, ctx=7440, majf=0, minf=16385
+  IO depths    : 1=1.7%, 2=1.7%, 4=3.3%, 8=6.7%, 16=13.3%, 32=26.7%, >=64=46.7%
+     submit    : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.0%, >=64=0.0%
+     complete  : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.1%, >=64=0.0%
+     issued rwts: total=7200,0,0,0 short=0,0,0,0 dropped=0,0,0,0
+     latency   : target=0, window=0, percentile=100.00%, depth=64
+
+Run status group 0 (all jobs):
+   READ: bw=483MiB/s (507MB/s), 483MiB/s-483MiB/s (507MB/s-507MB/s), io=7200MiB (7550MB), run=14899-14899msec
+Running for read over 120M files with 1 jobs completed.
+time="13/08/2025 05:53:59.718306" severity=INFO message="Start gcsfuse/unknown (Go version go1.24.5) for app \"\" using mount point: /home/princer_google_com/bucket\n"
+time="13/08/2025 05:54:00.137675" severity=INFO message="File system has been successfully mounted."
+Running for read over 120M files with 1 jobs...
+single_group: (g=0): rw=read, bs=(R) 1024KiB-1024KiB, (W) 1024KiB-1024KiB, (T) 1024KiB-1024KiB, ioengine=libaio, iodepth=64
+fio-3.16
+Starting 1 thread
+
+single_group: (groupid=0, jobs=1): err= 0: pid=4191681: Wed Aug 13 05:54:16 2025
+  read: IOPS=512, BW=512MiB/s (537MB/s)(7200MiB/14060msec)
+    slat (usec): min=331, max=90501, avg=1947.41, stdev=5066.94
+    clat (nsec): min=773, max=304986k, avg=62331531.25, stdev=41917651.20
+     lat (usec): min=427, max=305384, avg=64279.11, stdev=42281.79
+    clat percentiles (usec):
+     |  1.00th=[    29],  5.00th=[  4686], 10.00th=[ 11469], 20.00th=[ 25297],
+     | 30.00th=[ 40109], 40.00th=[ 54264], 50.00th=[ 62653], 60.00th=[ 69731],
+     | 70.00th=[ 74974], 80.00th=[ 85459], 90.00th=[103285], 95.00th=[141558],
+     | 99.00th=[217056], 99.50th=[265290], 99.90th=[287310], 99.95th=[295699],
+     | 99.99th=[304088]
+   bw (  KiB/s): min=233472, max=737280, per=98.74%, avg=517750.00, stdev=145957.09, samples=28
+   iops        : min=  228, max=  720, avg=505.57, stdev=142.48, samples=28
+  lat (nsec)   : 1000=0.24%
+  lat (usec)   : 2=0.49%, 4=0.08%, 10=0.03%, 50=0.82%, 500=0.28%
+  lat (usec)   : 750=0.56%
+  lat (msec)   : 2=0.40%, 4=1.54%, 10=4.61%, 20=7.22%, 50=20.33%
+  lat (msec)   : 100=52.72%, 250=10.10%, 500=0.58%
+  cpu          : usr=0.06%, sys=1.48%, ctx=7441, majf=0, minf=16385
+  IO depths    : 1=1.7%, 2=1.7%, 4=3.3%, 8=6.7%, 16=13.3%, 32=26.7%, >=64=46.7%
+     submit    : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.0%, >=64=0.0%
+     complete  : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.1%, >=64=0.0%
+     issued rwts: total=7200,0,0,0 short=0,0,0,0 dropped=0,0,0,0
+     latency   : target=0, window=0, percentile=100.00%, depth=64
+
+Run status group 0 (all jobs):
+   READ: bw=512MiB/s (537MB/s), 512MiB/s-512MiB/s (537MB/s-537MB/s), io=7200MiB (7550MB), run=14060-14060msec
+Running for read over 120M files with 1 jobs completed.
+time="13/08/2025 05:54:27.968239" severity=INFO message="Start gcsfuse/unknown (Go version go1.24.5) for app \"\" using mount point: /home/princer_google_com/bucket\n"
+time="13/08/2025 05:54:28.352194" severity=INFO message="File system has been successfully mounted."
+Running for read over 120M files with 1 jobs...
+single_group: (g=0): rw=read, bs=(R) 1024KiB-1024KiB, (W) 1024KiB-1024KiB, (T) 1024KiB-1024KiB, ioengine=libaio, iodepth=64
+fio-3.16
+Starting 1 thread
+
+single_group: (groupid=0, jobs=1): err= 0: pid=4192020: Wed Aug 13 05:54:45 2025
+  read: IOPS=496, BW=496MiB/s (520MB/s)(7200MiB/14510msec)
+    slat (usec): min=367, max=211258, avg=2009.08, stdev=12105.13
+    clat (nsec): min=877, max=169873k, avg=61602212.76, stdev=48335748.45
+     lat (usec): min=411, max=211262, avg=63611.49, stdev=48310.34
+    clat percentiles (usec):
+     |  1.00th=[    26],  5.00th=[  2057], 10.00th=[  4883], 20.00th=[ 10552],
+     | 30.00th=[ 16581], 40.00th=[ 22676], 50.00th=[ 79168], 60.00th=[ 87557],
+     | 70.00th=[ 99091], 80.00th=[108528], 90.00th=[122160], 95.00th=[127402],
+     | 99.00th=[154141], 99.50th=[156238], 99.90th=[168821], 99.95th=[168821],
+     | 99.99th=[170918]
+   bw (  KiB/s): min=247808, max=735232, per=98.89%, avg=502502.97, stdev=99181.01, samples=29
+   iops        : min=  242, max=  718, avg=490.72, stdev=96.86, samples=29
+  lat (nsec)   : 1000=0.07%
+  lat (usec)   : 2=0.50%, 4=0.17%, 10=0.10%, 50=0.79%, 100=0.03%
+  lat (usec)   : 500=0.58%, 750=0.25%, 1000=0.62%
+  lat (msec)   : 2=1.79%, 4=3.53%, 10=10.69%, 20=16.50%, 50=11.29%
+  lat (msec)   : 100=24.29%, 250=28.79%
+  cpu          : usr=0.06%, sys=1.70%, ctx=7440, majf=0, minf=16385
+  IO depths    : 1=1.7%, 2=1.7%, 4=3.3%, 8=6.7%, 16=13.3%, 32=26.7%, >=64=46.7%
+     submit    : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.0%, >=64=0.0%
+     complete  : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.1%, >=64=0.0%
+     issued rwts: total=7200,0,0,0 short=0,0,0,0 dropped=0,0,0,0
+     latency   : target=0, window=0, percentile=100.00%, depth=64
+
+Run status group 0 (all jobs):
+   READ: bw=496MiB/s (520MB/s), 496MiB/s-496MiB/s (520MB/s-520MB/s), io=7200MiB (7550MB), run=14510-14510msec
+Running for read over 120M files with 1 jobs completed.

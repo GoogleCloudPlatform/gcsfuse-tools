@@ -1,0 +1,24 @@
+GCSFuse Buffered Read Benchmark Results
+Generated on: Wed Aug  6 17:48:24 UTC 2025
+Test configuration: Single-threaded, 10G file, sequential read, 1M block-size
+Each test run 3 times, average reported
+
+=== SUMMARY RESULTS ===
+BlockSize(MB)   MaxHandles           Run1(MB/s)      Run2(MB/s)      Run3(MB/s)      Average(MB/s)  
+-----------------------------------------------------------------------------------------------
+=== Iteration 1: block-size-mb=32, max-handles=14 ===
+Timestamp: Wed Aug  6 17:50:30 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --client-protocol grpc --enable-cloud-profiling --profiling-label=buffered-read --read-global-max-blocks 100 --read-block-size-mb 32 --read-max-blocks-per-handle 14 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 827.22 MB/s (827223 KB/s)
+
+=== Iteration 2: block-size-mb=32, max-handles=14 ===
+Timestamp: Wed Aug  6 17:52:36 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --client-protocol grpc --enable-cloud-profiling --profiling-label=buffered-read --read-global-max-blocks 100 --read-block-size-mb 32 --read-max-blocks-per-handle 14 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 842.36 MB/s (842356 KB/s)
+
+=== Iteration 3: block-size-mb=32, max-handles=14 ===
+Timestamp: Wed Aug  6 17:54:42 UTC 2025
+Mount command: gcsfuse --implicit-dirs --enable-buffered-read --client-protocol grpc --enable-cloud-profiling --profiling-label=buffered-read --read-global-max-blocks 100 --read-block-size-mb 32 --read-max-blocks-per-handle 14 princer-grpc-write-test-uw4a /home/princer_google_com/brgcs
+Bandwidth: 840.98 MB/s (840982 KB/s)
+
+32              14                   827.22          842.36          840.98          836.85         

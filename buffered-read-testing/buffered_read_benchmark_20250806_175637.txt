@@ -1,0 +1,8 @@
+GCSFuse Buffered Read Benchmark Results
+Generated on: Wed Aug  6 17:56:37 UTC 2025
+Test configuration: Single-threaded, 10G file, sequential read, 1M block-size
+Each test run 3 times, average reported
+
+=== SUMMARY RESULTS ===
+BlockSize(MB)   MaxHandles           Run1(MB/s)      Run2(MB/s)      Run3(MB/s)      Average(MB/s)  
+-----------------------------------------------------------------------------------------------

@@ -16,8 +16,10 @@ BLOCK_SIZE=${BLOCK_SIZE:-"1M"}
 
 # Buffered read configurations to test
 # declare -a BLOCK_SIZE_MB_VALUES=(2 4 6 8 10 12 14 16 18 20 22 24 26 28 30 32)
-declare -a BLOCK_SIZE_MB_VALUES=(48 64 80 96 112)
-declare -a MAX_READ_BLOCK_HANDLES=(2 4 6 8 10 12 14 16 18 20 22 24 26 28 30 32)
+# declare -a BLOCK_SIZE_MB_VALUES=(16 32 48 64 80 96 112)
+# declare -a MAX_READ_BLOCK_HANDLES=(2 4 6 8 10 12 14 16 18 20 22 24 26 28 30 32)
+declare -a BLOCK_SIZE_MB_VALUES=(32)
+declare -a MAX_READ_BLOCK_HANDLES=(14)
 
 # Colors for output
 RED='\033[0;31m'
@@ -68,7 +70,7 @@ iodepth=1
 invalidate=1
 time_based=0
 
-nrfiles=1
+nrfiles=30
 numjobs=1
 thread=1
 fsync=1
@@ -80,7 +82,7 @@ rw=read
 bs=${BLOCK_SIZE}
 # File configuration
 directory=${MOUNT_POINT}
-filename=test_file_${TEST_FILE_SIZE}
+filename_format=test_file.\$jobnum.\$filenum
 filesize=${TEST_FILE_SIZE}
 EOF
 }
@@ -109,7 +111,7 @@ run_single_test() {
     mkdir -p "$MOUNT_POINT"
     
     # Mount with buffered read configuration
-    local mount_cmd="gcsfuse --implicit-dirs --enable-buffered-read"
+    local mount_cmd="gcsfuse --implicit-dirs --enable-buffered-read --client-protocol grpc --enable-cloud-profiling --profiling-label=buffered-read-6-$iteration"
     mount_cmd+=" --read-global-max-blocks 100"
     mount_cmd+=" --read-block-size-mb $block_size_mb"
     mount_cmd+=" --read-max-blocks-per-handle $max_handles"
