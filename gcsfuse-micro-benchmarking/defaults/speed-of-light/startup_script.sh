@@ -191,6 +191,77 @@ check_if_package_installed() {
     command -v "$pkg" >/dev/null 2>&1
 }
 
+# Install fio on the VM.
+install_fio_on_vm() {
+    local fio_install_path="/usr/local/bin/fio"
+    # Check if fio is already installed and executable at the expected path
+    if [[ -x "$fio_install_path" ]]; then
+        echo "FIO is already installed at $fio_install_path"
+        "$fio_install_path" --version
+        return 0
+    fi
+    # dir contains the path to the directory with version_details.yml
+    local dir=$1
+    echo "Fetching fio_version from ${dir}/version_details.yml"
+    # Use yq to parse the YAML file and get the fio_version.
+    local fio_version
+    fio_version=$(/usr/local/bin/yq e '.fio_version' "${dir}/version_details.yml")
+
+    # Check if the version was successfully retrieved.
+    if [ -z "$fio_version" ]; then
+        echo "Error: Could not find fio_version in the YAML file."
+        return 1
+    fi
+
+    echo "Preparing to install fio version: ${fio_version}"
+    (
+        if [ -d "fio" ]; then
+            echo "Removing existing fio directory..."
+            rm -rf fio
+        fi
+
+        echo "Cloning fio version: ${fio_version}..."
+        if ! git clone --depth 1 -b "fio-${fio_version}" https://github.com/axboe/fio.git; then
+            echo "Error: Failed to clone fio repository."
+            exit 1
+        fi
+
+        cd fio || { echo "Error: Failed to cd into fio directory."; exit 1; }
+
+        echo "Configuring fio..."
+        if ! ./configure; then
+            echo "Error: fio configuration failed."
+            exit 1
+        fi
+
+        echo "Building fio..."
+        if ! make -j"$(nproc)"; then
+            echo "Error: fio build failed."
+            exit 1
+        fi
+
+        echo "Installing fio to $fio_install_path..."
+        if ! sudo make install; then
+            echo "Error: fio installation failed."
+            exit 1
+        fi
+    )
+
+    if [ $? -eq 0 ]; then
+        echo "Fio installation process complete."
+        if [[ -x "$fio_install_path" ]]; then
+            echo "fio installed successfully to $fio_install_path"
+            "$fio_install_path" --version
+            return 0
+        else
+            echo "Error: fio not found at $fio_install_path after installation."
+            return 1
+        fi
+    else
+        echo "Fio installation process failed."
+        return 1
+    fi
+}
 
 # Install golang on the VM.
 install_golang_on_vm() {
@@ -454,6 +525,7 @@ if [ -n "$bucket" ] && [ -n "$artifacts_bucket" ] && [ -n "$benchmark_id" ]; the
     # Copy the resources necessary for running the benchmark
     copy_resources_from_artifact_bucket "$artifacts_bucket" "$benchmark_id" "$dir"
 
+    install_fio_on_vm "$dir"
     install_golang_on_vm "$dir"
     install_unzip_on_vm "$dir"
 
