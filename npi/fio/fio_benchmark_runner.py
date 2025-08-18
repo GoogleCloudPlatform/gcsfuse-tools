@@ -21,6 +21,8 @@ import os
 import shlex
 import subprocess
 import sys
+import statistics
+from collections import defaultdict
 import time
 
 def run_command(command, check=True, cwd=None, extra_env=None):
@@ -119,12 +121,21 @@ def parse_fio_output(filename):
                     percentiles.get(p99_key, 0) / 1_000_000.0 if p99_key else 0
                 )
 
+                job_rw = options.get("rw", data.get("global options", {}).get("rw", "unknown"))
+                # For mixed workloads like 'rw' or 'randrw', the op ('read' or 'write') is important
+                # to distinguish the stats.
+                is_mixed_rw = any(x in job_rw for x in ['rw', 'readwrite'])
+                if is_mixed_rw and 'read' in job and 'write' in job:
+                    operation = f"{job_rw}({op})"
+                else:
+                    operation = job_rw
+
                 results.append({
                     "job_name": job_name,
                     "block_size": options.get("bs", 0),
                     "file_size": options.get("filesize", 0),
                     "nr_files": options.get("nrfiles", 0),
-                    "operation": data["global options"].get("rw", "unknown"),
+                    "operation": operation,
                     "bw_mibps": bw_mibps,
                     "iops": iops,
                     "mean_lat_ms": mean_lat_ms,
@@ -133,14 +144,14 @@ def parse_fio_output(filename):
     return results
 
 
-def print_summary(all_results):
-    """Prints a summary of all FIO iterations."""
+def print_summary(all_results, iterations):
+    """Prints a summary of all FIO iterations and aggregate statistics."""
     if not all_results:
         logging.warning("No results to summarize.")
         return
 
     logging.info("\n--- FIO Benchmark Summary ---")
-    header = (f"{'Iter':<5} {'Job Name':<20} {'Op':<8} {'Block Size':<10} {'File Size':<10} {'NR_Files':<3} "
+    header = (f"{'Iter':<5} {'Job Name':<20} {'Op':<15} {'Block Size':<10} {'File Size':<10} {'NR_Files':<8} "
               f"{'Bandwidth (MiB/s)':<20} "
               f"{'IOPS':<12} {'Mean Latency (ms)':<20} {'P99 Latency (ms)':<20}")
     print(header)
@@ -150,10 +161,61 @@ def print_summary(all_results):
             print(f"{i:<5} No results for this iteration.")
             continue
         for result in iteration_results:
-            print(f"{i:<5} {result['job_name']:<20} {result['operation']:<8} {result['block_size']:<10} {result['file_size']:<10} {result['nr_files']:<8} "
+            print(f"{i:<5} {result['job_name']:<20} {result['operation']:<15} {result['block_size']:<10} {result['file_size']:<10} {result['nr_files']:<8} "
                   f"{result['bw_mibps']:<20.2f} {result['iops']:<12.2f} "
                   f"{result['mean_lat_ms']:<20.4f} {result['p99_lat_ms']:<20.4f}")
     print("-" * len(header))
+
+    STATS_THRESHOLD = 5
+    if iterations < STATS_THRESHOLD:
+        return
+
+    logging.info("\n--- FIO Benchmark Aggregate Statistics (Iterations: %d) ---", iterations)
+
+    grouped_results = defaultdict(lambda: defaultdict(list))
+
+    for iteration_results in all_results:
+        for result in iteration_results:
+            # Create a unique key for each job configuration
+            job_key = (
+                result['job_name'],
+                result['operation'],
+                result['block_size'],
+                result['file_size'],
+                result['nr_files']
+            )
+            grouped_results[job_key]['bw_mibps'].append(result['bw_mibps'])
+            grouped_results[job_key]['iops'].append(result['iops'])
+            grouped_results[job_key]['mean_lat_ms'].append(result['mean_lat_ms'])
+            grouped_results[job_key]['p99_lat_ms'].append(result['p99_lat_ms'])
+
+    stats_header = (f"{'Job Name':<20} {'Op':<15} {'BS':<10} {'FS':<10} {'NR_Files':<8} "
+                    f"{'Avg BW (MiB/s)':<20} {'StdDev BW':<15} "
+                    f"{'Avg IOPS':<15} {'StdDev IOPS':<15} "
+                    f"{'Avg Lat (ms)':<15} {'StdDev Lat':<15} "
+                    f"{'Avg P99 Lat (ms)':<20} {'StdDev P99 Lat':<20}")
+    print(stats_header)
+    print("-" * len(stats_header))
+
+    for job_key, metrics in sorted(grouped_results.items()):
+        job_name, op, bs, fs, nr_files = job_key
+
+        stats = {}
+        for metric_name, values in metrics.items():
+            if len(values) > 1:
+                stats[f'avg_{metric_name}'] = statistics.mean(values)
+                stats[f'stdev_{metric_name}'] = statistics.stdev(values)
+            else:
+                stats[f'avg_{metric_name}'] = values[0] if values else 0
+                stats[f'stdev_{metric_name}'] = 0.0
+
+        print(f"{job_name:<20} {op:<15} {bs:<10} {fs:<10} {nr_files:<8} "
+              f"{stats.get('avg_bw_mibps', 0):<20.2f} {stats.get('stdev_bw_mibps', 0):<15.2f} "
+              f"{stats.get('avg_iops', 0):<15.2f} {stats.get('stdev_iops', 0):<15.2f} "
+              f"{stats.get('avg_mean_lat_ms', 0):<15.4f} {stats.get('stdev_mean_lat_ms', 0):<15.4f} "
+              f"{stats.get('avg_p99_lat_ms', 0):<20.4f} {stats.get('stdev_p99_lat_ms', 0):<20.4f}")
+
+    print("-" * len(stats_header))
 
 
 def run_benchmark(
@@ -189,8 +251,30 @@ def run_benchmark(
             iteration_results = parse_fio_output(output_filename)
             all_results.append(iteration_results)
         finally:
+            if op in job:
+                stats = job[op]
+                options = job.get("job options", {})
+                # Bandwidth is in KiB/s, convert to MiB/s
+                bw_mibps = stats.get("bw", 0) / 1024.0
+                if bw_mibps == 0:
+                    continue
+                iops = stats.get("iops", 0)
+
+                # Latency can be under 'lat_ns', 'clat_ns', etc.
+                lat_stats = stats.get("lat_ns") or {}
+
+                # Convert from ns to ms
+                mean_lat_ms = lat_stats.get("mean", 0) / 1_000_000.0
+
+                # Percentiles are in a sub-dict with string keys
+                percentiles = lat_stats.get("percentiles", {})  # FIO 3.x
+                
+                p99_key = next((k for k in percentiles if k.startswith("99.00")), None)
+                p99_lat_ms = (
+                    percentiles.get(p99_key, 0) / 1_000_000.0 if p99_key else 0
+                )
             if os.path.ismount(mount_point):
                 unmount_gcsfuse(mount_point)
         logging.info(f"--- Finished Iteration {i}/{iterations} ---")
 
-    print_summary(all_results)
+    print_summary(all_results, iterations)
