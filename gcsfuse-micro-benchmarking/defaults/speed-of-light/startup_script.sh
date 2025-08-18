@@ -447,6 +447,7 @@ if [ -n "$bucket" ] && [ -n "$artifacts_bucket" ] && [ -n "$benchmark_id" ]; the
     echo "Metadata parameters are accessible and were retrieved successfully."
     dir="$(pwd)"
     
+    install_yq
     # Install dependencies
     install_dependencies
 
