@@ -21,6 +21,75 @@ command_exists () {
   command -v "$1" >/dev/null 2>&1
 }
 
+# Platform-agnostic function to install yq by downloading from GitHub
+install_yq() {
+    echo "Installing yq from GitHub releases..."
+    local OS=$(uname -s)
+    local arch=$(uname -m)
+    local install_path="/usr/local/bin/yq" # Default for Linux/macOS
+
+    # Adjust install_path for Windows/MSYS
+    if [[ "$OS" == "MINGW"* || "$OS" == "MSYS_NT"* ]]; then
+        install_path="/usr/bin/yq"
+    fi
+
+    # Ensure the target directory exists
+    sudo mkdir -p "$(dirname "${install_path}")"
+
+    echo "Detected OS: $OS, Architecture: $arch"
+
+    local download_arch=""
+    case "$arch" in
+      x86_64)  download_arch="amd64";;
+      aarch64|arm64) download_arch="arm64";;
+      *) echo "Unsupported architecture for yq download: $arch"; exit 1;;
+    esac
+
+    local filename=""
+    case "$OS" in
+      "Linux")
+        filename="yq_linux_${download_arch}"
+        ;;
+      "Darwin") # macOS
+        filename="yq_darwin_${download_arch}"
+        ;;
+      "MINGW"*|"MSYS_NT"*) # Windows (Git Bash, MSYS)
+        OS="Windows"
+        filename="yq_windows_${download_arch}.exe"
+        ;;
+      *)
+        echo "Unsupported operating system for yq installation: $OS"
+        exit 1
+        ;;
+    esac
+
+    local download_url="https://github.com/mikefarah/yq/releases/latest/download/$filename"
+
+    echo "Attempting to remove any existing yq at ${install_path}..."
+    sudo rm -f "${install_path}"
+
+    echo "Downloading yq for ${OS} ${download_arch} from ${download_url}..."
+    if ! sudo curl -L -o "${install_path}" "${download_url}"; then
+        echo "Error: Failed to download yq."
+        exit 1
+    fi
+    sudo chmod +x "${install_path}"
+
+    echo "Verifying yq installation at ${install_path}..."
+    if [[ ! -x "${install_path}" ]]; then
+        echo "Error: yq not found or not executable at ${install_path}."
+        ls -l "${install_path}"
+        exit 1
+    fi
+
+    echo "yq executable is at: ${install_path}"
+    echo "yq Version:"
+    "${install_path}" --version
+
+    echo "yq installed successfully to ${install_path}."
+}
+
+
 install_dependencies() {
     # Get the operating system and store it in a variable
     OS=$(uname -s)
@@ -34,26 +103,20 @@ install_dependencies() {
         if command_exists apt-get; then
           sudo apt-get update -y
           # Note: libaio-dev is a Linux-specific dependency
-          sudo apt-get install libaio-dev gcc g++ make git fuse -y
+          sudo apt-get install wget libaio-dev gcc g++ make git fuse -y
           echo "apt-get packages installed."
         # Check for a Red Hat-based system (dnf or yum)
         elif command_exists dnf; then
-          sudo dnf install libaio-devel gcc-c++ make git fuse -y
+          sudo dnf install wget libaio-devel gcc-c++ make git fuse -y
           echo "dnf packages installed."
         elif command_exists yum; then
-          sudo yum install libaio-devel gcc-c++ make git fuse -y
+          sudo yum install wget libaio-devel gcc-c++ make git fuse -y
           echo "yum packages installed."
         # Add more package managers as needed (e.g., pacman for Arch)
         else
           echo "Could not find a supported package manager (apt-get, dnf, or yum). Please install dependencies manually."
           exit 1
         fi
-
-        # Download and install the yq binary for Linux
-        echo "Installing yq for Linux..."
-        curl -L -o /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
-        sudo chmod +x /usr/local/bin/yq
-        echo "yq installed to /usr/local/bin/yq."
         ;;
 
       "Darwin")
@@ -69,13 +132,16 @@ install_dependencies() {
         echo "Installing Xcode Command Line Tools..."
         xcode-select --install
         echo "Installing homebrew packages..."
+        if !command_exists wget; then
+            echo "Installing wget via Homebrew..."
+            brew install wget
+        else
+            echo "wget not found. Please install wget, or install Homebrew to install it."
+            exit 1
+        fi
+
         brew install gcc git coreutils
         echo "brew packages installed."
-
-        # Download and install the yq binary for macOS
-        echo "Installing yq for macOS..."
-        brew install yq
-        echo "yq installed via Homebrew."
         ;;
 
       "MINGW"*|"MSYS_NT"*)
@@ -88,13 +154,8 @@ install_dependencies() {
         # Note: libaio-dev is not available on Windows.
         # Install build tools and Git using Chocolatey
         echo "Installing Chocolatey packages..."
-        choco install git make -y
+        choco install git make wget -y
         echo "choco packages installed."
-
-        # Download and install the yq binary for Windows
-        echo "Installing yq for Windows..."
-        curl -L -o yq.exe https://github.com/mikefarah/yq/releases/latest/download/yq_windows_amd64.exe
-        echo "yq.exe downloaded. Please ensure it is in your PATH."
         ;;
 
       *)
@@ -102,7 +163,10 @@ install_dependencies() {
         exit 1
         ;;
     esac
-
+    if ! command_exists wget; then
+        echo "Error: wget installation failed or was skipped."
+        exit 1
+    fi
     echo "Dependency installation complete."
 }
 
@@ -127,50 +191,6 @@ check_if_package_installed() {
     command -v "$pkg" >/dev/null 2>&1
 }
 
-# Install fio on the VM.
-install_fio_on_vm() {
-    if check_if_package_installed "fio"; then
-        echo "FIO is already installed on the VM"
-        return 0
-    fi
-    # dir contains the path to the directory with version_details.yml
-    local dir=$1
-
-    # Check if yq is installed and install it if it's not.
-    if ! command -v yq &> /dev/null; then
-        echo "yq not found. Installing yq..."
-            return 1
-    fi
-
-    echo "Fetching fio_version from ${dir}/version_details.yml"
-    # Use yq to parse the YAML file and get the fio_version.
-    local fio_version=$(yq e '.fio_version' "${dir}/version_details.yml")
-
-    # Check if the version was successfully retrieved.
-    if [ -z "$fio_version" ]; then
-        echo "Error: Could not find fio_version in the YAML file."
-        return 1
-    fi
-
-    echo "Cloning fio version: ${fio_version}"
-    
-    # Use a subshell (...) to contain the cd commands.
-    # This prevents the script's working directory from being changed.
-    (
-        git clone -b fio-"${fio_version}" https://github.com/axboe/fio.git
-        cd fio || { echo "Error: Failed to cd into fio directory."; exit 1; }
-        ./configure && sudo make && sudo make install
-    )
-    
-    # Check if the subshell exited successfully
-    if [ $? -eq 0 ]; then
-        echo "Fio installation complete."
-        return 0
-    else
-        echo "Fio installation failed."
-        return 1
-    fi
-}
 
 # Install golang on the VM.
 install_golang_on_vm() {
@@ -182,14 +202,8 @@ install_golang_on_vm() {
     local dir=$1
     set -e # Exit immediately if a command exits with a non-zero status.
 
-    # Check if yq is installed and install it if it's not.
-    if ! command -v yq &> /dev/null; then
-        echo "yq not found. Installing yq..."
-            return 1
-    fi
-
     echo "Fetching go_version from ${dir}/version_details.yml"
-    local go_version=$(yq e '.go_version' "${dir}/version_details.yml")
+    local go_version=$(/usr/local/bin/yq e '.go_version' "${dir}/version_details.yml")
 
     if [ -z "$go_version" ]; then
         echo "Error: Could not find go_version in the YAML file."
@@ -240,42 +254,72 @@ install_golang_on_vm() {
     go version
 }
 
-
 install_unzip_on_vm() {
-    # Check if unzip is installed
-    if ! command -v unzip &> /dev/null; then
-        echo "unzip not found, installing..."
+    # Helper to check for command existence
+    command_exists() {
+        command -v "$1" >/dev/null 2>&1
+    }
 
-        # Detect platform
-        if [[ "$OSTYPE" == "linux-gnu"* ]]; then
-            if command -v apt &> /dev/null; then
+    if command_exists unzip; then
+        echo "unzip is already installed."
+        return 0
+    fi
+
+    echo "unzip not found, attempting to install..."
+
+    local os_kernel
+    os_kernel=$(uname -s)
+
+    case "$os_kernel" in
+        "Linux")
+            echo "Linux detected."
+            if command_exists apt; then
                 sudo apt update && sudo apt install -y unzip
-            elif command -v yum &> /dev/null; then
+            elif command_exists yum; then
                 sudo yum install -y unzip
-            elif command -v dnf &> /dev/null; then
+            elif command_exists dnf; then
                 sudo dnf install -y unzip
-            elif command -v pacman &> /dev/null; then
-                sudo pacman -Sy unzip
+            elif command_exists pacman; then
+                sudo pacman -Sy --noconfirm unzip
             else
-                echo "Unsupported Linux package manager."
+                echo "Unsupported Linux package manager for unzip installation."
                 exit 1
             fi
-        elif [[ "$OSTYPE" == "darwin"* ]]; then
-            # macOS
-            if command -v brew &> /dev/null; then
+            ;;
+        "Darwin")
+            echo "macOS detected."
+            if command_exists brew; then
                 brew install unzip
             else
-                echo "Homebrew not found. Please install Homebrew and rerun."
+                echo "Homebrew not found. Please install Homebrew from https://brew.sh and rerun."
                 exit 1
             fi
-        else
-            echo "Unsupported OS: $OSTYPE"
+            ;;
+        "MINGW"*|"MSYS_NT"*)
+            echo "Windows (MINGW/MSYS) detected. Using Chocolatey..."
+            if ! command_exists choco; then
+                echo "Chocolatey not found. Please install Chocolatey from https://chocolatey.org and rerun."
+                echo "Note: Chocolatey operations typically require Administrator privileges."
+                exit 1
+            fi
+            # choco install -y <package>
+            choco install -y unzip
+            ;;
+        *)
+            echo "Unsupported OS for unzip installation: $os_kernel"
             exit 1
-        fi
+            ;;
+    esac
+
+    # Final check to ensure unzip is now available
+    if ! command_exists unzip; then
+        echo "Error: unzip installation failed."
+        exit 1
     else
-        echo "unzip is already installed."
+        echo "unzip installed successfully."
     fi
 }
+
 
 build_custom_cpp_fio_engine() {
     local artifacts_bucket=$1
@@ -409,7 +453,6 @@ if [ -n "$bucket" ] && [ -n "$artifacts_bucket" ] && [ -n "$benchmark_id" ]; the
     # Copy the resources necessary for running the benchmark
     copy_resources_from_artifact_bucket "$artifacts_bucket" "$benchmark_id" "$dir"
 
-    install_fio_on_vm "$dir"
     install_golang_on_vm "$dir"
     install_unzip_on_vm "$dir"
 

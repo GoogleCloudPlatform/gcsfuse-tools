@@ -19,6 +19,76 @@ command_exists () {
   command -v "$1" >/dev/null 2>&1
 }
 
+# Platform-agnostic function to install yq by downloading from GitHub
+install_yq() {
+    echo "Installing yq from GitHub releases..."
+    local OS=$(uname -s)
+    local arch=$(uname -m)
+    local install_path="/usr/local/bin/yq" # Default for Linux/macOS
+
+    # Adjust install_path for Windows/MSYS
+    if [[ "$OS" == "MINGW"* || "$OS" == "MSYS_NT"* ]]; then
+        install_path="/usr/bin/yq"
+    fi
+
+    # Ensure the target directory exists
+    sudo mkdir -p "$(dirname "${install_path}")"
+
+    echo "Detected OS: $OS, Architecture: $arch"
+
+    local download_arch=""
+    case "$arch" in
+      x86_64)  download_arch="amd64";;
+      aarch64|arm64) download_arch="arm64";;
+      *) echo "Unsupported architecture for yq download: $arch"; exit 1;;
+    esac
+
+    local filename=""
+    case "$OS" in
+      "Linux")
+        filename="yq_linux_${download_arch}"
+        ;;
+      "Darwin") # macOS
+        filename="yq_darwin_${download_arch}"
+        ;;
+      "MINGW"*|"MSYS_NT"*) # Windows (Git Bash, MSYS)
+        OS="Windows"
+        filename="yq_windows_${download_arch}.exe"
+        ;;
+      *)
+        echo "Unsupported operating system for yq installation: $OS"
+        exit 1
+        ;;
+    esac
+
+    local download_url="https://github.com/mikefarah/yq/releases/latest/download/$filename"
+
+    echo "Attempting to remove any existing yq at ${install_path}..."
+    sudo rm -f "${install_path}"
+
+    echo "Downloading yq for ${OS} ${download_arch} from ${download_url}..."
+    if ! sudo curl -L -o "${install_path}" "${download_url}"; then
+        echo "Error: Failed to download yq."
+        exit 1
+    fi
+    sudo chmod +x "${install_path}"
+
+    echo "Verifying yq installation at ${install_path}..."
+    if [[ ! -x "${install_path}" ]]; then
+        echo "Error: yq not found or not executable at ${install_path}."
+        ls -l "${install_path}"
+        exit 1
+    fi
+
+    echo "yq executable is at: ${install_path}"
+    echo "yq Version:"
+    "${install_path}" --version
+
+    echo "yq installed successfully to ${install_path}."
+}
+
+
+
 install_dependencies() {
     # Get the operating system and store it in a variable
     OS=$(uname -s)
@@ -32,26 +102,20 @@ install_dependencies() {
         if command_exists apt-get; then
           sudo apt-get update -y
           # Note: libaio-dev is a Linux-specific dependency
-          sudo apt-get install libaio-dev gcc g++ make git fuse -y
+          sudo apt-get install wget libaio-dev gcc g++ make git fuse -y
           echo "apt-get packages installed."
         # Check for a Red Hat-based system (dnf or yum)
         elif command_exists dnf; then
-          sudo dnf install libaio-devel gcc-c++ make git fuse -y
+          sudo dnf install wget libaio-devel gcc-c++ make git fuse -y
           echo "dnf packages installed."
         elif command_exists yum; then
-          sudo yum install libaio-devel gcc-c++ make git fuse -y
+          sudo yum install wget libaio-devel gcc-c++ make git fuse -y
           echo "yum packages installed."
         # Add more package managers as needed (e.g., pacman for Arch)
         else
           echo "Could not find a supported package manager (apt-get, dnf, or yum). Please install dependencies manually."
           exit 1
         fi
-
-        # Download and install the yq binary for Linux
-        echo "Installing yq for Linux..."
-        curl -L -o /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
-        sudo chmod +x /usr/local/bin/yq
-        echo "yq installed to /usr/local/bin/yq."
         ;;
 
       "Darwin")
@@ -67,13 +131,16 @@ install_dependencies() {
         echo "Installing Xcode Command Line Tools..."
         xcode-select --install
         echo "Installing homebrew packages..."
+        if !command_exists wget; then
+            echo "Installing wget via Homebrew..."
+            brew install wget
+        else
+            echo "wget not found. Please install wget, or install Homebrew to install it."
+            exit 1
+        fi
+
         brew install gcc git coreutils
         echo "brew packages installed."
-
-        # Download and install the yq binary for macOS
-        echo "Installing yq for macOS..."
-        brew install yq
-        echo "yq installed via Homebrew."
         ;;
 
       "MINGW"*|"MSYS_NT"*)
@@ -86,13 +153,8 @@ install_dependencies() {
         # Note: libaio-dev is not available on Windows.
         # Install build tools and Git using Chocolatey
         echo "Installing Chocolatey packages..."
-        choco install git make -y
+        choco install git make wget -y
         echo "choco packages installed."
-
-        # Download and install the yq binary for Windows
-        echo "Installing yq for Windows..."
-        curl -L -o yq.exe https://github.com/mikefarah/yq/releases/latest/download/yq_windows_amd64.exe
-        echo "yq.exe downloaded. Please ensure it is in your PATH."
         ;;
 
       *)
@@ -100,7 +162,10 @@ install_dependencies() {
         exit 1
         ;;
     esac
-
+    if ! command_exists wget; then
+        echo "Error: wget installation failed or was skipped."
+        exit 1
+    fi
     echo "Dependency installation complete."
 }
 
@@ -118,31 +183,21 @@ copy_raw_results_to_artifacts_bucket(){
     gcloud storage cp --recursive $dir/raw-results/* gs://$artifacts_bucket/$benchmark_id/raw-results/
 }
 
-check_if_package_installed() {
-    # Check for the 'package' command
-    # The output is redirected to /dev/null to keep the console clean.
-    local pkg="$1"
-    command -v "$pkg" >/dev/null 2>&1
-}
-
 # Install fio on the VM.
 install_fio_on_vm() {
-    if check_if_package_installed "fio"; then
-        echo "FIO is already installed on the VM"
+    local fio_install_path="/usr/local/bin/fio"
+    # Check if fio is already installed and executable at the expected path
+    if [[ -x "$fio_install_path" ]]; then
+        echo "FIO is already installed at $fio_install_path"
+        "$fio_install_path" --version
         return 0
     fi
     # dir contains the path to the directory with version_details.yml
     local dir=$1
-
-    # Check if yq is installed and install it if it's not.
-    if ! command -v yq &> /dev/null; then
-        echo "yq not found. Installing yq..."
-            return 1
-    fi
-
     echo "Fetching fio_version from ${dir}/version_details.yml"
     # Use yq to parse the YAML file and get the fio_version.
-    local fio_version=$(yq e '.fio_version' "${dir}/version_details.yml")
+    local fio_version
+    fio_version=$(/usr/local/bin/yq e '.fio_version' "${dir}/version_details.yml")
 
     # Check if the version was successfully retrieved.
     if [ -z "$fio_version" ]; then
@@ -150,25 +205,61 @@ install_fio_on_vm() {
         return 1
     fi
 
-    echo "Cloning fio version: ${fio_version}"
-    
-    # Use a subshell (...) to contain the cd commands.
-    # This prevents the script's working directory from being changed.
+    echo "Preparing to install fio version: ${fio_version}"
     (
-        git clone -b fio-"${fio_version}" https://github.com/axboe/fio.git
+        if [ -d "fio" ]; then
+            echo "Removing existing fio directory..."
+            rm -rf fio
+        fi
+
+        echo "Cloning fio version: ${fio_version}..."
+        if ! git clone --depth 1 -b "fio-${fio_version}" https://github.com/axboe/fio.git; then
+            echo "Error: Failed to clone fio repository."
+            exit 1
+        fi
+
         cd fio || { echo "Error: Failed to cd into fio directory."; exit 1; }
-        ./configure && sudo make && sudo make install
+
+        echo "Configuring fio..."
+        if ! ./configure; then
+            echo "Error: fio configuration failed."
+            exit 1
+        fi
+
+        echo "Building fio..."
+        if ! make -j"$(nproc)"; then
+            echo "Error: fio build failed."
+            exit 1
+        fi
+
+        echo "Installing fio to $fio_install_path..."
+        if ! sudo make install; then
+            echo "Error: fio installation failed."
+            exit 1
+        fi
     )
-    
-    # Check if the subshell exited successfully
+
     if [ $? -eq 0 ]; then
-        echo "Fio installation complete."
-        return 0
+        echo "Fio installation process complete."
+        if [[ -x "$fio_install_path" ]]; then
+            echo "fio installed successfully to $fio_install_path"
+            "$fio_install_path" --version
+            return 0
+        else
+            echo "Error: fio not found at $fio_install_path after installation."
+            return 1
+        fi
     else
-        echo "Fio installation failed."
+        echo "Fio installation process failed."
         return 1
     fi
 }
+
+# Helper function (if not already defined)
+check_if_package_installed() {
+    command -v "$1" >/dev/null 2>&1
+}
+
 
 # Install golang on the VM.
 install_golang_on_vm() {
@@ -180,14 +271,8 @@ install_golang_on_vm() {
     local dir=$1
     set -e # Exit immediately if a command exits with a non-zero status.
 
-    # Check if yq is installed and install it if it's not.
-    if ! command -v yq &> /dev/null; then
-        echo "yq not found. Installing yq..."
-            return 1
-    fi
-
     echo "Fetching go_version from ${dir}/version_details.yml"
-    local go_version=$(yq e '.go_version' "${dir}/version_details.yml")
+    local go_version=$(/usr/local/bin/yq e '.go_version' "${dir}/version_details.yml")
 
     if [ -z "$go_version" ]; then
         echo "Error: Could not find go_version in the YAML file."
@@ -241,16 +326,12 @@ install_golang_on_vm() {
 build_gcsfuse() {
     # dir contains the path to the directory with version_details.yml
     local dir=$1
+    local gcsfuse_install_path="/usr/local/bin/gcsfuse"
     set -e
 
-    # Check if yq is installed and install it if it's not.
-    if ! command -v yq &> /dev/null; then
-        echo "yq not found. Installing yq..."
-            return 1
-    fi
-
     echo "Fetching gcsfuse version from ${dir}/version_details.yml"
-    local gcsfuse_version=$(yq e '.gcsfuse_version_or_commit' "${dir}/version_details.yml")
+    local gcsfuse_version
+    gcsfuse_version=$(/usr/local/bin/yq e '.gcsfuse_version_or_commit' "${dir}/version_details.yml")
 
     if [ -z "$gcsfuse_version" ]; then
         echo "Error: Could not find gcsfuse_version in the YAML file."
@@ -281,15 +362,17 @@ build_gcsfuse() {
         go build
 
         # Install the binary to a system path
-        echo "Installing gcsfuse to /usr/local/bin/"
-        sudo cp -f gcsfuse /usr/local/bin/gcsfuse
+        echo "Installing gcsfuse to ${gcsfuse_install_path}"
+        sudo cp -f gcsfuse "${gcsfuse_install_path}"
     )
 
-    if command -v gcsfuse &> /dev/null; then
-        echo "gcsfuse installed successfully."
-        gcsfuse --version
+    echo "Verifying gcsfuse installation..."
+    if [[ -x "${gcsfuse_install_path}" ]]; then
+        echo "gcsfuse installed successfully to ${gcsfuse_install_path}"
+        "${gcsfuse_install_path}" --version
+        return 0
     else
-        echo "Error: gcsfuse binary not found in PATH."
+        echo "Error: gcsfuse binary not found or not executable at ${gcsfuse_install_path}."
         return 1
     fi
 }
@@ -298,6 +381,7 @@ mount_gcsfuse() {
     local mntdir="$1"
     local bucketname="$2"
     local mount_config="$3"
+    local gcsfuse_binary="/usr/local/bin/gcsfuse"
 
     # Create the mount directory if it doesn't exist
     if [ ! -d "$mntdir" ]; then
@@ -318,7 +402,7 @@ mount_gcsfuse() {
 
     # Mount the GCS bucket using the config file
     echo "Mounting bucket '$bucketname' to '$mntdir' with config '$mount_config'..."
-    gcsfuse --config-file="$mount_config" "$bucketname" "$mntdir"
+    "${gcsfuse_binary}" --config-file="$mount_config" "$bucketname" "$mntdir"
 
     # Verify the mount was successful
     if mountpoint -q "$mntdir"; then
@@ -364,6 +448,7 @@ unmount_gcsfuse() {
 start_benchmarking_runs() {
     dir="$1"
     iterations="$2"
+    local fio_binary="/usr/local/bin/fio"
 
     mkdir -p "${dir}/raw-results/"
 
@@ -419,7 +504,7 @@ start_benchmarking_runs() {
 
             filename_format="${iotype}-\$jobnum/\$filenum"
             output_file="${testdir}/fio_output_iter${i}.json"
-            MNTDIR=${mntdir} IODEPTH=${iodepth} IOTYPE=${iotype} BLOCKSIZE=${bs} FILESIZE=${file_size} NRFILES=${nrfiles} NUMJOBS=${threads} FILENAME_FORMAT=${filename_format} fio $fio_job_file --output-format=json > "$output_file" 2>&1 
+            MNTDIR=${mntdir} IODEPTH=${iodepth} IOTYPE=${iotype} BLOCKSIZE=${bs} FILESIZE=${file_size} NRFILES=${nrfiles} NUMJOBS=${threads} FILENAME_FORMAT=${filename_format} ${fio_binary} $fio_job_file --output-format=json > "$output_file" 2>&1 
             
             end_time=$(date +"%Y-%m-%dT%H:%M:%S%z")
             echo "${i},${start_time},${end_time}" >> "$timestamps_file"
@@ -446,8 +531,11 @@ start_benchmarking_runs() {
 if [ -n "$bucket" ] && [ -n "$artifacts_bucket" ] && [ -n "$benchmark_id" ]; then
     echo "Metadata parameters are accessible and were retrieved successfully."
     dir="$(pwd)"
-    
-    # Install dependencies
+
+    # Install yq
+    install_yq
+
+    # Install other dependencies
     install_dependencies
 
     # Copy the resources necessary for running the benchmark
@@ -467,8 +555,6 @@ if [ -n "$bucket" ] && [ -n "$artifacts_bucket" ] && [ -n "$benchmark_id" ]; the
 else
     echo "Error: Failed to retrieve one or more metadata parameters."
 fi
-# Corrected typo from `touc` to `touch`
 touch /tmp/failure.txt
-# Corrected extra slash in gcloud storage command
 gcloud storage cp /tmp/failure.txt gs://$artifacts_bucket/$benchmark_id/failure.txt
 exit 1
