@@ -34,6 +34,7 @@ def main():
     parser.add_argument("--fio-config", required=True, help="Path to the FIO config file.")
     parser.add_argument("--work-dir", default="/tmp/gcsfuse_benchmark", help="Working directory for clones and builds.")
     parser.add_argument("--output-dir", default="./fio_results", help="Directory to save FIO JSON results.")
+    parser.add_argument("--summary-file", default=None, help="Path to save the summary of results.")
     args = parser.parse_args()
 
     fio_benchmark_runner.run_benchmark(
@@ -43,6 +44,7 @@ def main():
         fio_config=args.fio_config,
         work_dir=args.work_dir,
         output_dir=args.output_dir,
+        summary_file=args.summary_file,
     )
 
 
