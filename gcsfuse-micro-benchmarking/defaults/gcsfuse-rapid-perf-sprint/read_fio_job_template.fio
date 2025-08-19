@@ -22,4 +22,4 @@ directory=${MNTDIR}
 bs=${BLOCKSIZE}
 filesize=${FILESIZE}
 nrfiles=${NUMFILES}
-numjobs=${FILEHANDLECOUNT}
+numjobs=${NUMJOBS}
