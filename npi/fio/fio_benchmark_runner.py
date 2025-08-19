@@ -124,6 +124,8 @@ def parse_fio_output(filename):
                     "block_size": options.get("bs", 0),
                     "file_size": options.get("filesize", 0),
                     "nr_files": options.get("nrfiles", 0),
+                    "queue_depth": data["global options"].get("iodepth", 0),
+                    "num_jobs": options.get("numjobs", 0),
                     "operation": data["global options"].get("rw", "unknown"),
                     "bw_mibps": bw_mibps,
                     "iops": iops,
@@ -133,31 +135,49 @@ def parse_fio_output(filename):
     return results
 
 
-def print_summary(all_results):
-    """Prints a summary of all FIO iterations."""
+def print_summary(all_results, summary_file=None):
+    """Prints a summary of all FIO iterations and optionally writes to a file."""
     if not all_results:
         logging.warning("No results to summarize.")
         return
 
-    logging.info("\n--- FIO Benchmark Summary ---")
-    header = (f"{'Iter':<5} {'Job Name':<20} {'Op':<8} {'Block Size':<10} {'File Size':<10} {'NR_Files':<3} "
+    print("\n")
+    summary_lines = []
+
+    summary_lines.append("--- FIO Benchmark Summary ---")
+
+    header = (f"{'Iter':<5} {'Job Name':<20} {'Op':<8} {'Block Size':<10} {'File Size':<10} {'NR_Files':<3} {'Queue Depth':<12} {'Num Jobs':<8} "
               f"{'Bandwidth (MiB/s)':<20} "
-              f"{'IOPS':<12} {'Mean Latency (ms)':<20} {'P99 Latency (ms)':<20}")
-    print(header)
-    print("-" * len(header))
+              f"{'IOPS':<12} {'Mean Latency (ms)':<20}")
+    separator = "-" * len(header)
+    summary_lines.append(header)
+    summary_lines.append(separator)
+
     for i, iteration_results in enumerate(all_results, 1):
         if not iteration_results:
-            print(f"{i:<5} No results for this iteration.")
+            line = f"{i:<5} No results for this iteration."
+            summary_lines.append(line)
             continue
         for result in iteration_results:
-            print(f"{i:<5} {result['job_name']:<20} {result['operation']:<8} {result['block_size']:<10} {result['file_size']:<10} {result['nr_files']:<8} "
-                  f"{result['bw_mibps']:<20.2f} {result['iops']:<12.2f} "
-                  f"{result['mean_lat_ms']:<20.4f} {result['p99_lat_ms']:<20.4f}")
-    print("-" * len(header))
+            line = (f"{i:<5} {result['job_name']:<20} {result['operation']:<8} {result['block_size']:<10} {result['file_size']:<10} {result['nr_files']:<8} {result['queue_depth']:<12} {result['num_jobs']:<8}"
+                    f"{result['bw_mibps']:<20.2f} {result['iops']:<12.2f} "
+                    f"{result['mean_lat_ms']:<20.4f}")
+            summary_lines.append(line)
+    summary_lines.append(separator)
+    output = "\n".join(summary_lines)
+    print(output)
+
+    if summary_file:
+        try:
+            with open(summary_file, "w") as f:
+                f.write(output)
+            logging.info(f"Summary also written to {summary_file}")
+        except IOError as e:
+            logging.error(f"Failed to write summary to {summary_file}: {e}")
 
 
 def run_benchmark(
-    gcsfuse_flags, bucket_name, iterations, fio_config, work_dir, output_dir, fio_env=None
+    gcsfuse_flags, bucket_name, iterations, fio_config, work_dir, output_dir, fio_env=None, summary_file=None
 ):
     """Runs the full FIO benchmark suite."""
     os.makedirs(work_dir, exist_ok=True)
@@ -193,4 +213,4 @@ def run_benchmark(
                 unmount_gcsfuse(mount_point)
         logging.info(f"--- Finished Iteration {i}/{iterations} ---")
 
-    print_summary(all_results)
+    print_summary(all_results, summary_file=summary_file)
