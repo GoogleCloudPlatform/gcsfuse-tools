@@ -10,7 +10,7 @@ def record_benchmark_id_for_user(benchmark_id, bench_type, artifacts_bucket):
         'user': user,
         'benchmark_id': benchmark_id,
         'type': bench_type,
-        'end_time': datetime.now().strftime('%Y-%m-%d %H:%M:%S IST'),
+        'end_time': datetime.now(datetime.timezone.utc).isoformat(),
     }
 
     # Define the path to the runs.json file in the GCS bucket
