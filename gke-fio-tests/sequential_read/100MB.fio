@@ -1,0 +1,36 @@
+# Copyright 2025 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+[global]
+ioengine=libaio
+direct=1
+fadvise_hint=0
+iodepth=64
+invalidate=1
+thread=1
+openfiles=1
+group_reporting=1
+create_serialize=0
+allrandrepeat=0
+file_service_type=random
+numjobs=16
+filename_format=$jobname.$jobnum/$filenum
+
+[sequential_read_filesize_100M_blocksize_1M]
+stonewall
+directory=${DIR}
+bs=1M
+filesize=100MB
+rw=read
+nrfiles=5
