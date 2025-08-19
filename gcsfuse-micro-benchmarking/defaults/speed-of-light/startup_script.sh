@@ -132,7 +132,7 @@ install_dependencies() {
         echo "Installing Xcode Command Line Tools..."
         xcode-select --install
         echo "Installing homebrew packages..."
-        if !command_exists wget; then
+        if ! command_exists wget; then
             echo "Installing wget via Homebrew..."
             brew install wget
         else
