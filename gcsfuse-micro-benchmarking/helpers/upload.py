@@ -94,5 +94,5 @@ if __name__ == '__main__':
         }
     }
 
-    store_metrics_in_artifacts_bucket_gcloud(metrics, MY_BENCHMARK_ID, MY_ARTIFACTS_BUCKET,PROJECT)
+    store_metrics_in_artifacts_bucket(metrics, MY_BENCHMARK_ID, MY_ARTIFACTS_BUCKET,PROJECT)
 
