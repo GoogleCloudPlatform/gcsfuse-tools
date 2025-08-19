@@ -45,6 +45,8 @@ def rationalize_job_details(job_details):
     }
 
     if job_details:
+        if job_details.get('file_path') and job_details.get('file_path') != "":
+            config['file_path']=job_details.get('file_path')
         if job_details.get('bs') and job_details.get('bs') != "":
             config['bs']=job_details.get('bs')
         if job_details.get('file_size') and job_details.get('file_size') != "":
