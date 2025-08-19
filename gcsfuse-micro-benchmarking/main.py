@@ -81,7 +81,9 @@ if __name__ == '__main__':
         
         upload.store_metrics_in_artifacts_bucket(metrics, benchmark_id, ARTIFACTS_BUCKET, cfg.get('bench_env').get('project'))
         
-        output_filename="./results/"+benchmark_id+"_result.txt"
+        output_dir = "./results/"
+        os.makedirs(output_dir, exist_ok=True)
+        output_filename=os.path.join(output_dir, benchmark_id+"_result.txt")
         generate_report.pretty_print_metrics_table(metrics,output_filename)
         
         # Upon successful benchmarking, cleanup the created resources
