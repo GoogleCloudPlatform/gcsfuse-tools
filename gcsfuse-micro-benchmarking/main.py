@@ -22,7 +22,7 @@ if __name__ == '__main__':
 
     args = parse_args()
     # Figure out the benchmark unique id    
-    benchmark_id=args.benchmark_id_prefix+helper.generate_random_string(10)
+    benchmark_id=(args.benchmark_id_prefix or '') + helper.generate_random_string(10)
 
     # Make directory to store the artifacts
     artifacts_dir=helper.generate_artifacts_dir(benchmark_id)
