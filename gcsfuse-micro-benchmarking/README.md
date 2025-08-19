@@ -8,22 +8,16 @@ git checkout gcsfuse-micro-benchmarking
 cd gcsfuse-micro-benchmarking
 ```
 
-### 2. Setup the environment
-```
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-```
-
-### 3. Start the SSH agent and load your GCE private key to enable passwordless SSH access to your VMs.
+### 2. Start the SSH agent and load your GCE private key to enable passwordless SSH access to your VMs. 
 ```
 eval "$(ssh-agent -s)"
 ssh-add ~/.ssh/google_compute_engine
 
 #pkill ssh-agent  # to kill the active the ssh session, Having multiple ssh-agent processes running can lead to unexpected behavior and connection issues
 ```
+Note: Please ensure that `gcloud compute ssh` works as expected locally.
 
-### 4. Setup the configurations as per your requirement
+### 3. Setup the configurations as per your requirement
 For custom benchmark runs, according to your usecase, modify either of
 * fio_job_cases.csv 
     - For executing mixed testcases such as the published GCSFuse benchmarks.
@@ -32,17 +26,25 @@ For custom benchmark runs, according to your usecase, modify either of
 
 For more details on setting the configurations as per requirement, follow the guidelines [here](https://docs.google.com/document/d/1yI0ApvDC8SDnpzAmz95kbf75h1G-me41Xa1XH7zecF0/edit?usp=sharing)
 
-### 5. (Optional) Start the tmux session
+### 4. (Optional) Start the tmux session
 ```
 tmx2 new -A -s benchmarking-session
 ```
-Running the script can be blocking and any failure (for e.g. SSH issues of the local machine from which the script is triggered, etc.) can cause the entire script to retriggered , thus it is advised to run the benchmark in a tmux session.
-Note: tmx2 is recommended as tmux doesn't work well with propagated ssh-keys.
+Running the script can be blocking and any failure (for e.g. SSH issues of the local machine from which the script is triggered, etc.) can cause the entire script to retriggered , thus it is advised to run the benchmark in a tmux session. \
+Note: tmx2 is recommended as tmux doesn't work well with propagated ssh-keys. To install tmx2, please run the following commands: `sudo apt install tmux gnubby-wrappers`
+
+### 5. Setup the virual environment
+```
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+```
 
 ### 5. Run the benchmark 
 ```
 python3  main.py --benchmark_id={benchmark_id} --config_filepath={path/to/benchmark_config_file} --bench_type={bench_type}
 ```
+Note: Please ensure Google Cloud SDK is updated as creating zonal buckets is not supported for older versions. 
 
 ### 6. Cleanup
 Whenever necessary, a GCE VM of name `{benchmark_id}-vm` and a GCS bucket of name `{benchmark_id}-bkt}` is created at runtime.
