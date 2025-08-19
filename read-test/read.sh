@@ -30,7 +30,7 @@ patterns=("read" "randread")
 jobs=(1)
 
 file_sizes=("256K" "1M" "5M" "15M" "30M" "60M" "120M" "250M" "500M" "1G" "2G")
-# file_sizes=("256K" "1M" "5M" "120M")
+# file_sizes=("256K")
 
 # Function to determine number of files based on file size
 get_nr_files() {
@@ -80,18 +80,33 @@ get_nr_files() {
     esac
 }
 
+# Function to determine block size based on file size
+get_block_size() {
+    local size=$1
+    case $size in
+        "256K")
+            echo "256K"
+            ;;
+        *)
+            echo "1M"
+            ;;
+    esac
+}
+
 for job in ${jobs[@]}; do
     for size in ${file_sizes[@]}; do
         # Get the appropriate number of files for this size
         nr_files=$(get_nr_files "$size")
+        # Get the appropriate block size for this file size
+        block_size=$(get_block_size "$size")
         
         mkdir -p $size
         for pattern in ${patterns[@]}; do
-            echo "Running for $pattern over $size files with $job jobs and $nr_files files..." | tee -a $file_name
-            # NR_FILES=$nr_files BLOCK_SIZE=1M FILE_SIZE=$size MODE=$pattern NUMJOBS=$job fio ~/dev/gcsfuse-tools/read-test/read.fio | tee -a $file_name
+            echo "Running for $pattern over $size files with $job jobs and $nr_files files (block_size: $block_size)..." | tee -a $file_name
+            NR_FILES=$nr_files BLOCK_SIZE=$block_size FILE_SIZE=$size MODE=$pattern NUMJOBS=$job fio ~/dev/gcsfuse-tools/read-test/read.fio | tee -a $file_name
             echo "Running for $pattern over $size files with $job jobs completed." | tee -a $file_name
             # sleep 300s
-            sleep 60s
+            sleep 120s
         done
     done
 done
