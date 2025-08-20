@@ -56,7 +56,7 @@ def create_vm_if_not_exists(vm_details, zone, project):
             f'--zone={zone}',
             f'--project={project}',
             f'--machine-type={vm_details.get("machine_type", "e2-micro")}',
-            f'--create-disk=name={vm_name}-disk,size={vm_details.get("disk_size", "10GB")}',
+            f'--boot-disk-size={vm_details.get("disk_size", "10GB")}',
             f'--image-family={vm_details.get("image_family", "debian-11")}',
             f'--image-project={vm_details.get("image_project", "debian-cloud")}',
             '--scopes=https://www.googleapis.com/auth/cloud-platform'
@@ -65,7 +65,7 @@ def create_vm_if_not_exists(vm_details, zone, project):
             cmd_list.append(f'--service-account={vm_details["service_account"]}')
 
         try:
-            # print(f"Executing creation command: {' '.join(shlex.quote(arg) for arg in cmd_list)}")
+            print(f"Executing creation command: {' '.join(shlex.quote(arg) for arg in cmd_list)}")
             subprocess.run(cmd_list, check=True, capture_output=True, text=True, timeout=360) # Increased timeout
             print(f"VM '{vm_name}' creation command finished successfully.")
             return True # Newly Created
@@ -79,6 +79,7 @@ def create_vm_if_not_exists(vm_details, zone, project):
     except Exception as e:
         print(f"Unexpected error checking VM existence: {e}")
         return None
+
 
 def wait_for_ssh(vm_name, zone, project, retries=15, delay=20):
     """Tries to SSH into the VM until it succeeds or retries are exhausted."""

@@ -44,7 +44,7 @@ def create_gcs_bucket(location, project,config):
      
     try:
         # 3. Execute the command
-        print(f"Executing command: {' '.join(cmd)}")
+        # print(f"Executing command: {' '.join(cmd)}")
         
         result = subprocess.run(cmd, check=True, capture_output=True, text=True)
         print(f"Bucket '{bucket_name}' created successfully.")
