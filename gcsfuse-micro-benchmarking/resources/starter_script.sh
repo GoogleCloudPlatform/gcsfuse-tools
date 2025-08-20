@@ -500,13 +500,13 @@ start_benchmarking_runs() {
                 mount_gcsfuse "$mntdir" "$bucket" "$mount_config"
             fi
 
-            start_time=$(date +"%Y-%m-%dT%H:%M:%S%z")
+            start_time=$(date -u +"%Y-%m-%dT%H:%M:%S%z")
 
             filename_format="${iotype}-\$jobnum/\$filenum"
             output_file="${testdir}/fio_output_iter${i}.json"
             MNTDIR=${mntdir} IODEPTH=${iodepth} IOTYPE=${iotype} BLOCKSIZE=${bs} FILESIZE=${file_size} NRFILES=${nrfiles} NUMJOBS=${threads} FILENAME_FORMAT=${filename_format} ${fio_binary} $fio_job_file --output-format=json > "$output_file" 2>&1 
             
-            end_time=$(date +"%Y-%m-%dT%H:%M:%S%z")
+            end_time=$(date -u +"%Y-%m-%dT%H:%M:%S%z")
             echo "${i},${start_time},${end_time}" >> "$timestamps_file"
 
             # If reuse_same_mount is 'false', unmount after this run

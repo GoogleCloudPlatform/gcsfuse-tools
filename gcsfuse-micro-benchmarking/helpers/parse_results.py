@@ -9,7 +9,7 @@ import fnmatch
 import statistics
 import datetime
 from datetime import timezone
-from .vm_metrics import get_vm_cpu_utilization
+from .vm_metrics import get_vm_cpu_utilization_points
 
 
 def calculate_stats(data):
@@ -84,13 +84,15 @@ def process_fio_metrics_and_vm_metrics(fio_metrics, timestamps, vm_cfg):
     fio_report = {}
     avg_read_bw, stdev_read_bw = calculate_stats(read_bws)
     if avg_read_bw is not None:
-        fio_report['avg_read_throughput_kibps'] = avg_read_bw
-        fio_report['stdev_read_throughput_kibps'] = stdev_read_bw
+        # 1 MiB/s = 1024 KiB/s
+        fio_report['avg_read_throughput_mibps'] = avg_read_bw / 1024.0
+        fio_report['stdev_read_throughput_mibps'] = stdev_read_bw / 1024.0
 
     avg_write_bw, stdev_write_bw = calculate_stats(write_bws)
     if avg_write_bw is not None:
-        fio_report['avg_write_throughput_kibps'] = avg_write_bw
-        fio_report['stdev_write_throughput_kibps'] = stdev_write_bw
+        # 1 MiB/s = 1024 KiB/s
+        fio_report['avg_write_throughput_mibps'] = avg_write_bw / 1024.0
+        fio_report['stdev_write_throughput_mibps'] = stdev_write_bw / 1024.0
 
     avg_read_lat, stdev_read_lat = calculate_stats(read_lats)
     if avg_read_lat is not None:
@@ -116,26 +118,34 @@ def process_fio_metrics_and_vm_metrics(fio_metrics, timestamps, vm_cfg):
     project = vm_cfg['project']
     zone = vm_cfg['zone']
 
-    cpu_utilizations = []
+    all_cpu_utilizations = []
 
-    for ts in timestamps:
-        start_time = datetime.datetime.strptime(ts['start_time'], "%Y-%m-%dT%H:%M:%S%z").replace(tzinfo=datetime.timezone.utc)
-        end_time = datetime.datetime.strptime(ts['end_time'], "%Y-%m-%dT%H:%M:%S%z").replace(tzinfo=datetime.timezone.utc)
+    for i, ts in enumerate(timestamps):
+        start_time = datetime.datetime.strptime(ts['start_time'], "%Y-%m-%dT%H:%M:%S%z")
+        end_time = datetime.datetime.strptime(ts['end_time'], "%Y-%m-%dT%H:%M:%S%z")
         try:
-            # We call the function for each interval to get per-iteration CPU data.
-            cpu_util = get_vm_cpu_utilization(vm_name, project, zone, start_time, end_time)
-            if cpu_util is not None:
-                cpu_utilizations.append(cpu_util)
+            print(f"Fetching CPU for interval {i+1}: {start_time} to {end_time}")
+            cpu_points = get_vm_cpu_utilization_points(vm_name, project, zone, start_time, end_time)
+            if cpu_points:
+                avg_cpu_for_interval = statistics.fmean(cpu_points)
+                all_cpu_utilizations.append(avg_cpu_for_interval)
+                # print(f"  Interval {i+1}: Found {len(cpu_points)} CPU points, Avg: {avg_cpu_for_interval:.4f}")
+            else:
+                print(f"  Interval {i+1}: No CPU data points found.")
         except Exception as e:
             print(f"Error fetching VM metrics for interval {start_time} to {end_time}: {e}")
-            # Continue processing if one interval fails
             continue
 
     vm_report = {}
-    avg_cpu, stdev_cpu = calculate_stats(cpu_utilizations)
+    avg_cpu, stdev_cpu = calculate_stats(all_cpu_utilizations)
     if avg_cpu is not None:
         vm_report['avg_cpu_utilization_percent'] = avg_cpu * 100
         vm_report['stdev_cpu_utilization_percent'] = stdev_cpu * 100
+        vm_report['cpu_data_point_count'] = len(all_cpu_utilizations)
+    else:
+        vm_report['avg_cpu_utilization_percent'] = None
+        vm_report['stdev_cpu_utilization_percent'] = None
+        vm_report['cpu_data_point_count'] = 0
 
     # --- 3. Generate Final Combined Report ---
     final_report = {
@@ -145,18 +155,36 @@ def process_fio_metrics_and_vm_metrics(fio_metrics, timestamps, vm_cfg):
     
     # Calculate the CPU% per GB/s metric.
     # We combine read and write throughput and convert from KiB/s to GB/s.
-    total_avg_throughput_kibps = (
-        fio_report.get('avg_read_throughput_kibps', 0) +
-        fio_report.get('avg_write_throughput_kibps', 0)
+    total_avg_throughput_mibps = (
+        fio_report.get('avg_read_throughput_mibps', 0) +
+        fio_report.get('avg_write_throughput_mibps', 0)
     )
 
-    if total_avg_throughput_kibps > 0 and vm_report:
-        # 1 GB = 1024 * 1024 KiB
-        total_avg_throughput_gbps = total_avg_throughput_kibps / (1024 * 1024)
-        avg_cpu_percent = vm_report['avg_cpu_utilization_percent']
-        final_report['cpu_percent_per_gbps'] = avg_cpu_percent / total_avg_throughput_gbps
+    # Get the average CPU percent, will be None if not calculated
+    avg_cpu_percent = vm_report.get('avg_cpu_utilization_percent')
+
+    # Check if both throughput and avg_cpu_percent are valid for calculation
+    if total_avg_throughput_mibps > 0 and avg_cpu_percent is not None:
+        # Convert MiB/s to decimal GB/s (Gigabytes per second)
+        # 1 MiB = 1024 * 1024 Bytes
+        # 1 GB = 1000 * 1000 * 1000 Bytes
+        bytes_per_mib = 1024.0 * 1024.0
+        bytes_per_gb = 1000.0 * 1000.0 * 1000.0
+        
+        total_avg_throughput_gbps = total_avg_throughput_mibps * bytes_per_mib / bytes_per_gb
+
+        if total_avg_throughput_gbps > 1e-9:  # Avoid division by zero or near-zero
+            final_report['cpu_percent_per_gbps'] = avg_cpu_percent / total_avg_throughput_gbps
+        else:
+            # Handle cases with very low or zero throughput
+            final_report['cpu_percent_per_gbps'] = float('inf')
     else:
         final_report['cpu_percent_per_gbps'] = None
+        if avg_cpu_percent is None:
+            print("Cannot calculate cpu_percent_per_gbps: Average CPU utilization is not available.")
+        if total_avg_throughput_mibps <= 0:
+             print("Cannot calculate cpu_percent_per_gbps: Total average throughput is zero or less.")
+
     return final_report
 
 
@@ -201,7 +229,7 @@ def download_artifacts_from_bucket(benchmark_id: str, artifacts_bucket: str):
         local_temp_base_dir
     ]
 
-    print(f"Running command: {' '.join(shlex.quote(arg) for arg in command)}")
+    # print(f"Running command: {' '.join(shlex.quote(arg) for arg in command)}")
 
     try:
         result = subprocess.run(
@@ -210,8 +238,8 @@ def download_artifacts_from_bucket(benchmark_id: str, artifacts_bucket: str):
             capture_output=True,
             text=True
         )
-        print("gcloud stdout:", result.stdout)
-        print("gcloud stderr:", result.stderr)
+        # print("gcloud stdout:", result.stdout)
+        # print("gcloud stderr:", result.stderr)
 
         # The downloaded folder will be at local_temp_base_dir/benchmark_id
         downloaded_folder_path = os.path.join(local_temp_base_dir, benchmark_id)
@@ -322,7 +350,7 @@ def process_fio_output_files(file_pattern, directory_path: str):
 
     loaded_objects = []
 
-    print(f"Searching for files matching '{file_pattern}' in '{directory_path}'...")
+    # print(f"Searching for files matching '{file_pattern}' in '{directory_path}'...")
 
     for filename in os.listdir(directory_path):
         if fnmatch.fnmatch(filename, file_pattern):
@@ -355,7 +383,7 @@ def get_avg_perf_metrics_for_job(case, artifacts_dir, vm_cfg):
     
     # Get the VM metrics
     timestamps= load_csv_to_object(timestamps_file)
-    print(timestamps)
+    # print(timestamps)
 
     metrics = process_fio_metrics_and_vm_metrics(fio_metrics, timestamps, vm_cfg)
     

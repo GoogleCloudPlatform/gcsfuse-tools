@@ -116,8 +116,8 @@ def compare_and_visualize(results, output_dir="benchmark_plots"):
     n_test_cases = len(test_cases)
     
     metric_configs = {
-        "Read Throughput (KiB/s)": ("fio_metrics", "avg_read_throughput_kibps", "stdev_read_throughput_kibps"),
-        "Write Throughput (KiB/s)": ("fio_metrics", "avg_write_throughput_kibps", "stdev_write_throughput_kibps"),
+        "Read Throughput (MiB/s)": ("fio_metrics", "avg_read_throughput_mibps", "stdev_read_throughput_mibps"),
+        "Write Throughput (MiB/s)": ("fio_metrics", "avg_write_throughput_mibps", "stdev_write_throughput_mibps"),
         "Read Latency (ns)": ("fio_metrics", "avg_read_latency_ns", "stdev_read_latency_ns"),
         "Write Latency (ns)": ("fio_metrics", "avg_write_latency_ns", "stdev_write_latency_ns"),
         "Read IOPS": ("fio_metrics", "avg_read_iops", "stdev_read_iops"),

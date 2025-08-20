@@ -49,7 +49,7 @@ def store_metrics_in_artifacts_bucket(
         ]
 
         # Execute the command
-        print(f"Running command: {command}")
+        # print(f"Running command: {command}")
         # Explicitly set shell=False for security and clarity
         result = subprocess.run(command, check=True, capture_output=True, text=True, shell=False)
 

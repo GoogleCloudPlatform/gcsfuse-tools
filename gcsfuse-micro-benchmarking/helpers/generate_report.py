@@ -24,7 +24,7 @@ def pretty_print_metrics_table(metrics, output_file=None):
         # Test Case Parameters
         "bs", "file_size", "iodepth", "iotype", "threads", "nrfiles",
         # Metrics from 'fio_metrics'
-        "Read BW (KiB/s)", "Read Lat (us)", "Read IOPS", "Write BW (KiB/s)",
+        "Read BW (MiB/s)", "Read Lat (us)", "Read IOPS", "Write BW (MiB/s)",
         "Write Lat (us)", "Write IOPS",
         # Other top-level metrics
         "Avg CPU %", "Stdev CPU %", "CPU % / Gbps"
@@ -50,7 +50,7 @@ def pretty_print_metrics_table(metrics, output_file=None):
 
         # Extract metrics from the nested 'fio_metrics' dictionary
         fio_metrics = value.get("fio_metrics", {})
-        row.append(fio_metrics.get("avg_read_throughput_kibps", "-"))
+        row.append(fio_metrics.get("avg_read_throughput_mibps", "-"))
 
         read_lat_ns = fio_metrics.get("avg_read_latency_ns")
         row.append(f"{read_lat_ns / 1000:.2f}" if isinstance(read_lat_ns, (int, float)) else "-")
@@ -58,7 +58,7 @@ def pretty_print_metrics_table(metrics, output_file=None):
         read_iops = fio_metrics.get("avg_read_iops")
         row.append(f"{read_iops:.2f}" if isinstance(read_iops, (int, float)) else "-")
 
-        row.append(fio_metrics.get("avg_write_throughput_kibps", "-"))
+        row.append(fio_metrics.get("avg_write_throughput_mibps", "-"))
 
         write_lat_ns = fio_metrics.get("avg_write_latency_ns")
         row.append(f"{write_lat_ns / 1000:.2f}" if isinstance(write_lat_ns, (int, float)) else "-")

@@ -487,7 +487,7 @@ start_benchmarking_runs() {
 
         for ((i = 1; i <= iterations; i++)); do
             echo "Starting FIO run ${i} of ${iterations} for case: bs=${bs}, file_size=${file_size}, iodepth=${iodepth}, iotype=${iotype}, threads=${threads}, nrfiles=${nrfiles}"
-            start_time=$(date +"%Y-%m-%dT%H:%M:%S%z")
+            start_time=$(date -u +"%Y-%m-%dT%H:%M:%S%z")
 
             filename_format="${bucket}/${iotype}-\$jobnum/\$filenum"
             output_file="${testdir}/fio_output_iter${i}.json"
@@ -501,7 +501,7 @@ start_benchmarking_runs() {
 
             IODEPTH=${iodepth} IOTYPE=${iotype} BLOCKSIZE=${bs} FILESIZE=${file_size} NRFILES=${nrfiles} NUMJOBS=${threads} FILENAME_FORMAT=${filename_format} fio $fio_job_file --output-format=json "${engine_option}" > "$output_file" 2>&1 
             
-            end_time=$(date +"%Y-%m-%dT%H:%M:%S%z")
+            end_time=$(date -u +"%Y-%m-%dT%H:%M:%S%z")
             echo "${i},${start_time},${end_time}" >> "$timestamps_file"
 
             echo "Sleeping for 20 seconds to keep VM metrics independent for each iteration...."

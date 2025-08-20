@@ -1,7 +1,7 @@
 import getpass
 import subprocess
 import json
-from datetime import datetime
+from datetime import *
 
 
 def record_benchmark_id_for_user(benchmark_id, bench_type, artifacts_bucket):
@@ -9,8 +9,8 @@ def record_benchmark_id_for_user(benchmark_id, bench_type, artifacts_bucket):
     content={
         'user': user,
         'benchmark_id': benchmark_id,
-        'type': bench_type,
-        'end_time': datetime.now(datetime.timezone.utc).isoformat(),
+        'bench_type': bench_type,
+        'end_time': datetime.now(timezone.utc).isoformat(),
     }
 
     # Define the path to the runs.json file in the GCS bucket
