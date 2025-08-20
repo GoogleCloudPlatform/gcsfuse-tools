@@ -65,7 +65,7 @@ def create_vm_if_not_exists(vm_details, zone, project):
             cmd_list.append(f'--service-account={vm_details["service_account"]}')
 
         try:
-            print(f"Executing creation command: {' '.join(shlex.quote(arg) for arg in cmd_list)}")
+            # print(f"Executing creation command: {' '.join(shlex.quote(arg) for arg in cmd_list)}")
             subprocess.run(cmd_list, check=True, capture_output=True, text=True, timeout=360) # Increased timeout
             print(f"VM '{vm_name}' creation command finished successfully.")
             return True # Newly Created
