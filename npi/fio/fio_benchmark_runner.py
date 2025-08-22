@@ -47,11 +47,13 @@ def run_command(command, check=True, cwd=None, extra_env=None):
         logging.error(f"STDERR: {e.stderr.strip() if e.stderr else 'N/A'}")
         raise
 
-def mount_gcsfuse(gcsfuse_bin, flags, bucket_name, mount_point):
+def mount_gcsfuse(gcsfuse_bin, flags, bucket_name, mount_point, cpu_limit_list=None):
     """Mounts the GCS bucket using GCSFuse."""
     os.makedirs(mount_point, exist_ok=True)
     logging.info(f"Mounting gs://{bucket_name} to {mount_point}")
     cmd = [gcsfuse_bin] + shlex.split(flags) + [bucket_name, mount_point]
+    if cpu_limit_list:
+        cmd = ["taskset", "-a", "-c", cpu_limit_list] + cmd
     run_command(cmd)
     time.sleep(2)  # Give a moment for the mount to register
     if not os.path.ismount(mount_point):
@@ -177,7 +179,7 @@ def print_summary(all_results, summary_file=None):
 
 
 def run_benchmark(
-    gcsfuse_flags, bucket_name, iterations, fio_config, work_dir, output_dir, fio_env=None, summary_file=None
+    gcsfuse_flags, bucket_name, iterations, fio_config, work_dir, output_dir, fio_env=None, summary_file=None, cpu_limit_list=None
 ):
     """Runs the full FIO benchmark suite."""
     os.makedirs(work_dir, exist_ok=True)
@@ -203,7 +205,7 @@ def run_benchmark(
             logging.info("Clearing page cache...")
             run_command(["sh", "-c", "echo 3 > /proc/sys/vm/drop_caches"])
 
-            mount_gcsfuse(gcsfuse_bin, gcsfuse_flags, bucket_name, mount_point)
+            mount_gcsfuse(gcsfuse_bin, gcsfuse_flags, bucket_name, mount_point, cpu_limit_list=cpu_limit_list)
             run_fio_test(fio_config, mount_point, i, output_dir, fio_env=fio_run_env)
 
             iteration_results = parse_fio_output(output_filename)

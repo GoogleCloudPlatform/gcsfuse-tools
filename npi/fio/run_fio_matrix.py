@@ -40,6 +40,12 @@ def main():
       help="Flags for GCSFuse, as a single quoted string.",
   )
   parser.add_argument(
+      "--cpu-limit-list",
+      default=None,
+      help="Comma-separated list of CPUs to restrict GCSFuse to, e.g., '0-3,7'."
+      " This is applied to all runs in the matrix.",
+  )
+  parser.add_argument(
       "--bucket-name", required=True, help="Name of the GCS bucket."
   )
   parser.add_argument(
@@ -117,8 +123,8 @@ def main():
       fio_benchmark_runner.run_benchmark(
           gcsfuse_flags=args.gcsfuse_flags, bucket_name=args.bucket_name,
           iterations=args.iterations, fio_config=args.fio_template,
-          work_dir=args.work_dir, output_dir=config_output_dir, fio_env=fio_env,
-          summary_file=summary_file_path)
+          work_dir=args.work_dir, output_dir=config_output_dir,
+          fio_env=fio_env, summary_file=summary_file_path, cpu_limit_list=args.cpu_limit_list)
     except Exception as e:
       logging.error("Benchmark run failed for configuration %s: %s", config, e)
       # Continue to the next configuration
