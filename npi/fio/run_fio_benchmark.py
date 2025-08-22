@@ -35,6 +35,7 @@ def main():
     parser.add_argument("--work-dir", default="/tmp/gcsfuse_benchmark", help="Working directory for clones and builds.")
     parser.add_argument("--output-dir", default="./fio_results", help="Directory to save FIO JSON results.")
     parser.add_argument("--summary-file", default=None, help="Path to save the summary of results.")
+    parser.add_argument("--cpu-limit-list", default=None, help="Comma-separated list of CPUs to restrict GCSFuse to, e.g., '0-3,7'.")
     args = parser.parse_args()
 
     fio_benchmark_runner.run_benchmark(
@@ -45,6 +46,7 @@ def main():
         work_dir=args.work_dir,
         output_dir=args.output_dir,
         summary_file=args.summary_file,
+        cpu_limit_list=args.cpu_limit_list,
     )
 
 
