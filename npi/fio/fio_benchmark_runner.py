@@ -53,7 +53,7 @@ def mount_gcsfuse(gcsfuse_bin, flags, bucket_name, mount_point, cpu_limit_list=N
     logging.info(f"Mounting gs://{bucket_name} to {mount_point}")
     cmd = [gcsfuse_bin] + shlex.split(flags) + [bucket_name, mount_point]
     if cpu_limit_list:
-        cmd = ["taskset", "-a", "-c", cpu_limit_list] + cmd
+        cmd = ["taskset", "-c", cpu_limit_list] + cmd
     run_command(cmd)
     time.sleep(2)  # Give a moment for the mount to register
     if not os.path.ismount(mount_point):
