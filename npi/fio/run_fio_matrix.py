@@ -79,6 +79,21 @@ def main():
       default=None,
       help="File name for the summary of results. It will be created in each configuration's output directory.",
   )
+  parser.add_argument(
+      "--bq-project-id",
+      default=None,
+      help="BigQuery project ID to upload results. If provided, --bq-dataset-id and --bq-table-id must also be provided.",
+  )
+  parser.add_argument(
+      "--bq-dataset-id",
+      default=None,
+      help="BigQuery dataset ID.",
+  )
+  parser.add_argument(
+      "--bq-table-id",
+      default=None,
+      help="BigQuery table ID.",
+  )
   args = parser.parse_args()
 
   try:
@@ -123,8 +138,11 @@ def main():
       fio_benchmark_runner.run_benchmark(
           gcsfuse_flags=args.gcsfuse_flags, bucket_name=args.bucket_name,
           iterations=args.iterations, fio_config=args.fio_template,
-          work_dir=args.work_dir, output_dir=config_output_dir,
-          fio_env=fio_env, summary_file=summary_file_path, cpu_limit_list=args.cpu_limit_list)
+          work_dir=args.work_dir, output_dir=config_output_dir, fio_env=fio_env,
+          summary_file=summary_file_path, cpu_limit_list=args.cpu_limit_list,
+          bq_project_id=args.bq_project_id,
+          bq_dataset_id=args.bq_dataset_id,
+          bq_table_id=args.bq_table_id)
     except Exception as e:
       logging.error("Benchmark run failed for configuration %s: %s", config, e)
       # Continue to the next configuration

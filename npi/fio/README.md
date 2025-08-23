@@ -21,6 +21,7 @@ Before running the script, ensure you have the following installed and configure
 -   **Google Cloud SDK (`gcloud`)**:
     -   Authenticated: `gcloud auth login`
     -   Project configured: `gcloud config set project <YOUR_PROJECT_ID>`
+-   **BigQuery Client Library** (Optional): If you plan to upload results to BigQuery, install the client library: `pip3 install google-cloud-bigquery`. You will also need to be authenticated for application-default credentials: `gcloud auth application-default login`.
 -   **Sudo privileges**: The script requires `sudo` to install packages and clear system caches.
 
 ## Usage
@@ -42,6 +43,9 @@ python3 run_fio_benchmark.py [OPTIONS]
 -   `--work-dir`: (Optional) A temporary directory for builds and mounts. Default is `/tmp/gcsfuse_benchmark`.
 -   `--output-dir`: (Optional) Directory to save FIO JSON output files. Default is `./fio_results`.
 -   `--skip-deps-install`: (Optional) Skip the automatic dependency installation check.
+-   `--bq-project-id`: (Optional) BigQuery project ID to upload results to. If provided, `--bq-dataset-id` and `--bq-table-id` must also be set.
+-   `--bq-dataset-id`: (Optional) BigQuery dataset ID.
+-   `--bq-table-id`: (Optional) BigQuery table ID.
 
 ### Example
 

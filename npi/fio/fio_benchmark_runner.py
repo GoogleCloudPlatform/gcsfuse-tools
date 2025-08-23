@@ -23,6 +23,15 @@ import subprocess
 import sys
 import time
 
+try:
+    from google.cloud import bigquery
+    from google.api_core import exceptions
+    import datetime
+    _BQ_SUPPORTED = True
+except ImportError:
+    _BQ_SUPPORTED = False
+
+
 def run_command(command, check=True, cwd=None, extra_env=None):
     """Runs a command and logs its output."""
     logging.info(f"Running command: {' '.join(command)}")
@@ -178,8 +187,82 @@ def print_summary(all_results, summary_file=None):
             logging.error(f"Failed to write summary to {summary_file}: {e}")
 
 
+def upload_results_to_bq(
+    project_id, dataset_id, table_id, fio_json_path, iteration,
+    gcsfuse_flags, fio_env, cpu_limit_list
+):
+    """Uploads the full FIO JSON output to a BigQuery table."""
+    if not _BQ_SUPPORTED:
+        logging.error(
+            "BigQuery upload requested, but 'google-cloud-bigquery' is not "
+            "installed. Please run 'pip3 install google-cloud-bigquery'."
+        )
+        return
+
+    try:
+        with open(fio_json_path, "r") as f:
+            fio_json_content = f.read()
+    except (IOError, FileNotFoundError) as e:
+        logging.error(f"Could not read FIO JSON file {fio_json_path}: {e}")
+        return
+
+    try:
+        client = bigquery.Client(project=project_id)
+        full_table_id = f"{project_id}.{dataset_id}.{table_id}"
+        dataset_ref = client.dataset(dataset_id)
+        table_ref = dataset_ref.table(table_id)
+
+        # Create dataset if it doesn't exist
+        try:
+            client.get_dataset(dataset_ref)
+        except exceptions.NotFound:
+            logging.info(f"Dataset {dataset_id} not found, creating it.")
+            client.create_dataset(bigquery.Dataset(dataset_ref))
+
+        # Define schema
+        schema = [
+            bigquery.SchemaField("run_timestamp", "TIMESTAMP", mode="REQUIRED"),
+            bigquery.SchemaField("iteration", "INTEGER", mode="REQUIRED"),
+            bigquery.SchemaField("gcsfuse_flags", "STRING"),
+            bigquery.SchemaField("fio_env", "STRING"),
+            bigquery.SchemaField("cpu_limit_list", "STRING"),
+            bigquery.SchemaField("fio_json_output", "JSON"),
+        ]
+
+        # Create table if it doesn't exist
+        try:
+            client.get_table(table_ref)
+        except exceptions.NotFound:
+            logging.info(f"Table {table_id} not found, creating it with a new schema.")
+            table = bigquery.Table(table_ref, schema=schema)
+            client.create_table(table)
+
+        row_to_insert = {
+            "run_timestamp": datetime.datetime.utcnow().isoformat(),
+            "iteration": iteration,
+            "gcsfuse_flags": gcsfuse_flags,
+            "fio_env": json.dumps(fio_env) if fio_env else None,
+            "cpu_limit_list": cpu_limit_list,
+            "fio_json_output": fio_json_content,
+        }
+
+        errors = client.insert_rows_json(full_table_id, [row_to_insert])
+        if errors:
+            logging.error(f"Errors inserting rows into BigQuery: {errors}")
+        else:
+            logging.info(
+                f"Successfully inserted FIO JSON for iteration {iteration} into {full_table_id}"
+            )
+
+    except Exception as e:
+        logging.error(f"Failed to upload results to BigQuery: {e}")
+        logging.error("Please ensure you have run 'gcloud auth application-default login' and have the correct permissions.")
+
+
 def run_benchmark(
-    gcsfuse_flags, bucket_name, iterations, fio_config, work_dir, output_dir, fio_env=None, summary_file=None, cpu_limit_list=None
+    gcsfuse_flags, bucket_name, iterations, fio_config, work_dir, output_dir,
+    fio_env=None, summary_file=None, cpu_limit_list=None,
+    bq_project_id=None, bq_dataset_id=None, bq_table_id=None
 ):
     """Runs the full FIO benchmark suite."""
     os.makedirs(work_dir, exist_ok=True)
@@ -210,6 +293,17 @@ def run_benchmark(
 
             iteration_results = parse_fio_output(output_filename)
             all_results.append(iteration_results)
+
+            if bq_project_id and bq_dataset_id and bq_table_id:
+                upload_results_to_bq(
+                    project_id=bq_project_id,
+                    dataset_id=bq_dataset_id,
+                    table_id=bq_table_id,
+                    fio_json_path=output_filename,
+                    iteration=i,
+                    gcsfuse_flags=gcsfuse_flags,
+                    fio_env=fio_run_env,
+                    cpu_limit_list=cpu_limit_list)
         finally:
             if os.path.ismount(mount_point):
                 unmount_gcsfuse(mount_point)
