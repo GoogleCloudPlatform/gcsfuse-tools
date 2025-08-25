@@ -36,6 +36,9 @@ def main():
     parser.add_argument("--output-dir", default="./fio_results", help="Directory to save FIO JSON results.")
     parser.add_argument("--summary-file", default=None, help="Path to save the summary of results.")
     parser.add_argument("--cpu-limit-list", default=None, help="Comma-separated list of CPUs to restrict GCSFuse to, e.g., '0-3,7'.")
+    parser.add_argument("--bq-project-id", default=None, help="BigQuery project ID to upload results.")
+    parser.add_argument("--bq-dataset-id", default=None, help="BigQuery dataset ID.")
+    parser.add_argument("--bq-table-id", default=None, help="BigQuery table ID.")
     args = parser.parse_args()
 
     fio_benchmark_runner.run_benchmark(
@@ -47,6 +50,9 @@ def main():
         output_dir=args.output_dir,
         summary_file=args.summary_file,
         cpu_limit_list=args.cpu_limit_list,
+        bq_project_id=args.bq_project_id,
+        bq_dataset_id=args.bq_dataset_id,
+        bq_table_id=args.bq_table_id,
     )
 
 
