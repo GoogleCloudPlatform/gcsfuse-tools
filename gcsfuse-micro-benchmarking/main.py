@@ -83,7 +83,7 @@ if __name__ == '__main__':
         
         output_dir = "./results/"
         os.makedirs(output_dir, exist_ok=True)
-        output_filename=os.path.join(output_dir, benchmark_id+"_result.txt")
+        output_filename=os.path.join(output_dir, args.bench_type+"_"+benchmark_id+"_result.txt")
         generate_report.pretty_print_metrics_table(metrics,output_filename)
         
         # Upon successful benchmarking, cleanup the created resources

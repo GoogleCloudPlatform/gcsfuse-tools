@@ -161,21 +161,37 @@ def run_script_remotely(vm_name, zone, project, startup_script, max_retries=max_
     # Step 1: Upload the script
     scp_cmd = gcloud_base + ['scp', startup_script, f'{vm_name}:{remote_script_path}', f'--zone={zone}', f'--project={project}']
     print(f"Uploading {startup_script} to {vm_name}:{remote_script_path}...")
-    try:
-        subprocess.run(scp_cmd, check=True, text=True, capture_output=True, timeout=180)
-        print("Upload successful.")
-    except subprocess.CalledProcessError as e:
-        print(f"Failed to upload script: {e}")
-        print("STDOUT:", e.stdout)
-        print("STDERR:", e.stderr)
+    for i in range(max_retries):
+        try:
+            print(f"  SCP attempt {i+1}/{max_retries}...")
+            subprocess.run(scp_cmd, check=True, text=True, capture_output=True, timeout=180)
+            print("Upload successful.")
+            break # Exit the loop on success
+        except subprocess.CalledProcessError as e:
+            print(f"Failed to upload script on attempt {i+1}: {e}")
+            print("STDOUT:", e.stdout)
+            print("STDERR:", e.stderr)
+            if i < max_retries - 1:
+                print(f"Retrying in {retry_delay} seconds...")
+                time.sleep(retry_delay)
+            else:
+                print(f"Failed to upload script after {max_retries} retries.")
+                return False # Return False only after all retries are exhausted
+        except subprocess.TimeoutExpired as e:
+            print(f"Timeout expired while uploading script on attempt {i+1}: {e}")
+            if i < max_retries - 1:
+                print(f"Retrying in {retry_delay} seconds...")
+                time.sleep(retry_delay)
+            else:
+                return False
+        except Exception as e:
+            print(f"An unexpected error occurred during upload: {e}")
+            return False
+    else:
+        # This else block runs only if the for loop completes without a 'break'
+        # which means all retries failed.
         return False
-    except subprocess.TimeoutExpired as e:
-        print(f"Timeout expired while uploading script: {e}")
-        return False
-    except Exception as e:
-        print(f"An unexpected error occurred during upload: {e}")
-        return False
-
+        
     # Step 2: Execute the script inside a detached tmux session
     ssh_base = gcloud_base + ['ssh', vm_name, f'--zone={zone}', f'--project={project}']
     tmux_session_name = f"startup_{vm_name}"

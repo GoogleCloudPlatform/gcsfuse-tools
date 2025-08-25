@@ -116,26 +116,39 @@ def compare_and_visualize(results, output_dir="benchmark_plots"):
     n_test_cases = len(test_cases)
     
     metric_configs = {
-        "Read Throughput (MiB/s)": ("fio_metrics", "avg_read_throughput_mibps", "stdev_read_throughput_mibps"),
-        "Write Throughput (MiB/s)": ("fio_metrics", "avg_write_throughput_mibps", "stdev_write_throughput_mibps"),
-        "Read Latency (ns)": ("fio_metrics", "avg_read_latency_ns", "stdev_read_latency_ns"),
-        "Write Latency (ns)": ("fio_metrics", "avg_write_latency_ns", "stdev_write_latency_ns"),
+        "Read Throughput (MB/s)": ("fio_metrics", "avg_read_throughput_mbps", "stdev_read_throughput_mbps"),
+        "Write Throughput (MB/s)": ("fio_metrics", "avg_write_throughput_mbps", "stdev_write_throughput_mbps"),
+        "Read Latency (ms)": ("fio_metrics", "avg_read_latency_ms", "stdev_read_latency_ms"),
+        "Write Latency (ms)": ("fio_metrics", "avg_write_latency_ms", "stdev_write_latency_ms"),
         "Read IOPS": ("fio_metrics", "avg_read_iops", "stdev_read_iops"),
         "Write IOPS": ("fio_metrics", "avg_write_iops", "stdev_write_iops"),
         "Average CPU %": ("vm_metrics", "avg_cpu_utilization_percent", "stdev_cpu_utilization_percent"),
         "CPU per GBps": (None, "cpu_percent_per_gbps", None),
     }
 
-    print(get_plot_summary(benchmark_ids, metric_configs, output_dir))
+    # Add log-scale metrics to the configuration
+    metric_configs["Read Latency (ms) [Log Scale]"] = ("fio_metrics", "avg_read_latency_ms", "stdev_read_latency_ms", True)
+    metric_configs["Write Latency (ms) [Log Scale]"] = ("fio_metrics", "avg_write_latency_ms", "stdev_write_latency_ms", True)
 
-    for metric_name, (data_group, avg_key, std_key) in metric_configs.items():
+    print(get_plot_summary(benchmark_ids, metric_configs, output_dir))
+    
+    # Use the correct, non-deprecated way to get a colormap
+    colors = plt.colormaps.get_cmap('tab10')
+    
+    for metric_name, config in metric_configs.items():
+        data_group, avg_key, std_key = config[:3]
+        is_log_scale = config[3] if len(config) > 3 else False
+
         fig, ax = plt.subplots(figsize=(max(12, n_test_cases * len(benchmark_ids) * 0.4), 8))
         has_data_in_metric = False
         all_vals = []
         
-        # Iterate through test cases first to group points vertically
+        bar_width = 0.3 / len(benchmark_ids)
+        
         for i, test_case in enumerate(test_cases):
-            for bid in benchmark_ids:
+            x_offset_start = i - (len(benchmark_ids) / 2 - 0.5) * bar_width
+            
+            for j, bid in enumerate(benchmark_ids):
                 test_data = results[bid].get(test_case, {})
                 if data_group:
                     source = test_data.get(data_group, {})
@@ -145,18 +158,20 @@ def compare_and_visualize(results, output_dir="benchmark_plots"):
                 mean_val = source.get(avg_key)
                 std_val = source.get(std_key) if std_key else None
                 
-                # Handle None values gracefully
                 mean_val = 0.0 if mean_val is None else mean_val
                 std_val = 0.0 if std_val is None else std_val
 
-                # Determine a consistent position for all points in this test case
-                x_position = i
+                x_position = x_offset_start + j * bar_width
                 
-                # Use a specific color for each benchmark ID
                 label = f"{bid}"
+                color = colors(j)
                 
-                ax.errorbar(x_position, mean_val, yerr=std_val, fmt='o', linestyle='', label=label, capsize=5, markersize=6, elinewidth=1.5)
-
+                # Check for log scale before plotting to avoid log(0)
+                if is_log_scale and mean_val > 0:
+                    ax.errorbar(x_position, mean_val, yerr=std_val, fmt='o', linestyle='', label=label, capsize=5, markersize=6, elinewidth=1.5, color=color)
+                elif not is_log_scale:
+                    ax.errorbar(x_position, mean_val, yerr=std_val, fmt='o', linestyle='', label=label, capsize=5, markersize=6, elinewidth=1.5, color=color)
+                    
                 if mean_val > 0:
                     has_data_in_metric = True
                 
@@ -171,10 +186,14 @@ def compare_and_visualize(results, output_dir="benchmark_plots"):
             plt.close(fig)
             continue
 
+        if is_log_scale:
+            ax.set_yscale('log')
+            ax.set_title(f"Comparison of {metric_name}", fontsize=16)
+        else:
+            ax.set_title(f"Comparison of {metric_name}", fontsize=16)
+
         ax.set_ylabel(metric_name, fontsize=12)
-        ax.set_title(f"Comparison of {metric_name}", fontsize=16)
         
-        # Set ticks at the center of each group
         ax.set_xticks(np.arange(n_test_cases))
         ax.set_xticklabels(test_cases, rotation=45, ha="right", fontsize=10)
         
@@ -183,14 +202,12 @@ def compare_and_visualize(results, output_dir="benchmark_plots"):
         ax.tick_params(axis='x', labelsize=10)
         ax.tick_params(axis='y', labelsize=10)
 
-        if all_vals:
+        if all_vals and not is_log_scale:
             min_val = min(all_vals)
             max_val = max(all_vals)
             padding = (max_val - min_val) * 0.1
             if padding == 0: padding = max(abs(max_val) * 0.1, 1)
             ax.set_ylim(max(0, min_val - padding), max_val + padding)
-        else:
-             ax.set_ylim(0, 1)
 
         plt.tight_layout(rect=[0, 0, 0.85, 1])
         plot_filename_base = sanitize_filename(metric_name.lower())
@@ -205,6 +222,7 @@ def compare_and_visualize(results, output_dir="benchmark_plots"):
             plt.close(fig)
 
     print(f"\nFinished generating plots in '{output_dir}' directory.")
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(

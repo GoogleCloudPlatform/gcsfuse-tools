@@ -50,19 +50,19 @@ def process_fio_metrics_and_vm_metrics(fio_metrics, timestamps, vm_cfg):
         if 'write' in job and 'bw' in job['write']
     ]
 
-    # FIO latency (clat_ns) is in nanoseconds.
+    # FIO latency (lat_ns) is in milliseconds.
     read_lats = [
-        job['read']['clat_ns']['mean']
+        job['read']['lat_ns']['mean']/1000000.0
         for metrics in fio_metrics
         for job in metrics['jobs']
-        if 'read' in job and 'clat_ns' in job['read']
+        if 'read' in job and 'lat_ns' in job['read']
     ]
 
     write_lats = [
-        job['write']['clat_ns']['mean']
+        job['write']['lat_ns']['mean']/1000000.0
         for metrics in fio_metrics
         for job in metrics['jobs']
-        if 'write' in job and 'clat_ns' in job['write']
+        if 'write' in job and 'lat_ns' in job['write']
     ]
 
     read_iops = [
@@ -85,24 +85,24 @@ def process_fio_metrics_and_vm_metrics(fio_metrics, timestamps, vm_cfg):
     avg_read_bw, stdev_read_bw = calculate_stats(read_bws)
     if avg_read_bw is not None:
         # 1 MiB/s = 1024 KiB/s
-        fio_report['avg_read_throughput_mibps'] = avg_read_bw / 1024.0
-        fio_report['stdev_read_throughput_mibps'] = stdev_read_bw / 1024.0
+        fio_report['avg_read_throughput_mbps'] = avg_read_bw / 1000.0
+        fio_report['stdev_read_throughput_mbps'] = stdev_read_bw / 1000.0
 
     avg_write_bw, stdev_write_bw = calculate_stats(write_bws)
     if avg_write_bw is not None:
         # 1 MiB/s = 1024 KiB/s
-        fio_report['avg_write_throughput_mibps'] = avg_write_bw / 1024.0
-        fio_report['stdev_write_throughput_mibps'] = stdev_write_bw / 1024.0
+        fio_report['avg_write_throughput_mbps'] = avg_write_bw / 1000.0
+        fio_report['stdev_write_throughput_mbps'] = stdev_write_bw / 1000.0
 
     avg_read_lat, stdev_read_lat = calculate_stats(read_lats)
     if avg_read_lat is not None:
-        fio_report['avg_read_latency_ns'] = avg_read_lat
-        fio_report['stdev_read_latency_ns'] = stdev_read_lat
+        fio_report['avg_read_latency_ms'] = avg_read_lat
+        fio_report['stdev_read_latency_ms'] = stdev_read_lat
 
     avg_write_lat, stdev_write_lat = calculate_stats(write_lats)
     if avg_write_lat is not None:
-        fio_report['avg_write_latency_ns'] = avg_write_lat
-        fio_report['stdev_write_latency_ns'] = stdev_write_lat
+        fio_report['avg_write_latency_ms'] = avg_write_lat
+        fio_report['stdev_write_latency_ms'] = stdev_write_lat
     
     avg_read_iops, stdev_read_iops = calculate_stats(read_iops)
     if avg_read_iops is not None:
@@ -127,7 +127,7 @@ def process_fio_metrics_and_vm_metrics(fio_metrics, timestamps, vm_cfg):
             print(f"Fetching CPU for interval {i+1}: {start_time} to {end_time}")
             cpu_points = get_vm_cpu_utilization_points(vm_name, project, zone, start_time, end_time)
             if cpu_points:
-                avg_cpu_for_interval = statistics.fmean(cpu_points)
+                avg_cpu_for_interval = max(cpu_points)
                 all_cpu_utilizations.append(avg_cpu_for_interval)
                 # print(f"  Interval {i+1}: Found {len(cpu_points)} CPU points, Avg: {avg_cpu_for_interval:.4f}")
             else:
@@ -155,23 +155,23 @@ def process_fio_metrics_and_vm_metrics(fio_metrics, timestamps, vm_cfg):
     
     # Calculate the CPU% per GB/s metric.
     # We combine read and write throughput and convert from KiB/s to GB/s.
-    total_avg_throughput_mibps = (
-        fio_report.get('avg_read_throughput_mibps', 0) +
-        fio_report.get('avg_write_throughput_mibps', 0)
+    total_avg_throughput_mbps = (
+        fio_report.get('avg_read_throughput_mbps', 0) +
+        fio_report.get('avg_write_throughput_mbps', 0)
     )
 
     # Get the average CPU percent, will be None if not calculated
     avg_cpu_percent = vm_report.get('avg_cpu_utilization_percent')
 
     # Check if both throughput and avg_cpu_percent are valid for calculation
-    if total_avg_throughput_mibps > 0 and avg_cpu_percent is not None:
+    if total_avg_throughput_mbps > 0 and avg_cpu_percent is not None:
         # Convert MiB/s to decimal GB/s (Gigabytes per second)
         # 1 MiB = 1024 * 1024 Bytes
         # 1 GB = 1000 * 1000 * 1000 Bytes
-        bytes_per_mib = 1024.0 * 1024.0
+        bytes_per_mb = 1000.0 * 1000.0
         bytes_per_gb = 1000.0 * 1000.0 * 1000.0
         
-        total_avg_throughput_gbps = total_avg_throughput_mibps * bytes_per_mib / bytes_per_gb
+        total_avg_throughput_gbps = total_avg_throughput_mbps * bytes_per_mb / bytes_per_gb
 
         if total_avg_throughput_gbps > 1e-9:  # Avoid division by zero or near-zero
             final_report['cpu_percent_per_gbps'] = avg_cpu_percent / total_avg_throughput_gbps
@@ -182,7 +182,7 @@ def process_fio_metrics_and_vm_metrics(fio_metrics, timestamps, vm_cfg):
         final_report['cpu_percent_per_gbps'] = None
         if avg_cpu_percent is None:
             print("Cannot calculate cpu_percent_per_gbps: Average CPU utilization is not available.")
-        if total_avg_throughput_mibps <= 0:
+        if total_avg_throughput_mbps <= 0:
              print("Cannot calculate cpu_percent_per_gbps: Total average throughput is zero or less.")
 
     return final_report
