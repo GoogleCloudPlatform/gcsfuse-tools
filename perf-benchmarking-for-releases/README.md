@@ -54,12 +54,13 @@ It should be executed from the `perf-benchmarking-for-releases` directory.
 ### Syntax
 
 ```bash
-bash run-benchmarks.sh <GCSFUSE_VERSION> <PROJECT_ID> <REGION> <MACHINE_TYPE> <IMAGE_FAMILY> <IMAGE_PROJECT>
+bash run-benchmarks.sh <GCSFUSE_VERSION> <LABEL> <PROJECT_ID> <REGION> <MACHINE_TYPE> <IMAGE_FAMILY> <IMAGE_PROJECT>
 ```
 
 ### Arguments:
 
 - `<GCSFUSE_VERSION>`: A Git tag (e.g., `v1.0.0`), branch name (e.g., `main`), or a commit ID on the GCSFuse master branch.
+- `<LABEL>`: A unique custom identifier for the benchmark run. This label is used to identify the results in BigQuery.
 - `<PROJECT_ID>`: Your Google Cloud Project ID in which you want the VM and Bucket to be created.
 - `<REGION>`: The GCP region where the VM and GCS buckets will be created (e.g., `us-south1`).
 - `<MACHINE_TYPE>`: The GCE machine type for the benchmark VM (e.g., `n2-standard-96`). This script supports attaching 16 local NVMe SSDs (375GB each) for LSSD-supported machine types.
@@ -68,9 +69,8 @@ bash run-benchmarks.sh <GCSFUSE_VERSION> <PROJECT_ID> <REGION> <MACHINE_TYPE> <I
 - `<IMAGE_PROJECT>`: The image project for the VM (e.g., `ubuntu-os-cloud`).
 
 ### Example:
-
 ```bash
-bash run-benchmarks.sh master gcs-fuse-test us-south1 n2-standard-96 ubuntu-2504-amd64 ubuntu-os-cloud
+bash run-benchmarks.sh master my-test-label gcs-fuse-test us-south1 n2-standard-96 ubuntu-2504-amd64 ubuntu-os-cloud
 ```
 
 ---
@@ -78,7 +78,7 @@ bash run-benchmarks.sh master gcs-fuse-test us-south1 n2-standard-96 ubuntu-2504
 ## Workflow
 
 1. **Unique ID Generation**:  
-   A unique ID is generated based on the timestamp and a random suffix to name the VM and related GCS buckets.
+   A unique identifier (`UNIQUE_ID`) is generated for each run using the current timestamp and a random suffix. This ID is used for naming all temporary resources (VM, GCS test data bucket) and for the GCS results folder. The user-provided `<LABEL>` is passed separately to the VM and used to construct a searchable fio_workload_id in BigQuery, which combines the FIO job name, the user label, and the unique ID.
 
 2. **GCS Bucket Creation**:  
    A GCS bucket `gcsfuse-release-benchmark-data-<UNIQUE_ID>` is created in the specified region to store FIO test data.
@@ -91,7 +91,7 @@ bash run-benchmarks.sh master gcs-fuse-test us-south1 n2-standard-96 ubuntu-2504
 
 5. **VM Creation**:
    - A GCE VM is created with the specified machine type.
-   - Boot disk size: 1000GB.
+   - Boot disk size: 100GB.
 
 6. **`starter-script.sh` Execution**:  
    This script runs on the VM after creation. It:
@@ -119,6 +119,22 @@ FIO benchmark results, including I/O statistics, latencies, and system resource 
 - **Project ID**: `gcs-fuse-test-ml`
 - **Dataset ID**: `gke_test_tool_outputs`
 - **Table ID**: `fio_outputs`
+
+**Querying Results**
+
+You can query the results in BigQuery using the `<LABEL>` you provided when running the benchmark. The `fio_workload_id` column is constructed using this label.
+
+**Example Query:**
+
+To retrieve all results for a run with the label `my-test-label`, use the following query:
+
+```sql
+SELECT *
+FROM
+  `gcs-fuse-test-ml.gke_test_tool_outputs.fio_outputs`
+WHERE
+  REGEXP_CONTAINS(fio_workload_id, r'-my-test-label-\d{8}-\d{6}-')
+```
 
 ---
 

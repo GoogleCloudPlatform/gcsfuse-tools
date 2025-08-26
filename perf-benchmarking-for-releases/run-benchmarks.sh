@@ -14,15 +14,16 @@
 # limitations under the License.
 
 # Validate input arguments
-if [ "$#" -ne 6 ]; then
-    echo "Usage: $0 <GCSFUSE_VERSION> <PROJECT_ID> <REGION> <MACHINE_TYPE> <IMAGE_FAMILY> <IMAGE_PROJECT>"
+if [ "$#" -ne 7 ]; then
+    echo "Usage: $0 <GCSFUSE_VERSION> <LABEL> <PROJECT_ID> <REGION> <MACHINE_TYPE> <IMAGE_FAMILY> <IMAGE_PROJECT>"
     echo ""
     echo "<GCSFUSE_VERSION> can be a Git tag (e.g. v1.0.0), branch name (e.g. main), or a commit ID on master."
+    echo "<LABEL> is a unique custom identifier for the benchmark run. This is used to identify results in BigQuery."
     echo ""
     echo "This script should be run from the 'perf-benchmarking-for-releases' directory."
     echo ""
     echo "Example:"
-    echo "  bash run-benchmarks.sh master gcs-fuse-test us-south1 n2-standard-96 ubuntu-2504-amd64 ubuntu-os-cloud"
+    echo "  bash run-benchmarks.sh master my-test-label gcs-fuse-test us-south1 n2-standard-96 ubuntu-2504-amd64 ubuntu-os-cloud"
     exit 1
 fi
 
@@ -36,11 +37,12 @@ echo "Read access to:    gs://gcsfuse-release-benchmark-fio-data"
 echo "Read/Write access to: gs://gcsfuse-release-benchmarks-results"
 
 GCSFUSE_VERSION=$1
-PROJECT_ID=$2
-REGION=$3
-MACHINE_TYPE=$4
-IMAGE_FAMILY=$5
-IMAGE_PROJECT=$6
+LABEL=$2
+PROJECT_ID=$3
+REGION=$4
+MACHINE_TYPE=$5
+IMAGE_FAMILY=$6
+IMAGE_PROJECT=$7
 
 # Generate unique names for VM and buckets using timestamp and random number
 TIMESTAMP=$(date +%Y%m%d-%H%M%S)
@@ -151,7 +153,7 @@ gcloud compute instances create "${VM_NAME}" \
     --network-interface=network-tier=PREMIUM,nic-type=GVNIC \
     --scopes=https://www.googleapis.com/auth/cloud-platform,https://www.googleapis.com/auth/devstorage.read_write \
     --network-performance-configs=total-egress-bandwidth-tier=TIER_1 \
-    --metadata GCSFUSE_VERSION="${GCSFUSE_VERSION}",GCS_BUCKET_WITH_FIO_TEST_DATA="${GCS_BUCKET_WITH_FIO_TEST_DATA}",RESULT_PATH="${RESULT_PATH}",LSSD_ENABLED="${LSSD_ENABLED}",MACHINE_TYPE="${MACHINE_TYPE}",PROJECT_ID="${PROJECT_ID}",UNIQUE_ID="${UNIQUE_ID}" \
+    --metadata GCSFUSE_VERSION="${GCSFUSE_VERSION}",GCS_BUCKET_WITH_FIO_TEST_DATA="${GCS_BUCKET_WITH_FIO_TEST_DATA}",RESULT_PATH="${RESULT_PATH}",LSSD_ENABLED="${LSSD_ENABLED}",MACHINE_TYPE="${MACHINE_TYPE}",PROJECT_ID="${PROJECT_ID}",USER_LABEL="${LABEL}",UNIQUE_ID="${UNIQUE_ID}" \
     --metadata-from-file=startup-script=starter-script.sh \
     ${VM_LOCAL_SSD_ARGS}
 echo "VM created. Benchmarks will run on the VM."
