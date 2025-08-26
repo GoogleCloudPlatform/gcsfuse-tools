@@ -78,10 +78,10 @@ bash run-benchmarks.sh master my-test-label gcs-fuse-test us-south1 n2-standard-
 ## Workflow
 
 1. **Unique ID Generation**:  
-   A unique tracking ID is generated for each run based on the user-provided `<LABEL>`, the current timestamp, and a random suffix. This ID is used to tag results in BigQuery and organize them in GCS. To comply with cloud resource naming limits, a shorter version of this ID (without the label) is used to name the temporary VM and GCS test data bucket.
+   A unique identifier (`UNIQUE_ID`) is generated for each run using the current timestamp and a random suffix. This ID is used for naming all temporary resources (VM, GCS test data bucket) and for the GCS results folder. The user-provided `<LABEL>` is passed separately to the VM and used to construct a searchable fio_workload_id in BigQuery, which combines the FIO job name, the user label, and the unique ID.
 
 2. **GCS Bucket Creation**:  
-   A GCS bucket for FIO test data is created in the specified region. Its name is generated dynamically to be unique for each run.
+   A GCS bucket `gcsfuse-release-benchmark-data-<UNIQUE_ID>` is created in the specified region to store FIO test data.
 
 3. **FIO Job File Upload**:  
    All `.fio` job files from the local `fio-job-files/` directory are uploaded to the results bucket.
@@ -91,7 +91,7 @@ bash run-benchmarks.sh master my-test-label gcs-fuse-test us-south1 n2-standard-
 
 5. **VM Creation**:
    - A GCE VM is created with the specified machine type.
-   - Boot disk size: 1000GB.
+   - Boot disk size: 100GB.
 
 6. **`starter-script.sh` Execution**:  
    This script runs on the VM after creation. It:
@@ -120,25 +120,26 @@ FIO benchmark results, including I/O statistics, latencies, and system resource 
 - **Dataset ID**: `gke_test_tool_outputs`
 - **Table ID**: `fio_outputs`
 
-You can query the results for a specific run using the `LABEL` you provided. The `fio_workload_id` column in BigQuery contains this label.
+**Querying Results**
+
+You can query the results in BigQuery using the `<LABEL>` you provided when running the benchmark. The `fio_workload_id` column is constructed using this label.
 
 **Example Query:**
 
 To retrieve all results for a run with the label `my-test-label`, use the following query:
 
 ```sql
-SELECT
-  *
+SELECT *
 FROM
   `gcs-fuse-test-ml.gke_test_tool_outputs.fio_outputs`
 WHERE
-  fio_workload_id LIKE '%-my-test-label-%'
+  REGEXP_CONTAINS(fio_workload_id, r'-my-test-label-\d{8}-\d{6}-')
 ```
 
 ---
 
 ### Google Cloud Storage
 
-- **FIO Test Data:** The FIO test data (copied from `gs://gcsfuse-release-benchmark-fio-data`) is uploaded to a newly created bucket with a dynamically generated name (e.g., `gcsfuse-release-benchmark-data-20250826-100943-gcslklov`).
-- **Benchmark Results and FIO Job Files:** FIO JSON output files, benchmark logs, and FIO job files, are uploaded to the `gs://gcsfuse-release-benchmarks-results` bucket. The specific path within this bucket will be `gs://gcsfuse-release-benchmarks-results/<GCSFUSE_VERSION>-<LABEL>-<TIMESTAMP>-<RANDOM_SUFFIX>/`.
+- **FIO Test Data:** The FIO test data (copied from `gs://gcsfuse-release-benchmark-fio-data`) is uploaded to a newly created bucket dynamically named `gcsfuse-release-benchmark-data-<UNIQUE_ID>`.
+- **Benchmark Results and FIO Job Files:** FIO JSON output files, benchmark logs, and FIO job files, are uploaded to the `gs://gcsfuse-release-benchmarks-results` bucket. The specific path within this bucket will be `gs://gcsfuse-release-benchmarks-results/<GCSFUSE_VERSION>-<UNIQUE_ID>/`.
 - A `success.txt` file is uploaded to GCS upon successful completion of all benchmarks.

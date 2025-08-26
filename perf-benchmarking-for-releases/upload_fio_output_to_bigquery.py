@@ -82,6 +82,7 @@ args = parser.parse_args()
 
 machine_type = fetch_metadata("attributes/MACHINE_TYPE")
 vm_name = fetch_metadata("hostname")
+user_label = fetch_metadata("attributes/USER_LABEL")
 unique_id = fetch_metadata("attributes/UNIQUE_ID")
 
 # Load the results file
@@ -153,9 +154,9 @@ for job in data.get("jobs", []):
     
     # Use the master fio file for the ID
     master_fio_basename = args.master_fio_file.split("/")[-1].replace(".fio", "")
-    WORKLOAD_ID = f"{master_fio_basename}-{unique_id}"
-    EXPERIMENT_ID = f"{master_fio_basename}-{jobname}-{unique_id}"
-
+    # Construct a searchable ID using the original user-provided label and the unique run ID.
+    WORKLOAD_ID = f"{master_fio_basename}-{user_label}-{unique_id}"
+    EXPERIMENT_ID = f"{master_fio_basename}-{jobname}-{user_label}-{unique_id}"
     file_size_str = job_options.get("filesize", data.get("global options", {}).get("filesize", "unknown"))
     block_size_str = job_options.get("bs", data.get("global options", {}).get("bs", "unknown"))
     
