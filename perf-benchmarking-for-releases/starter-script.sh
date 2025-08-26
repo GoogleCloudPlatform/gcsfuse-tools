@@ -226,7 +226,7 @@ if [[ "$LSSD_ENABLED" == "true" ]]; then
     }
 fi
 
-git clone https://github.com/GoogleCloudPlatform/gcsfuse-tools.git
+git clone -b label-in-perf https://github.com/GoogleCloudPlatform/gcsfuse-tools.git
 cd gcsfuse-tools
 
 python3 -m venv py_venv

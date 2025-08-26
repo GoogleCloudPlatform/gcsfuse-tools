@@ -54,12 +54,13 @@ It should be executed from the `perf-benchmarking-for-releases` directory.
 ### Syntax
 
 ```bash
-bash run-benchmarks.sh <GCSFUSE_VERSION> <PROJECT_ID> <REGION> <MACHINE_TYPE> <IMAGE_FAMILY> <IMAGE_PROJECT>
+bash run-benchmarks.sh <GCSFUSE_VERSION> <LABEL> <PROJECT_ID> <REGION> <MACHINE_TYPE> <IMAGE_FAMILY> <IMAGE_PROJECT>
 ```
 
 ### Arguments:
 
 - `<GCSFUSE_VERSION>`: A Git tag (e.g., `v1.0.0`), branch name (e.g., `main`), or a commit ID on the GCSFuse master branch.
+- `<LABEL>`: A unique custom identifier for the benchmark run. This label is used to identify the results in BigQuery.
 - `<PROJECT_ID>`: Your Google Cloud Project ID in which you want the VM and Bucket to be created.
 - `<REGION>`: The GCP region where the VM and GCS buckets will be created (e.g., `us-south1`).
 - `<MACHINE_TYPE>`: The GCE machine type for the benchmark VM (e.g., `n2-standard-96`). This script supports attaching 16 local NVMe SSDs (375GB each) for LSSD-supported machine types.
@@ -68,9 +69,8 @@ bash run-benchmarks.sh <GCSFUSE_VERSION> <PROJECT_ID> <REGION> <MACHINE_TYPE> <I
 - `<IMAGE_PROJECT>`: The image project for the VM (e.g., `ubuntu-os-cloud`).
 
 ### Example:
-
 ```bash
-bash run-benchmarks.sh master gcs-fuse-test us-south1 n2-standard-96 ubuntu-2504-amd64 ubuntu-os-cloud
+bash run-benchmarks.sh master my-test-label gcs-fuse-test us-south1 n2-standard-96 ubuntu-2504-amd64 ubuntu-os-cloud
 ```
 
 ---
@@ -119,6 +119,21 @@ FIO benchmark results, including I/O statistics, latencies, and system resource 
 - **Project ID**: `gcs-fuse-test-ml`
 - **Dataset ID**: `gke_test_tool_outputs`
 - **Table ID**: `fio_outputs`
+
+You can query the results for a specific run using the `LABEL` you provided. The `fio_workload_id` column in BigQuery contains this label.
+
+**Example Query:**
+
+To retrieve all results for a run with the label `my-test-label`, use the following query:
+
+```sql
+SELECT
+  *
+FROM
+  `gcs-fuse-test-ml.gke_test_tool_outputs.fio_outputs`
+WHERE
+  fio_workload_id LIKE '%-my-test-label-%'
+```
 
 ---
 

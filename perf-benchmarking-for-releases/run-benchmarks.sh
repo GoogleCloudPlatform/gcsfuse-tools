@@ -14,15 +14,16 @@
 # limitations under the License.
 
 # Validate input arguments
-if [ "$#" -ne 6 ]; then
-    echo "Usage: $0 <GCSFUSE_VERSION> <PROJECT_ID> <REGION> <MACHINE_TYPE> <IMAGE_FAMILY> <IMAGE_PROJECT>"
+if [ "$#" -ne 7 ]; then
+    echo "Usage: $0 <GCSFUSE_VERSION> <LABEL> <PROJECT_ID> <REGION> <MACHINE_TYPE> <IMAGE_FAMILY> <IMAGE_PROJECT>"
     echo ""
     echo "<GCSFUSE_VERSION> can be a Git tag (e.g. v1.0.0), branch name (e.g. main), or a commit ID on master."
+    echo "<LABEL> is a unique custom identifier for the benchmark run. This is used to identify results in BigQuery."
     echo ""
     echo "This script should be run from the 'perf-benchmarking-for-releases' directory."
     echo ""
     echo "Example:"
-    echo "  bash run-benchmarks.sh master gcs-fuse-test us-south1 n2-standard-96 ubuntu-2504-amd64 ubuntu-os-cloud"
+    echo "  bash run-benchmarks.sh master my-test-label gcs-fuse-test us-south1 n2-standard-96 ubuntu-2504-amd64 ubuntu-os-cloud"
     exit 1
 fi
 
@@ -36,16 +37,17 @@ echo "Read access to:    gs://gcsfuse-release-benchmark-fio-data"
 echo "Read/Write access to: gs://gcsfuse-release-benchmarks-results"
 
 GCSFUSE_VERSION=$1
-PROJECT_ID=$2
-REGION=$3
-MACHINE_TYPE=$4
-IMAGE_FAMILY=$5
-IMAGE_PROJECT=$6
+LABEL=$2
+PROJECT_ID=$3
+REGION=$4
+MACHINE_TYPE=$5
+IMAGE_FAMILY=$6
+IMAGE_PROJECT=$7
 
 # Generate unique names for VM and buckets using timestamp and random number
 TIMESTAMP=$(date +%Y%m%d-%H%M%S)
 RAND_SUFFIX=$(head /dev/urandom | tr -dc a-z0-9 | head -c 8)
-UNIQUE_ID="${TIMESTAMP}-${RAND_SUFFIX}"
+UNIQUE_ID="${LABEL}-${TIMESTAMP}-${RAND_SUFFIX}"
 
 VM_NAME="gcsfuse-perf-benchmark-${UNIQUE_ID}"
 GCS_BUCKET_WITH_FIO_TEST_DATA="gcsfuse-release-benchmark-data-${UNIQUE_ID}"
