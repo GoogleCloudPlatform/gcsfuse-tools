@@ -155,7 +155,6 @@ RESULT_PATH=$(curl -s "http://metadata.google.internal/computeMetadata/v1/instan
 LSSD_ENABLED=$(curl -s "http://metadata.google.internal/computeMetadata/v1/instance/attributes/LSSD_ENABLED" -H "Metadata-Flavor: Google")
 PROJECT_ID=$(curl -s "http://metadata.google.internal/computeMetadata/v1/instance/attributes/PROJECT_ID" -H "Metadata-Flavor: Google")
 VM_NAME=$(hostname)
-UNIQUE_ID=$(curl -s "http://metadata.google.internal/computeMetadata/v1/instance/attributes/UNIQUE_ID" -H "Metadata-Flavor: Google")
 GCSFUSE_MOUNT_OPTIONS_STR="implicit-dirs"
 
 # Determine system architecture
@@ -226,7 +225,7 @@ if [[ "$LSSD_ENABLED" == "true" ]]; then
     }
 fi
 
-git clone -b label-in-perf https://github.com/GoogleCloudPlatform/gcsfuse-tools.git
+git clone https://github.com/GoogleCloudPlatform/gcsfuse-tools.git
 cd gcsfuse-tools
 
 python3 -m venv py_venv

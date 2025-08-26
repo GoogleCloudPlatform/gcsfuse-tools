@@ -78,10 +78,10 @@ bash run-benchmarks.sh master my-test-label gcs-fuse-test us-south1 n2-standard-
 ## Workflow
 
 1. **Unique ID Generation**:  
-   A unique ID is generated based on the timestamp and a random suffix to name the VM and related GCS buckets.
+   A unique tracking ID is generated for each run based on the user-provided `<LABEL>`, the current timestamp, and a random suffix. This ID is used to tag results in BigQuery and organize them in GCS. To comply with cloud resource naming limits, a shorter version of this ID (without the label) is used to name the temporary VM and GCS test data bucket.
 
 2. **GCS Bucket Creation**:  
-   A GCS bucket `gcsfuse-release-benchmark-data-<UNIQUE_ID>` is created in the specified region to store FIO test data.
+   A GCS bucket for FIO test data is created in the specified region. Its name is generated dynamically to be unique for each run.
 
 3. **FIO Job File Upload**:  
    All `.fio` job files from the local `fio-job-files/` directory are uploaded to the results bucket.
@@ -139,6 +139,6 @@ WHERE
 
 ### Google Cloud Storage
 
-- **FIO Test Data:** The FIO test data (copied from `gs://gcsfuse-release-benchmark-fio-data`) is uploaded to a newly created bucket dynamically named `gcsfuse-release-benchmark-data-<UNIQUE_ID>`.
-- **Benchmark Results and FIO Job Files:** FIO JSON output files, benchmark logs, and FIO job files, are uploaded to the `gs://gcsfuse-release-benchmarks-results` bucket. The specific path within this bucket will be `gs://gcsfuse-release-benchmarks-results/<GCSFUSE_VERSION>-<UNIQUE_ID>/`.
+- **FIO Test Data:** The FIO test data (copied from `gs://gcsfuse-release-benchmark-fio-data`) is uploaded to a newly created bucket with a dynamically generated name (e.g., `gcsfuse-release-benchmark-data-20250826-100943-gcslklov`).
+- **Benchmark Results and FIO Job Files:** FIO JSON output files, benchmark logs, and FIO job files, are uploaded to the `gs://gcsfuse-release-benchmarks-results` bucket. The specific path within this bucket will be `gs://gcsfuse-release-benchmarks-results/<GCSFUSE_VERSION>-<LABEL>-<TIMESTAMP>-<RANDOM_SUFFIX>/`.
 - A `success.txt` file is uploaded to GCS upon successful completion of all benchmarks.
