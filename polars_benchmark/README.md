@@ -1,0 +1,92 @@
+# Polars GCS Benchmark
+
+This script benchmarks the performance of reading a Parquet file with Polars using two different methods:
+1.  **GCSFuse:** Reading from a GCSFuse-mounted directory.
+2.  **Direct GCS:** Reading directly from a GCS path (`gs://...`).
+
+## Setup
+
+### 1. Create a virtual environment
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+```
+
+### 2. Install dependencies
+```bash
+pip install --upgrade pip
+pip install -r requirements.txt
+```
+
+### 3. Mount your GCS bucket with GCSFuse
+Create a directory to mount your bucket:
+```bash
+mkdir -p /path/to/local/mount
+```
+
+Mount the bucket using GCSFuse. Replace `your-bucket-name` with your GCS bucket name and `/path/to/local/mount` with the path you just created.
+```bash
+gcsfuse your-bucket-name /path/to/local/mount
+```
+
+## Running the Benchmark
+
+The script will generate a Parquet file of a specified size in your GCS bucket if it doesn't already exist. Then, it will run the selected benchmark(s) for both GCSFuse and direct GCS access.
+
+```bash
+python3 benchmark.py --gcs-bucket your-bucket-name --local-path /path/to/local/mount/test.parquet --size-gb 4 --benchmark-type all
+```
+
+### Arguments
+*   `--gcs-bucket`: The name of your GCS bucket.
+*   `--local-path`: The full path to the test file on the GCSFuse mount.
+*   `--size-gb`: The target size of the Parquet file in gigabytes (GB).
+*   `--benchmark-type`: The type of benchmark to run. Choices are `read`, `write`, or `all`. Defaults to `all`.
+*   `--threads`: The number of threads for Polars to use. Defaults to the Polars default.
+
+## Example Output
+```
+Found existing Parquet file at gs://your-bucket-name/test.parquet. Skipping creation.
+
+--- Benchmarking GCSFuse Read Performance ---
+Run 1/5: 10.52 seconds
+Run 2/5: 10.48 seconds
+Run 3/5: 10.55 seconds
+Run 4/5: 10.51 seconds
+Run 5/5: 10.53 seconds
+GCSFuse Read - Min: 10.48s, Max: 10.55s, Avg: 10.52s
+
+--- Benchmarking Direct GCS Read Performance ---
+Run 1/5: 2.34 seconds
+Run 2/5: 2.32 seconds
+Run 3/5: 2.35 seconds
+Run 4/5: 2.33 seconds
+Run 5/5: 2.36 seconds
+Direct GCS Read - Min: 2.32s, Max: 2.36s, Avg: 2.34s
+
+--- Read Summary ---
+GCSFuse average read time: 10.52 seconds
+Direct GCS average read time: 2.34 seconds
+
+Reading a sample of the data to use for the write benchmark...
+
+--- Benchmarking GCSFuse Write Performance ---
+Run 1/5: 5.12 seconds
+Run 2/5: 5.09 seconds
+Run 3/5: 5.15 seconds
+Run 4/5: 5.11 seconds
+Run 5/5: 5.13 seconds
+GCSFuse Write - Min: 5.09s, Max: 5.15s, Avg: 5.12s
+
+--- Benchmarking Direct GCS Write Performance ---
+Run 1/5: 1.45 seconds
+Run 2/5: 1.43 seconds
+Run 3/5: 1.46 seconds
+Run 4/5: 1.44 seconds
+Run 5/5: 1.47 seconds
+Direct GCS Write - Min: 1.43s, Max: 1.47s, Avg: 1.45s
+
+--- Write Summary ---
+GCSFuse average write time: 5.12 seconds
+Direct GCS average write time: 1.45 seconds
+```
