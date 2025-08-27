@@ -201,9 +201,9 @@ def main():
             print(f"Direct GCS average read time: {direct_gcs_results['read_avg']:.2f} seconds")
 
     if args.benchmark_type in ["write", "all"]:
-        source_path = args.gcs_path or args.local_path
-        print(f"\nReading a sample of the data from {source_path} to use for the write benchmark...")
-        df_to_write = pl.read_parquet(source_path, n_rows=1_000_000)
+        print("\nGenerating a 1,000,000 row dataframe to use for the write benchmark...")
+        pd_df_to_write = _generate_dummy_dataframe(1_000_000)
+        df_to_write = pl.from_pandas(pd_df_to_write)
 
         if args.local_path:
             print("\n--- Benchmarking GCSFuse Write Performance ---")
