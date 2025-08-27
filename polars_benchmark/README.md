@@ -31,15 +31,29 @@ gcsfuse your-bucket-name /path/to/local/mount
 
 ## Running the Benchmark
 
-The script will generate a Parquet file of a specified size in your GCS bucket if it doesn't already exist. Then, it will run the selected benchmark(s) for both GCSFuse and direct GCS access.
+The script can run benchmarks against a GCSFuse mount path, a direct GCS path, or both.
 
+If a `--gcs-path` is provided, the script will generate a Parquet file of a specified size in your GCS bucket if it doesn't already exist. If only a `--local-path` is provided, the script assumes the file already exists at that path.
+
+### Example: Benchmarking both GCSFuse and Direct GCS
 ```bash
-python3 benchmark.py --gcs-bucket your-bucket-name --local-path /path/to/local/mount/test.parquet --size-gb 4 --benchmark-type all
+python3 benchmark.py --gcs-path gs://your-bucket-name/test.parquet --local-path /path/to/local/mount/test.parquet --size-gb 4
 ```
 
-### Arguments
-*   `--gcs-bucket`: The name of your GCS bucket.
-*   `--local-path`: The full path to the test file on the GCSFuse mount.
+### Example: Benchmarking only GCSFuse
+```bash
+python3 benchmark.py --local-path /path/to/local/mount/test.parquet
+```
+
+### Example: Benchmarking only Direct GCS
+```bash
+python3 benchmark.py --gcs-path gs://your-bucket-name/test.parquet --size-gb 4
+```
+
+```bash
+### All Arguments
+*   `--gcs-path`: The GCS path to the file (e.g., `gs://bucket/file.parquet`). Used for direct GCS benchmarks.
+*   `--local-path`: The full path to the test file on the GCSFuse mount. Used for GCSFuse benchmarks.
 *   `--size-gb`: The target size of the Parquet file in gigabytes (GB).
 *   `--benchmark-type`: The type of benchmark to run. Choices are `read`, `write`, or `all`. Defaults to `all`.
 *   `--threads`: The number of threads for Polars to use. Defaults to the Polars default.
@@ -119,7 +133,7 @@ docker run --rm -it --privileged \
   -v ~/.config/gcloud:/root/.config/gcloud \
   -v /tmp/gcs-mount:/gcs \
   polars-gcs-benchmark \
-  --gcs-bucket your-bucket-name \
+  --gcs-path gs://your-bucket-name/test.parquet \
   --local-path /gcs/test.parquet \
   --size-gb 1
 ```
