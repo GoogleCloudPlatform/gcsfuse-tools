@@ -17,7 +17,7 @@ def _generate_dummy_dataframe(num_rows: int) -> pd.DataFrame:
 
 def _write_single_file(df: pl.DataFrame, file_path: str):
     """Helper to write a single parquet file."""
-    df.write_parquet(file_path)
+    df.write_parquet(file_path, use_pyarrow=True)
 
 def run_write_benchmark(df: pl.DataFrame, base_file_path: str, nr_files: int, num_runs: int = 5) -> list[float]:
     """Runs the write benchmark and returns a list of run times."""
@@ -30,7 +30,7 @@ def run_write_benchmark(df: pl.DataFrame, base_file_path: str, nr_files: int, nu
         start_time = time.time()
         if nr_files == 1:
             print(f"Writing to {base_file_path}")
-            df.write_parquet(base_file_path)
+            _write_single_file(base_file_path)
         else:
             with concurrent.futures.ThreadPoolExecutor(max_workers=nr_files) as executor:
                 futures = []
