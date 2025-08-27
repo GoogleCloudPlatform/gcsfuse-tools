@@ -29,7 +29,7 @@ def _create_single_parquet_file_gcs(bucket_name: str, blob_name: str, target_siz
         pa.field("float_col", pa.float64()),
         pa.field("str_col", pa.string())
     ])
-    with pq.ParquetWriter(f"gs://{bucket_name}/{blob_name}", schema=schema, filesystem=gcs_file) as writer:
+    with pq.ParquetWriter(f"{bucket_name}/{blob_name}", schema=schema, filesystem=gcs_file) as writer:
         while True:
             df_chunk = _generate_dummy_dataframe(chunk_rows)
             table = pa.Table.from_pandas(df_chunk, schema=schema)
