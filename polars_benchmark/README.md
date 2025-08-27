@@ -90,3 +90,44 @@ Direct GCS Write - Min: 1.43s, Max: 1.47s, Avg: 1.45s
 GCSFuse average write time: 5.12 seconds
 Direct GCS average write time: 1.45 seconds
 ```
+
+## Running with Docker
+
+You can also run the benchmark in a Docker container. This is useful for ensuring a consistent environment.
+
+### 1. Build the Docker image
+From the `polars_benchmark` directory, run:
+```bash
+docker build -t polars-gcs-benchmark .
+```
+
+### 2. Run the benchmark in a container
+
+To run the benchmark, you need to provide your GCS credentials to the container. The easiest way to do this is by mounting your gcloud configuration directory.
+
+**Note on GCSFuse in Docker:** Running GCSFuse inside a container requires the container to have special privileges. You need to run the container with the `--privileged` flag.
+
+First, create a local directory for the GCSFuse mount:
+```bash
+mkdir -p /tmp/gcs-mount
+```
+
+Then, run the container. Replace `your-bucket-name` with your GCS bucket name.
+
+```bash
+docker run --rm -it --privileged \
+  -v ~/.config/gcloud:/root/.config/gcloud \
+  -v /tmp/gcs-mount:/gcs \
+  polars-gcs-benchmark \
+  --gcs-bucket your-bucket-name \
+  --local-path /gcs/test.parquet \
+  --size-gb 1
+```
+
+This command does the following:
+*   `--rm`: Removes the container when it exits.
+*   `-it`: Runs the container in interactive mode.
+*   `--privileged`: Gives the container the necessary permissions to run GCSFuse.
+*   `-v ~/.config/gcloud:/root/.config/gcloud`: Mounts your local gcloud configuration, which contains your GCS credentials.
+*   `-v /tmp/gcs-mount:/gcs`: Mounts a local directory that will be used by GCSFuse inside the container.
+*   The rest of the arguments are passed to the `benchmark.py` script.
