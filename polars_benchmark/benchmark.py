@@ -30,7 +30,7 @@ def run_write_benchmark(df: pl.DataFrame, base_file_path: str, nr_files: int, nu
         start_time = time.time()
         if nr_files == 1:
             print(f"Writing to {base_file_path}")
-            _write_single_file(base_file_path)
+            _write_single_file(df, base_file_path)
         else:
             with concurrent.futures.ThreadPoolExecutor(max_workers=nr_files) as executor:
                 futures = []
