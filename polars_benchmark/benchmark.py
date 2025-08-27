@@ -29,6 +29,7 @@ def run_write_benchmark(df: pl.DataFrame, base_file_path: str, nr_files: int, nu
     for i in range(num_runs):
         start_time = time.time()
         if nr_files == 1:
+            print(f"Writing to {base_file_path}")
             df.write_parquet(base_file_path)
         else:
             with concurrent.futures.ThreadPoolExecutor(max_workers=nr_files) as executor:
