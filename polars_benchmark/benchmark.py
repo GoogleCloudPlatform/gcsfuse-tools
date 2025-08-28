@@ -42,7 +42,7 @@ def run_write_benchmark(df: pl.DataFrame, base_file_path: str, nr_files: int, nu
                 for j in range(nr_files):
                     path_parts = os.path.splitext(base_file_path)
                     file_path = f"{path_parts[0]}_{j}{path_parts[1]}"
-                    futures.append(executor.submit(_write_single_file, array[j] file_path))
+                    futures.append(executor.submit(_write_single_file, array[j], file_path))
                 concurrent.futures.wait(futures)
 
         end_time = time.time()
