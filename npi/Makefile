@@ -37,6 +37,6 @@ fullsweep-benchmark: base
 filecache-benchmark: base
 	docker build fio -f fio/filecache.dockerfile --build-arg GCSFUSE_VERSION=$(GCSFUSE_VERSION) --build-arg ARCH=$(ARCH) --build-arg GO_VERSION=$(GO_VERSION) --build-arg UBUNTU_VERSION=$(UBUNTU_VERSION) --build-arg REGISTRY=$(REGISTRY) -t $(REGISTRY)/gcs-fuse-test/gcsfuse-benchmarks/fio-filecache-benchmark-$(GCSFUSE_VERSION)-$(ARCH):latest && docker push $(REGISTRY)/gcs-fuse-test/gcsfuse-benchmarks/fio-filecache-benchmark-$(GCSFUSE_VERSION)-$(ARCH):latest	
 
-build: read-benchmark write-benchmark fullsweep-benchmark filecache-benchamrk base
+build: read-benchmark write-benchmark fullsweep-benchmark filecache-benchmark base
 
 
