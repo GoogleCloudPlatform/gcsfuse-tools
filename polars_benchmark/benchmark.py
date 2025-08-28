@@ -79,7 +79,7 @@ def main():
     direct_gcs_results = {}
 
     print("\nGenerating a 1,000,000 row dataframe to use for the write benchmark...")
-    pd_df_to_write = _generate_dummy_dataframe(1_000_000)
+    pd_df_to_write = _generate_dummy_dataframe(400_000_000)
     df_to_write = pl.from_pandas(pd_df_to_write)
 
     if args.local_path:
