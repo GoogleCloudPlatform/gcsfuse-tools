@@ -84,6 +84,8 @@ def main():
     parser.add_argument("--threads", type=int, default=None, help="Number of threads for Polars to use.")
     parser.add_argument("--nr-files", type=int, default=1, help="Number of files to write concurrently.")
     parser.add_argument("--test-creation", action="store_true", help="If set, delete existing files before each write run to measure creation time.")
+    parser.add_argument("--iterations", type=int, default=5, help="Number of times to run each benchmark.")
+    parser.add_argument("--approx-file-size-mb", type=int, default=100, help="Approximate size of each file in MB.")
     args = parser.parse_args()
 
     if not args.gcs_path and not args.local_path:
@@ -106,20 +108,22 @@ def main():
     gcsfuse_results = {}
     direct_gcs_results = {}
 
-    print("\nGenerating a 400_000_000 row dataframe to use for the write benchmark...")
-    pd_df_to_write = _generate_dummy_dataframe(400_000_000)
+    num_rows = 400_000 * args.approx_file_size_mb
+
+    print(f"\nGenerating a {num_rows} row dataframe to use for the write benchmark...")
+    pd_df_to_write = _generate_dummy_dataframe(num_rows)
     df_to_write = pl.from_pandas(pd_df_to_write)
 
     if args.local_path:
         print("\n--- Benchmarking GCSFuse Write Performance ---")
-        gcsfuse_write_timings = run_write_benchmark(df_to_write, args.local_path, args.nr_files, test_creation=args.test_creation)
+        gcsfuse_write_timings = run_write_benchmark(df_to_write, args.local_path, args.nr_files, num_runs=args.iterations, test_creation=args.test_creation)
         gcsfuse_write_avg = sum(gcsfuse_write_timings) / len(gcsfuse_write_timings)
         gcsfuse_results['write_avg'] = gcsfuse_write_avg
         print(f"GCSFuse Write - Min: {min(gcsfuse_write_timings):.2f}s, Max: {max(gcsfuse_write_timings):.2f}s, Avg: {gcsfuse_write_avg:.2f}s")
 
     if args.gcs_path:
         print("\n--- Benchmarking Direct GCS Write Performance ---")
-        direct_gcs_write_timings = run_write_benchmark(df_to_write, args.gcs_path, args.nr_files, test_creation=args.test_creation)
+        direct_gcs_write_timings = run_write_benchmark(df_to_write, args.gcs_path, args.nr_files, num_runs=args.iterations, test_creation=args.test_creation)
         direct_gcs_write_avg = sum(direct_gcs_write_timings) / len(direct_gcs_write_timings)
         direct_gcs_results['write_avg'] = direct_gcs_write_avg
         print(f"Direct GCS Write - Min: {min(direct_gcs_write_timings):.2f}s, Max: {max(direct_gcs_write_timings):.2f}s, Avg: {direct_gcs_write_avg:.2f}s")
