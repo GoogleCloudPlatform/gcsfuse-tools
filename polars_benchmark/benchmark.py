@@ -28,8 +28,6 @@ def run_write_benchmark(df: pl.DataFrame, base_file_path: str, nr_files: int, nu
     print(f"Writing dataframe with {len(df)} rows to {base_file_path}")
     if nr_files > 1:
         print(f"Writing to {nr_files} files concurrently.")
-    for i in range(nr_files):
-        array.append(df.clone())
 
     for i in range(num_runs):
         start_time = time.time()
@@ -42,7 +40,7 @@ def run_write_benchmark(df: pl.DataFrame, base_file_path: str, nr_files: int, nu
                 for j in range(nr_files):
                     path_parts = os.path.splitext(base_file_path)
                     file_path = f"{path_parts[0]}_{j}{path_parts[1]}"
-                    futures.append(executor.submit(_write_single_file, array[j], file_path))
+                    futures.append(executor.submit(_write_single_file, df, file_path))
                 concurrent.futures.wait(futures)
 
         end_time = time.time()
