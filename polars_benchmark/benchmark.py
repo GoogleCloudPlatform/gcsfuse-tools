@@ -10,7 +10,7 @@ import sys
 def _generate_dummy_dataframe(num_rows: int) -> pd.DataFrame:
     """Helper function to generate a Pandas DataFrame with random data."""
     return pd.DataFrame({
-        "int_col": np.random.randint(0, 400_000_000, size=num_rows, dtype=np.int32),
+        "int_col": np.random.randint(0, num_rows, size=num_rows, dtype=np.int32),
         "float_col": np.random.random(size=num_rows),
         "str_col": np.random.choice(['alpha', 'beta', 'gamma', 'delta', 'epsilon', 'zeta', 'eta', 'theta'], size=num_rows)
     })
@@ -78,8 +78,8 @@ def main():
     gcsfuse_results = {}
     direct_gcs_results = {}
 
-    print("\nGenerating a 400_000_000 row dataframe to use for the write benchmark...")
-    pd_df_to_write = _generate_dummy_dataframe(400_000_000)
+    print("\nGenerating a 40_000_000 row dataframe to use for the write benchmark...")
+    pd_df_to_write = _generate_dummy_dataframe(40_000_000)
     df_to_write = pl.from_pandas(pd_df_to_write)
 
     if args.local_path:
