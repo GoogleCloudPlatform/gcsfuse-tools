@@ -108,7 +108,7 @@ def main():
     gcsfuse_results = {}
     direct_gcs_results = {}
 
-    num_rows = 400_000 * args.approx_file_size_mb
+    num_rows = 100_000 * args.approx_file_size_mb
 
     print(f"\nGenerating a {num_rows} row dataframe to use for the write benchmark...")
     pd_df_to_write = _generate_dummy_dataframe(num_rows)
