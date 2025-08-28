@@ -78,8 +78,8 @@ def main():
     gcsfuse_results = {}
     direct_gcs_results = {}
 
-    print("\nGenerating a 40_000_000 row dataframe to use for the write benchmark...")
-    pd_df_to_write = _generate_dummy_dataframe(40_000_000)
+    print("\nGenerating a 4_000_000 row dataframe to use for the write benchmark...")
+    pd_df_to_write = _generate_dummy_dataframe(4_000_000)
     df_to_write = pl.from_pandas(pd_df_to_write)
 
     if args.local_path:
