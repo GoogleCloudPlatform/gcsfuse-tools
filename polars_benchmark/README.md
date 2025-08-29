@@ -1,7 +1,7 @@
 # Polars GCS Benchmark
 
-This script benchmarks the performance of writing a Parquet file with Polars using two different methods:
-1.  **GCSFuse:** Reading from a GCSFuse-mounted directory.
+This script benchmarks the performance of writing Parquet files with Polars using two different methods:
+1.  **GCSFuse:** Writing to a GCSFuse-mounted directory.
 2.  **Direct GCS:** Writing directly to a GCS path (`gs://...`).
 
 ## Setup
@@ -35,7 +35,10 @@ The script can run write benchmarks against a GCSFuse mount path, a direct GCS p
 
 ### Example: Benchmarking both GCSFuse and Direct GCS
 ```bash
-python3 benchmark.py --gcs-path gs://your-bucket-name/test_write.parquet --local-path /path/to/local/mount/test_write.parquet
+python3 benchmark.py \
+  --gcs-path gs://your-bucket-name/data/direct/test.parquet \
+  --local-path /path/to/local/mount/data/fuse/test.parquet \
+  --approx-file-size-mb 1000
 ```
 
 ### Example: Benchmarking only GCSFuse
