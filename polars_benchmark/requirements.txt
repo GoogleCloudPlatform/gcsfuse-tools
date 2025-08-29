@@ -1,0 +1,5 @@
+polars==1.32.3
+pyarrow==21.0.0
+pandas==2.3.2
+gcsfs==2025.7.0
+google-cloud-storage==3.3.0
