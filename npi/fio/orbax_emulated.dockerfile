@@ -8,6 +8,6 @@ FROM ${REGISTRY}/gcs-fuse-test/gcsfuse-benchmarks/gcsfuse-${GCSFUSE_VERSION}-per
 COPY run_fio_benchmark.py /run_fio_benchmark.py
 COPY fio_benchmark_runner.py /fio_benchmark_runner.py
 COPY run_fio_matrix.py /run_fio_matrix.py
-COPY fullsweep_matrix.csv /fullsweep_matrix.csv
-COPY fullsweep.fio /fullsweep.fio
+COPY orbax_emulated_matrix.csv /orbax_emulated_matrix.csv
+COPY orbax_emulated.fio /orbax_emulated.fio
 ENTRYPOINT ["/run_fio_matrix.py", "--matrix-config", "/orbax_emulated_matrix.csv", "--fio-template", "/orbax_emulated.fio"]
