@@ -1,0 +1,26 @@
+[global]
+allrandrepeat=0
+create_serialize=0
+direct=1
+fadvise_hint=0
+file_service_type=random
+group_reporting=1
+iodepth=4
+ioengine=libaio
+invalidate=1
+numjobs=128
+# Change "read" to "randread" to test random reads.
+rw=read 
+thread=1
+filename_format=orbax/experiment.$jobnum.$filenum
+
+[read]
+stonewall
+directory=${DIR}
+# Update the block size value from the table for different experiments.
+bs=1M
+size=50M
+# Update the file size value from table(file size) for different experiments.
+filesize=300M
+# Set nrfiles per thread in such a way that the test runs for 1-2 min.
+nrfiles=500
