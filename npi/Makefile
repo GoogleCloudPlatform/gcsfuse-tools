@@ -34,6 +34,9 @@ write-benchmark: base
 fullsweep-benchmark: base
 	docker build fio -f fio/fullsweep.dockerfile --build-arg GCSFUSE_VERSION=$(GCSFUSE_VERSION) --build-arg ARCH=$(ARCH) --build-arg GO_VERSION=$(GO_VERSION) --build-arg UBUNTU_VERSION=$(UBUNTU_VERSION) --build-arg REGISTRY=$(REGISTRY) -t $(REGISTRY)/gcs-fuse-test/gcsfuse-benchmarks/fio-fullsweep-benchmark-$(GCSFUSE_VERSION)-$(ARCH):latest && docker push $(REGISTRY)/gcs-fuse-test/gcsfuse-benchmarks/fio-fullsweep-benchmark-$(GCSFUSE_VERSION)-$(ARCH):latest
 
-build: read-benchmark write-benchmark fullsweep-benchmark base
+orbax-benchmark: base
+	docker build fio -f fio/orbax_emulated.dockerfile --build-arg GCSFUSE_VERSION=$(GCSFUSE_VERSION) --build-arg ARCH=$(ARCH) --build-arg GO_VERSION=$(GO_VERSION) --build-arg UBUNTU_VERSION=$(UBUNTU_VERSION) --build-arg REGISTRY=$(REGISTRY) -t $(REGISTRY)/gcs-fuse-test/gcsfuse-benchmarks/orbax-emulated-benchmark-$(GCSFUSE_VERSION)-$(ARCH):latest && docker push $(REGISTRY)/gcs-fuse-test/gcsfuse-benchmarks/orbax-emulated-benchmark-$(GCSFUSE_VERSION)-$(ARCH):latest
+
+build: read-benchmark write-benchmark fullsweep-benchmark orbax-benchmark base
 
 
