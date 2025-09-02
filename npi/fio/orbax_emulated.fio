@@ -18,9 +18,6 @@ stonewall
 directory=${DIR}
 # Block size for each I/O operation. Set to 80M as per requirement.
 bs=80M
-# Total I/O for this job. To read all files completely, this should be
-# nrfiles * filesize (4 * 300M = 1200M).
-size=1200M
 # Size of each file to be created.
 filesize=300M
 # Number of files per job/thread. Total files = numjobs * nrfiles = 128 * 4 = 512.
