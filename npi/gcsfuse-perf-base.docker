@@ -16,5 +16,5 @@ RUN apt-get update && apt-get install -y fuse3 fio \
 --no-install-recommends && \
 rm -rf /var/lib/apt/lists/* && \
 pip install --no-cache-dir google-cloud-bigquery
-COPY --from=builder /app/gcsfuse /gcsfuse/gcsfuse
+COPY --from=builder /app/gcsfuse/gcsfuse /gcsfuse/gcsfuse
 ENTRYPOINT ["/bin/bash"]
