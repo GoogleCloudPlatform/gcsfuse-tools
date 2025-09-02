@@ -6,11 +6,9 @@ FROM --platform=$BUILDPLATFORM golang:${GO_VERSION} AS builder
 ARG GCSFUSE_VERSION
 ARG TARGETOS
 ARG TARGETARCH
-ENV GOOS=${TARGETOS}
-ENV GOARCH=${TARGETARCH}
 WORKDIR /app
 RUN git clone -b ${GCSFUSE_VERSION} --depth 1 --single-branch https://github.com/GoogleCloudPlatform/gcsfuse.git
-RUN cd gcsfuse && go build .
+RUN cd gcsfuse && GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build .
 
 FROM python:3.13
 # Install FUSE and related packages
