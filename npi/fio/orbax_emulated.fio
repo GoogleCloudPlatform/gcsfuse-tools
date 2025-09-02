@@ -1,0 +1,24 @@
+[global]
+allrandrepeat=0
+create_serialize=0
+direct=1
+fadvise_hint=0
+file_service_type=random
+group_reporting=1
+iodepth=4
+ioengine=libaio
+invalidate=1
+numjobs=128
+rw=${READ_TYPE}
+thread=1
+filename_format=orbax/experiment.$jobnum.$filenum
+
+[read]
+stonewall
+directory=${DIR}
+# Block size for each I/O operation. Set to 80M as per requirement.
+bs=80M
+# Size of each file to be created.
+filesize=300M
+# Number of files per job/thread. Total files = numjobs * nrfiles = 128 * 4 = 512.
+nrfiles=4
