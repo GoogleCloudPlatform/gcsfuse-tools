@@ -16,25 +16,27 @@ GCSFUSE_VERSION ?= master
 GO_VERSION=1.25.0
 UBUNTU_VERSION=24.04
 REGISTRY=us-docker.pkg.dev
+PROJECT=gcs-fuse-test
+
 
 .DEFAULT_GOAL := build
 
 .PHONY: build base read-benchmark write-benchmark orbax-benchmark
 
 base:
-	docker buildx build --load -f gcsfuse-perf-base.docker --platform linux/amd64,linux/arm64 --build-arg GCSFUSE_VERSION=$(GCSFUSE_VERSION) --build-arg GO_VERSION=$(GO_VERSION) --build-arg UBUNTU_VERSION=$(UBUNTU_VERSION) -t $(REGISTRY)/gcs-fuse-test/gcsfuse-benchmarks/gcsfuse-$(GCSFUSE_VERSION)-perf-base:latest . && docker push $(REGISTRY)/gcs-fuse-test/gcsfuse-benchmarks/gcsfuse-$(GCSFUSE_VERSION)-perf-base:latest
+	docker buildx build --load -f gcsfuse-perf-base.docker --platform linux/amd64,linux/arm64 --build-arg GCSFUSE_VERSION=$(GCSFUSE_VERSION) --build-arg GO_VERSION=$(GO_VERSION) --build-arg UBUNTU_VERSION=$(UBUNTU_VERSION) -t $(REGISTRY)/$(PROJECT)/gcsfuse-benchmarks/gcsfuse-$(GCSFUSE_VERSION)-perf-base:latest . && docker push $(REGISTRY)/$(PROJECT)/gcsfuse-benchmarks/gcsfuse-$(GCSFUSE_VERSION)-perf-base:latest
 
 read-benchmark: base
-	docker buildx build --load fio -f fio/read.dockerfile --platform linux/amd64,linux/arm64 --build-arg GCSFUSE_VERSION=$(GCSFUSE_VERSION) --build-arg GO_VERSION=$(GO_VERSION) --build-arg UBUNTU_VERSION=$(UBUNTU_VERSION) --build-arg REGISTRY=$(REGISTRY) -t $(REGISTRY)/gcs-fuse-test/gcsfuse-benchmarks/fio-read-benchmark-$(GCSFUSE_VERSION):latest && docker push $(REGISTRY)/gcs-fuse-test/gcsfuse-benchmarks/fio-read-benchmark-$(GCSFUSE_VERSION):latest
+	docker buildx build --load fio -f fio/read.dockerfile --platform linux/amd64,linux/arm64 --build-arg GCSFUSE_VERSION=$(GCSFUSE_VERSION) --build-arg GO_VERSION=$(GO_VERSION) --build-arg UBUNTU_VERSION=$(UBUNTU_VERSION) --build-arg REGISTRY=$(REGISTRY) -t $(REGISTRY)/$(PROJECT)/gcsfuse-benchmarks/fio-read-benchmark-$(GCSFUSE_VERSION):latest && docker push $(REGISTRY)/$(PROJECT)/gcsfuse-benchmarks/fio-read-benchmark-$(GCSFUSE_VERSION):latest
 
 write-benchmark: base
-	docker buildx build --load fio -f fio/write.dockerfile --platform linux/amd64,linux/arm64 --build-arg GCSFUSE_VERSION=$(GCSFUSE_VERSION) --build-arg GO_VERSION=$(GO_VERSION) --build-arg UBUNTU_VERSION=$(UBUNTU_VERSION) --build-arg REGISTRY=$(REGISTRY) -t $(REGISTRY)/gcs-fuse-test/gcsfuse-benchmarks/fio-write-benchmark-$(GCSFUSE_VERSION):latest && docker push $(REGISTRY)/gcs-fuse-test/gcsfuse-benchmarks/fio-write-benchmark-$(GCSFUSE_VERSION):latest
+	docker buildx build --load fio -f fio/write.dockerfile --platform linux/amd64,linux/arm64 --build-arg GCSFUSE_VERSION=$(GCSFUSE_VERSION) --build-arg GO_VERSION=$(GO_VERSION) --build-arg UBUNTU_VERSION=$(UBUNTU_VERSION) --build-arg REGISTRY=$(REGISTRY) -t $(REGISTRY)/$(PROJECT)/gcsfuse-benchmarks/fio-write-benchmark-$(GCSFUSE_VERSION):latest && docker push $(REGISTRY)/$(PROJECT)/gcsfuse-benchmarks/fio-write-benchmark-$(GCSFUSE_VERSION):latest
 
 fullsweep-benchmark: base
-	docker buildx build --load fio -f fio/fullsweep.dockerfile --platform linux/amd64,linux/arm64 --build-arg GCSFUSE_VERSION=$(GCSFUSE_VERSION) --build-arg GO_VERSION=$(GO_VERSION) --build-arg UBUNTU_VERSION=$(UBUNTU_VERSION) --build-arg REGISTRY=$(REGISTRY) -t $(REGISTRY)/gcs-fuse-test/gcsfuse-benchmarks/fio-fullsweep-benchmark-$(GCSFUSE_VERSION):latest && docker push $(REGISTRY)/gcs-fuse-test/gcsfuse-benchmarks/fio-fullsweep-benchmark-$(GCSFUSE_VERSION):latest
+	docker buildx build --load fio -f fio/fullsweep.dockerfile --platform linux/amd64,linux/arm64 --build-arg GCSFUSE_VERSION=$(GCSFUSE_VERSION) --build-arg GO_VERSION=$(GO_VERSION) --build-arg UBUNTU_VERSION=$(UBUNTU_VERSION) --build-arg REGISTRY=$(REGISTRY) -t $(REGISTRY)/$(PROJECT)/gcsfuse-benchmarks/fio-fullsweep-benchmark-$(GCSFUSE_VERSION):latest && docker push $(REGISTRY)/$(PROJECT)/gcsfuse-benchmarks/fio-fullsweep-benchmark-$(GCSFUSE_VERSION):latest
 
 orbax-benchmark: base
-	docker buildx build --load fio -f fio/orbax_emulated.dockerfile --platform linux/amd64,linux/arm64 --build-arg GCSFUSE_VERSION=$(GCSFUSE_VERSION) --build-arg GO_VERSION=$(GO_VERSION) --build-arg UBUNTU_VERSION=$(UBUNTU_VERSION) --build-arg REGISTRY=$(REGISTRY) -t $(REGISTRY)/gcs-fuse-test/gcsfuse-benchmarks/orbax-emulated-benchmark-$(GCSFUSE_VERSION):latest && docker push $(REGISTRY)/gcs-fuse-test/gcsfuse-benchmarks/orbax-emulated-benchmark-$(GCSFUSE_VERSION):latest
+	docker buildx build --load fio -f fio/orbax_emulated.dockerfile --platform linux/amd64,linux/arm64 --build-arg GCSFUSE_VERSION=$(GCSFUSE_VERSION) --build-arg GO_VERSION=$(GO_VERSION) --build-arg UBUNTU_VERSION=$(UBUNTU_VERSION) --build-arg REGISTRY=$(REGISTRY) -t $(REGISTRY)/$(PROJECT)/gcsfuse-benchmarks/orbax-emulated-benchmark-$(GCSFUSE_VERSION):latest && docker push $(REGISTRY)/$(PROJECT)/gcsfuse-benchmarks/orbax-emulated-benchmark-$(GCSFUSE_VERSION):latest
 
 build: read-benchmark write-benchmark fullsweep-benchmark orbax-benchmark base
 
