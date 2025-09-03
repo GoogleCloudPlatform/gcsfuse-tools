@@ -1,6 +1,6 @@
 bs,file_size,iodepth,iotype,threads,nrfiles
-16K,256K,64,write,,112,30
-1M,1M,64,write,,112,30
-1M,50M,64,write,,112,20
-1M,100M,64,write,,112,10
-1M,1G,64,write,,112,2
+16K,256K,64,write,112,30
+1M,1M,64,write,112,30
+1M,50M,64,write,112,20
+1M,100M,64,write,112,10
+1M,1G,64,write,112,2
