@@ -17,6 +17,7 @@ substitutions:
   _GO_VERSION: '1.25.0'
   _UBUNTU_VERSION: '24.04'
   _REGISTRY: 'us-docker.pkg.dev'
+  _PROJECT: 'gcs-fuse-test'
 
 steps:
   # Set up buildx to use the docker-container driver, which is necessary for multi-platform builds.
@@ -50,7 +51,7 @@ steps:
       - '--build-arg'
       - 'UBUNTU_VERSION=${_UBUNTU_VERSION}'
       - '-t'
-      - '${_REGISTRY}/gcs-fuse-test/gcsfuse-benchmarks/gcsfuse-${_GCSFUSE_VERSION}-perf-base:latest'
+      - '${_REGISTRY}/${_PROJECT}/gcsfuse-benchmarks/gcsfuse-${_GCSFUSE_VERSION}-perf-base:latest'
       - '.'
 
   # Build and push the read-benchmark image.
@@ -74,7 +75,7 @@ steps:
       - '--build-arg'
       - 'REGISTRY=${_REGISTRY}'
       - '-t'
-      - '${_REGISTRY}/gcs-fuse-test/gcsfuse-benchmarks/fio-read-benchmark-${_GCSFUSE_VERSION}:latest'
+      - '${_REGISTRY}/${_PROJECT}/gcsfuse-benchmarks/fio-read-benchmark-${_GCSFUSE_VERSION}:latest'
       - 'fio'
 
   # Build and push the write-benchmark image.
@@ -98,7 +99,7 @@ steps:
       - '--build-arg'
       - 'REGISTRY=${_REGISTRY}'
       - '-t'
-      - '${_REGISTRY}/gcs-fuse-test/gcsfuse-benchmarks/fio-write-benchmark-${_GCSFUSE_VERSION}:latest'
+      - '${_REGISTRY}/${_PROJECT}/gcsfuse-benchmarks/fio-write-benchmark-${_GCSFUSE_VERSION}:latest'
       - 'fio'
 
   # Build and push the fullsweep-benchmark image.
@@ -122,7 +123,7 @@ steps:
       - '--build-arg'
       - 'REGISTRY=${_REGISTRY}'
       - '-t'
-      - '${_REGISTRY}/gcs-fuse-test/gcsfuse-benchmarks/fio-fullsweep-benchmark-${_GCSFUSE_VERSION}:latest'
+      - '${_REGISTRY}/${_PROJECT}/gcsfuse-benchmarks/fio-fullsweep-benchmark-${_GCSFUSE_VERSION}:latest'
       - 'fio'
 
   # Build and push the orbax-benchmark image.
@@ -146,7 +147,7 @@ steps:
       - '--build-arg'
       - 'REGISTRY=${_REGISTRY}'
       - '-t'
-      - '${_REGISTRY}/gcs-fuse-test/gcsfuse-benchmarks/orbax-emulated-benchmark-${_GCSFUSE_VERSION}:latest'
+      - '${_REGISTRY}/${_PROJECT}/gcsfuse-benchmarks/orbax-emulated-benchmark-${_GCSFUSE_VERSION}:latest'
       - 'fio'
 
 options:
