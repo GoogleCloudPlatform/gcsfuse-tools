@@ -1,2 +1,12 @@
-READ_TYPE
-randread
+READ_TYPE,BS
+randread,100M
+randread,80M
+randread,70M
+randread,60M
+randread,50M
+randread,40M
+randread,30M
+randread,20M
+randread,10M
+randread,5M
+randread,1M
