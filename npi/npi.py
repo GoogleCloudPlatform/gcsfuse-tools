@@ -76,14 +76,11 @@ class BenchmarkFactory:
                 encoding='utf-8',
             )
             data = json.loads(result.stdout)
-            # Find the CPU list for the given NUMA node.
-            for node_info in data.get("lscpu", []):
-                if node_info.get("field") == "NUMA:":
-                    print("Found NUMA info")
-                    for child in node_info.get("children", []):
-                        if child.get("field") == "NUMA node{} CPU(s):".format(node_id):
-                            print("Found Child info")
-                            return child.get("data")
+            # Find the CPU list for the given NUMA node by searching the entire JSON tree.
+            search_field = f"NUMA node{node_id} CPU(s):"
+            for item in data.get("lscpu", []):
+                if item.get("field") == search_field:
+                    return item.get("data")
         except (FileNotFoundError, subprocess.CalledProcessError, json.JSONDecodeError, KeyError) as e:
             logging.warning(f"Could not determine CPUs for NUMA node {node_id}: {e}. NUMA-pinned benchmarks for this node will be skipped.")
         return None
