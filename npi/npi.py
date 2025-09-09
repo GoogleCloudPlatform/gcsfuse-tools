@@ -56,8 +56,8 @@ class BenchmarkFactory:
         volume_mount = ""
         if self.temp_dir == "memory":
             volume_mount = f"--mount type=tmpfs,destination={container_temp_dir}"
-        elif self.temp_dir == "boot-disk" and temp_dir_path:
-            volume_mount = f"-v {temp_dir_path}:{container_temp_dir}"
+        elif self.temp_dir == "boot-disk":
+            volume_mount = f"-v <temp_dir_path>:{container_temp_dir}"
 
         # Append the gcsfuse temp-dir flag.
         if gcsfuse_flags:
@@ -256,11 +256,7 @@ def main():
     failed_benchmarks = []
     for benchmark_name in benchmarks_to_run:
         # For boot-disk, we pass a placeholder that will be replaced in run_benchmark
-        temp_dir_path_placeholder = "<temp_dir_path>" if args.temp_dir == "boot-disk" else None
-        command_str = factory._create_docker_command(
-            **factory._benchmark_definitions[benchmark_name].keywords,
-            temp_dir_path=temp_dir_path_placeholder
-        )
+        command_str = factory.get_benchmark_command(benchmark_name)
 
         if args.dry_run:
             print(f"--- [DRY RUN] Benchmark: {benchmark_name} ---")
