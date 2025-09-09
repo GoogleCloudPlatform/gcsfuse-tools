@@ -178,6 +178,11 @@ def main():
         default=5,
         help="Number of FIO test iterations per benchmark. Default: 5."
     )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Print the benchmark commands that would be executed without running them."
+    )
 
     args = parser.parse_args()
 
@@ -206,9 +211,13 @@ def main():
     failed_benchmarks = []
     for benchmark_name in benchmarks_to_run:
         command_str = factory.get_benchmark_command(benchmark_name)
-        success = run_benchmark(benchmark_name, command_str)
-        if not success:
-            failed_benchmarks.append(benchmark_name)
+        if args.dry_run:
+            print(f"--- [DRY RUN] Benchmark: {benchmark_name} ---")
+            print(f"Command: {command_str}\n")
+        else:
+            success = run_benchmark(benchmark_name, command_str)
+            if not success:
+                failed_benchmarks.append(benchmark_name)
 
     if failed_benchmarks:
         print(f"\n--- Some benchmarks failed: {', '.join(failed_benchmarks)} ---", file=sys.stderr)
