@@ -135,21 +135,16 @@ def run_benchmark(benchmark_name, command_str):
     Runs a single benchmark command locally.
     """
     print(f"--- Running benchmark: {benchmark_name} on localhost ---")
+    print(f"Command: {command_str}")
 
     # Use shlex.split for robust parsing of the command string.
     command = shlex.split(command_str)
     
     try:
-        # Using subprocess.run to wait for the command to complete
-        process = subprocess.run(
-            command,
-            check=True,
-            capture_output=True,
-            text=True,
-            encoding='utf-8'
-        )
+        # Using subprocess.run to wait for the command to complete.
+        # By not capturing output, it streams directly to the console.
+        subprocess.run(command, check=True)
         print(f"--- Benchmark {benchmark_name} on localhost finished successfully ---")
-        print(process.stdout)
         return True
     except FileNotFoundError:
         print(f"Error: Command not found. Ensure docker is in your PATH.", file=sys.stderr)
@@ -157,9 +152,7 @@ def run_benchmark(benchmark_name, command_str):
     except subprocess.CalledProcessError as e:
         print(f"--- Benchmark {benchmark_name} on localhost FAILED ---", file=sys.stderr)
         print(f"Return code: {e.returncode}", file=sys.stderr)
-        print("STDOUT (from failed process):", file=sys.stderr)
-        print(e.stdout, file=sys.stderr)
-        print("STDERR (from failed process):", file=sys.stderr)
+        # stdout and stderr are already streamed, so we don't need to print them from the exception object.
         return False
 
 def main():
