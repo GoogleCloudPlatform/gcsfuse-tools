@@ -64,8 +64,8 @@ class BenchmarkFactory:
             base_cmd += f" --cpu-list={cpu_list}"
         return base_cmd
 
-    def _get_cpu_list_for_numa0(self):
-        """Gets the CPU list for NUMA node 0 by parsing `lscpu --json`."""
+    def _get_cpu_list_for_numa_node(self, node_id):
+        """Gets the CPU list for a given NUMA node by parsing `lscpu --json`."""
         try:
             # Execute lscpu and capture its JSON output.
             result = subprocess.run(
@@ -73,16 +73,17 @@ class BenchmarkFactory:
                 capture_output=True,
                 text=True,
                 check=True,
-                encoding='utf-8'
+                encoding='utf-8',
             )
             data = json.loads(result.stdout)
-            # Find the CPU list for NUMA node 0.
+            # Find the CPU list for the given NUMA node.
             for node_info in data.get("numa", []):
-                if node_info.get("node") == 0:
+                if node_info.get("node") == node_id:
                     return node_info.get("cpus")
         except (FileNotFoundError, subprocess.CalledProcessError, json.JSONDecodeError, KeyError) as e:
-            logging.warning(f"Could not determine CPUs for NUMA node 0: {e}. NUMA-pinned benchmarks will be skipped.")
+            logging.warning(f"Could not determine CPUs for NUMA node {node_id}: {e}. NUMA-pinned benchmarks for this node will be skipped.")
         return None
+
 
 
     def _get_benchmark_definitions(self):
@@ -103,10 +104,14 @@ class BenchmarkFactory:
             "grpc": {"gcsfuse_flags": "--client-protocol=grpc"},
         }
 
-        # Dynamically add NUMA configuration if possible.
-        numa0_cpu_list = self._get_cpu_list_for_numa0()
-        if numa0_cpu_list:
-            configs["http1_numa0"] = {"cpu_list": numa0_cpu_list}
+        # Dynamically add NUMA configurations if possible.
+        for node_id in [0, 1]:
+            cpu_list = self._get_cpu_list_for_numa_node(node_id)
+            if cpu_list:
+                numa_name = f"numa{node_id}"
+                configs[f"http1_{numa_name}"] = {"cpu_list": cpu_list}
+                configs[f"grpc_{numa_name}"] = {"cpu_list": cpu_list, "gcsfuse_flags": "--client-protocol=grpc"}
+
 
         definitions = {}
         for bench_name, image_suffix in benchmarks.items():
