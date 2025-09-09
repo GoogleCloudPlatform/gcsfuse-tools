@@ -79,11 +79,11 @@ class BenchmarkFactory:
             # Find the CPU list for the given NUMA node.
             for node_info in data.get("lscpu", []):
                 if node_info.get("field") == "NUMA:":
+                    print("Found NUMA info")
                     for child in node_info.get("children", []):
                         if child.get("field") == "NUMA node{} CPU(s):".format(node_id):
+                            print("Found Child info")
                             return child.get("data")
-                    
-                    return node_info.get("cpus")
         except (FileNotFoundError, subprocess.CalledProcessError, json.JSONDecodeError, KeyError) as e:
             logging.warning(f"Could not determine CPUs for NUMA node {node_id}: {e}. NUMA-pinned benchmarks for this node will be skipped.")
         return None
