@@ -8,10 +8,12 @@ import shlex
 import logging
 import subprocess
 import sys
+import tempfile
+import shutil
 
 class BenchmarkFactory:
     """Factory for creating benchmark commands."""
-    def __init__(self, bucket_name, bq_project_id, bq_dataset_id, gcsfuse_version, iterations):
+    def __init__(self, bucket_name, bq_project_id, bq_dataset_id, gcsfuse_version, iterations, temp_dir):
         self.bucket_name = bucket_name
         # The bucket name is passed to the command generation function, so it
         # doesn't need to be stored on self after the factory is initialized.
@@ -22,6 +24,7 @@ class BenchmarkFactory:
         self.bq_dataset_id = bq_dataset_id
         self.gcsfuse_version = gcsfuse_version
         self.iterations = iterations
+        self.temp_dir = temp_dir
         self._benchmark_definitions = self._get_benchmark_definitions()
 
     def get_benchmark_command(self, name):
@@ -47,10 +50,24 @@ class BenchmarkFactory:
 
     def _create_docker_command(self, benchmark_image_suffix, bq_table_id,
                                bucket_name, bq_project_id, bq_dataset_id,
-                               gcsfuse_flags=None, cpu_list=None):
+                               gcsfuse_flags=None, cpu_list=None, temp_dir_path=None):
         """Helper to construct the full docker run command."""
+        container_temp_dir = "/gcsfuse-temp"
+        volume_mount = ""
+        if self.temp_dir == "memory":
+            volume_mount = f"--mount type=tmpfs,destination={container_temp_dir}"
+        elif self.temp_dir == "boot-disk" and temp_dir_path:
+            volume_mount = f"-v {temp_dir_path}:{container_temp_dir}"
+
+        # Append the gcsfuse temp-dir flag.
+        if gcsfuse_flags:
+            gcsfuse_flags += f" --temp-dir={container_temp_dir}"
+        else:
+            gcsfuse_flags = f"--temp-dir={container_temp_dir}"
+
         base_cmd = (
             "docker run --pull=always --network=host --privileged --rm "
+            f"{volume_mount} "
             f"us-docker.pkg.dev/gcs-fuse-test/gcsfuse-benchmarks/{benchmark_image_suffix}-{self.gcsfuse_version}:latest "
             f"--iterations={self.iterations} "
             f"--bucket-name {bucket_name} "
@@ -136,30 +153,45 @@ class BenchmarkFactory:
         return definitions
 
 
-def run_benchmark(benchmark_name, command_str):
+def run_benchmark(benchmark_name, command_str, temp_dir_type):
     """
     Runs a single benchmark command locally.
     """
     print(f"--- Running benchmark: {benchmark_name} on localhost ---")
-    print(f"Command: {command_str}")
+
+    host_temp_dir = None
+    if temp_dir_type == "boot-disk":
+        host_temp_dir = tempfile.mkdtemp(prefix="gcsfuse-npi-")
+        print(f"Created temporary directory on host: {host_temp_dir}")
+        # Replace the placeholder with the actual path
+        command_str = command_str.replace("<temp_dir_path>", host_temp_dir)
 
     # Use shlex.split for robust parsing of the command string.
     command = shlex.split(command_str)
+    print(f"Command: {' '.join(command)}")
     
     try:
         # Using subprocess.run to wait for the command to complete.
         # By not capturing output, it streams directly to the console.
         subprocess.run(command, check=True)
         print(f"--- Benchmark {benchmark_name} on localhost finished successfully ---")
-        return True
+        success = True
     except FileNotFoundError:
         print(f"Error: Command not found. Ensure docker is in your PATH.", file=sys.stderr)
-        sys.exit(1)
+        success = False
     except subprocess.CalledProcessError as e:
         print(f"--- Benchmark {benchmark_name} on localhost FAILED ---", file=sys.stderr)
         print(f"Return code: {e.returncode}", file=sys.stderr)
         # stdout and stderr are already streamed, so we don't need to print them from the exception object.
-        return False
+        success = False
+    finally:
+        if host_temp_dir:
+            print(f"Cleaning up temporary directory: {host_temp_dir}")
+            shutil.rmtree(host_temp_dir)
+
+    if not success:
+        sys.exit(1)
+    return success
 
 def main():
     """Main function to parse arguments and orchestrate benchmark runs."""
@@ -189,6 +221,12 @@ def main():
         action="store_true",
         help="Print the benchmark commands that would be executed without running them."
     )
+    parser.add_argument(
+        "--temp-dir",
+        choices=["memory", "boot-disk"],
+        default="boot-disk",
+        help="The temporary directory type to use for benchmark artifacts. 'memory' uses a tmpfs mount, 'boot-disk' uses the host's disk. Default: boot-disk."
+    )
 
     args = parser.parse_args()
 
@@ -197,7 +235,8 @@ def main():
         bq_project_id=args.bq_project_id,
         bq_dataset_id=args.bq_dataset_id,
         gcsfuse_version=args.gcsfuse_version,
-        iterations=args.iterations
+        iterations=args.iterations,
+        temp_dir=args.temp_dir
     )
 
     available_benchmarks = factory.get_available_benchmarks()
@@ -216,12 +255,18 @@ def main():
     # Run benchmarks sequentially on the local machine.
     failed_benchmarks = []
     for benchmark_name in benchmarks_to_run:
-        command_str = factory.get_benchmark_command(benchmark_name)
+        # For boot-disk, we pass a placeholder that will be replaced in run_benchmark
+        temp_dir_path_placeholder = "<temp_dir_path>" if args.temp_dir == "boot-disk" else None
+        command_str = factory._create_docker_command(
+            **factory._benchmark_definitions[benchmark_name].keywords,
+            temp_dir_path=temp_dir_path_placeholder
+        )
+
         if args.dry_run:
             print(f"--- [DRY RUN] Benchmark: {benchmark_name} ---")
             print(f"Command: {command_str}\n")
         else:
-            success = run_benchmark(benchmark_name, command_str)
+            success = run_benchmark(benchmark_name, command_str, args.temp_dir)
             if not success:
                 failed_benchmarks.append(benchmark_name)
 
