@@ -203,7 +203,6 @@ def main():
         "-b", "--benchmarks",
         nargs="+",
         default=["all"],
-        required=True,
         help="Space-separated list of benchmarks to run. Use 'all' to run all available benchmarks."
     )
     parser.add_argument("--bucket-name", required=True, help="Name of the GCS bucket to use.")
