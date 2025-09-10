@@ -3,7 +3,6 @@
 import argparse
 import json
 import functools
-import os
 import shlex
 import logging
 import subprocess
@@ -50,7 +49,7 @@ class BenchmarkFactory:
 
     def _create_docker_command(self, benchmark_image_suffix, bq_table_id,
                                bucket_name, bq_project_id, bq_dataset_id,
-                               gcsfuse_flags=None, cpu_list=None, temp_dir_path=None):
+                               gcsfuse_flags=None, cpu_list=None):
         """Helper to construct the full docker run command."""
         container_temp_dir = "/gcsfuse-temp"
         volume_mount = ""
@@ -70,7 +69,7 @@ class BenchmarkFactory:
             f"{volume_mount} "
             f"us-docker.pkg.dev/gcs-fuse-test/gcsfuse-benchmarks/{benchmark_image_suffix}-{self.gcsfuse_version}:latest "
             f"--iterations={self.iterations} "
-            f"--bucket-name {bucket_name} "
+            f"--bucket-name={bucket_name} "
             f"--bq-project-id={bq_project_id} "
             f"--bq-dataset-id={bq_dataset_id} "
             f"--bq-table-id={bq_table_id}"
@@ -78,7 +77,7 @@ class BenchmarkFactory:
         if gcsfuse_flags:
             base_cmd += f" --gcsfuse-flags='{gcsfuse_flags}'"
         if cpu_list:
-            base_cmd += f" --cpu-list={cpu_list}"
+            base_cmd += f" --cpu-limit-list={cpu_list}"
         return base_cmd
 
     def _get_cpu_list_for_numa_node(self, node_id):
@@ -109,11 +108,15 @@ class BenchmarkFactory:
         Returns a dictionary of benchmark names to functions that generate commands.
         """
         # Define benchmark configurations
+        # Each benchmark has an image suffix and an optional BQ table name override.
         benchmarks = {
-            "orbax_read": "orbax-emulated-benchmark",
-            "read": "fio-read-benchmark",
-            "write": "fio-write-benchmark",
-            "full_sweep": "fio-fullsweep-benchmark",
+            "orbax_read": {
+                "image_suffix": "orbax-emulated-benchmark",
+                "bq_table_id_override": "orbax_read_{config_name}"
+            },
+            "read": {"image_suffix": "fio-read-benchmark"},
+            "write": {"image_suffix": "fio-write-benchmark"},
+            "full_sweep": {"image_suffix": "fio-fullsweep-benchmark"},
         }
 
         # Define test configurations (protocol, cpu pinning, etc.)
@@ -132,21 +135,20 @@ class BenchmarkFactory:
 
 
         definitions = {}
-        for bench_name, image_suffix in benchmarks.items():
+        for bench_name, bench_config in benchmarks.items():
             for config_name, config_params in configs.items():
                 # Construct the full benchmark name and BQ table ID
                 full_bench_name = f"{bench_name}_{config_name}"
-                bq_table_id = full_bench_name
-                if "orbax" in bench_name:
-                    # BQ table for orbax doesn't contain "fio"
-                    bq_table_id = bq_table_id.replace("full_sweep", "fio_fullsweep")
+
+                if "bq_table_id_override" in bench_config:
+                    bq_table_id = bench_config["bq_table_id_override"].format(config_name=config_name)
                 else:
-                    bq_table_id = f"fio_{bq_table_id}"
+                    bq_table_id = f"fio_{full_bench_name}"
 
                 # Use functools.partial to create a command function with pre-filled arguments
                 definitions[full_bench_name] = functools.partial(
                     self._create_docker_command,
-                    benchmark_image_suffix=image_suffix,
+                    benchmark_image_suffix=bench_config["image_suffix"],
                     bq_table_id=bq_table_id,
                     **config_params
                 )
@@ -189,8 +191,6 @@ def run_benchmark(benchmark_name, command_str, temp_dir_type):
             print(f"Cleaning up temporary directory: {host_temp_dir}")
             shutil.rmtree(host_temp_dir)
 
-    if not success:
-        sys.exit(1)
     return success
 
 def main():
@@ -203,7 +203,6 @@ def main():
         "-b", "--benchmarks",
         nargs="+",
         default=["all"],
-        required=True,
         help="Space-separated list of benchmarks to run. Use 'all' to run all available benchmarks."
     )
     parser.add_argument("--bucket-name", required=True, help="Name of the GCS bucket to use.")
