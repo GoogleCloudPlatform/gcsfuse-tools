@@ -118,7 +118,7 @@ class BenchmarkFactory:
             },
             "read": {"image_suffix": "fio-read-benchmark"},
             "write": {"image_suffix": "fio-write-benchmark"},
-            "full_sweep": {"image_suffix": "fio-fullsweep-benchmark"},
+            #"full_sweep": {"image_suffix": "fio-fullsweep-benchmark"}, # Comment out full_sweep for now since it takes a long long time.
         }
 
         # Define test configurations (protocol, cpu pinning, etc.)
