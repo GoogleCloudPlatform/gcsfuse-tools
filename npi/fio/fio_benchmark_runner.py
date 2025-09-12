@@ -82,7 +82,7 @@ def unmount_gcsfuse(mount_point):
         run_command(["umount", "-l", mount_point], check=False)
 
 
-def run_fio_test(fio_config, mount_point, iteration, output_dir, fio_env=None):
+def run_fio_test(fio_config, mount_point, iteration, output_dir, fio_env=None, cpu_limit_list=None):
     """Runs a single FIO test iteration."""
     logging.info(f"Starting FIO test iteration {iteration}...")
     output_filename = os.path.join(output_dir, f"fio_results_iter_{iteration}.json")
@@ -90,6 +90,9 @@ def run_fio_test(fio_config, mount_point, iteration, output_dir, fio_env=None):
         "fio", fio_config, "--output-format=json", f"--output={output_filename}",
         f"--directory={mount_point}"
     ]
+    if cpu_limit_list:
+        logging.info(f"Binding FIO to CPUs: {cpu_limit_list}")
+        cmd = ["taskset", "-c", cpu_limit_list] + cmd
     run_command(cmd, extra_env=fio_env)
     logging.info(f"FIO test iteration {iteration} complete. Results: {output_filename}")
 
@@ -261,7 +264,7 @@ def upload_results_to_bq(
 
 def run_benchmark(
     gcsfuse_flags, bucket_name, iterations, fio_config, work_dir, output_dir,
-    fio_env=None, summary_file=None, cpu_limit_list=None,
+    fio_env=None, summary_file=None, cpu_limit_list=None, bind_fio=False,
     bq_project_id=None, bq_dataset_id=None, bq_table_id=None
 ):
     """Runs the full FIO benchmark suite."""
@@ -270,6 +273,10 @@ def run_benchmark(
 
     gcsfuse_bin = "/gcsfuse/gcsfuse"
     mount_point = os.path.join(work_dir, "mount_point")
+
+    if bind_fio and not cpu_limit_list:
+        logging.error("--bind-fio is set to true, but --cpu-limit-list is not provided.")
+        sys.exit(1)
 
     # Prepare environment for FIO
     fio_run_env = {"DIR": mount_point}
@@ -289,7 +296,13 @@ def run_benchmark(
             run_command(["sh", "-c", "echo 3 > /proc/sys/vm/drop_caches"])
 
             mount_gcsfuse(gcsfuse_bin, gcsfuse_flags, bucket_name, mount_point, cpu_limit_list=cpu_limit_list)
-            run_fio_test(fio_config, mount_point, i, output_dir, fio_env=fio_run_env)
+
+            fio_cpu_list = None
+            if bind_fio:
+                fio_cpu_list = cpu_limit_list
+
+            run_fio_test(fio_config, mount_point, i, output_dir,
+                         fio_env=fio_run_env, cpu_limit_list=fio_cpu_list)
 
             iteration_results = parse_fio_output(output_filename)
             all_results.append(iteration_results)

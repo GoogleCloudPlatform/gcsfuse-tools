@@ -46,6 +46,12 @@ def main():
       " This is applied to all runs in the matrix.",
   )
   parser.add_argument(
+      "--bind-fio",
+      action="store_true",
+      help="If set, bind the FIO process to the CPUs specified in --cpu-limit-list."
+      " This is applied to all runs in the matrix.",
+  )
+  parser.add_argument(
       "--bucket-name", required=True, help="Name of the GCS bucket."
   )
   parser.add_argument(
@@ -139,7 +145,8 @@ def main():
           gcsfuse_flags=args.gcsfuse_flags, bucket_name=args.bucket_name,
           iterations=args.iterations, fio_config=args.fio_template,
           work_dir=args.work_dir, output_dir=config_output_dir, fio_env=fio_env,
-          summary_file=summary_file_path, cpu_limit_list=args.cpu_limit_list,
+          summary_file=summary_file_path, cpu_limit_list=args.cpu_limit_list, 
+          bind_fio=args.bind_fio,
           bq_project_id=args.bq_project_id,
           bq_dataset_id=args.bq_dataset_id,
           bq_table_id=args.bq_table_id)
