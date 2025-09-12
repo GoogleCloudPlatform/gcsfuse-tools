@@ -78,8 +78,8 @@ class BenchmarkFactory:
             base_cmd += f" --gcsfuse-flags='{gcsfuse_flags}'"
         if cpu_list:
             base_cmd += f" --cpu-limit-list={cpu_list}"
-        if bind_fio is not None:
-            base_cmd += f" --bind-fio={str(bind_fio).lower()}"
+        if bind_fio:
+            base_cmd += " --bind-fio"
         return base_cmd
 
     def _get_cpu_list_for_numa_node(self, node_id):

@@ -297,9 +297,7 @@ def run_benchmark(
 
             mount_gcsfuse(gcsfuse_bin, gcsfuse_flags, bucket_name, mount_point, cpu_limit_list=cpu_limit_list)
 
-            fio_cpu_list = None
-            if bind_fio:
-                fio_cpu_list = cpu_limit_list
+            fio_cpu_list = cpu_limit_list if bind_fio else None
 
             run_fio_test(fio_config, mount_point, i, output_dir,
                          fio_env=fio_run_env, cpu_limit_list=fio_cpu_list)
