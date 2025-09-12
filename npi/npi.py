@@ -49,7 +49,7 @@ class BenchmarkFactory:
 
     def _create_docker_command(self, benchmark_image_suffix, bq_table_id,
                                bucket_name, bq_project_id, bq_dataset_id,
-                               gcsfuse_flags=None, cpu_list=None):
+                               gcsfuse_flags=None, cpu_list=None, bind_fio=None):
         """Helper to construct the full docker run command."""
         container_temp_dir = "/gcsfuse-temp"
         volume_mount = ""
@@ -78,6 +78,8 @@ class BenchmarkFactory:
             base_cmd += f" --gcsfuse-flags='{gcsfuse_flags}'"
         if cpu_list:
             base_cmd += f" --cpu-limit-list={cpu_list}"
+        if bind_fio:
+            base_cmd += " --bind-fio"
         return base_cmd
 
     def _get_cpu_list_for_numa_node(self, node_id):
@@ -116,7 +118,7 @@ class BenchmarkFactory:
             },
             "read": {"image_suffix": "fio-read-benchmark"},
             "write": {"image_suffix": "fio-write-benchmark"},
-            "full_sweep": {"image_suffix": "fio-fullsweep-benchmark"},
+            #"full_sweep": {"image_suffix": "fio-fullsweep-benchmark"}, # Comment out full_sweep for now since it takes a long long time.
         }
 
         # Define test configurations (protocol, cpu pinning, etc.)
@@ -130,8 +132,13 @@ class BenchmarkFactory:
             cpu_list = self._get_cpu_list_for_numa_node(node_id)
             if cpu_list:
                 numa_name = f"numa{node_id}"
-                configs[f"http1_{numa_name}"] = {"cpu_list": cpu_list}
-                configs[f"grpc_{numa_name}"] = {"cpu_list": cpu_list, "gcsfuse_flags": "--client-protocol=grpc"}
+                # For NUMA nodes, create 4 configs: http1/grpc with and without binding fio
+                configs[f"http1_{numa_name}_fio_notbound"] = {"cpu_list": cpu_list, "bind_fio": False}
+                configs[f"http1_{numa_name}_fio_bound"] = {"cpu_list": cpu_list, "bind_fio": True}
+                configs[f"grpc_{numa_name}_fio_notbound"] = {"cpu_list": cpu_list, "gcsfuse_flags": "--client-protocol=grpc", "bind_fio": False}
+                configs[f"grpc_{numa_name}_fio_bound"] = {"cpu_list": cpu_list, "gcsfuse_flags": "--client-protocol=grpc", "bind_fio": True}
+
+
 
 
         definitions = {}
