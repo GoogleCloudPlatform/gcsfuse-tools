@@ -31,12 +31,12 @@ fi
 
 # Install common dependencies before adding starterscriptuser
 if [[ "$OS_FAMILY" == "debian_ubuntu" ]]; then
-    sudo apt-get update
-    sudo apt-get install -y git libaio1 libaio-dev gcc make mdadm build-essential python3-setuptools python3-crcmod fuse
+    sudo apt-get update > /dev/null 2>&1
+    sudo apt-get install -y git libaio1 libaio-dev gcc make mdadm build-essential python3-setuptools python3-crcmod fuse > /dev/null 2>&1
 elif [[ "$OS_FAMILY" == "rhel_centos" ]]; then
-    sudo yum makecache
-    sudo yum -y install git fuse libaio libaio-devel gcc make mdadm redhat-rpm-config python3-devel python3-setuptools python3-pip
-    pip3 install crcmod
+    sudo yum makecache > /dev/null 2>&1
+    sudo yum -y install git fuse libaio libaio-devel gcc make mdadm redhat-rpm-config python3-devel python3-setuptools python3-pip > /dev/null 2>&1
+    pip3 install crcmod > /dev/null 2>&1
 fi
 
 # Install fio-3.39
@@ -68,14 +68,6 @@ cleanup() {
     if mount | grep -q "$MNT"; then
         sudo umount "$MNT" || echo "Failed to unmount $MNT"
     fi
-
-    # Upload logs and details
-    if [[ -f details.txt ]]; then
-        gcloud storage cp details.txt "$RESULT_PATH" || echo "Failed to upload details.txt"
-    fi
-    if [[ -f "$BENCHMARK_LOG_FILE" ]]; then
-        gcloud storage cp "$BENCHMARK_LOG_FILE" "$RESULT_PATH" || echo "Failed to upload benchmark log"
-    fi
 }
 trap cleanup EXIT
 
@@ -86,15 +78,15 @@ echo "Current directory: $(pwd)"
 echo "User: $(whoami)"
 
 # Fetch metadata parameters
-BENCHMARK_COUNT=$(curl -s "http://metadata.google.internal/computeMetadata/v1/instance/attributes/BENCHMARK_COUNT" -H "Metadata-Flavor: Google")
+BS=$(curl -s "http://metadata.google.internal/computeMetadata/v1/instance/attributes/BS" -H "Metadata-Flavor: Google")
+FILESIZE=$(curl -s "http://metadata.google.internal/computeMetadata/v1/instance/attributes/FILESIZE" -H "Metadata-Flavor: Google")
+NRFILES=$(curl -s "http://metadata.google.internal/computeMetadata/v1/instance/attributes/NRFILES" -H "Metadata-Flavor: Google")
+NUM_JOB=$(curl -s "http://metadata.google.internal/computeMetadata/v1/instance/attributes/NUM_JOB" -H "Metadata-Flavor: Google")
+BENCH_TYPE=$(curl -s "http://metadata.google.internal/computeMetadata/v1/instance/attributes/BENCH_TYPE" -H "Metadata-Flavor: Google")
 GCSFUSE_VERSION=$(curl -s "http://metadata.google.internal/computeMetadata/v1/instance/attributes/GCSFUSE_VERSION" -H "Metadata-Flavor: Google")
 MACHINE_TYPE=$(curl -s "http://metadata.google.internal/computeMetadata/v1/instance/attributes/MACHINE_TYPE" -H "Metadata-Flavor: Google")
 GCS_BUCKET_WITH_FIO_TEST_DATA=$(curl -s "http://metadata.google.internal/computeMetadata/v1/instance/attributes/GCS_BUCKET_WITH_FIO_TEST_DATA" -H "Metadata-Flavor: Google")
 RESULTS_BUCKET_NAME=$(curl -s "http://metadata.google.internal/computeMetadata/v1/instance/attributes/RESULTS_BUCKET_NAME" -H "Metadata-Flavor: Google")
-LSSD_ENABLED=$(curl -s "http://metadata.google.internal/computeMetadata/v1/instance/attributes/LSSD_ENABLED" -H "Metadata-Flavor: Google")
-
-# Add OS Family to details.txt
-echo "OS Family: $OS_FAMILY" >> details.txt
 
 # Determine system architecture
 ARCHITECTURE=""
@@ -135,76 +127,22 @@ FIO_JOB_DIR="/tmp/fio_jobs"
 mkdir -p "$FIO_JOB_DIR"
 gcloud storage cp "gs://$RESULTS_BUCKET_NAME/$GCSFUSE_VERSION/$MACHINE_TYPE/fio-job-files/*.fio" "$FIO_JOB_DIR/"
 
-RESULT_PATH="gs://$RESULTS_BUCKET_NAME/$GCSFUSE_VERSION/$MACHINE_TYPE/"
-
-# Capture versions
-{
-    echo "GCSFuse version: $GCSFUSE_VERSION"
-    echo "Go version     : $(go version)"
-    echo "FIO version    : $(fio --version)"
-} >> details.txt
-
-# Create LSSD if enabled
-if [[ "$LSSD_ENABLED" == "true" ]]; then
-    LSSD_DEVICES=()
-    for i in {0..15}; do
-        DEVICE_PATH="/dev/disk/by-id/google-local-nvme-ssd-$i"
-        LSSD_DEVICES+=("$DEVICE_PATH")
-    done
-
-    sudo mdadm --create /dev/md0 --level=0 --raid-devices=16 "${LSSD_DEVICES[@]}"
-    sudo mdadm --detail --prefer=by-id /dev/md0 || true
-    sudo mkfs.ext4 -F /dev/md0
-    sudo mkdir -p "$SSD_MOUNT_DIR"
-    sudo mount /dev/md0 "$SSD_MOUNT_DIR"
-    sudo chmod a+w "$SSD_MOUNT_DIR"
-
-    reformat_and_remount_lssd() {
-        sudo umount /dev/md0 || echo "Warning: umount /dev/md0 failed (might not be mounted or busy)."
-        sudo mkfs.ext4 -F /dev/md0
-        sudo mount /dev/md0 "$SSD_MOUNT_DIR"
-        sudo chmod a+w "$SSD_MOUNT_DIR"
-    }
-fi
 
 # Mount dir for gcsfuse
 mkdir -p "$MNT"
-for fio_job_file in "$FIO_JOB_DIR"/*.fio; do
-    for i in $(seq 1 "$BENCHMARK_COUNT"); do
-        echo "Running benchmark $i/$BENCHMARK_COUNT for $fio_job_file"
-        echo "Mounting GCSFuse now..."
-        "$GCSFUSE_BIN" --implicit-dirs "$GCS_BUCKET_WITH_FIO_TEST_DATA" "$MNT"
-        job_name=$(basename "$fio_job_file" .fio) # e.g., random-read-workload
+echo "Mounting GCSFuse now..."
+"$GCSFUSE_BIN" --implicit-dirs "$GCS_BUCKET_WITH_FIO_TEST_DATA" "$MNT"
 
-        [[ "$LSSD_ENABLED" == "true" ]] && reformat_and_remount_lssd
-
-        # Drop Page Cache
-        sudo sh -c "echo 3 > /proc/sys/vm/drop_caches"
+RESULT_FILE="${BENCH_TYPE}-benchmark_res_${NUM_JOB}_${NRFILES}.json"
+DIR="$MNT" NUM_JOB="$NUM_JOB" BS="$BS" FILESIZE="$FILESIZE" NRFILES="$NRFILES" fio "${FIO_JOB_DIR}/${BENCH_TYPE}-workload.fio" --output-format=json --output="$RESULT_FILE"
+RESULT_PATH="gs://$RESULTS_BUCKET_NAME/$GCSFUSE_VERSION/results/$MACHINE_TYPE/$BENCH_TYPE/$FILESIZE/$BS"
+gcloud storage rm "$RESULT_PATH/$RESULT_FILE" || true
+gcloud storage cp "$RESULT_FILE" "${RESULT_PATH}/"
         
-        RESULT_FILE="gcsfuse-${job_name}-benchmark_${i}.json"
-        if [[ "$job_name" == "write-workload" ]]; then
-            DIR="$MNT" fio "$fio_job_file" --output-format=json --output="$RESULT_FILE"
-            rm -f "$RESULT_FILE"
-            rm -rf "$MNT/*" # Populate negative stat cache.
-        else
-            # Read workload
-            ls -R "$MNT" # Prefetch metadata. 
-        fi
-        DIR="$MNT" fio "$fio_job_file" --output-format=json --output="$RESULT_FILE"
-
-        gcloud storage cp "$RESULT_FILE" "$RESULT_PATH"
-        
-        rm -f "$RESULT_FILE" # Clean up local files
-        # Unmount GCSFuse
-        echo "Unmounting GCSFuse"
-        sudo umount "$MNT"
-    done
-done
-
-# All tests ran successfully; create a success.txt file in GCS
-touch success.txt
-gcloud storage cp success.txt "$RESULT_PATH"
-rm success.txt
+rm -f "$RESULT_FILE" # Clean up local files
+# Unmount GCSFuse
+echo "Unmounting GCSFuse"
+sudo umount "$MNT"
 
 EOF
 

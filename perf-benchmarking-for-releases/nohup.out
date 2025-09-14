@@ -1,0 +1,2 @@
+
+Running experiment for machine type: c4-standard-96 for BENCH seq-read with filesize: 10M, blocksize: 1M, numjobs: 128, nrfile: 20
