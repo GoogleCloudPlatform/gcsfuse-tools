@@ -13,6 +13,11 @@ steps:
   id: 'clone-gcsfuse'
   args: ['clone', '--branch', '${_GCSFUSE_VERSION}', '--depth', '1', 'https://github.com/GoogleCloudPlatform/gcsfuse.git', 'gcsfuse-src']
 
+# This step clones the GCSFuse CSI Driver repository.
+- name: 'gcr.io/cloud-builders/git'
+  id: 'clone-csi-driver'
+  args: ['clone', '--branch', '${_CSI_VERSION}', '--depth', '1', 'https://github.com/GoogleCloudPlatform/gcs-fuse-csi-driver.git', 'csi-driver-src']
+
 # This step builds the GCSFuse binary for each platform specified in the _PLATFORMS substitution.
 # The binaries are placed in the /workspace/gcsfuse-artifacts directory.
 - name: 'golang:${_GOLANG_VERSION}'
@@ -66,7 +71,8 @@ steps:
 # This step builds the GCSFuse CSI Driver image and pushes it to the registry.
 - name: 'gcr.io/cloud-builders/gcloud'
   id: 'build-and-push-csi-driver'
-  waitFor: ['upload-gcsfuse-binaries']
+  waitFor: ['upload-gcsfuse-binaries', 'clone-csi-driver']
+  dir: 'csi-driver-src'
   entrypoint: 'bash'
   args:
   - '-c'
