@@ -150,8 +150,8 @@ steps:
 
     for image_name in "$${MULTI_ARCH_IMAGES[@]}"; do
       IMAGE_BASE="$${REGISTRY}/$${image_name}"
-      AMD64_IMAGE="$${IMAGE_BASE}:${STAGING_VERSION}_linux_amd64"
-      ARM64_IMAGE="$${IMAGE_BASE}:${STAGING_VERSION}_linux_arm64"
+      AMD64_IMAGE="$${IMAGE_BASE}:$${STAGING_VERSION}_linux_amd64"
+      ARM64_IMAGE="$${IMAGE_BASE}:$${STAGING_VERSION}_linux_arm64"
 
       manifest_images=""
       if [[ "${_PLATFORMS}" == *"amd64"* ]]; then
@@ -168,7 +168,7 @@ steps:
 
     # Handle the webhook image which is amd64-only
     WEBHOOK_IMAGE_BASE="$${REGISTRY}/gcs-fuse-csi-driver-webhook"
-    WEBHOOK_AMD64_IMAGE="$${WEBHOOK_IMAGE_BASE}:${STAGING_VERSION}_linux_amd64"
+    WEBHOOK_AMD64_IMAGE="$${WEBHOOK_IMAGE_BASE}:$${STAGING_VERSION}_linux_amd64"
     echo "Creating manifest for $${WEBHOOK_IMAGE_BASE}:$${MANIFEST_TAG} with images: $${WEBHOOK_AMD64_IMAGE}"
     docker manifest create "$${WEBHOOK_IMAGE_BASE}:$${MANIFEST_TAG}" "$${WEBHOOK_AMD64_IMAGE}"
     docker manifest push --purge "$${WEBHOOK_IMAGE_BASE}:$${MANIFEST_TAG}"
