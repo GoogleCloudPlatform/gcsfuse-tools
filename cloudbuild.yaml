@@ -34,6 +34,8 @@ steps:
       GOOS=$${os} GOARCH=$${arch} go run tools/build_gcsfuse/main.go . . v4
       mkdir -p "/workspace/gcsfuse-artifacts/$${os}/$${arch}"
       mv "bin/gcsfuse" "/workspace/gcsfuse-artifacts/$${os}/$${arch}/gcsfuse"
+      echo "Cleaning up bin and sbin directories..."
+      rm -rf bin sbin
     done
 
 # --- Store GCSFuse binaries in GCS ---
