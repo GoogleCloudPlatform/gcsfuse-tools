@@ -86,9 +86,10 @@ steps:
     apt-get update && apt-get install -y apt-transport-https ca-certificates gnupg
     curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key --keyring /usr/share/keyrings/cloud.google.gpg add -
     apt-get update && apt-get install -y google-cloud-cli
+    gcloud components install kubectl -q
 
     # --- Authenticate Docker ---
-    gcloud auth configure-docker --quiet
+    gcloud auth configure-docker gcr.io --quiet
 
     # --- Download gcsfuse binaries ---
     GCSFUSE_PATH=$$(cat /workspace/bucket_name)
