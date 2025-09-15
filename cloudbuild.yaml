@@ -69,9 +69,11 @@ steps:
 
 # --- Build and Push GCSFuse CSI Driver Image ---
 
-# Step 1: Download the gcsfuse binaries from GCS into the csi-driver-src workspace.
-- name: 'gcr.io/cloud-builders/gcloud'
-  id: 'download-gcsfuse-binaries'
+# Step 1: Build and Push GCSFuse CSI Driver Image
+# This step builds the GCSFuse CSI Driver image and pushes it to the registry.
+# It uses the docker builder and installs gcloud to get the credential helper.
+- name: 'gcr.io/cloud-builders/docker'
+  id: 'build-and-push-csi-driver'
   waitFor: ['upload-gcsfuse-binaries', 'clone-csi-driver']
   dir: 'csi-driver-src'
   entrypoint: 'bash'
@@ -79,9 +81,17 @@ steps:
   - '-c'
   - |
     set -e
+    # --- Install gcloud ---
+    echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main" | tee -a /etc/apt/sources.list.d/google-cloud-sdk.list
+    apt-get update && apt-get install -y apt-transport-https ca-certificates gnupg
+    curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key --keyring /usr/share/keyrings/cloud.google.gpg add -
+    apt-get update && apt-get install -y google-cloud-cli
+
+    # --- Authenticate Docker ---
+    gcloud auth configure-docker --quiet
+
+    # --- Download gcsfuse binaries ---
     GCSFUSE_PATH=$$(cat /workspace/bucket_name)
-    # The gsutil command does not support glob matching for subdirectories in the destination.
-    # We need to copy for each platform explicitly.
     if [[ "${_PLATFORMS}" == *"amd64"* ]]; then
       echo "Downloading amd64 gcsfuse binary..."
       mkdir -p bin/linux/amd64
@@ -95,30 +105,10 @@ steps:
       chmod +x bin/linux/arm64/gcsfuse
     fi
 
-# Step 2: Configure Docker credential helper.
-- name: 'gcr.io/cloud-builders/gcloud'
-  id: 'configure-docker'
-  waitFor: ['download-gcsfuse-binaries']
-  dir: 'csi-driver-src'
-  env: ['DOCKER_CONFIG=/workspace/.docker']
-  entrypoint: 'gcloud'
-  args: ['auth', 'configure-docker', '--quiet']
-
-# Step 3: Build the container images for each component and platform.
-- name: 'gcr.io/cloud-builders/docker'
-  id: 'build-images'
-  waitFor: ['configure-docker']
-  dir: 'csi-driver-src'
-  env: ['DOCKER_CONFIG=/workspace/.docker']
-  entrypoint: 'bash'
-  args:
-  - '-c'
-  - |
-    set -e
+    # --- Build Images ---
     STAGING_VERSION="${_CSI_VERSION}-${_GCSFUSE_VERSION}"
     REGISTRY="gcr.io/${PROJECT_ID}/${_USER}_gcsfuse-csi"
     DOCKER_BUILDX_ARGS="--push --provenance=false"
-
     if [[ "${_PLATFORMS}" == *"amd64"* ]]; then
       echo "Building amd64 images..."
       docker buildx build $${DOCKER_BUILDX_ARGS} --file ./cmd/metadata_prefetch/Dockerfile --tag "$${REGISTRY}/gcs-fuse-csi-driver-metadata-prefetch:$${STAGING_VERSION}_linux_amd64" --platform linux/amd64 --build-arg TARGETPLATFORM=linux/amd64 .
@@ -133,29 +123,13 @@ steps:
       docker buildx build $${DOCKER_BUILDX_ARGS} --file ./cmd/sidecar_mounter/Dockerfile --tag "$${REGISTRY}/gcs-fuse-csi-driver-sidecar-mounter:$${STAGING_VERSION}_linux_arm64" --platform linux/arm64 --build-arg TARGETPLATFORM=linux/arm64 .
     fi
 
-# Step 4: Create and push the multi-arch manifests.
-- name: 'gcr.io/cloud-builders/docker'
-  id: 'push-manifests'
-  waitFor: ['build-images']
-  dir: 'csi-driver-src'
-  env: ['DOCKER_CONFIG=/workspace/.docker']
-  entrypoint: 'bash'
-  args:
-  - '-c'
-  - |
-    set -e
-    STAGING_VERSION="${_CSI_VERSION}-${_GCSFUSE_VERSION}"
-    REGISTRY="gcr.io/${PROJECT_ID}/${_USER}_gcsfuse-csi"
+    # --- Create and Push Manifests ---
     MANIFEST_TAG="$${STAGING_VERSION}"
-
-    # Define image names that support multi-arch
     MULTI_ARCH_IMAGES=("gcs-fuse-csi-driver" "gcs-fuse-csi-driver-sidecar-mounter" "gcs-fuse-csi-driver-metadata-prefetch")
-
     for image_name in "$${MULTI_ARCH_IMAGES[@]}"; do
       IMAGE_BASE="$${REGISTRY}/$${image_name}"
       AMD64_IMAGE="$${IMAGE_BASE}:$${STAGING_VERSION}_linux_amd64"
       ARM64_IMAGE="$${IMAGE_BASE}:$${STAGING_VERSION}_linux_arm64"
-
       manifest_images=""
       if [[ "${_PLATFORMS}" == *"amd64"* ]]; then
         manifest_images="$${manifest_images} $${AMD64_IMAGE}"
@@ -163,13 +137,10 @@ steps:
       if [[ "${_PLATFORMS}" == *"arm64"* ]]; then
         manifest_images="$${manifest_images} $${ARM64_IMAGE}"
       fi
-
       echo "Creating manifest for $${IMAGE_BASE}:$${MANIFEST_TAG} with images: $${manifest_images}"
       docker manifest create "$${IMAGE_BASE}:$${MANIFEST_TAG}" $${manifest_images}
       docker manifest push --purge "$${IMAGE_BASE}:$${MANIFEST_TAG}"
     done
-
-    # Handle the webhook image which is amd64-only
     WEBHOOK_IMAGE_BASE="$${REGISTRY}/gcs-fuse-csi-driver-webhook"
     WEBHOOK_AMD64_IMAGE="$${WEBHOOK_IMAGE_BASE}:$${STAGING_VERSION}_linux_amd64"
     echo "Creating manifest for $${WEBHOOK_IMAGE_BASE}:$${MANIFEST_TAG} with images: $${WEBHOOK_AMD64_IMAGE}"
@@ -179,7 +150,7 @@ steps:
 # This step cleans up the GCS bucket.
 - name: 'gcr.io/cloud-builders/gcloud'
   id: 'cleanup-gcs-bucket'
-  waitFor: ['push-manifests']
+  waitFor: ['build-and-push-csi-driver']
   entrypoint: 'bash'
   args:
   - '-c'
