@@ -47,7 +47,7 @@ steps:
   args:
   - '-c'
   - |
-    BUCKET_NAME="gs://${PROJECT_ID}-gcsfuse-csi-driver-build-${BUILD_ID}"
+    BUCKET_NAME="gs://${PROJECT_ID}-csibuild-${BUILD_ID}"
     gcloud storage buckets create $$BUCKET_NAME
     echo $$BUCKET_NAME > /workspace/bucket_name
 
