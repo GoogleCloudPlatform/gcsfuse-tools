@@ -1,6 +1,6 @@
 substitutions:
   _GOLANG_VERSION: '1.24'
-  _CSI_VERSION: 'master'
+  _CSI_VERSION: 'main'
   _GCSFUSE_VERSION: 'master'
   _PLATFORMS: 'linux/amd64'
   _USER: 'cloudbuild'
