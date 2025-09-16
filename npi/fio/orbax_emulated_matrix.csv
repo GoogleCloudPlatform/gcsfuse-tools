@@ -11,5 +11,6 @@ randread,10M
 randread,5M
 randread,1M
 randread,512K
+randread,256K
 randread,128K
 randread,64K
