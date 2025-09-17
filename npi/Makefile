@@ -21,7 +21,7 @@ PROJECT=gcs-fuse-test
 
 .DEFAULT_GOAL := build
 
-.PHONY: build base read-benchmark write-benchmark orbax-benchmark
+.PHONY: build
 
 build:
-	gcloud builds submit --project gcs-fuse-test --config cloudbuild.yaml . --substitutions=_GCSFUSE_VERSION=$(GCSFUSE_VERSION),_GO_VERSION=$(GO_VERSION),_UBUNTU_VERSION=$(UBUNTU_VERSION),_REGISTRY=$(REGISTRY),_PROJECT=$(PROJECT)
+	gcloud builds submit --project $(PROJECT) --config cloudbuild.yaml . --substitutions=_GCSFUSE_VERSION=$(GCSFUSE_VERSION),_GO_VERSION=$(GO_VERSION),_UBUNTU_VERSION=$(UBUNTU_VERSION),_REGISTRY=$(REGISTRY),_PROJECT=$(PROJECT)
