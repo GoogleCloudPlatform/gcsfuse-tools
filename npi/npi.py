@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """A script for running GCSfuse performance benchmarks.
 
-This script orchestrates running various GCSfuse performance benchmarks in Docker
+This script orchestrates running various GCSFuse performance benchmarks in Docker
 containers. It allows specifying which benchmarks to run, the GCS bucket to use,
 and where to store the results in BigQuery.
 
