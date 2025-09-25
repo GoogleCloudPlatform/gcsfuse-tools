@@ -29,7 +29,7 @@ python3 npi.py [OPTIONS]
 
 ### Arguments
 
-*   `-b`, `--benchmarks`: (Required) A space-separated list of benchmark names to run. Use `'all'` to run all available benchmarks.
+*   -b, --benchmarks: (Optional) A space-separated list of benchmark names to run. Use 'all' to run all available benchmarks. Defaults to 'all'.
 *   `--bucket-name`: (Required) The name of the GCS bucket to use for the benchmarks.
 *   `--bq-project-id`: (Required) The Google Cloud Project ID where the BigQuery dataset resides.
 *   `--bq-dataset-id`: (Required) The BigQuery dataset ID to store the benchmark results.
