@@ -4,7 +4,7 @@ This directory contains the `npi.py` script, a tool for orchestrating and runnin
 
 ## Purpose
 
-The `npi.py` script automates the process of running a suite of performance tests against GCSfuse. It uses Docker to create isolated environments for each benchmark run, ensuring consistent and reproducible results. The script supports various configurations, including different client protocols (HTTP/1.1, gRPC) and CPU pinning for NUMA-aware performance testing.
+The `npi.py` script automates the process of running a suite of performance tests against GCSfuse. It uses Docker to create isolated environments for each benchmark run, ensuring consistent and reproducible results. The script supports various configurations, including different client protocols (`HTTP/1.1`, `gRPC`) and CPU pinning for NUMA-aware performance testing.
 
 The results of the benchmarks are uploaded to a specified BigQuery table for easy analysis and comparison.
 
@@ -33,11 +33,11 @@ python3 npi.py [OPTIONS]
 *   `--bucket-name`: (Required) The name of the GCS bucket to use for the benchmarks.
 *   `--bq-project-id`: (Required) The Google Cloud Project ID where the BigQuery dataset resides.
 *   `--bq-dataset-id`: (Required) The BigQuery dataset ID to store the benchmark results.
-*   `--gcsfuse-version`: (Required) The GCSfuse version to test (e.g., `master`, `v1.2.0`). This version is used to pull the corresponding benchmark Docker images.
+*   `--gcsfuse-version`: (Required) The GCSfuse version to test (e.g., `'master'`, `'v1.2.0'`). This version is used to pull the corresponding benchmark Docker images.
 *   `--iterations`: (Optional) The number of times to run each FIO test within a benchmark. Defaults to `5`.
 *   `--temp-dir`: (Optional) The type of temporary directory to use for GCSfuse.
-    *   `boot-disk` (default): Uses a temporary directory on the host's boot disk.
-    *   `memory`: Uses a `tmpfs` mount (in-memory).
+    *   `'boot-disk'` (default): Uses a temporary directory on the host's boot disk.
+    *   `'memory'`: Uses a `tmpfs` mount (in-memory).
 *   `--dry-run`: (Optional) If set, the script will print the Docker commands it would run without actually executing them.
 
 To see a list of all available benchmarks, you can inspect the `_get_benchmark_definitions` method in the `npi.py` script.
@@ -46,7 +46,7 @@ To see a list of all available benchmarks, you can inspect the `_get_benchmark_d
 
 ### Run a single benchmark
 
-Run the `read` benchmark using the HTTP/1.1 protocol.
+Run the `read` benchmark using the `HTTP/1.1` protocol.
 
 ```sh
 python3 npi.py \
@@ -54,12 +54,12 @@ python3 npi.py \
     --bucket-name my-gcs-bucket \
     --bq-project-id my-gcp-project \
     --bq-dataset-id my_benchmark_dataset \
-    --gcsfuse-version master
+    --gcsfuse-version 'master'
 ```
 
 ### Run multiple benchmarks
 
-Run the `write` benchmark with both HTTP/1.1 and gRPC protocols.
+Run the `write` benchmark with both `HTTP/1.1` and `gRPC` protocols.
 
 ```sh
 python3 npi.py \
@@ -67,7 +67,7 @@ python3 npi.py \
     --bucket-name my-gcs-bucket \
     --bq-project-id my-gcp-project \
     --bq-dataset-id my_benchmark_dataset \
-    --gcsfuse-version v1.3.0
+    --gcsfuse-version 'v1.3.0'
 ```
 
 ### Run all benchmarks
@@ -76,12 +76,12 @@ Run all defined benchmarks and use an in-memory temporary directory.
 
 ```sh
 python3 npi.py \
-    --benchmarks all \
+    --benchmarks 'all' \
     --bucket-name my-gcs-bucket \
     --bq-project-id my-gcp-project \
     --bq-dataset-id my_benchmark_dataset \
-    --gcsfuse-version master \
-    --temp-dir memory
+    --gcsfuse-version 'master' \
+    --temp-dir 'memory'
 ```
 
 ### Dry Run
@@ -90,10 +90,10 @@ Print the commands for all benchmarks without executing them.
 
 ```sh
 python3 npi.py \
-    --benchmarks all \
+    --benchmarks 'all' \
     --bucket-name my-gcs-bucket \
     --bq-project-id my-gcp-project \
     --bq-dataset-id my_benchmark_dataset \
-    --gcsfuse-version master \
+    --gcsfuse-version 'master' \
     --dry-run
 ```
