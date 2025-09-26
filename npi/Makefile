@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-GCSFUSE_VERSION ?= v3.3.0
+GCSFUSE_VERSION ?= v3.4.0
 GO_VERSION=1.24.5
 UBUNTU_VERSION=24.04
 REGISTRY=us-docker.pkg.dev
