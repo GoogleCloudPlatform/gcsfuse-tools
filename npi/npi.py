@@ -1,4 +1,21 @@
 #!/usr/bin/env python3
+"""A script for running GCSfuse performance benchmarks.
+
+This script orchestrates running various GCSFuse performance benchmarks in Docker
+containers. It allows specifying which benchmarks to run, the GCS bucket to use,
+and where to store the results in BigQuery.
+
+The script supports different configurations for benchmarks, such as running with
+HTTP/1.1 or gRPC, and pinning to specific NUMA nodes.
+
+Usage:
+  python3 npi.py --benchmarks <benchmark_names> --bucket-name <bucket> \\
+    --bq-project-id <project> --bq-dataset-id <dataset> --gcsfuse-version <version>
+
+Example:
+  python3 npi.py --benchmarks read_http1 write_grpc --bucket-name my-bucket \\
+    --bq-project-id my-bq-project --bq-dataset-id my_bq_dataset --gcsfuse-version v1.2.0
+"""
 
 import argparse
 import json
@@ -11,14 +28,35 @@ import tempfile
 import shutil
 
 class BenchmarkFactory:
-    """Factory for creating benchmark commands."""
-    def __init__(self, bucket_name, bq_project_id, bq_dataset_id, gcsfuse_version, iterations, temp_dir):
-        self.bucket_name = bucket_name
-        # The bucket name is passed to the command generation function, so it
-        # doesn't need to be stored on self after the factory is initialized.
-        # However, keeping it here for now in case it's used elsewhere or for
-        # future extensions.
+    """A factory for creating benchmark commands.
 
+    This class is responsible for generating the Docker commands needed to run
+    the various GCSfuse performance benchmarks. It takes into account the
+    benchmark type (e.g., read, write), configuration (e.g., HTTP/1.1, gRPC),
+    and other parameters like NUMA node pinning.
+
+    Attributes:
+        bucket_name (str): The GCS bucket to use for the benchmarks.
+        bq_project_id (str): The BigQuery project ID for storing results.
+        bq_dataset_id (str): The BigQuery dataset ID for storing results.
+        gcsfuse_version (str): The GCSfuse version to use.
+        iterations (int): The number of iterations for each benchmark.
+        temp_dir (str): The type of temporary directory to use ('memory' or
+            'boot-disk').
+    """
+
+    def __init__(self, bucket_name, bq_project_id, bq_dataset_id, gcsfuse_version, iterations, temp_dir):
+        """Initializes the BenchmarkFactory.
+
+        Args:
+            bucket_name (str): The GCS bucket name.
+            bq_project_id (str): The BigQuery project ID.
+            bq_dataset_id (str): The BigQuery dataset ID.
+            gcsfuse_version (str): The GCSfuse version.
+            iterations (int): The number of benchmark iterations.
+            temp_dir (str): The temporary directory type.
+        """
+        self.bucket_name = bucket_name
         self.bq_project_id = bq_project_id
         self.bq_dataset_id = bq_dataset_id
         self.gcsfuse_version = gcsfuse_version
@@ -27,16 +65,21 @@ class BenchmarkFactory:
         self._benchmark_definitions = self._get_benchmark_definitions()
 
     def get_benchmark_command(self, name):
-        """Generates the command for a given benchmark name."""
+        """Generates the command for a given benchmark name.
+
+        Args:
+            name (str): The name of the benchmark to generate the command for.
+
+        Returns:
+            str: The full Docker command to run the benchmark.
+
+        Raises:
+            ValueError: If the benchmark name is not defined.
+        """
         if name not in self._benchmark_definitions:
             raise ValueError(f"Benchmark '{name}' not defined.")
 
-        # Get the command generation function.
-        # The kwargs from the functools.partial in _get_benchmark_definitions
-        # are passed to the command generation function here.
         command_func = self._benchmark_definitions[name]
-
-        # Create the command string.
         return command_func(
             bucket_name=self.bucket_name,
             bq_project_id=self.bq_project_id,
@@ -44,13 +87,34 @@ class BenchmarkFactory:
         )
 
     def get_available_benchmarks(self):
-        """Returns a list of available benchmark names."""
+        """Returns a list of available benchmark names.
+
+        Returns:
+            list[str]: A list of all defined benchmark names.
+        """
         return list(self._benchmark_definitions.keys())
 
     def _create_docker_command(self, benchmark_image_suffix, bq_table_id,
                                bucket_name, bq_project_id, bq_dataset_id,
                                gcsfuse_flags=None, cpu_list=None, bind_fio=None):
-        """Helper to construct the full docker run command."""
+        """Helper to construct the full docker run command.
+
+        This method assembles the final `docker run` command string with all
+        the necessary flags and parameters.
+
+        Args:
+            benchmark_image_suffix (str): The suffix for the benchmark Docker image.
+            bq_table_id (str): The BigQuery table ID for the results.
+            bucket_name (str): The GCS bucket name.
+            bq_project_id (str): The BigQuery project ID.
+            bq_dataset_id (str): The BigQuery dataset ID.
+            gcsfuse_flags (str, optional): Additional flags for GCSfuse.
+            cpu_list (str, optional): The list of CPUs to pin the container to.
+            bind_fio (bool, optional): Whether to bind FIO to the same CPUs.
+
+        Returns:
+            str: The complete Docker command.
+        """
         container_temp_dir = "/gcsfuse-temp"
         volume_mount = ""
         if self.temp_dir == "memory":
@@ -58,7 +122,6 @@ class BenchmarkFactory:
         elif self.temp_dir == "boot-disk":
             volume_mount = f"-v <temp_dir_path>:{container_temp_dir}"
 
-        # Append the gcsfuse temp-dir flag.
         if gcsfuse_flags:
             gcsfuse_flags += f" --temp-dir={container_temp_dir}"
         else:
@@ -83,9 +146,17 @@ class BenchmarkFactory:
         return base_cmd
 
     def _get_cpu_list_for_numa_node(self, node_id):
-        """Gets the CPU list for a given NUMA node by parsing `lscpu --json`."""
+        """Gets the CPU list for a given NUMA node by parsing `lscpu --json`.
+
+        Args:
+            node_id (int): The NUMA node ID (e.g., 0 or 1).
+
+        Returns:
+            str | None: A string containing the comma-separated list of CPUs for
+                the given NUMA node, or None if the information cannot be
+                retrieved.
+        """
         try:
-            # Execute lscpu and capture its JSON output.
             result = subprocess.run(
                 ["lscpu", "--json"],
                 capture_output=True,
@@ -94,7 +165,6 @@ class BenchmarkFactory:
                 encoding='utf-8',
             )
             data = json.loads(result.stdout)
-            # Find the CPU list for the given NUMA node by searching the entire JSON tree.
             search_field = f"NUMA node{node_id} CPU(s):"
             for item in data.get("lscpu", []):
                 if item.get("field") == search_field:
@@ -103,11 +173,18 @@ class BenchmarkFactory:
             logging.warning(f"Could not determine CPUs for NUMA node {node_id}: {e}. NUMA-pinned benchmarks for this node will be skipped.")
         return None
 
-
-
     def _get_benchmark_definitions(self):
-        """
-        Returns a dictionary of benchmark names to functions that generate commands.
+        """Returns a dictionary of benchmark names to command-generating functions.
+
+        This method defines all the available benchmarks and their configurations.
+        It constructs a dictionary where keys are benchmark names (e.g.,
+        'read_http1', 'write_grpc_numa0_fio_bound') and values are partial
+        functions that, when called, generate the full Docker command for that
+        benchmark.
+
+        Returns:
+            dict[str, callable]: A dictionary mapping benchmark names to functions
+                that generate the benchmark command string.
         """
         # Define benchmark configurations
         # Each benchmark has an image suffix and an optional BQ table name override.
@@ -163,8 +240,20 @@ class BenchmarkFactory:
 
 
 def run_benchmark(benchmark_name, command_str, temp_dir_type):
-    """
-    Runs a single benchmark command locally.
+    """Runs a single benchmark command locally.
+
+    This function executes a benchmark command using `subprocess.run`. It handles
+    the creation and cleanup of a temporary directory on the host if the
+    'boot-disk' temp_dir_type is used.
+
+    Args:
+        benchmark_name (str): The name of the benchmark being run.
+        command_str (str): The Docker command string to execute.
+        temp_dir_type (str): The type of temporary directory ('memory' or
+            'boot-disk').
+
+    Returns:
+        bool: True if the benchmark ran successfully, False otherwise.
     """
     print(f"--- Running benchmark: {benchmark_name} on localhost ---")
 
@@ -172,26 +261,21 @@ def run_benchmark(benchmark_name, command_str, temp_dir_type):
     if temp_dir_type == "boot-disk":
         host_temp_dir = tempfile.mkdtemp(prefix="gcsfuse-npi-")
         print(f"Created temporary directory on host: {host_temp_dir}")
-        # Replace the placeholder with the actual path
         command_str = command_str.replace("<temp_dir_path>", host_temp_dir)
 
-    # Use shlex.split for robust parsing of the command string.
     command = shlex.split(command_str)
     print(f"Command: {' '.join(command)}")
-    
+
     try:
-        # Using subprocess.run to wait for the command to complete.
-        # By not capturing output, it streams directly to the console.
         subprocess.run(command, check=True)
         print(f"--- Benchmark {benchmark_name} on localhost finished successfully ---")
         success = True
     except FileNotFoundError:
-        print(f"Error: Command not found. Ensure docker is in your PATH.", file=sys.stderr)
+        print("Error: Command not found. Ensure docker is in your PATH.", file=sys.stderr)
         success = False
     except subprocess.CalledProcessError as e:
         print(f"--- Benchmark {benchmark_name} on localhost FAILED ---", file=sys.stderr)
         print(f"Return code: {e.returncode}", file=sys.stderr)
-        # stdout and stderr are already streamed, so we don't need to print them from the exception object.
         success = False
     finally:
         if host_temp_dir:
@@ -201,7 +285,12 @@ def run_benchmark(benchmark_name, command_str, temp_dir_type):
     return success
 
 def main():
-    """Main function to parse arguments and orchestrate benchmark runs."""
+    """Parses command-line arguments and orchestrates benchmark runs.
+
+    This is the main entry point of the script. It parses arguments, creates a
+    BenchmarkFactory, determines which benchmarks to run, and then executes them
+    sequentially.
+    """
     parser = argparse.ArgumentParser(
         description="A benchmark runner.",
         formatter_class=argparse.RawTextHelpFormatter
