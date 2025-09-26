@@ -18,6 +18,7 @@ Before running the script, ensure you have the following prerequisites met:
     *   Pull Docker images from Google Artifact Registry (`us-docker.pkg.dev`).
     *   Read and write to the specified GCS bucket.
     *   Create tables and insert data into the specified BigQuery dataset.
+4.  **lscpu:** The `lscpu` command-line utility is required for NUMA-aware benchmarks (e.g., `read_http1_numa0_fio_bound`). This tool is typically part of the `util-linux` package. If it's not available, NUMA-pinned benchmarks will be skipped.
 
 ## Usage
 
