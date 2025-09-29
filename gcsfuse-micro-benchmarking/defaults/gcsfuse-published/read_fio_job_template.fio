@@ -1,0 +1,25 @@
+[global]
+allrandrepeat=0
+create_serialize=0
+direct=1
+fadvise_hint=0
+file_service_type=random
+group_reporting=1
+iodepth=${IODEPTH}
+ioengine=libaio
+invalidate=1
+numjobs=${NUMJOBS}
+openfiles=1
+rw=${IOTYPE}
+thread=1
+filename_format=${FILENAME_FORMAT}
+
+[experiment]
+stonewall
+directory=${MNTDIR}
+# Update the block size value from the table for different experiments.
+bs=${BLOCKSIZE}
+# Update the file size value from table(file size) for different experiments.
+filesize=${FILESIZE}
+# Set nrfiles per thread in such a way that the test runs for 1-2 min.
+nrfiles=${NRFILES}
