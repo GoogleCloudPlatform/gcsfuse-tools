@@ -1,4 +1,4 @@
-zonal_benchmarking: True
+zonal_benchmarking: False
 reuse_same_mount:
 iterations: 5
 

@@ -13,7 +13,7 @@ rw=${IOTYPE}
 thread=1
 time_based=1
 ramp_time=30s
-runtime=2m
+runtime=3m
 filename_format=${FILENAME_FORMAT}
 
 [experiment]
