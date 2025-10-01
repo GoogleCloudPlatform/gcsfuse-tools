@@ -407,6 +407,7 @@ mount_gcsfuse() {
     # Verify the mount was successful
     if mountpoint -q "$mntdir"; then
         echo "Successfully mounted '$bucketname' to '$mntdir'."
+		echo 1024 | sudo tee /sys/class/bdi/0:$(stat -c "%d" $mntdir)/read_ahead_kb
         return 0
     else
         echo "Error: Failed to mount '$bucketname' to '$mntdir'."
@@ -482,6 +483,7 @@ start_benchmarking_runs() {
             # Mount the bucket once before the loop if reuse_same_mount is 'true'
         if [[ "$reuse_same_mount" == "true" ]]; then
             mount_gcsfuse "$mntdir" "$bucket" "$mount_config"
+            ls -R "$mntdir"
         fi
         nrfiles="${nrfiles%$'\r'}"
 
@@ -498,6 +500,7 @@ start_benchmarking_runs() {
             # If reuse_same_mount is 'false', mount the bucket for this run
             if [[ "$reuse_same_mount" != "true" ]]; then
                 mount_gcsfuse "$mntdir" "$bucket" "$mount_config"
+                ls -R "$mntdir"
             fi
 
             start_time=$(date -u +"%Y-%m-%dT%H:%M:%S%z")

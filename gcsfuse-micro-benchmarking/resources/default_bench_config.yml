@@ -1,4 +1,4 @@
-zonal_benchmarking: True
+zonal_benchmarking: False
 reuse_same_mount:
 iterations: 5
 
@@ -23,11 +23,11 @@ fio_jobfile_template:
 
 job_details:
   file_path: 
-  bs: []
-  file_size: []
-  iotype: []
-  iodepth: []
-  threads: []
+  bs: ["4KB", "16KB", "64KB", "256KB", "512KB", "1MB", "16MB"]
+  file_size: [1GB]
+  iotype: [randread]
+  iodepth: [1]
+  threads: [1, 48, 96 , 128]
   nrfiles: []
 
 mount_config_file: 

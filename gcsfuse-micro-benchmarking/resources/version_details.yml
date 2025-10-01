@@ -1,3 +1,3 @@
 go_version: 1.24.0
 fio_version: 3.39
-gcsfuse_version_or_commit: master
+gcsfuse_version_or_commit: enable_default_o_direct
