@@ -158,6 +158,28 @@ steps:
       - '${_REGISTRY}/${_PROJECT}/gcsfuse-benchmarks/orbax-emulated-benchmark-${_GCSFUSE_VERSION}:latest'
       - 'fio'
 
+  # Build and push the filecache-benchmark image.
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'filecache-benchmark'
+    waitFor: ['base']
+    args:
+      - 'buildx'
+      - 'build'
+      - '--push'
+      - '-f'
+      - 'fio/filecache.dockerfile'
+      - '--platform'
+      - 'linux/amd64,linux/arm64'
+      - '--build-arg'
+      - 'GCSFUSE_VERSION=${_GCSFUSE_VERSION}'
+      - '--build-arg'
+      - 'REGISTRY=${_REGISTRY}'
+      - '--build-arg'
+      - 'PROJECT=${_PROJECT}'
+      - '-t'
+      - '${_REGISTRY}/${_PROJECT}/gcsfuse-benchmarks/fio-filecache-benchmark-${_GCSFUSE_VERSION}:latest'
+      - 'fio'
+
 options:
   # Using a more powerful machine is recommended for multi-platform builds.
   machineType: 'E2_HIGHCPU_32'

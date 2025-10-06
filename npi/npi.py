@@ -118,7 +118,12 @@ class BenchmarkFactory:
         container_temp_dir = "/gcsfuse-temp"
         volume_mount = ""
         if self.temp_dir == "memory":
-            volume_mount = f"--mount type=tmpfs,destination={container_temp_dir}"
+            # For memory-based temp dirs, we specify a large size for file-cache
+            # tests and enable huge pages for performance.
+            tmpfs_opts = "tmpfs-size=512g,tmpfs-huge=always"
+            volume_mount = f"--mount type=tmpfs,destination={container_temp_dir},{tmpfs_opts}"
+            tmpfs_opts = "tmpfs-size=512g"
+            volume_mount = f"--mount type=tmpfs,destination={container_temp_dir},{tmpfs_opts} --tmpfs /dev/hugepages:rw,exec,size=1g"
         elif self.temp_dir == "boot-disk":
             volume_mount = f"-v <temp_dir_path>:{container_temp_dir}"
 
@@ -195,6 +200,8 @@ class BenchmarkFactory:
             },
             "read": {"image_suffix": "fio-read-benchmark"},
             "write": {"image_suffix": "fio-write-benchmark"},
+            "filecache": {"image_suffix": "fio-filecache-benchmark",
+                          "bq_table_id_override": "filecache_{config_name}"},
             #"full_sweep": {"image_suffix": "fio-fullsweep-benchmark"}, # Comment out full_sweep for now since it takes a long long time.
         }
 
@@ -202,6 +209,12 @@ class BenchmarkFactory:
         configs = {
             "http1": {},
             "grpc": {"gcsfuse_flags": "--client-protocol=grpc"},
+            "filecache": {
+                "gcsfuse_flags": (
+                    "--file-cache-max-size-mb=512000 --cache-dir=/gcsfuse-temp "
+                    "--file-cache:enable-parallel-downloads=true "
+                )
+            },
         }
 
         # Dynamically add NUMA configurations if possible.
@@ -221,6 +234,10 @@ class BenchmarkFactory:
         definitions = {}
         for bench_name, bench_config in benchmarks.items():
             for config_name, config_params in configs.items():
+                # Skip redundant combinations, e.g., filecache benchmark with filecache config.
+                if bench_name == "filecache" and config_name == "filecache":
+                    continue
+
                 # Construct the full benchmark name and BQ table ID
                 full_bench_name = f"{bench_name}_{config_name}"
 
@@ -229,12 +246,25 @@ class BenchmarkFactory:
                 else:
                     bq_table_id = f"fio_{full_bench_name}"
 
+                # Make a copy to avoid modifying the original config dict
+                final_config_params = config_params.copy()
+                final_gcsfuse_flags = final_config_params.get("gcsfuse_flags", "")
+
+                # For filecache benchmarks, always add the filecache flags.
+                if bench_name == "filecache":
+                    filecache_flags = (
+                        "--file-cache-max-size-mb=512000 --cache-dir=/gcsfuse-temp "
+                        "--file-cache-enable-parallel-downloads=true"
+                    )
+                    final_gcsfuse_flags = f"{filecache_flags} {final_gcsfuse_flags}".strip()
+                final_config_params["gcsfuse_flags"] = final_gcsfuse_flags
+
                 # Use functools.partial to create a command function with pre-filled arguments
                 definitions[full_bench_name] = functools.partial(
                     self._create_docker_command,
                     benchmark_image_suffix=bench_config["image_suffix"],
                     bq_table_id=bq_table_id,
-                    **config_params
+                    **final_config_params
                 )
         return definitions
 
@@ -257,30 +287,44 @@ def run_benchmark(benchmark_name, command_str, temp_dir_type):
     """
     print(f"--- Running benchmark: {benchmark_name} on localhost ---")
 
-    host_temp_dir = None
-    if temp_dir_type == "boot-disk":
-        host_temp_dir = tempfile.mkdtemp(prefix="gcsfuse-npi-")
-        print(f"Created temporary directory on host: {host_temp_dir}")
-        command_str = command_str.replace("<temp_dir_path>", host_temp_dir)
-
-    command = shlex.split(command_str)
-    print(f"Command: {' '.join(command)}")
-
+    host_temp_dir_path = None
     try:
+        if temp_dir_type == "boot-disk":
+            host_temp_dir_path = tempfile.mkdtemp(prefix="gcsfuse-npi-")
+            print(f"Created temporary directory on host: {host_temp_dir_path}")
+            command_str = command_str.replace("<temp_dir_path>", host_temp_dir_path)
+        elif temp_dir_type == "memory":
+            host_temp_dir_path = tempfile.mkdtemp(prefix="gcsfuse-npi-ram-")
+            print(f"Created temporary directory on host for tmpfs: {host_temp_dir_path}")
+            mount_cmd = f"sudo mount -t tmpfs -o size=512g,huge=always tmpfs {host_temp_dir_path}"
+            print(f"Mounting tmpfs with huge pages: {mount_cmd}")
+            subprocess.run(shlex.split(mount_cmd), check=True)
+            command_str = command_str.replace("<temp_dir_path>", host_temp_dir_path)
+
+        command = shlex.split(command_str)
+        print(f"Command: {' '.join(command)}")
+
         subprocess.run(command, check=True)
         print(f"--- Benchmark {benchmark_name} on localhost finished successfully ---")
         success = True
-    except FileNotFoundError:
-        print("Error: Command not found. Ensure docker is in your PATH.", file=sys.stderr)
-        success = False
     except subprocess.CalledProcessError as e:
         print(f"--- Benchmark {benchmark_name} on localhost FAILED ---", file=sys.stderr)
         print(f"Return code: {e.returncode}", file=sys.stderr)
         success = False
+    except KeyboardInterrupt:
+        print(f"\n--- Benchmark {benchmark_name} on localhost INTERRUPTED ---", file=sys.stderr)
+        success = False
+        # Re-raise the exception so the main loop terminates
+        raise
     finally:
-        if host_temp_dir:
-            print(f"Cleaning up temporary directory: {host_temp_dir}")
-            shutil.rmtree(host_temp_dir)
+        if host_temp_dir_path:
+            if temp_dir_type == "memory":
+                unmount_cmd = f"sudo umount {host_temp_dir_path}"
+                print(f"Unmounting tmpfs: {unmount_cmd}")
+                subprocess.run(shlex.split(unmount_cmd), check=False)
+
+            print(f"Cleaning up temporary directory: {host_temp_dir_path}")
+            shutil.rmtree(host_temp_dir_path)
 
     return success
 
@@ -356,10 +400,13 @@ def main():
         if args.dry_run:
             print(f"--- [DRY RUN] Benchmark: {benchmark_name} ---")
             print(f"Command: {command_str}\n")
-        else:
+        try:
             success = run_benchmark(benchmark_name, command_str, args.temp_dir)
             if not success:
                 failed_benchmarks.append(benchmark_name)
+        except KeyboardInterrupt:
+            print("\nBenchmark orchestration stopped by user.", file=sys.stderr)
+            sys.exit(1)
 
     if failed_benchmarks:
         print(f"\n--- Some benchmarks failed: {', '.join(failed_benchmarks)} ---", file=sys.stderr)
