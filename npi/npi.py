@@ -400,13 +400,14 @@ def main():
         if args.dry_run:
             print(f"--- [DRY RUN] Benchmark: {benchmark_name} ---")
             print(f"Command: {command_str}\n")
-        try:
-            success = run_benchmark(benchmark_name, command_str, args.temp_dir)
-            if not success:
-                failed_benchmarks.append(benchmark_name)
-        except KeyboardInterrupt:
-            print("\nBenchmark orchestration stopped by user.", file=sys.stderr)
-            sys.exit(1)
+        else:
+            try:
+                success = run_benchmark(benchmark_name, command_str, args.temp_dir)
+                if not success:
+                    failed_benchmarks.append(benchmark_name)
+            except KeyboardInterrupt:
+                print("\nBenchmark orchestration stopped by user.", file=sys.stderr)
+                sys.exit(1)
 
     if failed_benchmarks:
         print(f"\n--- Some benchmarks failed: {', '.join(failed_benchmarks)} ---", file=sys.stderr)
