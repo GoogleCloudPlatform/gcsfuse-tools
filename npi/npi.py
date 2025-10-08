@@ -209,12 +209,6 @@ class BenchmarkFactory:
         configs = {
             "http1": {},
             "grpc": {"gcsfuse_flags": "--client-protocol=grpc"},
-            "filecache": {
-                "gcsfuse_flags": (
-                    "--file-cache-max-size-mb=512000 --cache-dir=/gcsfuse-temp "
-                    "--file-cache:enable-parallel-downloads=true "
-                )
-            },
         }
 
         # Dynamically add NUMA configurations if possible.
@@ -234,10 +228,6 @@ class BenchmarkFactory:
         definitions = {}
         for bench_name, bench_config in benchmarks.items():
             for config_name, config_params in configs.items():
-                # Skip redundant combinations, e.g., filecache benchmark with filecache config.
-                if bench_name == "filecache" and config_name == "filecache":
-                    continue
-
                 # Construct the full benchmark name and BQ table ID
                 full_bench_name = f"{bench_name}_{config_name}"
 
