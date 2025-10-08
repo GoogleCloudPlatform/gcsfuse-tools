@@ -11,11 +11,12 @@ invalidate=1
 numjobs=128 
 openfiles=1
 # Change "read" to "randread" to test random reads.
-rw=read 
+rw=${READ_TYPE} 
 thread=1
-filename_format=file-cache-read/${FILE_SIZE}/${BLOCK_SIZE}/${NR_FILES}/${NUM_JOBS}/experiment.$jobnum.$filenum
+filename_format=file-cache-read/${FILE_SIZE}/${NR_FILES}/experiment.$jobnum.$filenum
 
 [read]
+stonewall
 directory=${DIR}
 # Update the block size value from the table for different experiments.
 bs=${BLOCK_SIZE}

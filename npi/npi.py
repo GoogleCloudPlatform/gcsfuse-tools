@@ -118,14 +118,14 @@ class BenchmarkFactory:
         container_temp_dir = "/gcsfuse-temp"
         volume_mount = ""
         if self.temp_dir == "memory":
-            # For memory-based temp dirs, we specify a large size for file-cache
-            # tests and enable huge pages for performance.
-            tmpfs_opts = "tmpfs-size=512g,tmpfs-huge=always"
-            volume_mount = f"--mount type=tmpfs,destination={container_temp_dir},{tmpfs_opts}"
             tmpfs_opts = "tmpfs-size=512g"
-            volume_mount = f"--mount type=tmpfs,destination={container_temp_dir},{tmpfs_opts} --tmpfs /dev/hugepages:rw,exec,size=1g"
+            if "filecache" in benchmark_image_suffix:
+                volume_mount = f"--mount type=tmpfs,destination={container_temp_dir},{tmpfs_opts} --tmpfs /dev/hugepages:rw,exec,size=1g"
+            else:
+                volume_mount = f"--mount type=tmpfs,destination={container_temp_dir},{tmpfs_opts}"
         elif self.temp_dir == "boot-disk":
-            volume_mount = f"-v <temp_dir_path>:{container_temp_dir}"
+            # This placeholder is replaced in the run_benchmark function.
+            volume_mount = f"-v <temp_dir_placeholder>:{container_temp_dir}"
 
         if gcsfuse_flags:
             gcsfuse_flags += f" --temp-dir={container_temp_dir}"
@@ -282,14 +282,7 @@ def run_benchmark(benchmark_name, command_str, temp_dir_type):
         if temp_dir_type == "boot-disk":
             host_temp_dir_path = tempfile.mkdtemp(prefix="gcsfuse-npi-")
             print(f"Created temporary directory on host: {host_temp_dir_path}")
-            command_str = command_str.replace("<temp_dir_path>", host_temp_dir_path)
-        elif temp_dir_type == "memory":
-            host_temp_dir_path = tempfile.mkdtemp(prefix="gcsfuse-npi-ram-")
-            print(f"Created temporary directory on host for tmpfs: {host_temp_dir_path}")
-            mount_cmd = f"sudo mount -t tmpfs -o size=512g,huge=always tmpfs {host_temp_dir_path}"
-            print(f"Mounting tmpfs with huge pages: {mount_cmd}")
-            subprocess.run(shlex.split(mount_cmd), check=True)
-            command_str = command_str.replace("<temp_dir_path>", host_temp_dir_path)
+            command_str = command_str.replace("<temp_dir_placeholder>", host_temp_dir_path)
 
         command = shlex.split(command_str)
         print(f"Command: {' '.join(command)}")
@@ -308,11 +301,6 @@ def run_benchmark(benchmark_name, command_str, temp_dir_type):
         raise
     finally:
         if host_temp_dir_path:
-            if temp_dir_type == "memory":
-                unmount_cmd = f"sudo umount {host_temp_dir_path}"
-                print(f"Unmounting tmpfs: {unmount_cmd}")
-                subprocess.run(shlex.split(unmount_cmd), check=False)
-
             print(f"Cleaning up temporary directory: {host_temp_dir_path}")
             shutil.rmtree(host_temp_dir_path)
 
