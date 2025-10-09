@@ -6,14 +6,16 @@ fadvise_hint=0
 file_service_type=random
 group_reporting=1 # combine all threads result into 1
 iodepth=64
+# ioengine=libaio is for high-performance asynchronous I/O, best for max throughput tests.
+# It may produce 'disk util stat' errors in some container environments.
+# ioengine=psync is for standard synchronous I/O, which is more stable and mimics typical application behavior.
 ioengine=libaio
 invalidate=1
-numjobs=128 
+numjobs=${NUM_JOBS}
 openfiles=1
-# Change "read" to "randread" to test random reads.
 rw=${READ_TYPE} 
 thread=1
-filename_format=file-cache-read/${FILE_SIZE}/${NR_FILES}/experiment.$jobnum.$filenum
+filename_format=file-cache-read/fs_${FILE_SIZE}/bs_${BLOCK_SIZE}/nf_${NR_FILES}/nj_${NUM_JOBS}/experiment.$jobnum.$filenum
 
 [read]
 stonewall

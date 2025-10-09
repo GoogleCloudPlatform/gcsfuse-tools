@@ -45,7 +45,7 @@ class BenchmarkFactory:
             'boot-disk').
     """
 
-    def __init__(self, bucket_name, bq_project_id, bq_dataset_id, gcsfuse_version, iterations, temp_dir):
+    def __init__(self, bucket_name, bq_project_id, bq_dataset_id, gcsfuse_version, iterations, temp_dir, file_cache_size_mb):
         """Initializes the BenchmarkFactory.
 
         Args:
@@ -55,6 +55,8 @@ class BenchmarkFactory:
             gcsfuse_version (str): The GCSfuse version.
             iterations (int): The number of benchmark iterations.
             temp_dir (str): The temporary directory type.
+            file_cache_size_mb (int): The size of the file cache in MiB.
+                -1 for unlimited.
         """
         self.bucket_name = bucket_name
         self.bq_project_id = bq_project_id
@@ -62,6 +64,7 @@ class BenchmarkFactory:
         self.gcsfuse_version = gcsfuse_version
         self.iterations = iterations
         self.temp_dir = temp_dir
+        self.file_cache_size_mb = file_cache_size_mb
         self._benchmark_definitions = self._get_benchmark_definitions()
 
     def get_benchmark_command(self, name):
@@ -115,22 +118,23 @@ class BenchmarkFactory:
         Returns:
             str: The complete Docker command.
         """
-        container_temp_dir = "/gcsfuse-temp"
+        # Define a constant for the in-container temp path for consistency.
+        CONTAINER_TEMP_DIR = "/gcsfuse-temp"
         volume_mount = ""
         if self.temp_dir == "memory":
             tmpfs_opts = "tmpfs-size=512g"
             if "filecache" in benchmark_image_suffix:
-                volume_mount = f"--mount type=tmpfs,destination={container_temp_dir},{tmpfs_opts} --tmpfs /dev/hugepages:rw,exec,size=1g"
+                volume_mount = f"--mount type=tmpfs,destination={CONTAINER_TEMP_DIR},{tmpfs_opts} --tmpfs /dev/hugepages:rw,exec,size=1g"
             else:
-                volume_mount = f"--mount type=tmpfs,destination={container_temp_dir},{tmpfs_opts}"
+                volume_mount = f"--mount type=tmpfs,destination={CONTAINER_TEMP_DIR},{tmpfs_opts}"
         elif self.temp_dir == "boot-disk":
             # This placeholder is replaced in the run_benchmark function.
-            volume_mount = f"-v <temp_dir_placeholder>:{container_temp_dir}"
+            volume_mount = f"-v <temp_dir_placeholder>:{CONTAINER_TEMP_DIR}"
 
         if gcsfuse_flags:
-            gcsfuse_flags += f" --temp-dir={container_temp_dir}"
+            gcsfuse_flags += f" --temp-dir={CONTAINER_TEMP_DIR}"
         else:
-            gcsfuse_flags = f"--temp-dir={container_temp_dir}"
+            gcsfuse_flags = f"--temp-dir={CONTAINER_TEMP_DIR}"
 
         base_cmd = (
             "docker run --pull=always --network=host --privileged --rm "
@@ -242,8 +246,14 @@ class BenchmarkFactory:
 
                 # For filecache benchmarks, always add the filecache flags.
                 if bench_name == "filecache":
+                    # Default to unlimited for disk, 512GB for memory, unless overridden.
+                    if self.file_cache_size_mb is not None:
+                        cache_size_mb = self.file_cache_size_mb
+                    else:
+                        cache_size_mb = -1 if self.temp_dir == "boot-disk" else 512000
+
                     filecache_flags = (
-                        "--file-cache-max-size-mb=512000 --cache-dir=/gcsfuse-temp "
+                        f"--file-cache-max-size-mb={cache_size_mb} --cache-dir={self._create_docker_command.__func__.__code__.co_consts[1]} " # Access CONTAINER_TEMP_DIR
                         "--file-cache-enable-parallel-downloads=true"
                     )
                     final_gcsfuse_flags = f"{filecache_flags} {final_gcsfuse_flags}".strip()
@@ -259,7 +269,7 @@ class BenchmarkFactory:
         return definitions
 
 
-def run_benchmark(benchmark_name, command_str, temp_dir_type):
+def run_benchmark(benchmark_name, command_str, temp_dir_type, temp_dir_path=None):
     """Runs a single benchmark command locally.
 
     This function executes a benchmark command using `subprocess.run`. It handles
@@ -271,6 +281,8 @@ def run_benchmark(benchmark_name, command_str, temp_dir_type):
         command_str (str): The Docker command string to execute.
         temp_dir_type (str): The type of temporary directory ('memory' or
             'boot-disk').
+        temp_dir_path (str, optional): A specific path on the host to use as the
+            temporary directory. Used with 'boot-disk'.
 
     Returns:
         bool: True if the benchmark ran successfully, False otherwise.
@@ -279,10 +291,14 @@ def run_benchmark(benchmark_name, command_str, temp_dir_type):
 
     host_temp_dir_path = None
     try:
-        if temp_dir_type == "boot-disk":
-            host_temp_dir_path = tempfile.mkdtemp(prefix="gcsfuse-npi-")
-            print(f"Created temporary directory on host: {host_temp_dir_path}")
-            command_str = command_str.replace("<temp_dir_placeholder>", host_temp_dir_path)
+        if temp_dir_type == "boot-disk" and "<temp_dir_placeholder>" in command_str:
+            if temp_dir_path:
+                host_temp_dir_path = temp_dir_path
+                print(f"Using specified host temporary directory: {host_temp_dir_path}")
+            else:
+                host_temp_dir_path = tempfile.mkdtemp(prefix="gcsfuse-npi-")
+                print(f"Created temporary directory on host: {host_temp_dir_path}")
+            command_str = command_str.replace("<temp_dir_placeholder>", host_temp_dir_path, 1)
 
         command = shlex.split(command_str)
         print(f"Command: {' '.join(command)}")
@@ -300,7 +316,7 @@ def run_benchmark(benchmark_name, command_str, temp_dir_type):
         # Re-raise the exception so the main loop terminates
         raise
     finally:
-        if host_temp_dir_path:
+        if host_temp_dir_path and not temp_dir_path: # Only remove dirs we created
             print(f"Cleaning up temporary directory: {host_temp_dir_path}")
             shutil.rmtree(host_temp_dir_path)
 
@@ -344,6 +360,16 @@ def main():
         default="boot-disk",
         help="The temporary directory type to use for benchmark artifacts. 'memory' uses a tmpfs mount, 'boot-disk' uses the host's disk. Default: boot-disk."
     )
+    parser.add_argument(
+        "--temp-dir-path",
+        help="Specify a path on the host for the temp directory. Only used when --temp-dir is 'boot-disk'. The script will not clean up this directory."
+    )
+    parser.add_argument(
+        "--file-cache-size-mb",
+        type=int,
+        default=None,
+        help="Set a custom file cache size in MiB. Use -1 for unlimited. Overrides defaults."
+    )
 
     args = parser.parse_args()
 
@@ -353,7 +379,8 @@ def main():
         bq_dataset_id=args.bq_dataset_id,
         gcsfuse_version=args.gcsfuse_version,
         iterations=args.iterations,
-        temp_dir=args.temp_dir
+        temp_dir=args.temp_dir,
+        file_cache_size_mb=args.file_cache_size_mb
     )
 
     available_benchmarks = factory.get_available_benchmarks()
@@ -380,7 +407,7 @@ def main():
             print(f"Command: {command_str}\n")
         else:
             try:
-                success = run_benchmark(benchmark_name, command_str, args.temp_dir)
+                success = run_benchmark(benchmark_name, command_str, args.temp_dir, args.temp_dir_path)
                 if not success:
                     failed_benchmarks.append(benchmark_name)
             except KeyboardInterrupt:

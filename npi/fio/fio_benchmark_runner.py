@@ -139,7 +139,7 @@ def parse_fio_output(filename):
                     "file_size": options.get("filesize", 0),
                     "nr_files": options.get("nrfiles", 0),
                     "queue_depth": data["global options"].get("iodepth", 0),
-                    "num_jobs": options.get("numjobs", 0),
+                    "num_jobs": data["global options"].get("numjobs", 0),
                     "operation": data["global options"].get("rw", "unknown"),
                     "bw_mibps": bw_mibps,
                     "iops": iops,
@@ -295,8 +295,15 @@ def run_benchmark(
             logging.info("Clearing page cache...")
             run_command(["sh", "-c", "echo 3 > /proc/sys/vm/drop_caches"])
 
-            mount_gcsfuse(gcsfuse_bin, gcsfuse_flags, bucket_name, mount_point, cpu_limit_list=cpu_limit_list)
+            # Clear the GCSfuse cache directory to ensure cold reads for file-cache tests.
+            # The --temp-dir flag for gcsfuse points to the cache location.
+            # In our Docker setup, this is mounted from the host's LSSD.
+            temp_dir_in_container = "/gcsfuse-temp"
+            logging.info(f"Clearing GCSfuse cache directory: {temp_dir_in_container}")
+            run_command(["sh", "-c", f"rm -rf {temp_dir_in_container}/*"])
 
+            mount_gcsfuse(gcsfuse_bin, gcsfuse_flags, bucket_name, mount_point,
+                          cpu_limit_list=cpu_limit_list)
             fio_cpu_list = cpu_limit_list if bind_fio else None
 
             run_fio_test(fio_config, mount_point, i, output_dir,
