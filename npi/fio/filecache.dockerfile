@@ -8,6 +8,6 @@ FROM ${REGISTRY}/${PROJECT}/gcsfuse-benchmarks/gcsfuse-${GCSFUSE_VERSION}-perf-b
 COPY run_fio_benchmark.py /run_fio_benchmark.py
 COPY fio_benchmark_runner.py /fio_benchmark_runner.py
 COPY run_fio_matrix.py /run_fio_matrix.py
-COPY read_matrix.csv /read_matrix.csv
-COPY read.fio /read.fio
-ENTRYPOINT ["/run_fio_matrix.py", "--matrix-config", "/read_matrix.csv", "--fio-template", "/read.fio"]
+COPY filecache_matrix.csv /filecache_matrix.csv
+COPY filecache.fio /filecache.fio
+ENTRYPOINT ["/run_fio_matrix.py", "--matrix-config", "/filecache_matrix.csv", "--fio-template", "/filecache.fio"]

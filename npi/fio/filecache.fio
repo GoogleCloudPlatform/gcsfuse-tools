@@ -1,0 +1,28 @@
+[global]
+allrandrepeat=0
+create_serialize=0
+direct=1 # o-direct, no kernel call, directly to us
+fadvise_hint=0
+file_service_type=random
+group_reporting=1 # combine all threads result into 1
+iodepth=64
+# ioengine=libaio is for high-performance asynchronous I/O, best for max throughput tests.
+# It may produce 'disk util stat' errors in some container environments.
+# ioengine=psync is for standard synchronous I/O, which is more stable and mimics typical application behavior.
+ioengine=libaio
+invalidate=1
+numjobs=${NUM_JOBS}
+openfiles=1
+rw=${READ_TYPE} 
+thread=1
+filename_format=file-cache-read/fs_${FILE_SIZE}/bs_${BLOCK_SIZE}/nf_${NR_FILES}/nj_${NUM_JOBS}/experiment.$jobnum.$filenum
+
+[read]
+stonewall
+directory=${DIR}
+# Update the block size value from the table for different experiments.
+bs=${BLOCK_SIZE}
+# Update the file size value from table(file size) for different experiments.
+filesize=${FILE_SIZE}
+# Set nrfiles per thread in such a way that the test runs for 1-2 min.
+nrfiles=${NR_FILES}
