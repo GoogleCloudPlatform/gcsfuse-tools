@@ -190,7 +190,7 @@ MOUNT_POINT="mount-point"
 CURR_DIR=$(pwd)
 GCSFUSE_BIN="$CURR_DIR/gcsfuse/gcsfuse"
 MNT="$CURR_DIR/$MOUNT_POINT"
-SSD_MOUNT_DIR="/mnt/disks/local_ssd"
+SSD_MOUNT_DIR="/mnt/lssd"
 FIO_JOB_DIR="/tmp/fio_jobs"
 
 # Download all FIO job spec files
