@@ -1,22 +1,22 @@
 [global]
 allrandrepeat=0
 create_serialize=0
-direct=1
+direct=1 # o-direct, no kernel call, directly to us
 fadvise_hint=0
 file_service_type=random
-group_reporting=1
+group_reporting=1 # combine all threads result into 1
 iodepth=${IODEPTH}
 ioengine=libaio
 invalidate=1
 openfiles=1
-rw=${IOTYPE}
+rw=${IOTYPE} 
 thread=1
-time_based=1
 ramp_time=30s
 runtime=2m
-filename_format=${FILENAME_FORMAT}
+filename_format=file-cache-read/fs_${FILESIZE}/bs_${BLOCKSIZE}/nf_${NRFILES}/nj_${NUMJOBS}/experiment.$jobnum.$filenum
 
-[experiment]
+[read]
+stonewall
 directory=${MNTDIR}
 bs=${BLOCKSIZE}
 filesize=${FILESIZE}

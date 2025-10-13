@@ -173,14 +173,14 @@ copy_resources_from_artifact_bucket(){
     local artifacts_bucket=$1
     local benchmark_id=$2
     local dir=$3
-    gcloud storage cp gs://$artifacts_bucket/$benchmark_id/* $dir/
+    gcloud storage cp gs://$artifacts_bucket/$benchmark_id/* $dir/ < /dev/null
 }
 
 copy_raw_results_to_artifacts_bucket(){
     local artifacts_bucket=$1
     local benchmark_id=$2
     local dir=$3
-    gcloud storage cp --recursive $dir/raw-results/* gs://$artifacts_bucket/$benchmark_id/raw-results/
+    gcloud storage cp --recursive $dir/raw-results/* gs://$artifacts_bucket/$benchmark_id/raw-results/ < /dev/null
 }
 
 # Install fio on the VM.
@@ -386,6 +386,8 @@ mount_gcsfuse() {
     # Create the mount directory if it doesn't exist
     if [ ! -d "$mntdir" ]; then
         mkdir -p "$mntdir"
+    else
+        unmount_gcsfuse "$mntdir" # Ensure it's not mounted before we start
     fi
 
     # Check if the directory is already mounted
@@ -393,16 +395,11 @@ mount_gcsfuse() {
         echo "Directory '$mntdir' is already a mount point. Skipping."
         return 0
     fi
-    
-    # Check if the mount config file exists
-    if [ ! -f "$mount_config" ]; then
-        echo "Error: Mount config file not found at '$mount_config'."
-        return 1
-    fi
 
     # Mount the GCS bucket using the config file
-    echo "Mounting bucket '$bucketname' to '$mntdir' with config '$mount_config'..."
-    "${gcsfuse_binary}" --config-file="$mount_config" "$bucketname" "$mntdir"
+    echo "Mounting bucket '$bucketname' to '$mntdir' using config file '$mount_config'..."
+    "$gcsfuse_binary" --config-file "$mount_config" \
+      "$bucketname" "$mntdir"
 
     # Verify the mount was successful
     if mountpoint -q "$mntdir"; then
@@ -475,14 +472,26 @@ start_benchmarking_runs() {
         echo "Error: mount config file not found at ${mount_config}"
         return 1
     fi
+       
+    echo "--- DEBUG: Contents of fio_job_cases.csv ---"
+    cat "$fio_job_cases"
+    echo "--- END DEBUG ---"
+
+    echo "--- DEBUG: Contents of jobfile.fio ---"
+    cat "$fio_job_file"
+    echo "--- END DEBUG ---"
+
+    echo "--- DEBUG: Contents of mount_config.yml ---"
+    cat "$mount_config"
+    echo "--- END DEBUG ---"
     
+    # Mount the bucket once before the loop if reuse_same_mount is 'true'
+    if [[ "$reuse_same_mount" == "true" ]]; then
+        mount_gcsfuse "$mntdir" "$bucket" "$mount_config"
+    fi
+
     # Read the CSV file line by line, skipping the header
-    tail -n +2 "$fio_job_cases" | while IFS=, read -r bs file_size iodepth iotype threads nrfiles; do
-        # Iterate for the specified number of runs for this job case
-            # Mount the bucket once before the loop if reuse_same_mount is 'true'
-        if [[ "$reuse_same_mount" == "true" ]]; then
-            mount_gcsfuse "$mntdir" "$bucket" "$mount_config"
-        fi
+    while IFS=, read -r bs file_size iodepth iotype threads nrfiles || [[ -n "$bs" ]]; do
         nrfiles="${nrfiles%$'\r'}"
 
         echo "Experiment config: ${bs}, ${file_size}, ${iodepth}, ${iotype}, ${threads}, ${nrfiles}"
@@ -495,6 +504,20 @@ start_benchmarking_runs() {
 
         for ((i = 1; i <= iterations; i++)); do
             echo "Starting FIO run ${i} of ${iterations} for case: bs=${bs}, file_size=${file_size}, iodepth=${iodepth}, iotype=${iotype}, threads=${threads}, nrfiles=${nrfiles}"
+            
+            # Before each run, clear the GCSFuse cache directory if it exists
+            # to ensure a "cold cache" state for file-cache tests.
+            local cache_dir
+            cache_dir=$(/usr/local/bin/yq e '.cache-dir' "$mount_config")
+            # Also clear the log file from the previous run
+            sudo rm -f /tmp/gcsfuse.log
+
+            if [ -d "$cache_dir" ]; then
+                echo "Clearing GCSFuse cache directory: ${cache_dir}"
+                sudo rm -rf "${cache_dir:?}"/{*,.gcsfuse_file_cache} 2>/dev/null || true
+                echo "File cache directory cleared at path: ${cache_dir}"
+            fi
+
             # If reuse_same_mount is 'false', mount the bucket for this run
             if [[ "$reuse_same_mount" != "true" ]]; then
                 mount_gcsfuse "$mntdir" "$bucket" "$mount_config"
@@ -504,10 +527,17 @@ start_benchmarking_runs() {
 
             filename_format="${iotype}-\$jobnum/\$filenum"
             output_file="${testdir}/fio_output_iter${i}.json"
-            MNTDIR=${mntdir} IODEPTH=${iodepth} IOTYPE=${iotype} BLOCKSIZE=${bs} FILESIZE=${file_size} NRFILES=${nrfiles} NUMJOBS=${threads} FILENAME_FORMAT=${filename_format} ${fio_binary} $fio_job_file --output-format=json > "$output_file" 2>&1 
+            # Increase --alloc-size to pre-allocate more memory for fio to handle a large number of files.
+            # 2097152 KB = 2 GB.
+            MNTDIR=${mntdir} IODEPTH=${iodepth} IOTYPE=${iotype} BLOCKSIZE=${bs} FILESIZE=${file_size} NRFILES=${nrfiles} NUMJOBS=${threads} FILENAME_FORMAT=${filename_format} ${fio_binary} $fio_job_file --output-format=json --alloc-size=2097152 > "$output_file" < /dev/null
             
             end_time=$(date -u +"%Y-%m-%dT%H:%M:%S%z")
             echo "${i},${start_time},${end_time}" >> "$timestamps_file"
+
+            # # Print GCSFuse logs and save them for this iteration
+            # echo "--- GCSFuse logs for iteration ${i} ---"
+            # cat /tmp/gcsfuse.log || echo "Log file not found or empty."
+            # cp /tmp/gcsfuse.log "${testdir}/gcsfuse_iter${i}.log"
 
             # If reuse_same_mount is 'false', unmount after this run
             if [[ "$reuse_same_mount" != "true" ]]; then
@@ -518,12 +548,12 @@ start_benchmarking_runs() {
             sleep 20
 
         done
-            # Unmount the bucket once after the loop if reuse_same_mount is 'true'
-        if [[ "$reuse_same_mount" == "true" ]]; then
-            unmount_gcsfuse "$mntdir"
-        fi
-    done
+    done < <(tail -n +2 "$fio_job_cases")
 
+    # Unmount the bucket once after all loops if reuse_same_mount is 'true'
+    if [[ "$reuse_same_mount" == "true" ]]; then
+        unmount_gcsfuse "$mntdir"
+    fi
 
 }
 
