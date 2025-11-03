@@ -20,15 +20,27 @@ Before running the script, ensure you have the following prerequisites met:
     *   Create tables and insert data into the specified BigQuery dataset.
 4.  **lscpu:** The `lscpu` command-line utility is required for NUMA-aware benchmarks (e.g., `read_http1_numa0_fio_bound`). This tool is typically part of the `util-linux` package. If it's not available, NUMA-pinned benchmarks will be skipped.
 
+### Authentication: Google Cloud Access
+
+Authentication to Google Cloud is mandatory, either through a VM's service account or by utilizing `gcloud auth login`.
+
+*   **Requirement: gcloud Authentication Status**
+    *   **Install gcloud CLI:** For installation instructions, please refer to the [official gcloud CLI documentation](https://cloud.google.com/sdk/docs/install).
+    *   **gcloud auth login:** `gcloud auth login`
+    *   **Command to Check:** `gcloud auth list`
+    *   **Expected Output/Success:** An account with an asterisk (`*`) next to it, indicating it is the active account.
+
+
 ### Docker: Installation and Permissions
 
 Sudoless Docker must be installed and actively running on the local machine. The user executing the script needs to possess the necessary permissions to run Docker containers.
 
 *   **Requirement: Docker Installed & Running**
     *   Installation instructions as per Machine type: [Install Docker Engine](https://docs.docker.com/engine/install/)
+    *   Making docker sudoless: [Make docker sudoless](https://docs.docker.com/engine/install/linux-postinstall/)
 *   **Requirement: User Permissions**
-    *   **Command to Check:** `groups | grep docker`
-    *   **Expected Output/Success:** The `docker` group should be listed. If not, you may need to run `sudo usermod -aG docker $USER` and then `newgrp docker`.
+    *   **Command to Check a sudoless docker:** `docker run hello-world`
+    *   **Expected Output/Success:** A "Hello from Docker!" message is displayed, confirming the installation is working.
 *   **Requirement: Pull Docker images from Google Artifact Registry (us-docker.pkg.dev)**
     *   Execute the following command:
         ```bash
@@ -38,19 +50,6 @@ Sudoless Docker must be installed and actively running on the local machine. The
         # Add support for us-docker.pkg.dev
         gcloud auth configure-docker us-docker.pkg.dev
         ```
-
-### Authentication: Google Cloud Access
-
-Authentication to Google Cloud is mandatory, either through a VM's service account or by utilizing `gcloud auth login`.
-
-*   **Requirement: gcloud Authentication Status**
-    *   **Install gcloud CLI:** `sudo apt install -y google-cloud-cli`
-    *   **Gcloud auth login:** `gcloud auth login`
-    *   **Command to Check:** `gcloud auth list`
-    *   **Expected Output/Success:** An account with an asterisk (`*`) next to it, indicating it is the active account.
-*   **Requirement: Active Credentials**
-    *   **Command to Check:** `gcloud auth print-access-token`
-    *   **Expected Output/Success:** A valid, long access token string should be printed. If this fails, you need to run `gcloud auth login`.
 
 ### Permissions: GCS, BigQuery
 
@@ -97,9 +96,9 @@ python3 npi.py [OPTIONS]
 
 To see a list of all available benchmarks, you can execute the script with a `--dry-run` flag.
 
-##  Benchmark Glossary
+## Benchmark Glossary
 
-The names of the GCS FUSE performance benchmarks follow a strict format designed to clearly communicate the **access pattern**, **protocol**, **NUMA locality**, and **CPU affinity** being tested.
+The names of the GCSFUSE performance benchmarks follow a strict format designed to clearly communicate the **access pattern**, **protocol**, **NUMA locality**, and **CPU affinity** being tested.
 
 ---
 
@@ -151,7 +150,7 @@ This segment controls whether the I/O threads are explicitly **pinned** to CPU c
 
 ---
 
-###  Benchmark Example
+### Benchmark Example
 
 | Benchmark Name | Detailed Meaning |
 | :--- | :--- |
