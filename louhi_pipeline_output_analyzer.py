@@ -13,6 +13,7 @@ import pandas as pd
 # --- CONFIGURATION ---
 BUCKET_NAME = 'gcsfuse-release-packages'
 GCS_AUTH_BASE_URL = 'https://storage.mtls.cloud.google.com'
+MAX_WORKERS = 20
 
 # Suppress "Connection pool is full" warnings from parallel requests
 logging.getLogger('urllib3.connectionpool').setLevel(logging.ERROR)
@@ -330,7 +331,7 @@ def analyze_failures(version: str):
 
   all_failures = []
   # Use ThreadPoolExecutor for parallel GCS requests
-  with concurrent.futures.ThreadPoolExecutor(max_workers=20) as executor:
+  with concurrent.futures.ThreadPoolExecutor(MAX_WORKERS) as executor:
     futures = []
     for vm_dir in vm_dirs:
       for suffix_key, bucket_type in TEST_TYPES.items():
