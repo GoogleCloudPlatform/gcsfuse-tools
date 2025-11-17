@@ -130,7 +130,7 @@ class BenchmarkFactory:
         base_cmd = (
             "docker run --pull=always --network=host --privileged --rm "
             f"{volume_mount} "
-            f"us-docker.pkg.dev/gcs-fuse-test/gcsfuse-benchmarks/{benchmark_image_suffix}-{self.gcsfuse_version}:latest "
+            f"us-docker.pkg.dev/{bq_project_id}/gcsfuse-benchmarks/{benchmark_image_suffix}-{self.gcsfuse_version}:latest "
             f"--iterations={self.iterations} "
             f"--bucket-name={bucket_name} "
             f"--bq-project-id={bq_project_id} "

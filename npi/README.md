@@ -73,6 +73,14 @@ The `lscpu` command-line utility is essential for NUMA-aware benchmarks (e.g., `
     *   **Command to Check:** `lscpu | grep 'NUMA node(s)'`
     *   **Expected Output/Success:** Shows information about NUMA nodes if available.
 
+## Publishing FIO Images
+
+The FIO images can be built and published using Google Cloud Build.
+```sh
+gcloud builds submit . --config=cloudbuild.yaml --substitutions=_GCSFUSE_VERSION=<gcsfuse_version>
+```
+Replace `<gcsfuse_version>` with the desired GCSfuse version (e.g., `v3.2.0`).
+
 ## Usage
 
 The script is controlled via command-line arguments.
