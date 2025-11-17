@@ -382,11 +382,13 @@ def save_markdown(df, filename):
   print(f'Saved Markdown: {filename}')
 
 
-def post_process(df, version_number, timestamp):
-  """Processes DataFrame and saves as Markdown."""
-  if df.empty:
-    return
+def _unique_list_str(x):
+  """Helper for aggregations to create a sorted, unique, comma-separated string."""
+  return ', '.join(sorted(set(str(i) for i in x if i)))
 
+
+def generate_detailed_report(df, version_number, timestamp):
+  """Generates and saves the main detailed failure report."""
   # --- 1. Main Detailed Report ---
   md_file_main = f'gcsfuse_failed_tests_{version_number}_{timestamp}.md'
 
@@ -424,10 +426,9 @@ def post_process(df, version_number, timestamp):
 
   save_markdown(df_md, md_file_main)
 
-  # --- Helper for aggregations ---
-  def unique_list_str(x):
-    return ', '.join(sorted(set(str(i) for i in x if i)))
 
+def generate_package_summary(df, version_number, timestamp):
+  """Generates and saves the package summary report."""
   # --- 2. Package Summary Report ---
   md_file_pkg = f'gcsfuse_package_summary_{version_number}_{timestamp}.md'
 
@@ -435,9 +436,9 @@ def post_process(df, version_number, timestamp):
       df.groupby('failing_package')
       .agg(
           num_tests=('failing_test_name', 'count'),
-          unique_tests=('failing_test_name', unique_list_str),
-          unique_vms=('dir_name', unique_list_str),
-          unique_buckets=('bucket_type', unique_list_str),
+          unique_tests=('failing_test_name', _unique_list_str),
+          unique_vms=('dir_name', _unique_list_str),
+          unique_buckets=('bucket_type', _unique_list_str),
       )
       .reset_index()
   )
@@ -463,6 +464,9 @@ def post_process(df, version_number, timestamp):
 
   save_markdown(pkg_agg, md_file_pkg)
 
+
+def generate_vm_summary(df, version_number, timestamp):
+  """Generates and saves the VM summary report."""
   # --- 3. VM Summary Report ---
   md_file_vm = f'gcsfuse_vm_summary_{version_number}_{timestamp}.md'
 
@@ -470,9 +474,9 @@ def post_process(df, version_number, timestamp):
       df.groupby('dir_name')
       .agg(
           num_tests=('failing_test_name', 'count'),
-          unique_pkgs=('failing_package', unique_list_str),
-          unique_tests=('failing_test_name', unique_list_str),
-          unique_buckets=('bucket_type', unique_list_str),
+          unique_pkgs=('failing_package', _unique_list_str),
+          unique_tests=('failing_test_name', _unique_list_str),
+          unique_buckets=('bucket_type', _unique_list_str),
       )
       .reset_index()
   )
@@ -509,6 +513,16 @@ def post_process(df, version_number, timestamp):
   vm_agg = pd.concat([vm_agg, total_row_vm], ignore_index=True)
 
   save_markdown(vm_agg, md_file_vm)
+
+
+def post_process(df, version_number, timestamp):
+  """Processes DataFrame and saves reports as Markdown."""
+  if df.empty:
+    return
+
+  generate_detailed_report(df, version_number, timestamp)
+  generate_package_summary(df, version_number, timestamp)
+  generate_vm_summary(df, version_number, timestamp)
 
 
 def main():
