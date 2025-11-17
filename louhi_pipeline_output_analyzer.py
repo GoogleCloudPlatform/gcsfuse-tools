@@ -393,9 +393,6 @@ def generate_detailed_report(df, version_number, timestamp):
   md_file_main = f'gcsfuse_failed_tests_{version_number}_{timestamp}.md'
 
   df_md = df.copy().fillna('')
-  df_md['logfile_path'] = df_md['logfile_path'].str.replace(
-      '`', ''
-  )  # Clean links
 
   # Rename columns
   df_md.columns = [
@@ -554,7 +551,7 @@ def main():
   results_df = analyze_failures(version_input)
 
   if not results_df.empty:
-    print('\\nAnalysis Results:')
+    print('\nAnalysis Results:')
     post_process(results_df, version_number, timestamp)
   else:
     print('No failures found or analysis failed.')
