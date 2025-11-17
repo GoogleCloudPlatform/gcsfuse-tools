@@ -425,6 +425,21 @@ def generate_detailed_report(df, version_number, timestamp):
   save_markdown(df_md, md_file_main)
 
 
+def _add_total_row(df, first_column_name):
+  """Adds a 'TOTAL' row to the bottom of an aggregated DataFrame."""
+  total_row = pd.DataFrame([{
+      first_column_name: 'TOTAL',
+      'Number of failing tests': df['Number of failing tests'].sum(),
+      # The rest of the columns can be empty for the total row
+      **{
+          col: ''
+          for col in df.columns
+          if col not in [first_column_name, 'Number of failing tests']
+      },
+  }])
+  return pd.concat([df, total_row], ignore_index=True)
+
+
 def generate_package_summary(df, version_number, timestamp):
   """Generates and saves the package summary report."""
   # --- 2. Package Summary Report ---
@@ -451,14 +466,7 @@ def generate_package_summary(df, version_number, timestamp):
   pkg_agg = pkg_agg.sort_values(by='Number of failing tests', ascending=False)
 
   # Add Total Row
-  total_row_pkg = pd.DataFrame([{
-      'Failing package': 'TOTAL',
-      'Number of failing tests': pkg_agg['Number of failing tests'].sum(),
-      'Unique list of failing Tests': '',
-      'Unique list of VMs': '',
-      'Unique list of bucket-types': '',
-  }])
-  pkg_agg = pd.concat([pkg_agg, total_row_pkg], ignore_index=True)
+  pkg_agg = _add_total_row(pkg_agg, 'Failing package')
 
   save_markdown(pkg_agg, md_file_pkg)
 
@@ -501,14 +509,7 @@ def generate_vm_summary(df, version_number, timestamp):
   vm_agg = vm_agg.sort_values(by='Number of failing tests', ascending=False)
 
   # Add Total Row
-  total_row_vm = pd.DataFrame([{
-      'Failing VM': 'TOTAL',
-      'Number of failing tests': vm_agg['Number of failing tests'].sum(),
-      'Unique list of failing test packages': '',
-      'Unique list of failing Tests': '',
-      'Unique list of bucket-types': '',
-  }])
-  vm_agg = pd.concat([vm_agg, total_row_vm], ignore_index=True)
+  vm_agg = _add_total_row(vm_agg, 'Failing VM')
 
   save_markdown(vm_agg, md_file_vm)
 
