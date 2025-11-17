@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 import argparse
 import concurrent.futures
 from datetime import datetime
