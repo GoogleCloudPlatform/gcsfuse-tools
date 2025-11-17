@@ -122,10 +122,13 @@ class BenchmarkFactory:
         elif self.temp_dir == "boot-disk":
             volume_mount = f"-v <temp_dir_path>:{container_temp_dir}"
 
+        default_gcsfuse_flags = f"--temp-dir={container_temp_dir} -o allow_other"
+
         if gcsfuse_flags:
-            gcsfuse_flags += f" --temp-dir={container_temp_dir}"
+            # Prepend default flags. This allows user-provided flags to override defaults if needed.
+            gcsfuse_flags = f"{default_gcsfuse_flags} {gcsfuse_flags}"
         else:
-            gcsfuse_flags = f"--temp-dir={container_temp_dir}"
+            gcsfuse_flags = default_gcsfuse_flags
 
         base_cmd = (
             "docker run --pull=always --network=host --privileged --rm "
