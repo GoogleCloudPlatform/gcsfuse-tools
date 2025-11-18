@@ -18,6 +18,17 @@ Before running the script, ensure you have the following prerequisites met:
     *   Pull Docker images from Google Artifact Registry (`us-docker.pkg.dev`).
     *   Read and write to the specified GCS bucket.
     *   Create tables and insert data into the specified BigQuery dataset.
+4.  **VM Scopes (If using a GCE VM):** The service account associated with the Google Compute Engine VM must have the appropriate access scopes.
+    *   **To set the scopes, run the following command from your local terminal or Cloud Shell (not from within the VM itself):**
+        ```sh
+        gcloud compute instances set-service-account YOUR_VM_NAME \
+            --project=YOUR_GCP_PROJECT_ID \
+            --zone=YOUR_VM_ZONE \
+            --scopes=bigquery,storage-rw,cloud-platform
+        ```
+    *   Replace `YOUR_VM_NAME`, `YOUR_GCP_PROJECT_ID`, and `YOUR_VM_ZONE` with your specific values.
+    *   The `cloud-platform` scope provides broad access. For a more secure setup, you can provide a comma-separated list of more restrictive scopes, ensuring at least `bigquery` and `storage-rw` are included.
+
 4.  **lscpu:** The `lscpu` command-line utility is required for NUMA-aware benchmarks (e.g., `read_http1_numa0_fio_bound`). This tool is typically part of the `util-linux` package. If it's not available, NUMA-pinned benchmarks will be skipped.
 
 ### Authentication: Google Cloud Access
@@ -84,13 +95,49 @@ The `lscpu` command-line utility is essential for NUMA-aware benchmarks (e.g., `
     cd gcsfuse-tools/npi
     ```
 ## Prerequisites
-...
+### Publishing FIO Images
+The FIO images can be built and published using Google Cloud Build via the provided `Makefile`, which simplifies the process.
 
-## Publishing FIO Images
+### Project and Registry Setup
 
-The FIO images can be built and published using Google Cloud Build.
+By default, the build process uses the `gcs-fuse-test` project. If you wish to use a different Google Cloud project, you must perform the following setup steps first.
+
+1.  **Enable the Artifact Registry API:**
+    ```sh
+    gcloud services enable artifactregistry.googleapis.com --project=YOUR_PROJECT_ID
+    ```
+
+2.  **Create the Docker Repository:**
+    The build process expects a Docker repository named `gcsfuse-benchmarks`. Create it if it doesn't exist.
+    ```sh
+    gcloud artifacts repositories create gcsfuse-benchmarks \
+        --repository-format=docker \
+        --location=us \
+        --project=YOUR_PROJECT_ID
+    ```
+    Replace `YOUR_PROJECT_ID` with your target project ID in the commands above.
+
+### Updating the Makefile
+
+For a permanent change of the target project, you can edit the `Makefile` in this directory and update the `PROJECT` variable:
+
+```makefile
+# In Makefile
+PROJECT=your-new-project-id
+```
+
+
+### Using Make (Recommended)
+
+To build the images with default versions specified in the `Makefile`:
 ```sh
-gcloud builds submit . --config=cloudbuild.yaml --substitutions=_GCSFUSE_VERSION=<gcsfuse_version>
+make
+```
+
+To override the GCSfuse version, you can pass it as a variable to the `make` command. This is useful for building images for a specific version of GCSfuse.
+
+```sh
+make GCSFUSE_VERSION=<gcsfuse_version>
 ```
 Replace `<gcsfuse_version>` with the desired GCSfuse version (e.g., `v3.2.0`).
 
