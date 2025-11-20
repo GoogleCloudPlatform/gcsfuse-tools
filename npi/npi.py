@@ -10,11 +10,11 @@ HTTP/1.1 or gRPC, and pinning to specific NUMA nodes.
 
 Usage:
   python3 npi.py --benchmarks <benchmark_names> --bucket-name <bucket> \\
-    --bq-project-id <project> --bq-dataset-id <dataset> --gcsfuse-version <version>
+    --project-id <project> --bq-dataset-id <dataset> --gcsfuse-version <version>
 
 Example:
   python3 npi.py --benchmarks read_http1 write_grpc --bucket-name my-bucket \\
-    --bq-project-id my-bq-project --bq-dataset-id my_bq_dataset --gcsfuse-version v1.2.0
+    --project-id my-bq-project --bq-dataset-id my_bq_dataset --gcsfuse-version v1.2.0
 """
 
 import argparse
@@ -37,7 +37,7 @@ class BenchmarkFactory:
 
     Attributes:
         bucket_name (str): The GCS bucket to use for the benchmarks.
-        bq_project_id (str): The BigQuery project ID for storing results.
+        project_id (str): The BigQuery project ID for storing results.
         bq_dataset_id (str): The BigQuery dataset ID for storing results.
         gcsfuse_version (str): The GCSfuse version to use.
         iterations (int): The number of iterations for each benchmark.
@@ -45,19 +45,19 @@ class BenchmarkFactory:
             'boot-disk').
     """
 
-    def __init__(self, bucket_name, bq_project_id, bq_dataset_id, gcsfuse_version, iterations, temp_dir):
+    def __init__(self, bucket_name, project_id, bq_dataset_id, gcsfuse_version, iterations, temp_dir):
         """Initializes the BenchmarkFactory.
 
         Args:
             bucket_name (str): The GCS bucket name.
-            bq_project_id (str): The BigQuery project ID.
+            project_id (str): The BigQuery project ID.
             bq_dataset_id (str): The BigQuery dataset ID.
             gcsfuse_version (str): The GCSfuse version.
             iterations (int): The number of benchmark iterations.
             temp_dir (str): The temporary directory type.
         """
         self.bucket_name = bucket_name
-        self.bq_project_id = bq_project_id
+        self.project_id = project_id
         self.bq_dataset_id = bq_dataset_id
         self.gcsfuse_version = gcsfuse_version
         self.iterations = iterations
@@ -82,7 +82,7 @@ class BenchmarkFactory:
         command_func = self._benchmark_definitions[name]
         return command_func(
             bucket_name=self.bucket_name,
-            bq_project_id=self.bq_project_id,
+            project_id=self.project_id,
             bq_dataset_id=self.bq_dataset_id
         )
 
@@ -95,7 +95,7 @@ class BenchmarkFactory:
         return list(self._benchmark_definitions.keys())
 
     def _create_docker_command(self, benchmark_image_suffix, bq_table_id,
-                               bucket_name, bq_project_id, bq_dataset_id,
+                               bucket_name, project_id, bq_dataset_id,
                                gcsfuse_flags=None, cpu_list=None, bind_fio=None):
         """Helper to construct the full docker run command.
 
@@ -106,7 +106,7 @@ class BenchmarkFactory:
             benchmark_image_suffix (str): The suffix for the benchmark Docker image.
             bq_table_id (str): The BigQuery table ID for the results.
             bucket_name (str): The GCS bucket name.
-            bq_project_id (str): The BigQuery project ID.
+            project_id (str): The BigQuery project ID.
             bq_dataset_id (str): The BigQuery dataset ID.
             gcsfuse_flags (str, optional): Additional flags for GCSfuse.
             cpu_list (str, optional): The list of CPUs to pin the container to.
@@ -133,10 +133,10 @@ class BenchmarkFactory:
         base_cmd = (
             "docker run --pull=always --network=host --privileged --rm "
             f"{volume_mount} "
-            f"us-docker.pkg.dev/{bq_project_id}/gcsfuse-benchmarks/{benchmark_image_suffix}-{self.gcsfuse_version}:latest "
+            f"us-docker.pkg.dev/{project_id}/gcsfuse-benchmarks/{benchmark_image_suffix}-{self.gcsfuse_version}:latest "
             f"--iterations={self.iterations} "
             f"--bucket-name={bucket_name} "
-            f"--bq-project-id={bq_project_id} "
+            f"--project-id={project_id} "
             f"--bq-dataset-id={bq_dataset_id} "
             f"--bq-table-id={bq_table_id}"
         )
@@ -305,7 +305,7 @@ def main():
         help="Space-separated list of benchmarks to run. Use 'all' to run all available benchmarks."
     )
     parser.add_argument("--bucket-name", required=True, help="Name of the GCS bucket to use.")
-    parser.add_argument("--bq-project-id", required=True, help="BigQuery project ID for results.")
+    parser.add_argument("--project-id", required=True, help="Project ID for results.")
     parser.add_argument("--bq-dataset-id", required=True, help="BigQuery dataset ID for results.")
     parser.add_argument("--gcsfuse-version", required=True, help="GCSFuse version to use for benchmark images (e.g., 'master', 'v1.2.0').")
     parser.add_argument(
@@ -330,7 +330,7 @@ def main():
 
     factory = BenchmarkFactory(
         bucket_name=args.bucket_name,
-        bq_project_id=args.bq_project_id,
+        project_id=args.project_id,
         bq_dataset_id=args.bq_dataset_id,
         gcsfuse_version=args.gcsfuse_version,
         iterations=args.iterations,
@@ -348,7 +348,7 @@ def main():
 
     print(f"Starting benchmark orchestration...")
     print(f"Benchmarks to run: {', '.join(benchmarks_to_run)}")
-    print(f"BigQuery Target: {args.bq_project_id}.{args.bq_dataset_id}")
+    print(f"BigQuery Target: {args.project_id}.{args.bq_dataset_id}")
 
     # Run benchmarks sequentially on the local machine.
     failed_benchmarks = []
