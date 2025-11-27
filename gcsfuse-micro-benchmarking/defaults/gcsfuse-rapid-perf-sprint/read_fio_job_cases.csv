@@ -1,0 +1,11 @@
+bs,file_size,iodepth,iotype,threads,nrfiles
+1MB,1GB,1,read,1,1
+1MB,1GB,1,read,48,1
+64KB,1GB,1,randread,1,1
+16MB,1GB,1,randread,1,1
+64KB,1GB,4,randread,1,1
+16MB,1GB,4,randread,1,1
+64KB,1GB,1,randread,48,1
+16MB,1GB,1,randread,48,1
+4KB,1GB,1,randread,48,1
+4KB,1GB,4,randread,48,1
