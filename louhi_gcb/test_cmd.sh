@@ -1,0 +1,1 @@
+cloud-build-local --config=test_package_on_gce_vm.yaml --dryrun=false --substitutions=_PROJECT_ID=gcs-fuse-test,_IMAGE_FAMILY=ubuntu-2204-lts,_IMAGE_PROJECT=ubuntu-os-cloud,_ZONE=us-south1-a,_RELEASE_VERSION=0.0.7,_DOCKER_SUFFIX=,_UPLOAD_BUCKET=gcsfuse-release-packages,_MACHINE_TYPE=n2-standard-48,_ZONAL=,_READ_CACHE=,_RUN_LIGHT_TEST=true .
