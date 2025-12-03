@@ -43,7 +43,7 @@ python3 run_fio_benchmark.py [OPTIONS]
 -   `--work-dir`: (Optional) A temporary directory for builds and mounts. Default is `/tmp/gcsfuse_benchmark`.
 -   `--output-dir`: (Optional) Directory to save FIO JSON output files. Default is `./fio_results`.
 -   `--skip-deps-install`: (Optional) Skip the automatic dependency installation check.
--   `--bq-project-id`: (Optional) BigQuery project ID to upload results to. If provided, `--bq-dataset-id` and `--bq-table-id` must also be set.
+-   `--project-id`: (Optional) Project ID to upload results to. If provided, `--bq-dataset-id` and `--bq-table-id` must also be set.
 -   `--bq-dataset-id`: (Optional) BigQuery dataset ID.
 -   `--bq-table-id`: (Optional) BigQuery table ID.
 

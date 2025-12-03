@@ -153,7 +153,7 @@ python3 npi.py [OPTIONS]
 
 *   -b, --benchmarks: (Optional) A space-separated list of benchmark names to run. Use 'all' to run all available benchmarks. Defaults to 'all'.
 *   `--bucket-name`: (Required) The name of the GCS bucket to use for the benchmarks.
-*   `--bq-project-id`: (Required) The Google Cloud Project ID where the BigQuery dataset resides.
+*   `--project-id`: (Required) The Google Cloud Project ID where the BigQuery dataset resides.
 *   `--bq-dataset-id`: (Required) The BigQuery dataset ID to store the benchmark results.
 *   `--gcsfuse-version`: (Required) The GCSfuse version to test (e.g., `'v3.4.0'`). This version is used to pull the corresponding benchmark Docker images.
 *   `--iterations`: (Optional) The number of times to run each FIO test within a benchmark. Defaults to `5`.
@@ -235,7 +235,7 @@ Run the `read` benchmark using the `HTTP/1.1` protocol.
 python3 npi.py \
     --benchmarks read_http1 \
     --bucket-name my-gcs-bucket \
-    --bq-project-id my-gcp-project \
+    --project-id my-gcp-project \
     --bq-dataset-id my_benchmark_dataset \
     --gcsfuse-version 'master'
 ```
@@ -248,7 +248,7 @@ Run the `write` benchmark with both `HTTP/1.1` and `gRPC` protocols.
 python3 npi.py \
     --benchmarks write_http1 write_grpc \
     --bucket-name my-gcs-bucket \
-    --bq-project-id my-gcp-project \
+    --project-id my-gcp-project \
     --bq-dataset-id my_benchmark_dataset \
     --gcsfuse-version 'v1.3.0'
 ```
@@ -261,7 +261,7 @@ Run all defined benchmarks and use an in-memory temporary directory.
 python3 npi.py \
     --benchmarks 'all' \
     --bucket-name my-gcs-bucket \
-    --bq-project-id my-gcp-project \
+    --project-id my-gcp-project \
     --bq-dataset-id my_benchmark_dataset \
     --gcsfuse-version 'master' \
     --temp-dir 'memory'
@@ -275,7 +275,7 @@ Print the commands for all benchmarks without executing them.
 python3 npi.py \
     --benchmarks 'all' \
     --bucket-name my-gcs-bucket \
-    --bq-project-id my-gcp-project \
+    --project-id my-gcp-project \
     --bq-dataset-id my_benchmark_dataset \
     --gcsfuse-version 'master' \
     --dry-run
