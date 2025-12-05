@@ -35,17 +35,16 @@ python3 run_fio_benchmark.py [OPTIONS]
 ### Arguments
 
 -   `--gcsfuse-version`: (Required) The GCSFuse version to test (e.g., `v1.2.0`, `master`, or a commit hash).
--   `--project-id`: (Required) Your Google Cloud Project ID.
+-   `--project-id`: (Required) Your Google Cloud Project ID. Results will be uploaded to this project's BigQuery.
 -   `--location`: (Required) The GCP location (region or zone) for the GCS bucket (e.g., `us-central1`).
 -   `--fio-config`: (Required) Path to the FIO configuration file.
+-   `--bq-dataset-id`: (Required) BigQuery dataset ID.
+-   `--bq-table-id`: (Required) BigQuery table ID.
 -   `--gcsfuse-flags`: (Optional) Flags for GCSFuse, enclosed in quotes (e.g., `"--implicit-dirs --max-conns-per-host 100"`). Default is empty.
 -   `--iterations`: (Optional) Number of FIO test iterations. Default is `1`.
 -   `--work-dir`: (Optional) A temporary directory for builds and mounts. Default is `/tmp/gcsfuse_benchmark`.
 -   `--output-dir`: (Optional) Directory to save FIO JSON output files. Default is `./fio_results`.
 -   `--skip-deps-install`: (Optional) Skip the automatic dependency installation check.
--   `--project-id`: (Optional) Project ID to upload results to. If provided, `--bq-dataset-id` and `--bq-table-id` must also be set.
--   `--bq-dataset-id`: (Optional) BigQuery dataset ID.
--   `--bq-table-id`: (Optional) BigQuery table ID.
 
 ### Example
 
@@ -80,7 +79,9 @@ python3 run_fio_benchmark.py [OPTIONS]
         --location us-central1 \
         --fio-config ./sample.fio \
         --gcsfuse-flags "--implicit-dirs" \
-        --iterations 3
+        --iterations 3 \
+        --bq-dataset-id your-bq-dataset-id \
+        --bq-table-id your-bq-dataset-table-id \
     ```
 
 ## Output
