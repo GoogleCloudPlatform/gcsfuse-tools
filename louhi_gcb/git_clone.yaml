@@ -1,0 +1,17 @@
+# Access the id_github file from Secret Manager, and setup SSH
+substitutions:
+  _COMMIT_HASH: 'master'
+
+# Clone the repository to louhi workspace
+steps:
+- name: 'gcr.io/cloud-builders/git'
+  id: 'clone the repo'
+  dir: '/workspace/louhi_ws'
+  entrypoint: 'bash'
+  args:
+  - -exc
+  - |
+    git clone https://github.com/googlecloudplatform/gcsfuse
+    cd gcsfuse
+    git checkout ${_COMMIT_HASH}
+    git pull origin ${_COMMIT_HASH}

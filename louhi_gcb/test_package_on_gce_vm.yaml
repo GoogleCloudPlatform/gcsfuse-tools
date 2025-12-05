@@ -11,7 +11,6 @@ substitutions:
   _READ_CACHE: ''
   _RUN_LIGHT_TEST: ''
   _COMMIT_HASH: ''
-
 steps:
 - name: 'gcr.io/cloud-builders/git'
   id: 'clone the repo'
@@ -36,14 +35,19 @@ steps:
 #   Pre test run cleanup
 - name: 'gcr.io/cloud-builders/gcloud'
   id: 'cleanup test vm and logs'
-#   allowFailure: true
   entrypoint: 'bash'
   args:
   - -c
   - |
-    vm_name=release-test${_ZONAL}${_READ_CACHE}-${_IMAGE_FAMILY}${_DOCKER_SUFFIX}
-    gcloud compute instances delete ${vm_name} --zone=${_ZONE}
-    gsutil rm -r gs://${_UPLOAD_BUCKET}/v${_RELEASE_VERSION}/${vm_name}/
+    if [[ "${_UPLOAD_BUCKET}" == "test-release-flow" ]]; then
+      echo "cleaning up test vm"
+      vm_name=test-release-flow-vm
+    else
+      echo "_VM_NAME is not set, deriving from other substitutions"
+      vm_name=release-test${_ZONAL}${_READ_CACHE}-${_IMAGE_FAMILY}${_DOCKER_SUFFIX}
+    fi
+    gcloud compute instances delete ${vm_name} --zone=${_ZONE} --quiet || true
+    gsutil rm -r gs://${_UPLOAD_BUCKET}/v${_RELEASE_VERSION}/${vm_name}/ || true
 
     echo "cleanup completed for vm"
 
@@ -63,13 +67,20 @@ steps:
     if [[ "${_READ_CACHE}" == "-read-cache-only" ]]; then
         run_read_cache_only=true
     fi
-    vm_name=release-test${_ZONAL}${_READ_CACHE}-${_IMAGE_FAMILY}${_DOCKER_SUFFIX}
+
+    if [[ "${_UPLOAD_BUCKET}" == "test-release-flow" ]]; then
+      echo "Using test flow vm"
+      vm_name=test-release-flow-vm
+    else
+      echo "_VM_NAME is not set, deriving from other substitutions"
+      vm_name=release-test${_ZONAL}${_READ_CACHE}-${_IMAGE_FAMILY}${_DOCKER_SUFFIX}
+    fi
     gcloud compute instances create ${vm_name} \
     --machine-type=${_MACHINE_TYPE} --image-family=${_IMAGE_FAMILY} \
     --image-project=${_IMAGE_PROJECT} --zone=${_ZONE} \
     --scopes=https://www.googleapis.com/auth/cloud-platform,https://www.googleapis.com/auth/devstorage.read_write \
     --reservation-affinity=specific \
-    --reservation=projects/${_PROJECT_ID}/reservations/release-e2e-test${_ZONAL}${_READ_CACHE}-${_IMAGE_FAMILY} \
+    --reservation=projects/${_PROJECT_ID}/reservations/${vm_name} \
     --boot-disk-size=75GiB \
     --metadata run-on-zb-only=${run_on_zb_only},run-read-cache-only=${run_read_cache_only},run-light-test=${_RUN_LIGHT_TEST} \
     --metadata-from-file=startup-script=e2e_test.sh
@@ -78,7 +89,6 @@ steps:
 - name: 'gcr.io/cloud-builders/gsutil'
   id: 'wait for the script to finish'
   entrypoint: 'bash'
-#   allowFailure: true
   args:
   - -exc
   - |
