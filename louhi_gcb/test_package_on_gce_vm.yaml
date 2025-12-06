@@ -1,0 +1,181 @@
+substitutions:
+  _PROJECT_ID: 'gcs-fuse-test'
+  _IMAGE_FAMILY: ''
+  _IMAGE_PROJECT: ''
+  _ZONE: 'us-south1-a'
+  _RELEASE_VERSION: ''
+  _DOCKER_SUFFIX: ''
+  _UPLOAD_BUCKET: 'gcsfuse-release-packages'
+  _MACHINE_TYPE: 'n2-standard-48'
+  _ZONAL: ''
+  _READ_CACHE: ''
+  _RUN_LIGHT_TEST: ''
+  _COMMIT_HASH: ''
+steps:
+- name: 'gcr.io/cloud-builders/git'
+  id: 'clone the repo'
+  dir: '/workspace/louhi_ws'
+  entrypoint: 'bash'
+  args:
+  - -exc
+  - |
+    git clone https://github.com/googlecloudplatform/gcsfuse
+    cd gcsfuse
+    git checkout ${_COMMIT_HASH}
+    git pull origin ${_COMMIT_HASH}
+    
+- name: 'gcr.io/cloud-builders/gcloud'
+  id: 'set the project id'
+  args:
+  - 'config'
+  - 'set'
+  - 'project'
+  - '${_PROJECT_ID}'
+
+#   Pre test run cleanup
+- name: 'gcr.io/cloud-builders/gcloud'
+  id: 'cleanup test vm and logs'
+  entrypoint: 'bash'
+  args:
+  - -c
+  - |
+    if [[ "${_UPLOAD_BUCKET}" == "test-release-flow" ]]; then
+      echo "cleaning up test vm"
+      vm_name=test-release-flow-vm
+    else
+      echo "_VM_NAME is not set, deriving from other substitutions"
+      vm_name=release-test${_ZONAL}${_READ_CACHE}-${_IMAGE_FAMILY}${_DOCKER_SUFFIX}
+    fi
+    gcloud compute instances delete ${vm_name} --zone=${_ZONE} --quiet || true
+    gsutil rm -r gs://${_UPLOAD_BUCKET}/v${_RELEASE_VERSION}/${vm_name}/ || true
+
+    echo "cleanup completed for vm"
+
+#   Run tests on GCP VMs
+- name: 'gcr.io/cloud-builders/gcloud'
+  id: 'start vm instance with starter script'
+  dir: '/workspace/louhi_ws/gcsfuse/tools/cd_scripts'
+  entrypoint: 'bash'
+  args:
+  - -c
+  - |
+    run_on_zb_only=false
+    if [[ "${_ZONAL}" == "-zonal" ]]; then
+        run_on_zb_only=true
+    fi
+    run_read_cache_only=false
+    if [[ "${_READ_CACHE}" == "-read-cache-only" ]]; then
+        run_read_cache_only=true
+    fi
+
+    if [[ "${_UPLOAD_BUCKET}" == "test-release-flow" ]]; then
+      echo "Using test flow vm"
+      vm_name=test-release-flow-vm
+    else
+      echo "_VM_NAME is not set, deriving from other substitutions"
+      vm_name=release-test${_ZONAL}${_READ_CACHE}-${_IMAGE_FAMILY}${_DOCKER_SUFFIX}
+    fi
+    gcloud compute instances create ${vm_name} \
+    --machine-type=${_MACHINE_TYPE} --image-family=${_IMAGE_FAMILY} \
+    --image-project=${_IMAGE_PROJECT} --zone=${_ZONE} \
+    --scopes=https://www.googleapis.com/auth/cloud-platform,https://www.googleapis.com/auth/devstorage.read_write \
+    --reservation-affinity=specific \
+    --reservation=projects/${_PROJECT_ID}/reservations/${vm_name} \
+    --boot-disk-size=75GiB \
+    --metadata run-on-zb-only=${run_on_zb_only},run-read-cache-only=${run_read_cache_only},run-light-test=${_RUN_LIGHT_TEST} \
+    --metadata-from-file=startup-script=e2e_test.sh
+
+# Wait for tests to complete
+- name: 'gcr.io/cloud-builders/gsutil'
+  id: 'wait for the script to finish'
+  entrypoint: 'bash'
+  args:
+  - -exc
+  - |
+    vm_name=release-test${_ZONAL}${_READ_CACHE}-${_IMAGE_FAMILY}${_DOCKER_SUFFIX}
+    verify_dir=gs://${_UPLOAD_BUCKET}/v${_RELEASE_VERSION}/${vm_name}/*.txt
+    # sleep for expected finish time ~5 min
+    sleep 300
+    #max 20 retries amounting to ~2hr40min time
+    RETRIES=30
+    RETRY_COUNT=1
+    log_files=()
+
+    verify_all_files_present(){
+       dir=$1
+       shift
+       files=("$@")
+
+       for file in "${files[@]}"; do
+            found=$(gsutil ls "$dir" | grep "$file")
+            if [[ -z $found ]]; then
+                echo 0  # File Not Found
+                return
+            fi
+        done
+
+        echo 1
+    }
+    if [[ "${_READ_CACHE}" == "-read-cache-only" ]]; then
+        log_files=("logs.txt" "logs-hns.txt" "logs-zonal.txt")
+    elif [[ "${_ZONAL}" == "-zonal" ]]; then
+        log_files=("logs-zonal.txt")
+    else
+        log_files=("logs.txt" "logs-hns.txt" "logs-emulator.txt")
+    fi
+    while [[ $(verify_all_files_present "$verify_dir" "${log_files[@]}") != 1 ]] ; do
+        echo "[Try $${RETRY_COUNT} of $${RETRIES}] Waiting for script to finish"
+        if [ "$${RETRY_COUNT}" == "$${RETRIES}" ]; then
+            echo "Retry limit reached, perhaps there is some error"
+            exit 1
+        fi
+        RETRY_COUNT=$(($${RETRY_COUNT}+1))
+        sleep 480
+    done
+
+# Delete vm instance if tests complete successfully
+# Fail the stage is tests are unsuccessful
+- name: 'gcr.io/cloud-builders/gcloud'
+  id: 'check test status & delete instance'
+  entrypoint: 'bash'
+  args:
+  - -exc
+  - |
+    vm_name=release-test${_ZONAL}${_READ_CACHE}-${_IMAGE_FAMILY}${_DOCKER_SUFFIX}
+    verify_dir=gs://${_UPLOAD_BUCKET}/v${_RELEASE_VERSION}/${vm_name}/*.txt
+    log_files=()
+
+    verify_all_files_present(){
+       dir=$1
+       shift
+       files=("$@")
+
+       for file in "${files[@]}"; do
+            found=$(gsutil ls "$dir" | grep "$file")
+            if [[ -z $found ]]; then
+                echo 0  # File Not Found
+                return
+            fi
+        done
+
+        echo 1
+    }
+    if [[ "${_READ_CACHE}" == "-read-cache-only" ]]; then
+        log_files=("success.txt" "success-hns.txt" "success-zonal.txt")
+    elif [[ "${_ZONAL}" == "-zonal" ]]; then
+        log_files=("success-zonal.txt")
+    else
+        log_files=("success.txt" "success-hns.txt" "success-emulator.txt")
+    fi
+
+
+    # If the success logs were not generated, this indicates that the tests have failed.
+    if  [[ $(verify_all_files_present "$verify_dir" "${log_files[@]}") != 1 ]] ; then
+        echo "Tests failed, aborting deletion of the VM instance for debugging purposes and failing this stage."
+        exit 1
+    fi
+
+    # If all the success logs were generated, we can safely proceed with deleting the VM instance.
+    echo "Tests passed, deleting instance..."
+    gcloud compute instances delete "${vm_name}" --zone="${_ZONE}"
+timeout: 15000s
