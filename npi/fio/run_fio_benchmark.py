@@ -42,8 +42,8 @@ def main():
         help="If set, bind the FIO process to the CPUs specified in --cpu-limit-list."
     )
     parser.add_argument("--project-id", required=True, default=None, help="Project ID to upload results.")
-    parser.add_argument("--bq-dataset-id", required=True, default=None, help="BigQuery dataset ID.")
-    parser.add_argument("--bq-table-id", required=True, default=None, help="BigQuery table ID.")
+    parser.add_argument("--bq-dataset-id", default=None, help="BigQuery dataset ID.")
+    parser.add_argument("--bq-table-id", default=None, help="BigQuery table ID.")
     args = parser.parse_args()
 
     fio_benchmark_runner.run_benchmark(

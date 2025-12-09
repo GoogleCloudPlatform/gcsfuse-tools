@@ -263,9 +263,8 @@ def upload_results_to_bq(
 
 
 def run_benchmark(
-    gcsfuse_flags, bucket_name, iterations, fio_config, work_dir, output_dir,
-    fio_env=None, summary_file=None, cpu_limit_list=None, bind_fio=False,
-    project_id, bq_dataset_id, bq_table_id
+    gcsfuse_flags, bucket_name, iterations, fio_config, work_dir, output_dir, project_id, 
+    fio_env=None, summary_file=None, cpu_limit_list=None, bind_fio=False, bq_dataset_id=None, bq_table_id=None
 ):
     """Runs the full FIO benchmark suite."""
     os.makedirs(work_dir, exist_ok=True)
