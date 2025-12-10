@@ -1,0 +1,14 @@
+*.log
+*.pyc
+__pycache__/
+scenario_config
+scenario_specific_config
+workflow_config
+.venv/
+*.stderr
+sample_*.txt
+.git_corrupt
+mounts
+test_buckets
+tasks
+shared/coherency-validation/python/sample_text_file
