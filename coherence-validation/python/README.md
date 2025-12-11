@@ -11,9 +11,12 @@ This tool facilitates comprehensive validation of `gcsfuse` consistency, coheren
 5.  [Workflow 1: single_node_single_mount](#workflow-1-single_node_single_mount)
 6.  [Workflow 2: single_node_dual_mounts](#workflow-2-single_node_dual_mounts)
 7.  [Workflow 3: dual_node_mounts](#workflow-3-dual_node_mounts)
-8.  [Configuration](#configuration)
-9.  [Logging & Debugging](#logging--debugging)
-10. [Troubleshooting](#troubleshooting)
+8.  [Scenario Management & Aliases](#scenario-management--aliases)
+9.  [File System Operations Reference](#file-system-operations-reference)
+10. [Asynchronous & Interactive Operations](#asynchronous--interactive-operations)
+11. [Configuration](#configuration)
+12. [Logging & Debugging](#logging--debugging)
+13. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -39,7 +42,7 @@ This tool requires **Two Distinct GCS Buckets**:
 
 ### 1. VM Provisioning
 *   **Single Node Workflows:** Require 1 VM.
-*   **Dual Node Workflow:** Requires **2 VMs** (VM1/Leader and VM2/Follower).
+*   **Dual Node Workflow:** Requires **2 VMs** (referred to as VM1/Leader and VM2/Follower).
 *   **OS:** Linux (Ubuntu/Debian recommended).
 *   **Dependencies:** Python 3, Go (for direct I/O tests), `gcsfuse` installed.
 
@@ -65,7 +68,7 @@ You need to populate your `SHARED_BUCKET` with the tool code.
     ```bash
     cd /tmp
     git clone https://github.com/GoogleCloudPlatform/gcsfuse-tools.git
-
+    
     # Copy the python tools to the shared mount if not already present
     if [ ! -d "$HOME/work/shared/coherency-validation" ]; then
         mkdir -p $HOME/work/shared/coherency-validation
@@ -75,7 +78,7 @@ You need to populate your `SHARED_BUCKET` with the tool code.
     else
         echo "Tool code already exists in shared bucket."
     fi
-
+    
     rm -rf /tmp/gcsfuse-tools
     ```
 
@@ -97,10 +100,10 @@ mkdir -p $HOME/work/test_buckets
 You must tell the tool which bucket to use for the actual testing.
 *   Open `$HOME/work/shared/coherency-validation/python/dual_node_mounts/config.py`.
 *   Locate the variable `BUCKET_NAME`.
-*   Change it to your **Test Target Bucket** (e.g., `<user>-test-hns-<region>`).
+*   Change it to your **Test Target Bucket** (e.g., `<user>-test-hns-asiase1`).
     ```python
     # dual_node_mounts/config.py
-    BUCKET_NAME = "my-test-bucket-name"
+    BUCKET_NAME = "my-test-bucket-name" 
     ```
 *   *Repeat for `single_node_dual_mounts/config.py` and `single_node_single_mount/config.py` if running those workflows.*
 
@@ -194,6 +197,95 @@ Coordinated testing between VM1 (Leader) and VM2 (Follower). Logs are stored in 
 
 3.  **Completion:**
     *   Run `complete_scenario` (on either VM) to clean up.
+
+---
+
+## Scenario Management & Aliases
+
+These high-level aliases manage the lifecycle of a test scenario.
+
+*   `execute_scenario [ID]`: Starts a scenario (in step mode) or joins an existing one. Resets mounts and prepares the environment.
+*   `complete_scenario` / `mark_scenario_completed`: Marks the current scenario as successfully finished. Cleans up temporary state files and finalizes the log. **Must be run at the end of every scenario.**
+*   `abort_scenario` / `abort_current_scenario`: Forcibly stops the current scenario without marking it as success. Useful if a test hangs or you want to restart.
+*   `fail_scenario`: Explicitly marks the scenario as FAILED in the log and cleans up.
+
+---
+
+## File System Operations Reference
+
+These aliases run the actual file system tests. They often have assertions built-in (e.g., `readfileandfail` expects the read to fail).
+
+**Basic File Operations**
+*   `createfile`: Creates `sample.txt` with default content.
+*   `createfilewith2ndcontent`: Creates `sample.txt` with "sample_content2".
+*   `create2ndfile`: Creates `sample2.txt`.
+*   `readfile`: Reads `sample.txt` and prints content.
+*   `readfilehasoriginalcontent`: Reads `sample.txt` and asserts it contains "sample_content".
+*   `readfilehasupdatedcontent`: Reads `sample.txt` and asserts it contains "sample_content2".
+*   `updatefile`: Overwrites `sample.txt` with new content.
+*   `deletefile`: Deletes `sample.txt`.
+*   `listfile`: Checks if `sample.txt` exists (via `ls`).
+*   `renamefile`: Renames `sample.txt` to `sample2.txt`.
+
+**Negative Testing (Expect Failure)**
+*   `readfileandfail`: Tries to read `sample.txt`, succeeds if the read FAILS.
+*   `listfileandfail`: Tries to list `sample.txt`, succeeds if it does NOT exist.
+*   `read2ndfileandfail`: Tries to read `sample2.txt`, succeeds if it FAILS.
+
+**Directory Operations**
+*   `createdir`: Creates `sample_dir`.
+*   `listdir`: Checks if `sample_dir` exists.
+*   `deletedir`: Deletes `sample_dir`.
+*   `renamedir`: Renames `sample_dir` to `sample_dir2`.
+*   `listdirandfail`: Checks if `sample_dir` does NOT exist.
+
+**Symlink Operations**
+*   `createsymlink`: Creates `sample.lnk` pointing to `sample.txt`.
+*   `listsymlink`: Checks if the symlink exists.
+*   `readfromsymlink`: Reads the target content via the symlink.
+*   `deletesymlink`: Deletes the symlink.
+*   `listsymlinkandfail`: Checks if symlink is gone.
+
+**Advanced I/O (Go-based)**
+*   `writedirectfile`: Writes using `O_DIRECT`.
+*   `readdirectfile`: Reads using `O_DIRECT`.
+*   `writefilewithoutsync`: Writes without calling `fsync()`.
+*   `writebigfile`: Writes a large (2GB) file.
+*   `writebigfileconcurrently`: Spawns multiple threads to write to the same large file simultaneously (stress test).
+
+---
+
+## Asynchronous & Interactive Operations
+
+### Asynchronous Operations
+Some operations, particularly those involving large file writes in stress tests, run in the background.
+
+*   **`writebigfileasync`**: Starts writing a large file (2GB) in the background.
+*   **`writedirectbigfileasync`**: Starts writing a large file with `O_DIRECT` in the background.
+*   **`waitforbackgroundjobs`**: Blocks until all currently running background jobs (started by the above commands) have finished.
+
+**Usage Pattern:**
+```bash
+# Start simultaneous writes (e.g., in a dual-node scenario)
+mount1
+writebigfileasync &  # Start job 1
+mount2
+writebigfileasync &  # Start job 2
+waitforbackgroundjobs # Wait for both to finish
+```
+
+### Interactive / Blocking Operations
+These operations intentionally block execution to simulate specific file handle states (e.g., holding a file open without flushing). **You must manually interrupt them.**
+
+*   **`writefilewithoutflush`**: Writes data but does NOT close the file descriptor. It hangs indefinitely to keep the handle open.
+*   **`writedirectfilewithoutflush`**: Same as above, but with `O_DIRECT`.
+*   **`writefilewithoutsyncorflush`**: Same as above, but also skips `fsync()`.
+
+**Usage Pattern:**
+1.  Run the command: `writefilewithoutflush`
+2.  The terminal will show: `>> Waiting for interrupt signal (Ctrl+C) to exit...`
+3.  Perform your check (e.g., verify file visibility from another mount).
+4.  Press **Ctrl+C** to interrupt the process, forcing it to close the handle and (usually) flush data.
 
 ---
 
