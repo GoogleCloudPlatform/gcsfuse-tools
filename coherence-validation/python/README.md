@@ -45,14 +45,69 @@ This tool requires **Two Distinct GCS Buckets**:
 *   **Single Node Workflows:** Require 1 VM.
 *   **Dual Node Workflow:** Requires **2 VMs** (referred to as VM1/Leader and VM2/Follower).
 *   **OS:** Linux (Ubuntu/Debian recommended).
-*   **Dependencies:** Python 3, Go (for direct I/O tests), `gcsfuse` installed.
 
-### 2. Configure Hostnames (For Dual Node)
+### 2. Software Installation (On All VMs)
+
+You must install Go, GCS Fuse, and Python on all VMs involved in the testing.
+
+**a. Install Go (Version 1.24.10)**
+The tool uses Go for direct I/O operations (`write.go`, `read.go`).
+```bash
+# Remove any existing installation
+sudo rm -rf /usr/local/go
+
+# Download and install (Adjust OS/Arch if not linux-amd64)
+# Note: Ensure version 1.24.10 exists; if not, use the latest stable (e.g., 1.22.x)
+wget https://go.dev/dl/go1.24.10.linux-amd64.tar.gz
+sudo tar -C /usr/local -xzf go1.24.10.linux-amd64.tar.gz
+
+# Add to PATH (Add this to your ~/.profile or ~/.bashrc)
+export PATH=$PATH:/usr/local/go/bin
+source ~/.profile
+
+# Verify
+go version
+```
+
+**b. Install GCS Fuse (Latest)**
+Follow the official [GCS Fuse Installation Guide](https://cloud.google.com/storage/docs/cloud-storage-fuse/install).
+```bash
+# 1. Add the GCS Fuse distribution URL as a package source
+export GCSFUSE_REPO=gcsfuse-`lsb_release -c -s`
+echo "deb https://packages.cloud.google.com/apt $GCSFUSE_REPO main" | sudo tee /etc/apt/sources.list.d/gcsfuse.list
+
+# 2. Import the public key
+curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo apt-key add -
+
+# 3. Update and install
+sudo apt-get update
+sudo apt-get install -y gcsfuse
+```
+
+**c. Install Python & Setup Virtual Environment**
+The tool requires Python 3. The provided `setup_venv.sh` script manages the virtual environment.
+
+```bash
+# 1. Install System Python Dependencies
+sudo apt-get update
+sudo apt-get install -y python3 python3-pip python3-venv git
+
+# 2. Setup the Virtual Environment
+# Navigate to the tool directory (assuming it is already in shared mount, see Step 3)
+cd $HOME/work/shared/coherency-validation/python
+./setup_venv.sh
+
+# 3. Activate the Environment (Required before running tests)
+# The script creates the venv in a stable local cache directory
+source ~/.cache/coherency-validation/.venv/bin/activate
+```
+
+### 3. Configure Hostnames (For Dual Node)
 If running the `dual_node_mounts` workflow, the tool needs to know which VM is "Mount 1" and which is "Mount 2".
-*   Edit `dual_node_mounts/config.py` (after you've populated the shared bucket, see Step 3).
+*   Edit `dual_node_mounts/config.py` (after you've populated the shared bucket, see Step 4).
 *   Update the logic mapping `HOSTNAME` to `MOUNT_NUMBER`.
 
-### 3. Setup the Shared Bucket (One-time Setup)
+### 4. Setup the Shared Bucket (One-time Setup)
 You need to populate your `SHARED_BUCKET` with the tool code.
 
 **On one VM (e.g., VM1):**
@@ -90,14 +145,14 @@ mkdir -p $HOME/work/shared
 gcsfuse --implicit-dirs <YOUR_SHARED_BUCKET_NAME> $HOME/work/shared
 ```
 
-### 4. Create Workspace Directories
+### 5. Create Workspace Directories
 Create the following directories on **all** VMs (local state):
 ```bash
 mkdir -p $HOME/work/tasks
 mkdir -p $HOME/work/test_buckets
 ```
 
-### 5. Configure the Test Bucket Name
+### 6. Configure the Test Bucket Name
 You must tell the tool which bucket to use for the actual testing.
 *   Open `$HOME/work/shared/coherency-validation/python/dual_node_mounts/config.py`.
 *   Locate the variable `BUCKET_NAME`.
