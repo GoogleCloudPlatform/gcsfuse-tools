@@ -15,7 +15,7 @@ This tool facilitates comprehensive validation of `gcsfuse` consistency, coheren
 9.  [File System Operations Reference](#file-system-operations-reference)
 10. [Go Tools Reference](#go-tools-reference)
 11. [Asynchronous & Interactive Operations](#asynchronous--interactive-operations)
-12. [Configuration](#configuration)
+12. [Configuration & Environment Control](#configuration--environment-control)
 13. [Logging & Debugging](#logging--debugging)
 14. [Troubleshooting](#troubleshooting)
 
@@ -271,6 +271,8 @@ These high-level aliases manage the lifecycle of a test scenario.
 
 These aliases run the actual file system tests. They often have assertions built-in (e.g., `readfileandfail` expects the read to fail).
 
+**IMPORTANT:** These operations should be run **only** after starting a scenario (`execute_scenario`) and from **inside** the mounted directory. The tool typically switches your working directory to the mount automatically, but you should verify you are in a path like `.../test_buckets/<bucket>-mountX` before running them.
+
 **Basic File Operations**
 *   `createfile`: Creates `sample.txt` with default content.
 *   `createfilewith2ndcontent`: Creates `sample.txt` with "sample_content2".
@@ -378,15 +380,23 @@ These operations intentionally block execution to simulate specific file handle 
 
 ---
 
-## Configuration
+## Configuration & Environment Control
 
-**Setting Config:**
-Modify `workflow_config` in the root directory or use python to update specific settings (like sleep time).
+You can inspect and modify the environment using these aliases:
 
-**Querying Config:**
-*   `current_config`: Displays global settings.
-*   `current_scenario`: Shows the active scenario name.
-*   `current_logfile`: Shows the path to the active log file.
+### Runtime Settings
+*   **`set_sleep_seconds <N>`**: Sets the duration (in seconds) the tool waits after writing to a shared file (e.g., the shared log or config). Default is 15s. Increase this if you see "No scenario running" errors due to slow GCS Fuse metadata propagation.
+    ```bash
+    set_sleep_seconds 30
+    ```
+*   **`enable_logging`**: Enables logging of command output to the log file.
+*   **`disable_logging`**: Disables **ALL** logging to the file. No commands, headers, or output will be written to the shared log. Useful for extreme latency sensitivity testing where even log I/O is undesirable.
+
+### Status & Inspection
+*   **`current_config`**: Prints the content of the global workflow configuration (JSON).
+*   **`current_logfile`**: Prints the absolute path to the log file currently being used.
+*   **`current_scenario`**: Prints the name of the currently active scenario.
+*   **`current_mount`**: Prints whether the current shell is configured as Mount 1 or Mount 2 (based on hostname).
 
 ---
 
