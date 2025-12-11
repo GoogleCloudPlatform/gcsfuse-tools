@@ -5,19 +5,20 @@ This tool facilitates comprehensive validation of `gcsfuse` consistency, coheren
 ## Table of Contents
 
 1.  [Architecture & Buckets](#architecture--buckets)
-2.  [Prerequisites & Setup](#prerequisites--setup)
-3.  [Workflows Overview](#workflows-overview)
-4.  [Getting Started](#getting-started)
-5.  [Workflow 1: single_node_single_mount](#workflow-1-single_node_single_mount)
-6.  [Workflow 2: single_node_dual_mounts](#workflow-2-single_node_dual_mounts)
-7.  [Workflow 3: dual_node_mounts](#workflow-3-dual_node_mounts)
-8.  [Scenario Management & Aliases](#scenario-management--aliases)
-9.  [File System Operations Reference](#file-system-operations-reference)
-10. [Go Tools Reference](#go-tools-reference)
-11. [Asynchronous & Interactive Operations](#asynchronous--interactive-operations)
-12. [Configuration & Environment Control](#configuration--environment-control)
-13. [Logging & Debugging](#logging--debugging)
-14. [Troubleshooting](#troubleshooting)
+2.  [Quick Start: Infrastructure Provisioning](#quick-start-infrastructure-provisioning)
+3.  [Prerequisites & Setup](#prerequisites--setup)
+4.  [Workflows Overview](#workflows-overview)
+5.  [Getting Started](#getting-started)
+6.  [Workflow 1: single_node_single_mount](#workflow-1-single_node_single_mount)
+7.  [Workflow 2: single_node_dual_mounts](#workflow-2-single_node_dual_mounts)
+8.  [Workflow 3: dual_node_mounts](#workflow-3-dual_node_mounts)
+9.  [Scenario Management & Aliases](#scenario-management--aliases)
+10. [File System Operations Reference](#file-system-operations-reference)
+11. [Go Tools Reference](#go-tools-reference)
+12. [Asynchronous & Interactive Operations](#asynchronous--interactive-operations)
+13. [Configuration & Environment Control](#configuration--environment-control)
+14. [Logging & Debugging](#logging--debugging)
+15. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -36,6 +37,57 @@ This tool requires **Two Distinct GCS Buckets**:
 *   **Mount Point:** The tool creates mount points at `$HOME/work/test_buckets/<bucket>-mountX`.
 *   **Configuration:** You must update the tool's config files with this bucket's name.
 *   **Example Name:** `<user>-test-hns-<region>` (e.g., `gargnitin-test-hns-asiase1`).
+
+---
+
+## Quick Start: Infrastructure Provisioning
+
+If you do not have buckets or VMs yet, use these commands (requires `gcloud`).
+
+### 1. Create Buckets
+Replace `<REGION>` (e.g., `asia-southeast1`) and bucket names.
+**Note:** Buckets are created with **Hierarchical Namespace** and **Uniform Bucket-Level Access** enabled.
+
+```bash
+# Shared Bucket (Infrastructure)
+gcloud storage buckets create gs://<SHARED_BUCKET_NAME> \
+    --location=<REGION> \
+    --enable-hierarchical-namespace \
+    --uniform-bucket-level-access
+
+# Test Target Bucket (The one under test)
+gcloud storage buckets create gs://<TEST_BUCKET_NAME> \
+    --location=<REGION> \
+    --enable-hierarchical-namespace \
+    --uniform-bucket-level-access
+```
+
+### 2. Create VMs
+Create two VMs (Leader/VM1 and Follower/VM2).
+**Specs:**
+*   **OS:** Ubuntu 25.04 (via image-family `ubuntu-2504-amd64`).
+*   **Disk:** 40GB Boot Disk.
+*   **Access:** Full Cloud Platform scope (required for GCS Fuse and management).
+
+Replace `<USER>` and `<REGION>` (e.g., `gargnitin`, `asiase1`).
+
+```bash
+# VM1 (Leader)
+gcloud compute instances create ${USER}-vm1-leader-${REGION} \
+    --zone=<ZONE_1> \
+    --machine-type=e2-standard-8 \
+    --image-family=ubuntu-2504-amd64 --image-project=ubuntu-os-cloud \
+    --boot-disk-size=40GB \
+    --scopes=https://www.googleapis.com/auth/cloud-platform
+
+# VM2 (Follower)
+gcloud compute instances create ${USER}-vm2-follower-${REGION} \
+    --zone=<ZONE_2> \
+    --machine-type=e2-standard-8 \
+    --image-family=ubuntu-2504-amd64 --image-project=ubuntu-os-cloud \
+    --boot-disk-size=40GB \
+    --scopes=https://www.googleapis.com/auth/cloud-platform
+```
 
 ---
 
