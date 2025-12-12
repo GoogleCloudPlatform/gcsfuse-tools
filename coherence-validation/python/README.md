@@ -179,24 +179,21 @@ sudo apt-get update
 sudo apt-get install -y python3 python3-pip python3-venv git
 ```
 
-### 3. Configure Hostnames (For Dual Node)
-
-If running the `dual_node_mounts` workflow, the tool needs to know which VM is
-"Mount 1" and which is "Mount 2". * Edit `dual_node_mounts/config.py` (after
-you've populated the shared bucket, see Step 4). * Update the logic mapping
-`HOSTNAME` to `MOUNT_NUMBER`.
-
-### 4. Setup the Shared Bucket (One-time Setup)
+### 3. Setup the Shared Bucket (One-time Setup)
 
 You need to populate your `SHARED_BUCKET` with the tool code.
 
 **On one VM (e.g., VM1):**
 
-1.  **Mount the empty shared bucket:** ```bash mkdir -p $HOME/work/shared
-
+1.  **Mount the empty shared bucket:**
+    ```bash
+    mkdir -p $HOME/work/shared
+    # Safely unmount if already mounted (Idempotent)
+    (fusermount -uz $HOME/work/shared || true)
+    
     # Replace <YOUR_SHARED_BUCKET_NAME> with your actual bucket name
-
-    gcsfuse --implicit-dirs <YOUR_SHARED_BUCKET_NAME> $HOME/work/shared ```
+    gcsfuse --implicit-dirs <YOUR_SHARED_BUCKET_NAME> $HOME/work/shared
+    ```
 
 2.  **Download and install the tool into the bucket:** Run the following block
     to clone/update the repo and copy the validation tools into the mounted bucket.
@@ -223,10 +220,14 @@ You need to populate your `SHARED_BUCKET` with the tool code.
     ```
 
 **On the other VM (VM2):** Simply mount the bucket to access the code deployed
-by VM1. `bash mkdir -p $HOME/work/shared gcsfuse --implicit-dirs
-<YOUR_SHARED_BUCKET_NAME> $HOME/work/shared`
+by VM1.
+```bash
+mkdir -p $HOME/work/shared
+(fusermount -uz $HOME/work/shared || true)
+gcsfuse --implicit-dirs <YOUR_SHARED_BUCKET_NAME> $HOME/work/shared
+```
 
-### 5. Setup Python Virtual Environment (On All VMs)
+### 4. Setup Python Virtual Environment (On All VMs)
 
 Now that the code is present in the shared mount, set up the virtual
 environment.
@@ -236,26 +237,53 @@ environment.
 cd $HOME/work/shared/coherency-validation/python
 
 # 2. Setup the Virtual Environment
-./setup_venv.sh
+bash setup_venv.sh
 
 # 3. Activate the Environment (Required before running tests)
 source ~/.cache/coherency-validation/.venv/bin/activate
 ```
 
+### 5. Configure Hostnames (For Dual Node)
+
+If running the `dual_node_mounts` workflow, the tool needs to know which VM is
+"Mount 1" and which is "Mount 2".
+
+**Run on VM1 (Leader) ONLY:**
+Replace the placeholder hostnames with your actual VM hostnames (run `hostname` on each VM to confirm).
+
+```bash
+# Replace 'gargnitin-ubuntu2504-e2std8-asiase1b' with VM1's hostname
+sed -i 's/if "gargnitin-ubuntu2504-e2std8-asiase1b" in HOSTNAME:/if "<YOUR_VM1_HOSTNAME>" in HOSTNAME:/' $HOME/work/shared/coherency-validation/python/dual_node_mounts/config.py
+
+# Replace 'gargnitin-ubuntu2504-e2std8-asiase1c' with VM2's hostname
+sed -i 's/elif "gargnitin-ubuntu2504-e2std8-asiase1c" in HOSTNAME:/elif "<YOUR_VM2_HOSTNAME>" in HOSTNAME:/' $HOME/work/shared/coherency-validation/python/dual_node_mounts/config.py
+```
+
 ### 6. Create Workspace Directories
 
-Create the following directories on **all** VMs (local state): `bash mkdir -p
-$HOME/work/tasks mkdir -p $HOME/work/test_buckets`
+Create the following directories on **all** VMs (local state): 
+```bash
+mkdir -p $HOME/work/tasks
+mkdir -p $HOME/work/test_buckets
+```
 
 ### 7. Configure the Test Bucket Name
 
-You must tell the tool which bucket to use for the actual testing. * Open
-`$HOME/work/shared/coherency-validation/python/dual_node_mounts/config.py`. *
-Locate the variable `BUCKET_NAME`. * Change it to your **Test Target Bucket**
-(e.g., `<user>-test-hns-asiase1`). `python # dual_node_mounts/config.py
-BUCKET_NAME = "my-test-bucket-name"` * *Repeat for
-`single_node_dual_mounts/config.py` and `single_node_single_mount/config.py` if
-running those workflows.*
+You must tell the tool which bucket to use for the actual testing. This must be done for **all** workflows you intend to run.
+
+**Run on VM1 (Leader) ONLY:**
+Replace `<YOUR_TEST_BUCKET_NAME>` with your actual test bucket name.
+
+```bash
+# Update Dual Node Config
+sed -i 's/BUCKET_NAME = ".*"/BUCKET_NAME = "<YOUR_TEST_BUCKET_NAME>"/' $HOME/work/shared/coherency-validation/python/dual_node_mounts/config.py
+
+# Update Single Node Single Mount Config
+sed -i 's/BUCKET_NAME = ".*"/BUCKET_NAME = "<YOUR_TEST_BUCKET_NAME>"/' $HOME/work/shared/coherency-validation/python/single_node_single_mount/config.py
+
+# Update Single Node Dual Mounts Config
+sed -i 's/BUCKET_NAME = ".*"/BUCKET_NAME = "<YOUR_TEST_BUCKET_NAME>"/' $HOME/work/shared/coherency-validation/python/single_node_dual_mounts/config.py
+```
 
 --------------------------------------------------------------------------------
 
