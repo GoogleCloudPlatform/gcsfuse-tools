@@ -315,9 +315,9 @@ sed -i "s/BUCKET_NAME = \".*\"/BUCKET_NAME = \"${TEST_BUCKET}\"/" $HOME/work/sha
 
 Workflow                     | Description           | Use Case                                                    | Log Location
 :--------------------------- | :-------------------- | :---------------------------------------------------------- | :-----------
-**single_node_single_mount** | 1 VM, 1 Mount point.  | Basic sanity checks, concurrent reads/writes on same mount. | `~/work/tasks/...`
-**single_node_dual_mounts**  | 1 VM, 2 Mount points. | Local coherency (does Mount 2 see Mount 1's changes?).      | `~/work/tasks/...`
 **dual_node_mounts**         | 2 VMs, 1 Mount each.  | Distributed coherency (does VM 2 see VM 1's changes?).      | `~/work/shared/...` (Preserved in Shared Bucket)
+**single_node_dual_mounts**  | 1 VM, 2 Mount points. | Local coherency (does Mount 2 see Mount 1's changes?).      | `~/work/tasks/...`
+**single_node_single_mount** | 1 VM, 1 Mount point.  | Basic sanity checks, concurrent reads/writes on same mount. | `~/work/tasks/...`
 
 --------------------------------------------------------------------------------
 
@@ -349,33 +349,7 @@ Workflow                     | Description           | Use Case                 
 
 --------------------------------------------------------------------------------
 
-## Workflow 1: single_node_single_mount
-
-**Execution:** Automated tests on a single mount point. Logs are stored locally
-in `~/work/tasks`.
-
-*   **List Scenarios:** `execute_scenario --list`
-*   **Run (Step Mode):** `execute_scenario <ID>`
-*   **Run (Auto Mode):** `execute_scenario_complete <ID>`
-
-**Supported Scenarios:** * Basic CRUD, Symlinks, Sync/Flush testing. *
-**Concurrency:** Reading/Writing large files from multiple threads (e.g.,
-Scenario 25, 26).
-
---------------------------------------------------------------------------------
-
-## Workflow 2: single_node_dual_mounts
-
-**Execution:** Mounts the **Test Bucket** twice locally (Mount 1 & Mount 2).
-Logs are stored locally.
-
-*   **List Scenarios:** `execute_scenario --list`
-*   **Run (Step Mode):** `execute_scenario <ID>` (Follow printed instructions).
-*   **Run (Auto Mode):** `execute_scenario_complete <ID>`
-
---------------------------------------------------------------------------------
-
-## Workflow 3: dual_node_mounts
+## Workflow 1: dual_node_mounts
 
 **Execution:** Coordinated testing between VM1 (Leader) and VM2 (Follower). Logs
 are stored in the **Shared Bucket**, so they are automatically preserved even if
@@ -409,6 +383,32 @@ sleep (default **15s**) after writing to shared state files.
 3.  **Completion:**
 
     *   Run `complete_scenario` (on either VM) to clean up.
+
+--------------------------------------------------------------------------------
+
+## Workflow 2: single_node_dual_mounts
+
+**Execution:** Mounts the **Test Bucket** twice locally (Mount 1 & Mount 2).
+Logs are stored locally.
+
+*   **List Scenarios:** `execute_scenario --list`
+*   **Run (Step Mode):** `execute_scenario_stepmode <ID>` (Follow printed instructions).
+*   **Run (Auto Mode):** `execute_scenario_complete <ID>`
+
+--------------------------------------------------------------------------------
+
+## Workflow 3: single_node_single_mount
+
+**Execution:** Automated tests on a single mount point. Logs are stored locally
+in `~/work/tasks`.
+
+*   **List Scenarios:** `execute_scenario --list`
+*   **Run (Step Mode):** `execute_scenario_stepmode <ID>`
+*   **Run (Auto Mode):** `execute_scenario_complete <ID>`
+
+**Supported Scenarios:** * Basic CRUD, Symlinks, Sync/Flush testing. *
+**Concurrency:** Reading/Writing large files from multiple threads (e.g.,
+Scenario 25, 26).
 
 --------------------------------------------------------------------------------
 
