@@ -59,6 +59,11 @@ If you do not have buckets or VMs yet, use these commands (requires `gcloud`).
 
 Define these variables once to make the following commands copy-pasteable.
 
+**Important:** These variables are session-specific. It is highly recommended to
+store them in a setup script (e.g., `~/.bashrc` or a custom `setup.sh`) and
+`source` it for persistence across VM disconnections or new terminal/SSH
+sessions.
+
 ```bash
 # Common Configuration
 export REGION="us-west4" # Example: us-west4, asia-southeast1
@@ -276,11 +281,15 @@ VM1_HOSTNAME=$(hostname)
 echo "Configuring VM1: $VM1_HOSTNAME"
 echo "Configuring VM2: $VM2_NAME (You might need the full FQDN)"
 
-# Update VM1 (Leader)
-sed -i "s/if \"gargnitin-ubuntu2504-e2std8-asiase1b\" in HOSTNAME:/if \"${VM1_NAME}\" in HOSTNAME:/" $HOME/work/shared/coherency-validation/python/dual_node_mounts/config.py
+# Update VM1 (Leader) - Regex matches any existing hostname string
+sed -i "s/if \".*\" in HOSTNAME:/if \"${VM1_NAME}\" in HOSTNAME:/" $HOME/work/shared/coherency-validation/python/dual_node_mounts/config.py
+# Verify
+grep -q "\"${VM1_NAME}\" in HOSTNAME" $HOME/work/shared/coherency-validation/python/dual_node_mounts/config.py || echo "Error: Failed to configure VM1 hostname. Please manually configure ${VM1_NAME} in $HOME/work/shared/coherency-validation/python/dual_node_mounts/config.py for MOUNT_NUMBER 1"
 
-# Update VM2 (Follower) - Using the VM name as substring match usually works
-sed -i "s/elif \"gargnitin-ubuntu2504-e2std8-asiase1c\" in HOSTNAME:/elif \"${VM2_NAME}\" in HOSTNAME:/" $HOME/work/shared/coherency-validation/python/dual_node_mounts/config.py
+# Update VM2 (Follower)
+sed -i "s/elif \".*\" in HOSTNAME:/elif \"${VM2_NAME}\" in HOSTNAME:/" $HOME/work/shared/coherency-validation/python/dual_node_mounts/config.py
+# Verify
+grep -q "\"${VM2_NAME}\" in HOSTNAME" $HOME/work/shared/coherency-validation/python/dual_node_mounts/config.py || echo "Error: Failed to configure VM2 hostname. Please manually configure ${VM2_NAME} in $HOME/work/shared/coherency-validation/python/dual_node_mounts/config.py for MOUNT_NUMBER 2"
 ```
 
 ### 6. Create Workspace Directories
@@ -300,13 +309,16 @@ You must tell the tool which bucket to use for the actual testing.
 
 ```bash
 # Update Dual Node Config
-sed -i "s/BUCKET_NAME = \".*\"/BUCKET_NAME = \"${TEST_BUCKET}\"/" $HOME/work/shared/coherency-validation/python/dual_node_mounts/config.py
+sed -i "s/BUCKET_NAME *= *\".*\"/BUCKET_NAME = \"${TEST_BUCKET}\"/" $HOME/work/shared/coherency-validation/python/dual_node_mounts/config.py
+grep -q "${TEST_BUCKET}" $HOME/work/shared/coherency-validation/python/dual_node_mounts/config.py || echo "Error: Failed to set bucket in dual_node_mounts. Please manually configure ${TEST_BUCKET} as BUCKET_NAME in $HOME/work/shared/coherency-validation/python/dual_node_mounts/config.py."
 
 # Update Single Node Single Mount Config
-sed -i "s/BUCKET_NAME = \".*\"/BUCKET_NAME = \"${TEST_BUCKET}\"/" $HOME/work/shared/coherency-validation/python/single_node_single_mount/config.py
+sed -i "s/BUCKET_NAME *= *\".*\"/BUCKET_NAME = \"${TEST_BUCKET}\"/" $HOME/work/shared/coherency-validation/python/single_node_single_mount/config.py
+grep -q "${TEST_BUCKET}" $HOME/work/shared/coherency-validation/python/single_node_single_mount/config.py || echo "Error: Failed to set bucket in single_node_single_mount. Please manually configure ${TEST_BUCKET} as BUCKET_NAME in $HOME/work/shared/coherency-validation/python/single_node_single_mount/config.py."
 
 # Update Single Node Dual Mounts Config
-sed -i "s/BUCKET_NAME = \".*\"/BUCKET_NAME = \"${TEST_BUCKET}\"/" $HOME/work/shared/coherency-validation/python/single_node_dual_mounts/config.py
+sed -i "s/BUCKET_NAME *= *\".*\"/BUCKET_NAME = \"${TEST_BUCKET}\"/" $HOME/work/shared/coherency-validation/python/single_node_dual_mounts/config.py
+grep -q "${TEST_BUCKET}" $HOME/work/shared/coherency-validation/python/single_node_dual_mounts/config.py || echo "Error: Failed to set bucket in single_node_dual_mounts. Please manually configure ${TEST_BUCKET} as BUCKET_NAME in $HOME/work/shared/coherency-validation/python/single_node_dual_mounts/config.py."
 ```
 
 --------------------------------------------------------------------------------
