@@ -199,20 +199,28 @@ You need to populate your `SHARED_BUCKET` with the tool code.
     gcsfuse --implicit-dirs <YOUR_SHARED_BUCKET_NAME> $HOME/work/shared ```
 
 2.  **Download and install the tool into the bucket:** Run the following block
-    to clone the repo and copy the validation tools into the mounted bucket.
-    ```bash cd /tmp git clone
-    https://github.com/GoogleCloudPlatform/gcsfuse-tools.git
+    to clone/update the repo and copy the validation tools into the mounted bucket.
+    ```bash
+    cd /tmp
+    if [ -d "gcsfuse-tools" ]; then
+        echo "Updating existing repo..."
+        cd gcsfuse-tools
+        git pull origin main
+        cd ..
+    else
+        echo "Cloning repo..."
+        git clone https://github.com/GoogleCloudPlatform/gcsfuse-tools.git
+    fi
 
-    # Copy the python tools to the shared mount if not already present
-
-    if [ ! -d "$HOME/work/shared/coherency-validation" ]; then mkdir -p
-    $HOME/work/shared/coherency-validation # Adjust path if repo structure
-    differs, targeting the 'python' folder cp -rf
-    gcsfuse-tools/coherence-validation/python
-    $HOME/work/shared/coherency-validation/ echo "Tool code deployed to shared
-    bucket." else echo "Tool code already exists in shared bucket." fi
-
-    rm -rf /tmp/gcsfuse-tools ```
+    # Copy the python tools to the shared mount
+    if [ ! -d "$HOME/work/shared/coherency-validation/python" ]; then 
+        mkdir -p $HOME/work/shared/coherency-validation/python
+    fi
+    
+    # Copy contents (idempotent update)
+    cp -rf gcsfuse-tools/coherence-validation/python/* $HOME/work/shared/coherency-validation/python/
+    echo "Tool code deployed/updated in shared bucket."
+    ```
 
 **On the other VM (VM2):** Simply mount the bucket to access the code deployed
 by VM1. `bash mkdir -p $HOME/work/shared gcsfuse --implicit-dirs
