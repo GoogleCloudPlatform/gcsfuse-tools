@@ -137,24 +137,27 @@ You must install Go, GCS Fuse, and Python on all VMs involved in the testing.
 **a. Install Go (Version 1.24.10)** The tool uses Go for direct I/O operations
 (`write.go`, `read.go`). ```bash
 
-# Remove any existing installation
+**a. Go installation (1.24.10)
+
+##### Remove any existing go installation
 
 sudo rm -rf /usr/local/go
 
-# Download and install (Adjust OS/Arch if not linux-amd64)
+##### Download and install go (Adjust OS/Arch if not linux-amd64)
 
-# Note: Ensure version 1.24.10 exists; if not, use the latest stable (e.g., 1.22.x)
+**Note**: Ensure version 1.24.10 exists; if not, use the latest stable (e.g.,
+1.22.x)
 
 wget https://go.dev/dl/go1.24.10.linux-amd64.tar.gz sudo tar -C /usr/local -xzf
 go1.24.10.linux-amd64.tar.gz
 
-# Add to PATH (Add this to your ~/.bashrc for persistence)
+##### Add go binary to PATH (Add this to your ~/.bashrc for persistence)
 
 echo "export PATH=\$PATH:/usr/local/go/bin" >> ~/.bashrc
 
 source ~/.bashrc
 
-# Verify
+##### Verify
 
 go version
 
@@ -175,18 +178,18 @@ sudo apt-get install -y gcsfuse
 **Option 2: Modern/Ubuntu 25.04+ (Keyring Method)** Use this if you encounter
 "NO_PUBKEY" errors or are running Ubuntu 25.04+. ```bash
 
-# 1. Add the public key to the system keyring (Dearmor ensures binary format)
+##### 1. Add the public key to the system keyring (Dearmor ensures binary format)
 
 curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo gpg --dearmor
 -o /usr/share/keyrings/gcsfuse-keyring.gpg
 
-# 2. Add the repo (forcing 'noble' codename for stability on newer releases)
+##### 2. Add the repo (forcing 'noble' codename for stability on newer releases)
 
 echo "deb [signed-by=/usr/share/keyrings/gcsfuse-keyring.gpg]
 https://packages.cloud.google.com/apt gcsfuse-noble main" | sudo tee
 /etc/apt/sources.list.d/gcsfuse.list
 
-# 3. Update and install
+##### 3. Update and install
 
 sudo apt-get update sudo apt-get install -y gcsfuse ```
 
@@ -194,9 +197,9 @@ sudo apt-get update sudo apt-get install -y gcsfuse ```
 the system-level dependencies first.
 
 ```bash
-# 1. Install System Python Dependencies
-sudo apt-get update
-sudo apt-get install -y python3 python3-pip python3-venv git
+   # 1. Install System Python Dependencies
+   sudo apt-get update
+   sudo apt-get install -y python3 python3-pip python3-venv git
 ```
 
 ### 3. Setup the Shared Bucket (One-time Setup)
@@ -207,11 +210,11 @@ You need to populate your `${SHARED_BUCKET}` with the tool code.
 
 1.  **Mount the empty shared bucket:** ```bash mkdir -p $HOME/work/shared
 
-    # Safely unmount if already mounted (Idempotent)
+    \# Safely unmount if already mounted (Idempotent)
 
     (fusermount -uz $HOME/work/shared || true)
 
-    # Mount the shared bucket
+    \# Mount the shared bucket
 
     gcsfuse --implicit-dirs ${SHARED_BUCKET} $HOME/work/shared ```
 
@@ -222,20 +225,21 @@ You need to populate your `${SHARED_BUCKET}` with the tool code.
     "Cloning repo..." git clone
     https://github.com/GoogleCloudPlatform/gcsfuse-tools.git fi
 
-    # Copy the python tools to the shared mount
+    \# Copy the python tools to the shared mount
 
     if [ ! -d "$HOME/work/shared/coherency-validation/python" ]; then mkdir -p
     $HOME/work/shared/coherency-validation/python fi
 
-    # Copy contents (idempotent update)
+    \# Copy contents (idempotent update)
 
     cp -rf gcsfuse-tools/coherence-validation/python/*
     $HOME/work/shared/coherency-validation/python/ echo "Tool code
     deployed/updated in shared bucket." ```
 
-**On the other VM (VM2):** Simply mount the bucket to access the code deployed
-by VM1. `bash mkdir -p $HOME/work/shared (fusermount -uz $HOME/work/shared ||
-true) gcsfuse --implicit-dirs ${SHARED_BUCKET} $HOME/work/shared`
+    **On the other VM (VM2):** Simply mount the bucket to access the code
+    deployed by VM1. `bash mkdir -p $HOME/work/shared (fusermount -uz
+    $HOME/work/shared || true) gcsfuse --implicit-dirs ${SHARED_BUCKET}
+    $HOME/work/shared`
 
 ### 4. Setup Python Virtual Environment (On All VMs)
 
@@ -243,14 +247,14 @@ Now that the code is present in the shared mount, set up the virtual
 environment.
 
 ```bash
-# 1. Navigate to the tool directory in the shared mount
-cd $HOME/work/shared/coherency-validation/python
+   # 1. Navigate to the tool directory in the shared mount
+   cd $HOME/work/shared/coherency-validation/python
 
-# 2. Setup the Virtual Environment
-bash setup_venv.sh
+   # 2. Setup the Virtual Environment
+   bash setup_venv.sh
 
-# 3. Activate the Environment (Required before running tests)
-source ~/.cache/coherency-validation/.venv/bin/activate
+   # 3. Activate the Environment (Required before running tests)
+   source ~/.cache/coherency-validation/.venv/bin/activate
 ```
 
 ### 5. Configure Hostnames (For Dual Node)
@@ -261,21 +265,21 @@ If running the `dual_node_mounts` workflow, the tool needs to know which VM is
 **Run on VM1 (Leader) ONLY:**
 
 ```bash
-# Get the internal hostnames (what 'socket.gethostname()' sees)
-# We assume VM1 is running this command.
-VM1_HOSTNAME=$(hostname)
-# You must manually set VM2's hostname if you are not running this via gcloud ssh
-# or just look it up. For automation, if you know the naming convention:
-# VM2_HOSTNAME="${VM2_NAME}.${ZONE_2}.c.${PROJECT_ID}.internal"
-# Ideally, verify by running `hostname` on VM2.
-echo "Configuring VM1: $VM1_HOSTNAME"
-echo "Configuring VM2: $VM2_NAME (You might need the full FQDN)"
+   # Get the internal hostnames (what 'socket.gethostname()' sees)
+   # We assume VM1 is running this command.
+   VM1_HOSTNAME=$(hostname)
+   # You must manually set VM2's hostname if you are not running this via gcloud ssh
+   # or just look it up. For automation, if you know the naming convention:
+   # VM2_HOSTNAME="${VM2_NAME}.${ZONE_2}.c.${PROJECT_ID}.internal"
+   # Ideally, verify by running `hostname` on VM2.
+   echo "Configuring VM1: $VM1_HOSTNAME"
+   echo "Configuring VM2: $VM2_NAME (You might need the full FQDN)"
 
-# Update VM1 (Leader)
-sed -i "s/if \"gargnitin-ubuntu2504-e2std8-asiase1b\" in HOSTNAME:/if \"${VM1_NAME}\" in HOSTNAME:/" $HOME/work/shared/coherency-validation/python/dual_node_mounts/config.py
+   # Update VM1 (Leader)
+   sed -i "s/if \"gargnitin-ubuntu2504-e2std8-asiase1b\" in HOSTNAME:/if \"${VM1_NAME}\" in HOSTNAME:/" $HOME/work/shared/coherency-validation/python/dual_node_mounts/config.py
 
-# Update VM2 (Follower) - Using the VM name as substring match usually works
-sed -i "s/elif \"gargnitin-ubuntu2504-e2std8-asiase1c\" in HOSTNAME:/elif \"${VM2_NAME}\" in HOSTNAME:/" $HOME/work/shared/coherency-validation/python/dual_node_mounts/config.py
+   # Update VM2 (Follower) - Using the VM name as substring match usually works
+   sed -i "s/elif \"gargnitin-ubuntu2504-e2std8-asiase1c\" in HOSTNAME:/elif \"${VM2_NAME}\" in HOSTNAME:/" $HOME/work/shared/coherency-validation/python/dual_node_mounts/config.py
 ```
 
 ### 6. Create Workspace Directories
