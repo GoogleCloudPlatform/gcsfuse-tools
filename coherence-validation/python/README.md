@@ -165,8 +165,9 @@ https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo apt-key add - sudo
 apt-get update sudo apt-get install -y gcsfuse
 ```
 
-**Option 2: Modern/Ubuntu 25.04+ (Keyring Method)** Use this if you encounter
-"NO_PUBKEY" errors or are running Ubuntu 25.04+.
+**Option 2: Modern/Ubuntu 25.04+ (Keyring Method)**
+<br>
+Use this if you encounter "NO_PUBKEY" errors or are running Ubuntu 25.04+.
 
 ```bash
 # 1. Add the public key to the system keyring (Dearmor ensures binary format)
