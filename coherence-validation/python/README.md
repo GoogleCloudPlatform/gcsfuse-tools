@@ -137,61 +137,45 @@ You must install Go, GCS Fuse, and Python on all VMs involved in the testing.
 **a. Install Go (Version 1.24.10)** The tool uses Go for direct I/O operations
 (`write.go`, `read.go`). ```bash
 
-**a. Go installation (1.24.10)
+**a. Go installation (1.24.10)**
 
-##### Remove any existing go installation
-
+```sh
+# Remove any existing go installation
 sudo rm -rf /usr/local/go
-
-##### Download and install go (Adjust OS/Arch if not linux-amd64)
-
-**Note**: Ensure version 1.24.10 exists; if not, use the latest stable (e.g.,
-1.22.x)
-
+# Download and install go (Adjust OS/Arch if not linux-amd64)
 wget https://go.dev/dl/go1.24.10.linux-amd64.tar.gz sudo tar -C /usr/local -xzf
 go1.24.10.linux-amd64.tar.gz
-
-##### Add go binary to PATH (Add this to your ~/.bashrc for persistence)
-
+# Add go binary to PATH (Add this to your ~/.bashrc for persistence)
 echo "export PATH=\$PATH:/usr/local/go/bin" >> ~/.bashrc
-
 source ~/.bashrc
-
-##### Verify
-
+# Verify
 go version
+```
 
-~~~
-
-**b. Install GCS Fuse (Latest)**
-Follow the official [GCS Fuse Installation Guide](https://cloud.google.com/storage/docs/cloud-storage-fuse/install).
+**b. Install GCS Fuse (Latest)** Follow the official
+[GCS Fuse Installation Guide](https://cloud.google.com/storage/docs/cloud-storage-fuse/install).
 
 **Option 1: Standard Installation (Ubuntu 24.04 and older)**
+
 ```bash
-export GCSFUSE_REPO=gcsfuse-`lsb_release -c -s`
-echo "deb https://packages.cloud.google.com/apt $GCSFUSE_REPO main" | sudo tee /etc/apt/sources.list.d/gcsfuse.list
-curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo apt-key add -
-sudo apt-get update
-sudo apt-get install -y gcsfuse
-~~~
+GCSFUSE_REPO=gcsfuse-`lsb_release -c -s` echo "deb
+https://packages.cloud.google.com/apt $GCSFUSE_REPO main" | sudo tee
+/etc/apt/sources.list.d/gcsfuse.list curl
+https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo apt-key add - sudo
+apt-get update sudo apt-get install -y gcsfuse
+```
 
 **Option 2: Modern/Ubuntu 25.04+ (Keyring Method)** Use this if you encounter
-"NO_PUBKEY" errors or are running Ubuntu 25.04+. ```bash
+"NO_PUBKEY" errors or are running Ubuntu 25.04+.
 
-##### 1. Add the public key to the system keyring (Dearmor ensures binary format)
-
-curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo gpg --dearmor
--o /usr/share/keyrings/gcsfuse-keyring.gpg
-
-##### 2. Add the repo (forcing 'noble' codename for stability on newer releases)
-
-echo "deb [signed-by=/usr/share/keyrings/gcsfuse-keyring.gpg]
-https://packages.cloud.google.com/apt gcsfuse-noble main" | sudo tee
-/etc/apt/sources.list.d/gcsfuse.list
-
-##### 3. Update and install
-
-sudo apt-get update sudo apt-get install -y gcsfuse ```
+```bash
+# 1. Add the public key to the system keyring (Dearmor ensures binary format)
+curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo gpg --dearmor -o /usr/share/keyrings/gcsfuse-keyring.gpg
+# 2. Add the repo (forcing 'noble' codename for stability on newer releases)
+echo "deb [signed-by=/usr/share/keyrings/gcsfuse-keyring.gpg] https://packages.cloud.google.com/apt gcsfuse-noble main" | sudo tee /etc/apt/sources.list.d/gcsfuse.list
+# 3. Update and install
+sudo apt-get update sudo apt-get install -y gcsfuse
+```
 
 **c. Install Python System Dependencies** The tool requires Python 3. Install
 the system-level dependencies first.
