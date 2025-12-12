@@ -61,20 +61,30 @@ SHARED_SCENARIO_FILE = SHARED_SPECIFIC_CONFIG_FILE
 # ... (Rest of file)
 
 # --- Mount Number Logic ---
-env_mount = os.environ.get("MOUNT_NUMBER")
 MOUNT_NUMBER = 0
 
-if env_mount:
-    try:
-        MOUNT_NUMBER = int(env_mount)
-        # Warnings suppressed
-    except ValueError:
-        print(f"Error: Invalid MOUNT_NUMBER environment variable '{env_mount}'.", file=sys.stderr)
+# 1. Try to detect via Hostname (Production/Standard)
+if "gargnitin-ubuntu2504-e2std8-asiase1b" in HOSTNAME:
+    MOUNT_NUMBER = 1
+elif "gargnitin-ubuntu2504-e2std8-asiase1c" in HOSTNAME:
+    MOUNT_NUMBER = 2
 else:
-    if "gargnitin-ubuntu2504-e2std8-asiase1b" in HOSTNAME:
-        MOUNT_NUMBER = 1
-    elif "gargnitin-ubuntu2504-e2std8-asiase1c" in HOSTNAME:
-        MOUNT_NUMBER = 2
+    # 2. Fallback to Environment Variable (Dev/Testing)
+    env_mount = os.environ.get("MOUNT_NUMBER")
+    if env_mount:
+        try:
+            MOUNT_NUMBER = int(env_mount)
+        except ValueError:
+            print(f"Error: Invalid MOUNT_NUMBER environment variable '{env_mount}'.", file=sys.stderr)
+
+if MOUNT_NUMBER == 0:
+    print("Error: Could not determine MOUNT_NUMBER (Role) for this machine.", file=sys.stderr)
+    print(f"Current Hostname: {HOSTNAME}", file=sys.stderr)
+    print("Action Required:", file=sys.stderr)
+    print("  1. Run this tool on a configured VM (Leader/Follower).", file=sys.stderr)
+    print("  OR", file=sys.stderr)
+    print("  2. Manually set the role: export MOUNT_NUMBER=1 (or 2)", file=sys.stderr)
+
 
 # Bucket Info
 BUCKET_NAME = "gargnitin-test-hns-asiase1"
