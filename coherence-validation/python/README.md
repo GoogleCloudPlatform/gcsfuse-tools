@@ -252,10 +252,10 @@ If running the `dual_node_mounts` workflow, the tool needs to know which VM is
 Replace the placeholder hostnames with your actual VM hostnames (run `hostname` on each VM to confirm).
 
 ```bash
-# Replace 'gargnitin-ubuntu2504-e2std8-asiase1b' with VM1's hostname
+# Replace 'gargnitin-ubuntu2504-e2std8-asiase1b' with VM1's hostname (Leader)
 sed -i 's/if "gargnitin-ubuntu2504-e2std8-asiase1b" in HOSTNAME:/if "<YOUR_VM1_HOSTNAME>" in HOSTNAME:/' $HOME/work/shared/coherency-validation/python/dual_node_mounts/config.py
 
-# Replace 'gargnitin-ubuntu2504-e2std8-asiase1c' with VM2's hostname
+# Replace 'gargnitin-ubuntu2504-e2std8-asiase1c' with VM2's hostname (Follower)
 sed -i 's/elif "gargnitin-ubuntu2504-e2std8-asiase1c" in HOSTNAME:/elif "<YOUR_VM2_HOSTNAME>" in HOSTNAME:/' $HOME/work/shared/coherency-validation/python/dual_node_mounts/config.py
 ```
 
@@ -304,12 +304,17 @@ Workflow                     | Description           | Use Case                 
 
 2.  **Source the aliases:** `bash source workflow_aliases.sh`
 
-3.  **Select your workflow:** ```bash set_workflow
-
-    # Select 1, 2, or 3 from the menu.
-
+3.  **Select your workflow:**
+    ```bash
+    set_workflow
+    # Select from the menu:
+    # 1. dual_node_mounts (Distributed)
+    # 2. single_node_dual_mounts (Local)
+    # 3. single_node_single_mount (Local)
     ```
-    *This loads the environment variables and aliases specific to that workflow.*
+    *   **Important:** You must run this on **ALL** participating VMs.
+    *   **Consistency:** Ensure you select the **SAME** workflow ID (e.g., '1') on all VMs so they share the correct configuration and aliases.
+    *   *This loads the environment variables and aliases specific to that workflow.*
     ```
 
 --------------------------------------------------------------------------------
