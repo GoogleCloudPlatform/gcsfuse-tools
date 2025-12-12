@@ -245,10 +245,10 @@ source ~/.cache/coherency-validation/.venv/bin/activate
 
 ### 5. Configure Hostnames (For Dual Node)
 
-If running the `dual_node_mounts` workflow, the tool needs to know which VM is
-"Mount 1" and which is "Mount 2".
+If running the `dual_node_mounts` workflow, the tool needs to know which VM is "Mount 1" and which is "Mount 2".
 
 **Run on VM1 (Leader) ONLY:**
+
 Replace the placeholder hostnames with your actual VM hostnames (run `hostname` on each VM to confirm).
 
 ```bash
@@ -261,7 +261,7 @@ sed -i 's/elif "gargnitin-ubuntu2504-e2std8-asiase1c" in HOSTNAME:/elif "<YOUR_V
 
 ### 6. Create Workspace Directories
 
-Create the following directories on **all** VMs (local state): 
+Create the following directories on **all** VMs (local state):
 ```bash
 mkdir -p $HOME/work/tasks
 mkdir -p $HOME/work/test_buckets
@@ -272,6 +272,7 @@ mkdir -p $HOME/work/test_buckets
 You must tell the tool which bucket to use for the actual testing. This must be done for **all** workflows you intend to run.
 
 **Run on VM1 (Leader) ONLY:**
+
 Replace `<YOUR_TEST_BUCKET_NAME>` with your actual test bucket name.
 
 ```bash
@@ -299,10 +300,15 @@ Workflow                     | Description           | Use Case                 
 
 ## Getting Started
 
-1.  **Navigate to the tool directory (in the shared mount):** `bash cd
-    $HOME/work/shared/coherency-validation/python`
+1.  **Navigate to the tool directory (in the shared mount):**
+    ```bash
+    cd $HOME/work/shared/coherency-validation/python
+    ```
 
-2.  **Source the aliases:** `bash source workflow_aliases.sh`
+2.  **Source the aliases:**
+    ```bash
+    source workflow_aliases.sh
+    ```
 
 3.  **Select your workflow:**
     ```bash
@@ -315,7 +321,6 @@ Workflow                     | Description           | Use Case                 
     *   **Important:** You must run this on **ALL** participating VMs.
     *   **Consistency:** Ensure you select the **SAME** workflow ID (e.g., '1') on all VMs so they share the correct configuration and aliases.
     *   *This loads the environment variables and aliases specific to that workflow.*
-    ```
 
 --------------------------------------------------------------------------------
 
@@ -571,3 +576,10 @@ seconds."`
         simple copy. Perform git operations in `/tmp` and copy files over.
 *   **Indentation/Syntax Errors**:
     *   Check `execute_scenarios.py`.
+*   **"Invalid mount number (0)"**:
+    *   **Cause:** The tool could not map your VM's hostname to a Mount Number (1 or 2).
+    *   **Fix:** Ensure you ran the `sed` commands in Step 5 correctly. Verify by running:
+        ```bash
+        grep "in HOSTNAME" $HOME/work/shared/coherency-validation/python/dual_node_mounts/config.py
+        ```
+        The output must match your actual VM hostnames (check with `hostname` command).
