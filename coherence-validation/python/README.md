@@ -440,37 +440,44 @@ typically switches your working directory to the mount automatically, but you
 should verify you are in a path like `.../test_buckets/<bucket>-mountX` before
 running them.
 
-**Basic File Operations** * `createfile`: Creates `sample.txt` with default
-content. * `createfilewith2ndcontent`: Creates `sample.txt` with
-"sample_content2". * `create2ndfile`: Creates `sample2.txt`. * `readfile`: Reads
-`sample.txt` and prints content. * `readfilehasoriginalcontent`: Reads
-`sample.txt` and asserts it contains "sample_content". *
-`readfilehasupdatedcontent`: Reads `sample.txt` and asserts it contains
-"sample_content2". * `updatefile`: Overwrites `sample.txt` with new content. *
-`deletefile`: Deletes `sample.txt`. * `listfile`: Checks if `sample.txt` exists
-(via `ls`). * `renamefile`: Renames `sample.txt` to `sample2.txt`.
+**Basic File Operations**
+* `createfile`: Creates `sample.txt` with default content.
+* `createfilewith2ndcontent`: Creates `sample.txt` with "sample_content2".
+* `create2ndfile`: Creates `sample2.txt`.
+* `readfile`: Reads `sample.txt` and prints content.
+* `readfilehasoriginalcontent`: Reads `sample.txt` and asserts it contains "sample_content".
+* `readfilehasupdatedcontent`: Reads `sample.txt` and asserts it contains "sample_content2".
+* `updatefile`: Overwrites `sample.txt` with new content.
+* `deletefile`: Deletes `sample.txt`.
+* `listfile`: Checks if `sample.txt` exists (via `ls`).
+* `renamefile`: Renames `sample.txt` to `sample2.txt`.
 
-**Negative Testing (Expect Failure)** * `readfileandfail`: Tries to read
-`sample.txt`, succeeds if the read FAILS. * `listfileandfail`: Tries to list
-`sample.txt`, succeeds if it does NOT exist. * `read2ndfileandfail`: Tries to
-read `sample2.txt`, succeeds if it FAILS.
+**Negative Testing (Expect Failure)**
+* `readfileandfail`: Tries to read`sample.txt`, succeeds if the read FAILS.
+* `listfileandfail`: Tries to list `sample.txt`, succeeds if it does NOT exist.
+* `read2ndfileandfail`: Tries to read `sample2.txt`, succeeds if it FAILS.
 
-**Directory Operations** * `createdir`: Creates `sample_dir`. * `listdir`:
-Checks if `sample_dir` exists. * `deletedir`: Deletes `sample_dir`. *
-`renamedir`: Renames `sample_dir` to `sample_dir2`. * `listdirandfail`: Checks
-if `sample_dir` does NOT exist.
+**Directory Operations**
+* `createdir`: Creates `sample_dir`.
+* `listdir`: Checks if `sample_dir` exists.
+* `deletedir`: Deletes `sample_dir`.
+* `renamedir`: Renames `sample_dir` to `sample_dir2`.
+* `listdirandfail`: Checks if `sample_dir` does NOT exist.
 
-**Symlink Operations** * `createsymlink`: Creates `sample.lnk` pointing to
-`sample.txt`. * `listsymlink`: Checks if the symlink exists. *
-`readfromsymlink`: Reads the target content via the symlink. * `deletesymlink`:
-Deletes the symlink. * `listsymlinkandfail`: Checks if symlink is gone.
+**Symlink Operations**
+* `createsymlink`: Creates `sample.lnk` pointing to `sample.txt`.
+* `listsymlink`: Checks if the symlink exists.
+* `readfromsymlink`: Reads the target content via the symlink.
+* `deletesymlink`: Deletes the symlink.
+* `listsymlinkandfail`: Checks if symlink is gone.
 
-**Advanced I/O (Go-based)** * `writedirectfile`: Writes using `O_DIRECT`. *
-`readdirectfile`: Reads using `O_DIRECT`. * `writefilewithoutsync`: Writes
-without calling `fsync()`. * `writefilewithoutflush`: Writes without calling
-`close()` (or flush), holding the handle open. * `writebigfile`: Writes a large
-(2GB) file. * `writebigfileconcurrently`: Spawns multiple threads to write to
-the same large file simultaneously (stress test).
+**Advanced I/O (Go-based)**
+* `writedirectfile`: Writes using `O_DIRECT`.
+* `readdirectfile`: Reads using `O_DIRECT`.
+* `writefilewithoutsync`: Writes without calling `fsync()`.
+* `writefilewithoutflush`: Writes without calling `close()` (or flush), holding the handle open.
+* `writebigfile`: Writes a large (2GB) file.
+* `writebigfileconcurrently`: Spawns multiple threads to write to the same large file simultaneously (stress test).
 
 --------------------------------------------------------------------------------
 
