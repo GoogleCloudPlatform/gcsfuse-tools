@@ -593,8 +593,9 @@ You can inspect and modify the environment using these aliases:
 
 ## Logging & Debugging
 
-**Log Persistence:** * **Dual Node:** Logs are safe in the `SHARED_BUCKET`. *
-**Single Node:** Logs are in `~/work/tasks` (Local SSD). **You must manually
+**Log Persistence:**
+* **Dual Node:** Logs are safe in the `SHARED_BUCKET`.
+* **Single Node:** Logs are in `~/work/tasks` (Local SSD). **You must manually
 copy these to the shared bucket** if you wish to preserve them after deleting
 the VM.
 ```bash
@@ -626,5 +627,4 @@ log_custom "Observation: File appeared after 3 seconds."
         ```bash
         grep "in HOSTNAME" $HOME/work/shared/coherency-validation/python/dual_node_mounts/config.py
         ```
-        The output must match your actual VM hostnames (check with `hostname`
-        command).
+        The output must match your actual VM hostnames (check with `hostname` command).
