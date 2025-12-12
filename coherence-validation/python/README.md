@@ -134,8 +134,9 @@ gcloud compute instances create ${VM2_NAME} \
 
 You must install Go, GCS Fuse, and Python on all VMs involved in the testing.
 
-**a. Install Go (Version 1.24.10)** The tool uses Go for direct I/O operations
-(`write.go`, `read.go`). ```bash
+**a. Install Go (Version 1.24.10)**
+<br>
+The tool uses Go for direct I/O operations (`write.go`, `read.go`).
 
 **a. Go installation (1.24.10)**
 
