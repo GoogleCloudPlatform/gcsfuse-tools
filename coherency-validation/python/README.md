@@ -229,7 +229,7 @@ You need to populate your `${SHARED_BUCKET}` with the tool code.
     fi
 
     # Copy contents (idempotent update)
-    cp -rf gcsfuse-tools/coherence-validation/python/* $HOME/work/shared/coherency-validation/python/
+    cp -rf gcsfuse-tools/coherency-validation/python/* $HOME/work/shared/coherency-validation/python/
     echo "Tool code deployed/updated in shared bucket."
     ```
 
