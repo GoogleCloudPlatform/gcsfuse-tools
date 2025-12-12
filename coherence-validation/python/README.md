@@ -55,46 +55,64 @@ This tool requires **Two Distinct GCS Buckets**:
 
 If you do not have buckets or VMs yet, use these commands (requires `gcloud`).
 
+### 0. Variables Setup (Run on ALL terminals)
+
+Define these variables once to make the following commands copy-pasteable.
+
+```bash
+# Common Configuration
+export REGION="us-west4" # Example: us-west4, asia-southeast1
+export ZONE_1="${REGION}-a"
+export ZONE_2="${REGION}-b"
+export PROJECT_ID=$(gcloud config get-value project)
+export USER_PREFIX="yourname" # Your username or unique prefix
+
+# Bucket Names
+export SHARED_BUCKET="${USER_PREFIX}-coherency-shared-${REGION}"
+export TEST_BUCKET="${USER_PREFIX}-test-hns-${REGION}"
+
+# VM Names
+export VM1_NAME="${USER_PREFIX}-vm1-leader-${REGION}"
+export VM2_NAME="${USER_PREFIX}-vm2-follower-${REGION}"
+```
+
 ### 1. Create Buckets
 
-Replace `<REGION>` (e.g., `asia-southeast1`) and bucket names. **Note:** Buckets
-are created with **Hierarchical Namespace** and **Uniform Bucket-Level Access**
-enabled.
+Buckets are created with **Hierarchical Namespace** and **Uniform Bucket-Level
+Access** enabled.
 
 ```bash
 # Shared Bucket (Infrastructure)
-gcloud storage buckets create gs://<SHARED_BUCKET_NAME> \
-    --location=<REGION> \
+gcloud storage buckets create gs://${SHARED_BUCKET} \
+    --location=${REGION} \
     --enable-hierarchical-namespace \
     --uniform-bucket-level-access
 
 # Test Target Bucket (The one under test)
-gcloud storage buckets create gs://<TEST_BUCKET_NAME> \
-    --location=<REGION> \
+gcloud storage buckets create gs://${TEST_BUCKET} \
+    --location=${REGION} \
     --enable-hierarchical-namespace \
     --uniform-bucket-level-access
 ```
 
 ### 2. Create VMs
 
-Create two VMs (Leader/VM1 and Follower/VM2). **Specs:** * **OS:** Ubuntu 25.04
-(via image-family `ubuntu-2504-amd64`). * **Disk:** 40GB Boot Disk. *
-**Access:** Full Cloud Platform scope (required for GCS Fuse and management).
-
-Replace `<USER>` and `<REGION>` (e.g., `gargnitin`, `asiase1`).
+Create two VMs (Leader/VM1 and Follower/VM2). **Specs:** Ubuntu 25.04, 40GB Boot
+Disk, **Access:** Full Cloud Platform scope (required for GCS Fuse and
+management).
 
 ```bash
 # VM1 (Leader)
-gcloud compute instances create ${USER}-vm1-leader-${REGION} \
-    --zone=<ZONE_1> \
+gcloud compute instances create ${VM1_NAME} \
+    --zone=${ZONE_1} \
     --machine-type=e2-standard-8 \
     --image-family=ubuntu-2504-amd64 --image-project=ubuntu-os-cloud \
     --boot-disk-size=40GB \
     --scopes=https://www.googleapis.com/auth/cloud-platform
 
 # VM2 (Follower)
-gcloud compute instances create ${USER}-vm2-follower-${REGION} \
-    --zone=<ZONE_2> \
+gcloud compute instances create ${VM2_NAME} \
+    --zone=${ZONE_2} \
     --machine-type=e2-standard-8 \
     --image-family=ubuntu-2504-amd64 --image-project=ubuntu-os-cloud \
     --boot-disk-size=40GB \
@@ -136,13 +154,11 @@ echo "export PATH=\$PATH:/usr/local/go/bin" >> ~/.bashrc
 
 source ~/.bashrc
 
-
-
 # Verify
 
 go version
 
-```
+~~~
 
 **b. Install GCS Fuse (Latest)**
 Follow the official [GCS Fuse Installation Guide](https://cloud.google.com/storage/docs/cloud-storage-fuse/install).
@@ -154,21 +170,25 @@ echo "deb https://packages.cloud.google.com/apt $GCSFUSE_REPO main" | sudo tee /
 curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo apt-key add -
 sudo apt-get update
 sudo apt-get install -y gcsfuse
-```
+~~~
 
-**Option 2: Modern/Ubuntu 25.04+ (Keyring Method)**
-Use this if you encounter "NO_PUBKEY" errors or are running Ubuntu 25.04+.
-```bash
+**Option 2: Modern/Ubuntu 25.04+ (Keyring Method)** Use this if you encounter
+"NO_PUBKEY" errors or are running Ubuntu 25.04+. ```bash
+
 # 1. Add the public key to the system keyring (Dearmor ensures binary format)
-curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo gpg --dearmor -o /usr/share/keyrings/gcsfuse-keyring.gpg
+
+curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo gpg --dearmor
+-o /usr/share/keyrings/gcsfuse-keyring.gpg
 
 # 2. Add the repo (forcing 'noble' codename for stability on newer releases)
-echo "deb [signed-by=/usr/share/keyrings/gcsfuse-keyring.gpg] https://packages.cloud.google.com/apt gcsfuse-noble main" | sudo tee /etc/apt/sources.list.d/gcsfuse.list
+
+echo "deb [signed-by=/usr/share/keyrings/gcsfuse-keyring.gpg]
+https://packages.cloud.google.com/apt gcsfuse-noble main" | sudo tee
+/etc/apt/sources.list.d/gcsfuse.list
 
 # 3. Update and install
-sudo apt-get update
-sudo apt-get install -y gcsfuse
-```
+
+sudo apt-get update sudo apt-get install -y gcsfuse ```
 
 **c. Install Python System Dependencies** The tool requires Python 3. Install
 the system-level dependencies first.
@@ -181,51 +201,41 @@ sudo apt-get install -y python3 python3-pip python3-venv git
 
 ### 3. Setup the Shared Bucket (One-time Setup)
 
-You need to populate your `SHARED_BUCKET` with the tool code.
+You need to populate your `${SHARED_BUCKET}` with the tool code.
 
 **On one VM (e.g., VM1):**
 
-1.  **Mount the empty shared bucket:**
-    ```bash
-    mkdir -p $HOME/work/shared
+1.  **Mount the empty shared bucket:** ```bash mkdir -p $HOME/work/shared
+
     # Safely unmount if already mounted (Idempotent)
+
     (fusermount -uz $HOME/work/shared || true)
-    
-    # Replace <YOUR_SHARED_BUCKET_NAME> with your actual bucket name
-    gcsfuse --implicit-dirs <YOUR_SHARED_BUCKET_NAME> $HOME/work/shared
-    ```
+
+    # Mount the shared bucket
+
+    gcsfuse --implicit-dirs ${SHARED_BUCKET} $HOME/work/shared ```
 
 2.  **Download and install the tool into the bucket:** Run the following block
-    to clone/update the repo and copy the validation tools into the mounted bucket.
-    ```bash
-    cd /tmp
-    if [ -d "gcsfuse-tools" ]; then
-        echo "Updating existing repo..."
-        cd gcsfuse-tools
-        git pull origin main
-        cd ..
-    else
-        echo "Cloning repo..."
-        git clone https://github.com/GoogleCloudPlatform/gcsfuse-tools.git
-    fi
+    to clone/update the repo and copy the validation tools into the mounted
+    bucket. ```bash cd /tmp if [ -d "gcsfuse-tools" ]; then echo "Updating
+    existing repo..." cd gcsfuse-tools git pull origin main cd .. else echo
+    "Cloning repo..." git clone
+    https://github.com/GoogleCloudPlatform/gcsfuse-tools.git fi
 
     # Copy the python tools to the shared mount
-    if [ ! -d "$HOME/work/shared/coherency-validation/python" ]; then 
-        mkdir -p $HOME/work/shared/coherency-validation/python
-    fi
-    
+
+    if [ ! -d "$HOME/work/shared/coherency-validation/python" ]; then mkdir -p
+    $HOME/work/shared/coherency-validation/python fi
+
     # Copy contents (idempotent update)
-    cp -rf gcsfuse-tools/coherence-validation/python/* $HOME/work/shared/coherency-validation/python/
-    echo "Tool code deployed/updated in shared bucket."
-    ```
+
+    cp -rf gcsfuse-tools/coherence-validation/python/*
+    $HOME/work/shared/coherency-validation/python/ echo "Tool code
+    deployed/updated in shared bucket." ```
 
 **On the other VM (VM2):** Simply mount the bucket to access the code deployed
-by VM1.
-```bash
-mkdir -p $HOME/work/shared
-(fusermount -uz $HOME/work/shared || true)
-gcsfuse --implicit-dirs <YOUR_SHARED_BUCKET_NAME> $HOME/work/shared
-```
+by VM1. `bash mkdir -p $HOME/work/shared (fusermount -uz $HOME/work/shared ||
+true) gcsfuse --implicit-dirs ${SHARED_BUCKET} $HOME/work/shared`
 
 ### 4. Setup Python Virtual Environment (On All VMs)
 
@@ -245,45 +255,49 @@ source ~/.cache/coherency-validation/.venv/bin/activate
 
 ### 5. Configure Hostnames (For Dual Node)
 
-If running the `dual_node_mounts` workflow, the tool needs to know which VM is "Mount 1" and which is "Mount 2".
+If running the `dual_node_mounts` workflow, the tool needs to know which VM is
+"Mount 1" and which is "Mount 2".
 
 **Run on VM1 (Leader) ONLY:**
 
-Replace the placeholder hostnames with your actual VM hostnames (run `hostname` on each VM to confirm).
-
 ```bash
-# Replace 'gargnitin-ubuntu2504-e2std8-asiase1b' with VM1's hostname (Leader)
-sed -i 's/if "gargnitin-ubuntu2504-e2std8-asiase1b" in HOSTNAME:/if "<YOUR_VM1_HOSTNAME>" in HOSTNAME:/' $HOME/work/shared/coherency-validation/python/dual_node_mounts/config.py
+# Get the internal hostnames (what 'socket.gethostname()' sees)
+# We assume VM1 is running this command.
+VM1_HOSTNAME=$(hostname)
+# You must manually set VM2's hostname if you are not running this via gcloud ssh
+# or just look it up. For automation, if you know the naming convention:
+# VM2_HOSTNAME="${VM2_NAME}.${ZONE_2}.c.${PROJECT_ID}.internal"
+# Ideally, verify by running `hostname` on VM2.
+echo "Configuring VM1: $VM1_HOSTNAME"
+echo "Configuring VM2: $VM2_NAME (You might need the full FQDN)"
 
-# Replace 'gargnitin-ubuntu2504-e2std8-asiase1c' with VM2's hostname (Follower)
-sed -i 's/elif "gargnitin-ubuntu2504-e2std8-asiase1c" in HOSTNAME:/elif "<YOUR_VM2_HOSTNAME>" in HOSTNAME:/' $HOME/work/shared/coherency-validation/python/dual_node_mounts/config.py
+# Update VM1 (Leader)
+sed -i "s/if \"gargnitin-ubuntu2504-e2std8-asiase1b\" in HOSTNAME:/if \"${VM1_NAME}\" in HOSTNAME:/" $HOME/work/shared/coherency-validation/python/dual_node_mounts/config.py
+
+# Update VM2 (Follower) - Using the VM name as substring match usually works
+sed -i "s/elif \"gargnitin-ubuntu2504-e2std8-asiase1c\" in HOSTNAME:/elif \"${VM2_NAME}\" in HOSTNAME:/" $HOME/work/shared/coherency-validation/python/dual_node_mounts/config.py
 ```
 
 ### 6. Create Workspace Directories
 
-Create the following directories on **all** VMs (local state):
-```bash
-mkdir -p $HOME/work/tasks
-mkdir -p $HOME/work/test_buckets
-```
+Create the following directories on **all** VMs (local state): `bash mkdir -p
+$HOME/work/tasks mkdir -p $HOME/work/test_buckets`
 
 ### 7. Configure the Test Bucket Name
 
-You must tell the tool which bucket to use for the actual testing. This must be done for **all** workflows you intend to run.
+You must tell the tool which bucket to use for the actual testing.
 
 **Run on VM1 (Leader) ONLY:**
 
-Replace `<YOUR_TEST_BUCKET_NAME>` with your actual test bucket name.
-
 ```bash
 # Update Dual Node Config
-sed -i 's/BUCKET_NAME = ".*"/BUCKET_NAME = "<YOUR_TEST_BUCKET_NAME>"/' $HOME/work/shared/coherency-validation/python/dual_node_mounts/config.py
+sed -i "s/BUCKET_NAME = \".*\"/BUCKET_NAME = \"${TEST_BUCKET}\"/" $HOME/work/shared/coherency-validation/python/dual_node_mounts/config.py
 
 # Update Single Node Single Mount Config
-sed -i 's/BUCKET_NAME = ".*"/BUCKET_NAME = "<YOUR_TEST_BUCKET_NAME>"/' $HOME/work/shared/coherency-validation/python/single_node_single_mount/config.py
+sed -i "s/BUCKET_NAME = \".*\"/BUCKET_NAME = \"${TEST_BUCKET}\"/" $HOME/work/shared/coherency-validation/python/single_node_single_mount/config.py
 
 # Update Single Node Dual Mounts Config
-sed -i 's/BUCKET_NAME = ".*"/BUCKET_NAME = "<YOUR_TEST_BUCKET_NAME>"/' $HOME/work/shared/coherency-validation/python/single_node_dual_mounts/config.py
+sed -i "s/BUCKET_NAME = \".*\"/BUCKET_NAME = \"${TEST_BUCKET}\"/" $HOME/work/shared/coherency-validation/python/single_node_dual_mounts/config.py
 ```
 
 --------------------------------------------------------------------------------
@@ -300,27 +314,29 @@ Workflow                     | Description           | Use Case                 
 
 ## Getting Started
 
-1.  **Navigate to the tool directory (in the shared mount):**
-    ```bash
-    cd $HOME/work/shared/coherency-validation/python
-    ```
+1.  **Navigate to the tool directory (in the shared mount):** `bash cd
+    $HOME/work/shared/coherency-validation/python`
 
-2.  **Source the aliases:**
-    ```bash
-    source workflow_aliases.sh
-    ```
+2.  **Source the aliases:** `bash source workflow_aliases.sh`
 
-3.  **Select your workflow:**
-    ```bash
-    set_workflow
+3.  **Select your workflow:** ```bash set_workflow
+
     # Select from the menu:
+
     # 1. dual_node_mounts (Distributed)
+
     # 2. single_node_dual_mounts (Local)
+
     # 3. single_node_single_mount (Local)
+
     ```
+    ```
+
     *   **Important:** You must run this on **ALL** participating VMs.
-    *   **Consistency:** Ensure you select the **SAME** workflow ID (e.g., '1') on all VMs so they share the correct configuration and aliases.
-    *   *This loads the environment variables and aliases specific to that workflow.*
+    *   **Consistency:** Ensure you select the **SAME** workflow ID (e.g., '1')
+        on all VMs so they share the correct configuration and aliases.
+    *   *This loads the environment variables and aliases specific to that
+        workflow.*
 
 --------------------------------------------------------------------------------
 
@@ -577,9 +593,10 @@ seconds."`
 *   **Indentation/Syntax Errors**:
     *   Check `execute_scenarios.py`.
 *   **"Invalid mount number (0)"**:
-    *   **Cause:** The tool could not map your VM's hostname to a Mount Number (1 or 2).
-    *   **Fix:** Ensure you ran the `sed` commands in Step 5 correctly. Verify by running:
-        ```bash
-        grep "in HOSTNAME" $HOME/work/shared/coherency-validation/python/dual_node_mounts/config.py
-        ```
-        The output must match your actual VM hostnames (check with `hostname` command).
+    *   **Cause:** The tool could not map your VM's hostname to a Mount Number
+        (1 or 2).
+    *   **Fix:** Ensure you ran the `sed` commands in Step 5 correctly. Verify
+        by running: `bash grep "in HOSTNAME"
+        $HOME/work/shared/coherency-validation/python/dual_node_mounts/config.py`
+        The output must match your actual VM hostnames (check with `hostname`
+        command).
