@@ -284,12 +284,12 @@ echo "Configuring VM2: $VM2_NAME (You might need the full FQDN)"
 # Update VM1 (Leader) - Regex matches any existing hostname string
 sed -i "s/if \".*\" in HOSTNAME:/if \"${VM1_NAME}\" in HOSTNAME:/" $HOME/work/shared/coherency-validation/python/dual_node_mounts/config.py
 # Verify
-grep -q "\"${VM1_NAME}\" in HOSTNAME" $HOME/work/shared/coherency-validation/python/dual_node_mounts/config.py || echo "Error: Failed to configure VM1 hostname. Please manually configure ${VM1_NAME} in $HOME/work/shared/coherency-validation/python/dual_node_mounts/config.py for MOUNT_NUMBER 1"
+grep -q "if \"${VM1_NAME}\" in HOSTNAME:" $HOME/work/shared/coherency-validation/python/dual_node_mounts/config.py || echo "Error: Failed to configure VM1 hostname. Please manually configure ${VM1_NAME} in $HOME/work/shared/coherency-validation/python/dual_node_mounts/config.py for MOUNT_NUMBER 1"
 
 # Update VM2 (Follower)
 sed -i "s/elif \".*\" in HOSTNAME:/elif \"${VM2_NAME}\" in HOSTNAME:/" $HOME/work/shared/coherency-validation/python/dual_node_mounts/config.py
 # Verify
-grep -q "\"${VM2_NAME}\" in HOSTNAME" $HOME/work/shared/coherency-validation/python/dual_node_mounts/config.py || echo "Error: Failed to configure VM2 hostname. Please manually configure ${VM2_NAME} in $HOME/work/shared/coherency-validation/python/dual_node_mounts/config.py for MOUNT_NUMBER 2"
+grep -q "elif \"${VM2_NAME}\" in HOSTNAME:" $HOME/work/shared/coherency-validation/python/dual_node_mounts/config.py || echo "Error: Failed to configure VM2 hostname. Please manually configure ${VM2_NAME} in $HOME/work/shared/coherency-validation/python/dual_node_mounts/config.py for MOUNT_NUMBER 2"
 ```
 
 ### 6. Create Workspace Directories
@@ -310,15 +310,15 @@ You must tell the tool which bucket to use for the actual testing.
 ```bash
 # Update Dual Node Config
 sed -i "s/BUCKET_NAME *= *\".*\"/BUCKET_NAME = \"${TEST_BUCKET}\"/" $HOME/work/shared/coherency-validation/python/dual_node_mounts/config.py
-grep -q "${TEST_BUCKET}" $HOME/work/shared/coherency-validation/python/dual_node_mounts/config.py || echo "Error: Failed to set bucket in dual_node_mounts. Please manually configure ${TEST_BUCKET} as BUCKET_NAME in $HOME/work/shared/coherency-validation/python/dual_node_mounts/config.py."
+grep -q "BUCKET_NAME *= *\"${TEST_BUCKET}\"" $HOME/work/shared/coherency-validation/python/dual_node_mounts/config.py || echo "Error: Failed to set bucket in dual_node_mounts. Please manually configure ${TEST_BUCKET} as BUCKET_NAME in $HOME/work/shared/coherency-validation/python/dual_node_mounts/config.py."
 
 # Update Single Node Single Mount Config
 sed -i "s/BUCKET_NAME *= *\".*\"/BUCKET_NAME = \"${TEST_BUCKET}\"/" $HOME/work/shared/coherency-validation/python/single_node_single_mount/config.py
-grep -q "${TEST_BUCKET}" $HOME/work/shared/coherency-validation/python/single_node_single_mount/config.py || echo "Error: Failed to set bucket in single_node_single_mount. Please manually configure ${TEST_BUCKET} as BUCKET_NAME in $HOME/work/shared/coherency-validation/python/single_node_single_mount/config.py."
+grep -q "BUCKET_NAME *= *\"${TEST_BUCKET}\"" $HOME/work/shared/coherency-validation/python/single_node_single_mount/config.py || echo "Error: Failed to set bucket in single_node_single_mount. Please manually configure ${TEST_BUCKET} as BUCKET_NAME in $HOME/work/shared/coherency-validation/python/single_node_single_mount/config.py."
 
 # Update Single Node Dual Mounts Config
 sed -i "s/BUCKET_NAME *= *\".*\"/BUCKET_NAME = \"${TEST_BUCKET}\"/" $HOME/work/shared/coherency-validation/python/single_node_dual_mounts/config.py
-grep -q "${TEST_BUCKET}" $HOME/work/shared/coherency-validation/python/single_node_dual_mounts/config.py || echo "Error: Failed to set bucket in single_node_dual_mounts. Please manually configure ${TEST_BUCKET} as BUCKET_NAME in $HOME/work/shared/coherency-validation/python/single_node_dual_mounts/config.py."
+grep -q "BUCKET_NAME *= *\"${TEST_BUCKET}\"" $HOME/work/shared/coherency-validation/python/single_node_dual_mounts/config.py || echo "Error: Failed to set bucket in single_node_dual_mounts. Please manually configure ${TEST_BUCKET} as BUCKET_NAME in $HOME/work/shared/coherency-validation/python/single_node_dual_mounts/config.py."
 ```
 
 --------------------------------------------------------------------------------
