@@ -22,7 +22,7 @@ Before running this script, ensure you have the following:
 
     *   `gcsfuse_version`: The GCSFuse version to test (e.g., "3.7.101").
     *   `commit_hash`: The specific commit hash of GCSFuse to test.
-    *   `bucket_name`: A GCS bucket where `details.txt` to be used by the test and test results will be uploaded.
+    *   `bucket_name`: A GCS bucket where `details.txt` to be used by the test and test results will be uploaded. This name must be unique.
     *   `vm_name`: The name for the Compute Engine VM instance.
     *   `location`, `zone`, `machine_type`, `image_project`, `image_family`: VM configuration details.
 
@@ -50,3 +50,24 @@ The script performs the following steps:
 After the script completes, the VM will be created and the `e2e_test.sh` script will start running. You can monitor the progress of the tests by connecting to the VM via SSH or by viewing its serial console output in the Google Cloud Console.
 
 Once the tests are complete, you can inspect the test results on the VM or in the GCS buckets provided.
+
+### Cleanup
+
+To avoid incurring unnecessary costs, it is important to delete the resources created by the script after you have finished testing.
+
+1.  **Delete the Compute Engine VM:**
+
+    ```bash
+    gcloud compute instances delete ${vm_name} --zone=${zone}
+    ```
+
+2.  **Delete the GCS Buckets:**
+
+    The script creates a total of 4 GCS buckets for testing. Replace `${bucket_name}` and `${vm_name}`with the name you configured in the script.
+
+    ```bash
+    gcloud storage rm -r gs://${vm_name}
+    gcloud storage rm -r gs://${vm_name}-hns
+    gcloud storage rm -r gs://${vm_name}-parallel
+    gcloud storage rm -r gs://${vm_name}-hns-parallel
+    ```
