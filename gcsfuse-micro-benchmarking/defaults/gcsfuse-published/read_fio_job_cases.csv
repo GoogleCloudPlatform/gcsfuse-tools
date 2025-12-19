@@ -1,0 +1,17 @@
+bs,file_size,iodepth,iotype,threads,nrfiles
+128K,128K,64,read,128,30
+128K,256K,64,read,128,30
+1M,1M,64,read,128,30
+1M,5M,64,read,128,20
+1M,10M,64,read,128,20
+1M,50M,64,read,128,20
+1M,100M,64,read,128,10
+1M,200M,64,read,128,10
+1M,1G,64,read,128,10
+128K,128K,64,randread,128,30
+1M,5M,64,randread,128,20
+1M,10M,64,randread,128,20
+1M,50M,64,randread,128,10
+1M,100M,64,randread,128,10
+1M,200M,64,randread,128,10
+1M,1G,64,randread,128,10
