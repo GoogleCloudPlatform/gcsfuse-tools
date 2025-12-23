@@ -198,11 +198,11 @@ def rationalize_zonal_gcs_bucket(default_cfg, new_cfg):
             default_cfg['bucket_name']=""
            
     if new_cfg.get('placement') and new_cfg.get('placement') != '' and new_cfg.get('placement') != default_cfg.get('placement'):
-        print(f'Warning! The placement for the zonal bucket is different from the benchmarking zone passed. Falling back to benchmarking zone {default_cfg.get('placement')}')
+        print(f"Warning! The placement for the zonal bucket is different from the benchmarking zone passed. Falling back to benchmarking zone {default_cfg.get('placement')}")
     if new_cfg.get('storage_class') and new_cfg.get('storage_class') != '' and new_cfg.get('storage_class') != default_cfg.get('storage_class'):
-        print(f'Warning! The storage class passed for zonal bucket ({new_cfg.get('storage_class')}) is invalid. Falling to RAPID')
+        print(f"Warning! The storage class passed for zonal bucket ({new_cfg.get('storage_class')}) is invalid. Falling to RAPID")
     if new_cfg.get('enable_hns') and new_cfg.get('enable_hns') == False:
-        print(f'Warning! Explicitly passing enable_hns false for zonal bucket, is invalid')
+        print(f"Warning! Explicitly passing enable_hns false for zonal bucket, is invalid")
     return default_cfg
 
 
@@ -216,9 +216,9 @@ def rationalize_regional_gcs_bucket(default_cfg, new_cfg):
             print("Warning! The provided bucket is not compatible with the rest of the config")
             default_cfg['bucket_name']=""
     if new_cfg.get('placement') and new_cfg.get('placement') != '' :
-        print(f'Warning! The placement for regional bucket must be empty. Passed {new_cfg.get('placement')}')
+        print(f"Warning! The placement for regional bucket must be empty. Passed {new_cfg.get('placement')}")
     if new_cfg.get('storage_class') and new_cfg.get('storage_class') == 'RAPID' :
-        print(f'Warning! The storage class passed for regional bucket ({new_cfg.get('storage_class')}) is invalid. Falling to default {default_cfg.get('storage_class')}')
+        print(f"Warning! The storage class passed for regional bucket ({new_cfg.get('storage_class')}) is invalid. Falling to default {default_cfg.get('storage_class')}")
     if new_cfg.get('enable_hns') and new_cfg.get('enable_hns') != '':
         default_cfg['enable_hns']=new_cfg.get('enable_hns')
     return default_cfg
