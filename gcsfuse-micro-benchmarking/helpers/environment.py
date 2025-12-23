@@ -3,6 +3,7 @@ import shlex
 import os
 import time
 import json
+import requests
 from .constants import *
 
 
@@ -80,15 +81,33 @@ def create_vm_if_not_exists(vm_details, zone, project):
         print(f"Unexpected error checking VM existence: {e}")
         return None
 
+def is_running_on_gce():
+    """Checks if the script is running on a GCE VM."""
+    try:
+        response = requests.get(
+            "http://metadata.google.internal/computeMetadata/v1/instance/",
+            headers={"Metadata-Flavor": "Google"},
+            timeout=1
+        )
+        return response.status_code == 200
+    except requests.exceptions.RequestException:
+        return False
 
 def wait_for_ssh(vm_name, zone, project, retries=15, delay=20):
     """Tries to SSH into the VM until it succeeds or retries are exhausted."""
+
     ssh_cmd = [
         'gcloud', 'compute', 'ssh', vm_name,
         f'--zone={zone}', f'--project={project}',
         '--quiet',  # Suppress interactive prompts
         '--', 'echo "SSH ready"'
     ]
+    if is_running_on_gce():
+        print("Detected environment: GCE VM. Using internal IP.")
+        ssh_cmd.append('--internal-ip')
+    else:
+        print("Detected environment: Cloudtop/External. Using default (External IP).")
+
     print(f"Waiting for VM '{vm_name}' to become SSH-ready...")
     for i in range(retries):
         try:
@@ -160,7 +179,11 @@ def run_script_remotely(vm_name, zone, project, startup_script, max_retries=max_
 
     # Step 1: Upload the script
     scp_cmd = gcloud_base + ['scp', startup_script, f'{vm_name}:{remote_script_path}', f'--zone={zone}', f'--project={project}']
+    if is_running_on_gce():
+        print("Detected GCE environment for SCP. Adding --internal-ip.")
+        scp_cmd.append('--internal-ip')
     print(f"Uploading {startup_script} to {vm_name}:{remote_script_path}...")
+
     for i in range(max_retries):
         try:
             print(f"  SCP attempt {i+1}/{max_retries}...")
@@ -194,6 +217,9 @@ def run_script_remotely(vm_name, zone, project, startup_script, max_retries=max_
         
     # Step 2: Execute the script inside a detached tmux session
     ssh_base = gcloud_base + ['ssh', vm_name, f'--zone={zone}', f'--project={project}']
+    if is_running_on_gce():
+        print("Detected GCE environment for execution SSH. Adding --internal-ip.")
+        ssh_base.append('--internal-ip')
     tmux_session_name = f"startup_{vm_name}"
     tmux_session_name_quoted = shlex.quote(tmux_session_name)
 
