@@ -41,7 +41,7 @@ def main():
         action="store_true",
         help="If set, bind the FIO process to the CPUs specified in --cpu-limit-list."
     )
-    parser.add_argument("--bq-project-id", default=None, help="BigQuery project ID to upload results.")
+    parser.add_argument("--project-id", required=True, default=None, help="Project ID to upload results.")
     parser.add_argument("--bq-dataset-id", default=None, help="BigQuery dataset ID.")
     parser.add_argument("--bq-table-id", default=None, help="BigQuery table ID.")
     args = parser.parse_args()
@@ -56,7 +56,7 @@ def main():
         summary_file=args.summary_file,
         cpu_limit_list=args.cpu_limit_list,
         bind_fio=args.bind_fio,
-        bq_project_id=args.bq_project_id,
+        project_id=args.project_id,
         bq_dataset_id=args.bq_dataset_id,
         bq_table_id=args.bq_table_id,
     )
