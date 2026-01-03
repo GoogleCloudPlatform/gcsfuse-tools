@@ -141,7 +141,14 @@ steps:
   args:
   - -exc
   - |
-    vm_name=release-test${_ZONAL}${_READ_CACHE}-${_IMAGE_FAMILY}${_DOCKER_SUFFIX}
+    if [[ "${_UPLOAD_BUCKET}" == "test-release-flow" ]]; then
+      echo "Using test flow vm"
+      vm_name=test-release-flow-vm
+    else
+      echo "_VM_NAME is not set, deriving from other substitutions"
+      vm_name=release-test${_ZONAL}${_READ_CACHE}-${_IMAGE_FAMILY}${_DOCKER_SUFFIX}
+    fi
+    
     verify_dir=gs://${_UPLOAD_BUCKET}/v${_RELEASE_VERSION}/${vm_name}/*.txt
     log_files=()
 

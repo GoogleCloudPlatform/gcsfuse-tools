@@ -1,0 +1,122 @@
+substitutions:
+ _PROJECT_ID: 'gcs-fuse-test'
+ _IMAGE_FAMILY: ''
+ _IMAGE_FAMILY_ARM64: ''
+ _IMAGE_PROJECT: ''
+ _ZONE: 'us-west1-b'
+ _ZONE_ARM64: 'us-central1-f'
+ _RELEASE_VERSION: ''
+ _COMMIT_HASH: ''
+ _UPLOAD_BUCKET: 'gcsfuse-release-packages'
+
+# We can execute the stage again in case of any failure.
+steps:
+
+- name: 'gcr.io/cloud-builders/gcloud'
+  id: 'set the project id'
+  args:
+     - 'config'
+     - 'set'
+     - 'project'
+     - '${_PROJECT_ID}'
+
+# Pre test run cleanup
+- name: 'gcr.io/cloud-builders/gcloud'
+  id: 'cleanup test vm and logs'
+  allowFailure: true
+  entrypoint: 'bash'
+  args:
+  - -c
+  - |
+    gcloud compute instances delete create-gcsfuse-packages --zone=${_ZONE}
+    gcloud compute instances delete create-gcsfuse-packages-arm64 --zone=${_ZONE_ARM64}
+    gsutil rm -r gs://${_UPLOAD_BUCKET}/v${_RELEASE_VERSION}/
+
+    echo "cleanup completed for vm"
+
+# Create amd64 package
+- name: 'gcr.io/cloud-builders/gcloud'
+  id: 'start vm instance with starter script to create amd64 package'
+  dir: '/workspace/louhi_ws/gcsfuse/tools/cd_scripts'
+  entrypoint: 'bash'
+  args:
+  - -c
+  - |
+     gcloud compute instances create create-gcsfuse-packages \
+     --machine-type=n2-standard-32 \
+     --image-family=${_IMAGE_FAMILY} \
+     --image-project=${_IMAGE_PROJECT} \
+     --zone=${_ZONE} \
+     --boot-disk-size=100 \
+     --reservation-affinity=specific \
+     --reservation=projects/${_PROJECT_ID}/reservations/create-gcsfuse-packages \
+     --scopes=https://www.googleapis.com/auth/cloud-platform,https://www.googleapis.com/auth/devstorage.read_write \
+     --metadata=startup-script-url=https://raw.githubusercontent.com/GoogleCloudPlatform/gcsfuse/refs/heads/master/tools/cd_scripts/package_gcsfuse.sh,RELEASE_VERSION=${_RELEASE_VERSION},UPLOAD_BUCKET=${_UPLOAD_BUCKET},COMMIT_HASH=${_COMMIT_HASH}
+
+# Create arm64 package
+- name: 'gcr.io/cloud-builders/gcloud'
+  id: 'start vm instance with starter script to create arm64 package'
+  dir: '/workspace/louhi_ws/gcsfuse/tools/cd_scripts'
+  entrypoint: 'bash'
+  args:
+  - -c
+  - |
+     gcloud compute instances create create-gcsfuse-packages-arm64 \
+     --machine-type=t2a-standard-8 \
+     --image-family=${_IMAGE_FAMILY_ARM64} \
+     --image-project=${_IMAGE_PROJECT} \
+     --zone=${_ZONE_ARM64} \
+     --boot-disk-size=100 \
+     --reservation-affinity=specific \
+     --reservation=projects/${_PROJECT_ID}/reservations/create-gcsfuse-package-arm64 \
+     --scopes=https://www.googleapis.com/auth/cloud-platform,https://www.googleapis.com/auth/devstorage.read_write \
+     --metadata=startup-script-url=https://raw.githubusercontent.com/GoogleCloudPlatform/gcsfuse/refs/heads/master/tools/cd_scripts/package_gcsfuse.sh,RELEASE_VERSION=${_RELEASE_VERSION},UPLOAD_BUCKET=${_UPLOAD_BUCKET},COMMIT_HASH=${_COMMIT_HASH}
+
+# Wait for the script to complete.
+# Delete vm instance if packages are created successfully.
+- name: 'gcr.io/cloud-builders/gsutil'
+  id: 'wait for the script to finish'
+  entrypoint: 'bash'
+  args:
+  - -exc
+  - |
+    verify_dir=gs://${_UPLOAD_BUCKET}/v${_RELEASE_VERSION}/
+    #max 4 retries amounting to ~10mins time
+    RETRIES=4
+    RETRY_COUNT=1
+
+    exit_code=0
+    while [[ $(gsutil ls $verify_dir | grep -c "aarch64.rpm" ) != 1 || $(gsutil ls $verify_dir | grep -c "arm64.deb" ) != 1 || $(gsutil ls $verify_dir | grep -c "x86_64.rpm" ) != 1 ||  $(gsutil ls $verify_dir | grep -c "amd64.deb" ) != 1 ]]; do
+        echo "[Try $${RETRY_COUNT} of $${RETRIES}] Waiting for script to finish"
+        if [ "$${RETRY_COUNT}" == "$${RETRIES}" ]; then
+            echo "Retry limit reached, perhaps there is some error"
+            exit_code=1
+            break
+        fi
+        RETRY_COUNT=$(($${RETRY_COUNT}+1))
+        sleep 150
+    done
+
+    echo "logs for docker amd64 build"
+    gsutil cat gs://${_UPLOAD_BUCKET}/v${_RELEASE_VERSION}/docker_amd64.log
+    echo "logs for docker arm64 build"
+    gsutil cat gs://${_UPLOAD_BUCKET}/v${_RELEASE_VERSION}/docker_arm64.log
+
+    if [[ $exit_code == 1 ]]; then
+        exit 1
+    fi
+
+    echo "packages are created , deleting instance ...."
+    gcloud compute instances delete create-gcsfuse-packages --zone=${_ZONE}
+    gcloud compute instances delete create-gcsfuse-packages-arm64 --zone=${_ZONE_ARM64}
+
+- name: 'gcr.io/cloud-builders/gsutil'
+  id: 'update release version and commit hash on gcs bucket'
+  entrypoint: 'bash'
+  args:
+  - -exc
+  - |
+    touch details.txt
+    echo ${_RELEASE_VERSION}>>details.txt
+    echo ${_COMMIT_HASH}>>details.txt
+    gsutil cp details.txt gs://${_UPLOAD_BUCKET}/version-detail
