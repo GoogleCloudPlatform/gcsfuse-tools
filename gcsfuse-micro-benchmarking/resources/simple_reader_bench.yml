@@ -1,0 +1,38 @@
+zonal_benchmarking: True
+reuse_same_mount:
+iterations: 1
+
+bench_env:
+  delete_after_use: False
+  zone: us-west4-a
+  project: gcs-tess
+  gce_env:
+   vm_name: 
+   machine_type:
+   image_family:
+   image_project:
+   disk_size:
+   startup_script:
+  gcs_bucket: 
+    bucket_name: princer-zonal-us-west4-a
+    placement:
+    storage_class: 
+    enable_hns:
+
+fio_jobfile_template: 
+
+job_details:
+  file_path: ./resources/fio_job_cases.csv
+  bs: []
+  file_size: []
+  iotype: []
+  iodepth: []
+  threads: []
+  nrfiles: []
+
+mount_config_file: 
+
+version_details:
+ go_version: 
+ fio_version: 
+ gcsfuse_version_or_commit:

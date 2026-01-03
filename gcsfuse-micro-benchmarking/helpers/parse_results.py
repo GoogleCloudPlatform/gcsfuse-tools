@@ -21,7 +21,7 @@ def calculate_stats(data):
     return statistics.fmean(data), statistics.stdev(data)
 
 
-def process_fio_metrics_and_vm_metrics(fio_metrics, timestamps, vm_cfg):
+def process_fio_metrics_and_vm_metrics(fio_metrics, timestamps, vm_cfg, fetch_vm_metrics=True):
     """
     Processes FIO and VM metrics to generate a combined performance report.
 
@@ -29,10 +29,12 @@ def process_fio_metrics_and_vm_metrics(fio_metrics, timestamps, vm_cfg):
         fio_metrics (list): A list of JSON objects, where each object is the result of one FIO iteration.
         timestamps (list): A list of tuples, where each tuple contains the (start_time, end_time) for each FIO iteration.
         vm_cfg (dict): The configuration dictionary for the VM.
+        fetch_vm_metrics (bool): Whether to fetch VM CPU/memory metrics. Default True.
     """
     if len(fio_metrics) != len(timestamps):
-        print("Mismatch in the number of records for fio metrics and timestamps")
-        exit()
+        print(f"Warning: Mismatch in the number of records - fio_metrics: {len(fio_metrics)}, timestamps: {len(timestamps)}")
+        print("Skipping VM metrics for this test case due to mismatch")
+        fetch_vm_metrics = False
 
     # --- 1. Process FIO Metrics ---
     # FIO throughput (bw) is in KiB/s. We will collect both read and write values.
@@ -114,38 +116,46 @@ def process_fio_metrics_and_vm_metrics(fio_metrics, timestamps, vm_cfg):
         fio_report['stdev_write_iops'] = stdev_write_iops
 
     # --- 2. Process VM Metrics ---
-    vm_name = vm_cfg['instance_name']
-    project = vm_cfg['project']
-    zone = vm_cfg['zone']
+    if fetch_vm_metrics:
+        vm_name = vm_cfg['instance_name']
+        project = vm_cfg['project']
+        zone = vm_cfg['zone']
 
-    all_cpu_utilizations = []
+        all_cpu_utilizations = []
 
-    for i, ts in enumerate(timestamps):
-        start_time = datetime.datetime.strptime(ts['start_time'], "%Y-%m-%dT%H:%M:%S%z")
-        end_time = datetime.datetime.strptime(ts['end_time'], "%Y-%m-%dT%H:%M:%S%z")
-        try:
-            print(f"Fetching CPU for interval {i+1}: {start_time} to {end_time}")
-            cpu_points = get_vm_cpu_utilization_points(vm_name, project, zone, start_time, end_time)
-            if cpu_points:
-                avg_cpu_for_interval = max(cpu_points)
-                all_cpu_utilizations.append(avg_cpu_for_interval)
-                # print(f"  Interval {i+1}: Found {len(cpu_points)} CPU points, Avg: {avg_cpu_for_interval:.4f}")
-            else:
-                print(f"  Interval {i+1}: No CPU data points found.")
-        except Exception as e:
-            print(f"Error fetching VM metrics for interval {start_time} to {end_time}: {e}")
-            continue
+        for i, ts in enumerate(timestamps):
+            start_time = datetime.datetime.strptime(ts['start_time'], "%Y-%m-%dT%H:%M:%S%z")
+            end_time = datetime.datetime.strptime(ts['end_time'], "%Y-%m-%dT%H:%M:%S%z")
+            try:
+                print(f"Fetching CPU for interval {i+1}: {start_time} to {end_time}")
+                cpu_points = get_vm_cpu_utilization_points(vm_name, project, zone, start_time, end_time)
+                if cpu_points:
+                    avg_cpu_for_interval = max(cpu_points)
+                    all_cpu_utilizations.append(avg_cpu_for_interval)
+                    # print(f"  Interval {i+1}: Found {len(cpu_points)} CPU points, Avg: {avg_cpu_for_interval:.4f}")
+                else:
+                    print(f"  Interval {i+1}: No CPU data points found.")
+            except Exception as e:
+                print(f"Error fetching VM metrics for interval {start_time} to {end_time}: {e}")
+                continue
 
-    vm_report = {}
-    avg_cpu, stdev_cpu = calculate_stats(all_cpu_utilizations)
-    if avg_cpu is not None:
-        vm_report['avg_cpu_utilization_percent'] = avg_cpu * 100
-        vm_report['stdev_cpu_utilization_percent'] = stdev_cpu * 100
-        vm_report['cpu_data_point_count'] = len(all_cpu_utilizations)
+        vm_report = {}
+        avg_cpu, stdev_cpu = calculate_stats(all_cpu_utilizations)
+        if avg_cpu is not None:
+            vm_report['avg_cpu_utilization_percent'] = avg_cpu * 100
+            vm_report['stdev_cpu_utilization_percent'] = stdev_cpu * 100
+            vm_report['cpu_data_point_count'] = len(all_cpu_utilizations)
+        else:
+            vm_report['avg_cpu_utilization_percent'] = None
+            vm_report['stdev_cpu_utilization_percent'] = None
+            vm_report['cpu_data_point_count'] = 0
     else:
-        vm_report['avg_cpu_utilization_percent'] = None
-        vm_report['stdev_cpu_utilization_percent'] = None
-        vm_report['cpu_data_point_count'] = 0
+        # Skip VM metrics fetching
+        vm_report = {
+            'avg_cpu_utilization_percent': None,
+            'stdev_cpu_utilization_percent': None,
+            'cpu_data_point_count': 0
+        }
 
     # --- 3. Generate Final Combined Report ---
     final_report = {
@@ -364,7 +374,7 @@ def process_fio_output_files(file_pattern, directory_path: str):
     return loaded_objects
 
 
-def get_avg_perf_metrics_for_job(case, artifacts_dir, vm_cfg):
+def get_avg_perf_metrics_for_job(case, artifacts_dir, vm_cfg, fetch_vm_metrics=True):
     bs=case['bs']
     file_size=case['file_size']
     iodepth=case['iodepth']
@@ -385,7 +395,7 @@ def get_avg_perf_metrics_for_job(case, artifacts_dir, vm_cfg):
     timestamps= load_csv_to_object(timestamps_file)
     # print(timestamps)
 
-    metrics = process_fio_metrics_and_vm_metrics(fio_metrics, timestamps, vm_cfg)
+    metrics = process_fio_metrics_and_vm_metrics(fio_metrics, timestamps, vm_cfg, fetch_vm_metrics)
     
     metrics['bs']=bs
     metrics['file_size']=file_size
@@ -402,7 +412,7 @@ def load_testcases_from_csv(filepath):
     return data
 
 
-def parse_benchmark_results(benchmark_id, ARTIFACTS_BUCKET, cfg):
+def parse_benchmark_results(benchmark_id, ARTIFACTS_BUCKET, cfg, fetch_vm_metrics=True):
     vm_cfg={
         'instance_name': cfg.get('bench_env').get('gce_env').get('vm_name'),
         'zone': cfg.get('bench_env').get('zone'),
@@ -414,7 +424,7 @@ def parse_benchmark_results(benchmark_id, ARTIFACTS_BUCKET, cfg):
     testcases = load_testcases_from_csv(f'{artifacts}/fio_job_cases.csv')
     metrics={}
     for tc in testcases:
-        tc_metrics=get_avg_perf_metrics_for_job(tc, artifacts, vm_cfg)
+        tc_metrics=get_avg_perf_metrics_for_job(tc, artifacts, vm_cfg, fetch_vm_metrics)
         key = f"{tc['bs']}_{tc['file_size']}_{tc['iodepth']}_{tc['iotype']}_{tc['threads']}_{tc['nrfiles']}"
         metrics[key] = tc_metrics     
     return artifacts, metrics

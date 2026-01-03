@@ -1,6 +1,31 @@
 #!/bin/bash
 set -e
 set -x
+
+# Parse test_id range function
+# Parses test_id string and sets test_id_start and test_id_end variables
+# Supports formats: "5" (single test) or "5-10" (range)
+parse_test_id_range() {
+  local test_id_input="$1"
+  test_id_start=""
+  test_id_end=""
+  
+  if [ -n "$test_id_input" ]; then
+    if [[ "$test_id_input" =~ ^([0-9]+)-([0-9]+)$ ]]; then
+      test_id_start="${BASH_REMATCH[1]}"
+      test_id_end="${BASH_REMATCH[2]}"
+      echo "Test ID range detected: $test_id_start to $test_id_end"
+    elif [[ "$test_id_input" =~ ^[0-9]+$ ]]; then
+      test_id_start="$test_id_input"
+      test_id_end="$test_id_input"
+      echo "Single test ID detected: $test_id_input"
+    else
+      echo "Invalid test_id format. Use single number (e.g., '5') or range (e.g., '5-10')"
+      exit 1
+    fi
+  fi
+}
+
 echo "Fetching metadata..."
 
 # Fetch the metadata values from the metadata server
@@ -9,10 +34,18 @@ artifacts_bucket=$(curl -H "Metadata-Flavor: Google" http://metadata.google.inte
 benchmark_id=$(curl -H "Metadata-Flavor: Google" http://metadata.google.internal/computeMetadata/v1/instance/attributes/benchmark_id)
 iterations=$(curl -H "Metadata-Flavor: Google" http://metadata.google.internal/computeMetadata/v1/instance/attributes/iterations)
 reuse_same_mount=$(curl -H "Metadata-Flavor: Google" http://metadata.google.internal/computeMetadata/v1/instance/attributes/reuse_same_mount)
+test_id=$(curl -H "Metadata-Flavor: Google" http://metadata.google.internal/computeMetadata/v1/instance/attributes/test_id 2>/dev/null || echo "")
+
+# Get VM instance name for distributed mode tracking
+vm_instance_name=$(curl -H "Metadata-Flavor: Google" http://metadata.google.internal/computeMetadata/v1/instance/name)
+
+# Parse test_id to determine range
+parse_test_id_range "$test_id"
 
 echo "The value of 'bucket' is: $bucket"
 echo "The value of 'artifacts_bucket' is: $artifacts_bucket"
 echo "The value of 'benchmark_id' is: $benchmark_id"
+echo "The value of 'test_id' is: $test_id"
 
 # A helper function to check if a command exists
 command_exists () {
@@ -450,6 +483,12 @@ start_benchmarking_runs() {
     iterations="$2"
     local fio_binary="/usr/local/bin/fio"
 
+    # Clean up any existing raw-results from previous runs
+    if [ -d "${dir}/raw-results/" ]; then
+        echo "Cleaning up existing raw-results directory from previous runs..."
+        rm -rf "${dir}/raw-results/"
+    fi
+
     mkdir -p "${dir}/raw-results/"
 
     fio_job_cases="${dir}/fio_job_cases.csv"
@@ -477,7 +516,19 @@ start_benchmarking_runs() {
     fi
     
     # Read the CSV file line by line, skipping the header
+    line_number=0
     tail -n +2 "$fio_job_cases" | while IFS=, read -r bs file_size iodepth iotype threads nrfiles; do
+        line_number=$((line_number + 1))
+        
+        # If test_id range is set, only run tests within that range
+        if [ -n "$test_id_start" ] && [ -n "$test_id_end" ]; then
+            if [ "$line_number" -lt "$test_id_start" ] || [ "$line_number" -gt "$test_id_end" ]; then
+                echo "Skipping test $line_number (test_id range: $test_id_start-$test_id_end)"
+                continue
+            fi
+            echo "Running test $line_number (within range $test_id_start-$test_id_end)"
+        fi
+        
         # Iterate for the specified number of runs for this job case
             # Mount the bucket once before the loop if reuse_same_mount is 'true'
         if [[ "$reuse_same_mount" == "true" ]]; then
@@ -485,7 +536,10 @@ start_benchmarking_runs() {
         fi
         nrfiles="${nrfiles%$'\r'}"
 
+        echo "========================================"
         echo "Experiment config: ${bs}, ${file_size}, ${iodepth}, ${iotype}, ${threads}, ${nrfiles}"
+        echo "Number of iterations: ${iterations}"
+        echo "========================================"
 
         testdir="${dir}/raw-results/fio_output_${bs}_${file_size}_${iodepth}_${iotype}_${threads}_${nrfiles}"
         mkdir -p "$testdir"
@@ -549,12 +603,15 @@ if [ -n "$bucket" ] && [ -n "$artifacts_bucket" ] && [ -n "$benchmark_id" ]; the
 
     copy_raw_results_to_artifacts_bucket "$artifacts_bucket" "$benchmark_id" "$dir"
 
+    # Write VM-specific success marker for distributed mode tracking
     touch /tmp/success.txt
-    gcloud storage cp /tmp/success.txt gs://$artifacts_bucket/$benchmark_id/success.txt
+    gcloud storage cp /tmp/success.txt gs://$artifacts_bucket/$benchmark_id/success_${vm_instance_name}.txt
+    echo "Benchmark completed successfully on ${vm_instance_name}"
     exit 0
 else
     echo "Error: Failed to retrieve one or more metadata parameters."
 fi
 touch /tmp/failure.txt
-gcloud storage cp /tmp/failure.txt gs://$artifacts_bucket/$benchmark_id/failure.txt
+gcloud storage cp /tmp/failure.txt gs://$artifacts_bucket/$benchmark_id/failure_${vm_instance_name}.txt
+echo "Benchmark failed on ${vm_instance_name}"
 exit 1

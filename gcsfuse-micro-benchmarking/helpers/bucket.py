@@ -3,6 +3,25 @@ import shlex
 import sys
 import os
 
+def check_bucket_exists(bucket_name, project):
+    """
+    Checks if a GCS bucket exists.
+    
+    Args:
+        bucket_name (str): Name of the bucket to check
+        project (str): GCP project
+        
+    Returns:
+        bool: True if bucket exists, False otherwise
+    """
+    try:
+        cmd = ['gcloud', 'storage', 'buckets', 'describe', f'gs://{bucket_name}', f'--project={project}']
+        result = subprocess.run(cmd, check=True, capture_output=True, text=True)
+        return True
+    except subprocess.CalledProcessError:
+        return False
+
+
 def create_gcs_bucket(location, project,config):
     """
     Creates a GCS bucket using the gcloud storage CLI based on a configuration dictionary.

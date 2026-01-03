@@ -14,6 +14,7 @@ def parse_args():
     parser.add_argument('--benchmark_id_prefix', type=str, help='Prefix for unique id for identifying runs...')
     parser.add_argument('--config_filepath', type=str, help='Path to the config file for the benchmarking tool', default='resources/default_bench_config.yml')
     parser.add_argument('--bench_type', type=str, help='(only for manual identification)Type of benchmark to run: c++ , baseline, etc.', default='feature')
+    parser.add_argument('--instance-group', type=str, help='Name of managed instance group for distributed benchmarking')
     
     return parser.parse_args()
 
@@ -54,21 +55,96 @@ if __name__ == '__main__':
         if cfg.get("bench_env").get("gce_env").get("vm_name") == "":
             cfg.get("bench_env").get("gce_env")["vm_name"]= benchmark_id+"-vm"
     
-    metadata_config={
-        'bucket':cfg.get("bench_env").get("gcs_bucket").get('bucket_name'),
-        'artifacts_bucket': ARTIFACTS_BUCKET,
-        'benchmark_id': benchmark_id,
-        'iterations': cfg.get('iterations'),
-        'reuse_same_mount': cfg.get('reuse_same_mount')
-    }
-    # Startup the GCE VM
-    if not environment.startup_benchmark_vm(cfg.get('bench_env').get('gce_env'), cfg.get('bench_env').get('zone'), cfg.get('bench_env').get('project'), metadata_config):
-        print("Error: Failed to startup benchmark VM. Aborting.")
-        sys.exit(1)
-    
-    # At the end of benchmark run, we write a failure.txt or success.txt
-    success_filepath=helper.construct_gcloud_path(ARTIFACTS_BUCKET,benchmark_id)
-    success=helper.wait_for_benchmark_to_complete(ARTIFACTS_BUCKET,success_filepath)
+    # Check if distributed mode is enabled
+    if args.instance_group:
+        print(f"\n========== DISTRIBUTED MODE ENABLED ==========")
+        print(f"Instance Group: {args.instance_group}")
+        
+        # Get VMs from instance group
+        vms = helper.get_vms_from_instance_group(
+            args.instance_group, 
+            cfg.get('bench_env').get('zone'), 
+            cfg.get('bench_env').get('project')
+        )
+        
+        if not vms:
+            print("Error: No VMs found in instance group. Aborting.")
+            sys.exit(1)
+        
+        # Count test cases
+        total_tests = helper.count_test_cases(args.config_filepath)
+        if total_tests == 0:
+            print("Error: No test cases found. Aborting.")
+            sys.exit(1)
+        
+        # Distribute test cases across VMs
+        test_ranges = helper.distribute_test_cases(total_tests, len(vms))
+        
+        print(f"\nDistribution Plan:")
+        print(f"Total Tests: {total_tests}")
+        print(f"Number of VMs: {len(vms)}")
+        for i, (vm, test_range) in enumerate(zip(vms, test_ranges)):
+            print(f"  {vm}: Tests {test_range}")
+        print(f"==============================================\n")
+        
+        # Update metadata and run script on each VM
+        for vm, test_range in zip(vms, test_ranges):
+            metadata_config = {
+                'bucket': cfg.get("bench_env").get("gcs_bucket").get('bucket_name'),
+                'artifacts_bucket': ARTIFACTS_BUCKET,
+                'benchmark_id': benchmark_id,
+                'iterations': cfg.get('iterations'),
+                'reuse_same_mount': cfg.get('reuse_same_mount'),
+                'test_id': test_range
+            }
+            
+            print(f"Starting benchmark on VM {vm} with test-id {test_range}...")
+            
+            # Update metadata
+            if not environment.update_vm_metadata_parameter(
+                vm, 
+                cfg.get('bench_env').get('zone'), 
+                cfg.get('bench_env').get('project'), 
+                metadata_config
+            ):
+                print(f"Error: Failed to update metadata for VM {vm}")
+                continue
+            
+            # Run script remotely
+            if not environment.run_script_remotely(
+                vm, 
+                cfg.get('bench_env').get('zone'), 
+                cfg.get('bench_env').get('project'), 
+                cfg.get('bench_env').get('gce_env').get('startup_script')
+            ):
+                print(f"Error: Failed to run script on VM {vm}")
+                continue
+            
+            print(f"Successfully started benchmark on VM {vm}")
+        
+        print(f"\nAll VMs started. Waiting for completion...")
+        
+        # Wait for all VMs to complete in distributed mode
+        success_filepath = helper.construct_gcloud_path(ARTIFACTS_BUCKET, benchmark_id)
+        success = helper.wait_for_all_vms_to_complete(ARTIFACTS_BUCKET, success_filepath, vms)
+        
+    else:
+        # Single VM mode (existing logic)
+        metadata_config={
+            'bucket':cfg.get("bench_env").get("gcs_bucket").get('bucket_name'),
+            'artifacts_bucket': ARTIFACTS_BUCKET,
+            'benchmark_id': benchmark_id,
+            'iterations': cfg.get('iterations'),
+            'reuse_same_mount': cfg.get('reuse_same_mount')
+        }
+        # Startup the GCE VM
+        if not environment.startup_benchmark_vm(cfg.get('bench_env').get('gce_env'), cfg.get('bench_env').get('zone'), cfg.get('bench_env').get('project'), metadata_config):
+            print("Error: Failed to startup benchmark VM. Aborting.")
+            sys.exit(1)
+        
+        # At the end of benchmark run, we write a failure.txt or success.txt
+        success_filepath=helper.construct_gcloud_path(ARTIFACTS_BUCKET,benchmark_id)
+        success=helper.wait_for_benchmark_to_complete(ARTIFACTS_BUCKET,success_filepath)
     
     if success:
         print(f"Benchmark run successful for id: {benchmark_id}")

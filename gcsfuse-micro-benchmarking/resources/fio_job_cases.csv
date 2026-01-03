@@ -1,2 +1,3 @@
 bs,file_size,iodepth,iotype,threads,nrfiles
 4KB,1MB,1,read,1,1
+4KB,5MB,1,read,1,1

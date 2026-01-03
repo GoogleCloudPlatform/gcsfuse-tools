@@ -298,3 +298,184 @@ def wait_for_benchmark_to_complete(bucket_name, filepath, timeout=timeout, poll_
     # If the loop completes, the timeout was reached
     print("Timeout reached. Neither success nor failure file was found.")
     return False
+
+
+def wait_for_all_vms_to_complete(bucket_name, filepath, vm_names, timeout=timeout, poll_interval=poll_interval):
+    """
+    Waits for all VMs in distributed mode to complete by checking for VM-specific success/failure files.
+    
+    Args:
+        bucket_name (str): The name of the GCS bucket to monitor
+        filepath (str): Base path to the benchmark results
+        vm_names (list): List of VM names to wait for
+        timeout (int): Maximum time in seconds to wait
+        poll_interval (int): Interval in seconds between checks
+        
+    Returns:
+        bool: True if all VMs succeeded, False if any failed or timeout reached
+    """
+    print(f"Monitoring {len(vm_names)} VMs for benchmark completion...")
+    print(f"VMs: {', '.join(vm_names)}")
+    
+    deadline = datetime.now() + timedelta(seconds=timeout)
+    completed_vms = set()
+    failed_vms = set()
+    
+    while datetime.now() < deadline:
+        print(f"Polling for completion at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}...")
+        print(f"  Completed: {len(completed_vms)}/{len(vm_names)} | Failed: {len(failed_vms)}")
+        
+        # Check each VM's status
+        for vm in vm_names:
+            if vm in completed_vms or vm in failed_vms:
+                continue
+            
+            command = f"gcloud storage ls {filepath}"
+            command_list = shlex.split(command)
+            
+            try:
+                result = subprocess.run(command_list, check=True, capture_output=True, text=True)
+                
+                # Check for VM-specific success file
+                if f'success_{vm}.txt' in result.stdout:
+                    print(f"  ✓ VM {vm} completed successfully")
+                    completed_vms.add(vm)
+                
+                # Check for VM-specific failure file
+                elif f'failure_{vm}.txt' in result.stdout:
+                    print(f"  ✗ VM {vm} failed")
+                    failed_vms.add(vm)
+                    
+            except subprocess.CalledProcessError:
+                pass
+        
+        # Check if all VMs are done
+        if len(completed_vms) + len(failed_vms) == len(vm_names):
+            if failed_vms:
+                print(f"\nBenchmark completed with failures:")
+                print(f"  Successful VMs: {completed_vms}")
+                print(f"  Failed VMs: {failed_vms}")
+                return False
+            else:
+                print(f"\nAll {len(vm_names)} VMs completed successfully!")
+                return True
+        
+        time.sleep(poll_interval)
+    
+    # Timeout reached
+    pending_vms = set(vm_names) - completed_vms - failed_vms
+    print(f"\nTimeout reached after {timeout}s")
+    print(f"  Completed: {completed_vms}")
+    print(f"  Failed: {failed_vms}")
+    print(f"  Pending: {pending_vms}")
+    return False
+
+
+def get_vms_from_instance_group(instance_group, zone, project):
+    """
+    Gets list of active (RUNNING) VMs from a managed instance group.
+    
+    Args:
+        instance_group (str): Name of the managed instance group
+        zone (str): GCP zone
+        project (str): GCP project
+        
+    Returns:
+        list: List of RUNNING VM names in the instance group
+    """
+    cmd_list = [
+        'gcloud', 'compute', 'instance-groups', 'managed', 'list-instances',
+        instance_group,
+        f'--zone={zone}',
+        f'--project={project}',
+        '--filter=STATUS=RUNNING',
+        '--format=value(NAME)'
+    ]
+    print(f"Executing command: {' '.join(cmd_list)}")
+    
+    try:
+        result = subprocess.run(cmd_list, check=True, capture_output=True, text=True)
+        vms = [vm.strip() for vm in result.stdout.strip().split('\n') if vm.strip()]
+        print(f"Found {len(vms)} RUNNING VMs in instance group '{instance_group}': {vms}")
+        return vms
+    except subprocess.CalledProcessError as e:
+        print(f"Error getting VMs from instance group: {e}")
+        if hasattr(e, 'stdout') and e.stdout:
+            print(f"Error stdout: {e.stdout}")
+        if hasattr(e, 'stderr') and e.stderr:
+            print(f"Error stderr: {e.stderr}")
+        return []
+
+
+def count_test_cases(config_filepath):
+    """
+    Counts the number of test cases in the fio_job_cases.csv file.
+    
+    Args:
+        config_filepath (str): Path to the benchmark config file
+        
+    Returns:
+        int: Number of test cases (excluding header)
+    """
+    cfg = parse_bench_config(config_filepath)
+    
+    # Check if user provided a file path in job_details
+    fio_cases_file = None
+    if cfg.get('job_details') and cfg.get('job_details').get('file_path'):
+        fio_cases_file = cfg.get('job_details').get('file_path')
+    
+    # If no file path provided, generate the job cases to count them
+    if not fio_cases_file or not os.path.exists(fio_cases_file):
+        # Check if we have job_details to generate from
+        if cfg.get('job_details'):
+            # Generate the job cases temporarily to count
+            fio_cases_file = generate_fio_job_file(cfg.get('job_details'))
+        else:
+            # Use default file
+            fio_cases_file = default_fio_jobcases_file
+    
+    if not fio_cases_file or not os.path.exists(fio_cases_file):
+        print(f"Error: FIO cases file not found or could not be generated")
+        return 0
+    
+    with open(fio_cases_file, 'r') as f:
+        # Count lines excluding header
+        line_count = sum(1 for _ in f) - 1
+    
+    print(f"Found {line_count} test cases in {fio_cases_file}")
+    return line_count
+    return line_count
+
+
+def distribute_test_cases(total_tests, num_vms):
+    """
+    Distributes test cases across VMs as evenly as possible.
+    
+    Args:
+        total_tests (int): Total number of test cases
+        num_vms (int): Number of VMs
+        
+    Returns:
+        list: List of test-id ranges (e.g., ["1-5", "6-10", "11"])
+    """
+    if num_vms <= 0 or total_tests <= 0:
+        return []
+    
+    tests_per_vm = total_tests // num_vms
+    remaining = total_tests % num_vms
+    
+    ranges = []
+    start_id = 1
+    
+    for i in range(num_vms):
+        tests_for_vm = tests_per_vm + (1 if i < remaining else 0)
+        end_id = start_id + tests_for_vm - 1
+        
+        if start_id == end_id:
+            ranges.append(str(start_id))
+        else:
+            ranges.append(f"{start_id}-{end_id}")
+        
+        start_id = end_id + 1
+    
+    return ranges

@@ -136,6 +136,8 @@ def update_vm_metadata_parameter(vm_name, zone, project,metadata_config):
     # First, construct the metadata string
     metadata_string = contruct_metadata_string_from_config(metadata_config)
     
+    print(f"Updating VM {vm_name} metadata: {metadata_string}")
+    
     # Construct the gcloud command
     command = (
         f"gcloud compute instances add-metadata {vm_name} "

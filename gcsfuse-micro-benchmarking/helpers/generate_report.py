@@ -103,6 +103,83 @@ def pretty_print_metrics_table(metrics, output_file=None):
             print(f"\nError writing to file {output_file}: {e}")
 
 
+def pretty_print_metrics_table_concise(metrics, output_file=None):
+    """
+    Prints the metrics dictionary in a concise table format showing only bandwidth.
+    Concatenates test parameters in a single column.
+
+    Args:
+        metrics: A dictionary where keys are test case identifiers
+                 and values are dictionaries containing test case parameters
+                 and nested 'fio_metrics', etc.
+        output_file: (Optional) Path to a file where the table output
+                     will be appended.
+    """
+    if not metrics:
+        print("Metrics dictionary is empty.")
+        return
+
+    # Define the headers for the concise table
+    headers = [
+        "Test Case",
+        "Read BW (MB/s)",
+        "Write BW (MB/s)"
+    ]
+
+    table_data = []
+    # Sort the dictionary keys to ensure consistent row order.
+    for key in sorted(metrics.keys()):
+        value = metrics[key]
+        if not isinstance(value, dict):
+            print(f"Warning: Skipping key '{key}' as its value is not a dictionary.")
+            continue
+
+        row = []
+
+        # Concatenate test case parameters
+        bs = value.get("bs", "-")
+        file_size = value.get("file_size", "-")
+        iodepth = value.get("iodepth", "-")
+        iotype = value.get("iotype", "-")
+        threads = value.get("threads", "-")
+        nrfiles = value.get("nrfiles", "-")
+        
+        test_case_str = f"{bs}|{file_size}|io{iodepth}|{iotype}|t{threads}|n{nrfiles}"
+        row.append(test_case_str)
+
+        # Extract bandwidth from the nested 'fio_metrics' dictionary
+        fio_metrics = value.get("fio_metrics", {})
+        
+        read_bw = fio_metrics.get("avg_read_throughput_mbps", 0)
+        row.append(f"{read_bw:.2f}" if isinstance(read_bw, (int, float)) and read_bw > 0 else "-")
+
+        write_bw = fio_metrics.get("avg_write_throughput_mbps", 0)
+        row.append(f"{write_bw:.2f}" if isinstance(write_bw, (int, float)) and write_bw > 0 else "-")
+
+        table_data.append(row)
+
+    if not table_data:
+        print("No data to display in table.")
+        return
+
+    # Generate the table string
+    table_string = tabulate(table_data, headers=headers, tablefmt="grid", floatfmt=".2f")
+
+    # Print to the terminal
+    print(table_string)
+
+    # Write to the file if specified
+    if output_file:
+        try:
+            with open(output_file, 'a') as f:
+                f.write("\n--- Concise Metrics Table ---\n")
+                f.write(table_string)
+                f.write("\n\n")
+            print(f"\nBenchmark results saved to: {output_file}")
+        except Exception as e:
+            print(f"\nError writing to file {output_file}: {e}")
+
+
 # Example usage with your new metrics structure:
 if __name__ == '__main__':
     metrics = {
