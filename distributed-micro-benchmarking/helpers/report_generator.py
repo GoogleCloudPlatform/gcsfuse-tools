@@ -9,7 +9,7 @@ def generate_report(metrics, output_file):
     """Generate benchmark report in CSV format and print as table"""
     os.makedirs(os.path.dirname(output_file) if os.path.dirname(output_file) else '.', exist_ok=True)
     
-    headers = ["Test ID", "BS|FSize|IOD|IOType|Jobs|NrFiles", "Read BW (MB/s)", "Write BW (MB/s)", "Avg CPU (%)", "Avg Mem (MB)", "Peak Mem (MB)", "Iter"]
+    headers = ["Test ID", "BS|FSize|IOD|IOType|Jobs|NrFiles", "Read BW (MB/s)", "Write BW (MB/s)", "Avg CPU (%)", "Peak CPU (%)", "Avg Mem (MB)", "Peak Mem (MB)", "Iter"]
     rows = []
     
     for test_id in sorted(metrics.keys()):
@@ -19,6 +19,7 @@ def generate_report(metrics, output_file):
         
         # Get resource metrics
         avg_cpu = params.get('avg_cpu', '-')
+        peak_cpu = params.get('peak_cpu', '-')
         avg_mem = params.get('avg_mem_mb', '-')
         peak_mem = params.get('peak_mem_mb', '-')
         
@@ -28,6 +29,7 @@ def generate_report(metrics, output_file):
             f"{m['read_bw_mbps']:.2f}" if m['read_bw_mbps'] > 0 else "-",
             f"{m['write_bw_mbps']:.2f}" if m['write_bw_mbps'] > 0 else "-",
             avg_cpu,
+            peak_cpu,
             avg_mem,
             peak_mem,
             m['iterations']

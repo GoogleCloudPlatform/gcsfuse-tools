@@ -38,18 +38,18 @@ create_test_cases() {
     local output_file="$1"
     cat > "$output_file" << 'TEST_CSV_EOF'
 block_size,file_size,io_depth,io_type,num_jobs,nr_files
-1m,1g,2,randread,48,20
-1m,1m,2,randread,48,200
-1m,2g,2,randread,48,10
-1m,4m,2,randread,48,100
-1m,5g,2,randread,48,10
-1m,8m,2,randread,48,75
-1m,10g,2,randread,48,4
-1m,16m,2,randread,48,75
-1m,32m,2,randread,48,50
-1m,64m,2,randread,48,50
-64k,64k,2,randread,48,400
-256k,256k,2,randread,48,400
+1m,1g,2,read,96,20
+1m,1m,2,read,96,200
+1m,2g,2,read,96,10
+1m,4m,2,read,96,150
+1m,5g,2,read,96,10
+1m,8m,2,read,96,120
+1m,10g,2,read,96,4
+1m,16m,2,read,96,120
+1m,32m,2,read,96,100
+1m,64m,2,read,96,100
+64k,64k,2,read,96,400
+256k,256k,2,read,96,400
 TEST_CSV_EOF
     echo "Created test cases: $output_file"
 }
@@ -63,7 +63,7 @@ BUCKET="princer-zonal-us-west4-a"
 ARTIFACTS_BUCKET="princer-working-dirs"
 ZONE="us-west4-a"
 PROJECT="gcs-tess"
-ITERATIONS=1
+ITERATIONS=2
 GCSFUSE_COMMIT="master"
 GCSFUSE_MOUNT_ARGS="--implicit-dirs"
 

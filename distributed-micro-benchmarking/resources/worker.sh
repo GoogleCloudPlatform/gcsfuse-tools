@@ -181,80 +181,86 @@ for TEST_ID in $TEST_IDS; do
     TEST_DIR="test-${TEST_ID}"
     mkdir -p "$TEST_DIR"
     
-    # Mount GCSFuse
-    echo "  Mounting GCSFuse..."
-    $GCSFUSE_BIN $GCSFUSE_MOUNT_ARGS "$BUCKET" "$MOUNT_DIR"
-    
-    # Get GCSFuse PID for monitoring
-    GCSFUSE_PID=$(pgrep -f "gcsfuse.*$BUCKET" | head -1)
-    echo "  GCSFuse PID: $GCSFUSE_PID"
-    
-    # Start memory and CPU monitoring in background
-    MONITOR_FILE="$TEST_DIR/monitor.log"
-    MONITOR_STOP_FLAG="$TEST_DIR/monitor_stop"
-    rm -f "$MONITOR_STOP_FLAG"
-    
-    (
-        echo "timestamp,cpu_percent,mem_rss_mb,mem_vsz_mb" > "$MONITOR_FILE"
-        while [ ! -f "$MONITOR_STOP_FLAG" ]; do
-            if [ -d "/proc/$GCSFUSE_PID" ]; then
-                TIMESTAMP=$(date +%s)
-                # Get CPU and memory stats from /proc
-                CPU_PERCENT=$(ps -p $GCSFUSE_PID -o %cpu= 2>/dev/null || echo "0")
-                MEM_RSS_KB=$(ps -p $GCSFUSE_PID -o rss= 2>/dev/null || echo "0")
-                MEM_VSZ_KB=$(ps -p $GCSFUSE_PID -o vsz= 2>/dev/null || echo "0")
-                MEM_RSS_MB=$(echo "scale=2; $MEM_RSS_KB / 1024" | bc)
-                MEM_VSZ_MB=$(echo "scale=2; $MEM_VSZ_KB / 1024" | bc)
-                echo "$TIMESTAMP,$CPU_PERCENT,$MEM_RSS_MB,$MEM_VSZ_MB" >> "$MONITOR_FILE"
-            fi
-            sleep 5
-        done
-    ) &
-    MONITOR_PID=$!
-    echo "  Started resource monitor (PID: $MONITOR_PID)"
-    
-    # Create subdirectory for this file size
-    TEST_DATA_DIR="$MOUNT_DIR/$FILE_SIZE"
-    mkdir -p "$TEST_DATA_DIR"
-    echo "  Created test directory: $TEST_DATA_DIR"
-    
     # Create FIO job file from template with variable substitution
     FIO_JOB="$TEST_DIR/job.fio"
+    TEST_DATA_DIR="$MOUNT_DIR/$FILE_SIZE"
     export BS FILE_SIZE IO_DEPTH IO_TYPE THREADS NRFILES TEST_DATA_DIR
     envsubst '$BS $FILE_SIZE $IO_DEPTH $IO_TYPE $THREADS $NRFILES $TEST_DATA_DIR' < jobfile.fio > "$FIO_JOB"
     
-    # Run FIO iterations
+    # Initialize monitoring file
+    MONITOR_FILE="$TEST_DIR/monitor.log"
+    echo "timestamp,cpu_percent,mem_rss_mb,mem_vsz_mb" > "$MONITOR_FILE"
+    
+    # Run FIO iterations with mount/unmount for each
     for ((i=1; i<=ITERATIONS; i++)); do
         echo "  Iteration $i/$ITERATIONS"
         
+        # Mount GCSFuse
+        echo "    Mounting GCSFuse..."
+        $GCSFUSE_BIN $GCSFUSE_MOUNT_ARGS "$BUCKET" "$MOUNT_DIR"
+        
+        # Get GCSFuse PID for monitoring
+        GCSFUSE_PID=$(pgrep -f "gcsfuse.*$BUCKET" | head -1)
+        echo "    GCSFuse PID: $GCSFUSE_PID"
+        
+        # Start memory and CPU monitoring in background
+        MONITOR_STOP_FLAG="$TEST_DIR/monitor_stop_${i}"
+        rm -f "$MONITOR_STOP_FLAG"
+        
+        (
+            while [ ! -f "$MONITOR_STOP_FLAG" ]; do
+                if [ -d "/proc/$GCSFUSE_PID" ]; then
+                    TIMESTAMP=$(date +%s)
+                    # Get CPU and memory stats from /proc
+                    CPU_PERCENT=$(ps -p $GCSFUSE_PID -o %cpu= 2>/dev/null || echo "0")
+                    MEM_RSS_KB=$(ps -p $GCSFUSE_PID -o rss= 2>/dev/null || echo "0")
+                    MEM_VSZ_KB=$(ps -p $GCSFUSE_PID -o vsz= 2>/dev/null || echo "0")
+                    MEM_RSS_MB=$(echo "scale=2; $MEM_RSS_KB / 1024" | bc)
+                    MEM_VSZ_MB=$(echo "scale=2; $MEM_VSZ_KB / 1024" | bc)
+                    echo "$TIMESTAMP,$CPU_PERCENT,$MEM_RSS_MB,$MEM_VSZ_MB" >> "$MONITOR_FILE"
+                fi
+                sleep 2
+            done
+        ) &
+        MONITOR_PID=$!
+        
+        # Create subdirectory for this file size
+        mkdir -p "$TEST_DATA_DIR"
+        
+        # Run FIO
         OUTPUT_FILE="${TEST_DIR}/fio_output_${i}.json"
         fio "$FIO_JOB" --output-format=json --output="$OUTPUT_FILE"
+        
+        # Stop monitoring
+        touch "$MONITOR_STOP_FLAG"
+        sleep 1
+        kill $MONITOR_PID 2>/dev/null || true
+        wait $MONITOR_PID 2>/dev/null || true
+        
+        # Unmount GCSFuse
+        echo "    Unmounting GCSFuse..."
+        fusermount -u "$MOUNT_DIR" 2>/dev/null || umount "$MOUNT_DIR" 2>/dev/null || true
+        
+        # Wait a moment before next iteration
+        if [ $i -lt $ITERATIONS ]; then
+            sleep 2
+        fi
     done
     
-    # Unmount GCSFuse
-    echo "  Unmounting GCSFuse..."
-    
-    # Stop monitoring
-    touch "$MONITOR_STOP_FLAG"
-    sleep 1
-    kill $MONITOR_PID 2>/dev/null || true
-    wait $MONITOR_PID 2>/dev/null || true
-    
-    # Calculate and report average CPU usage
+    # Calculate and report average CPU usage across all iterations
     if [ -f "$MONITOR_FILE" ]; then
         AVG_CPU=$(awk -F',' 'NR>1 {sum+=$2; count++} END {if(count>0) printf "%.2f", sum/count; else print "0"}' "$MONITOR_FILE")
+        MAX_CPU=$(awk -F',' 'NR>1 {if($2>max) max=$2} END {printf "%.2f", max+0}' "$MONITOR_FILE")
         AVG_MEM_RSS=$(awk -F',' 'NR>1 {sum+=$3; count++} END {if(count>0) printf "%.2f", sum/count; else print "0"}' "$MONITOR_FILE")
         MAX_MEM_RSS=$(awk -F',' 'NR>1 {if($3>max) max=$3} END {printf "%.2f", max+0}' "$MONITOR_FILE")
-        echo "  Resource Usage - Avg CPU: ${AVG_CPU}%, Avg Memory: ${AVG_MEM_RSS}MB, Peak Memory: ${MAX_MEM_RSS}MB"
+        echo "  Resource Usage - Avg CPU: ${AVG_CPU}%, Peak CPU: ${MAX_CPU}%, Avg Memory: ${AVG_MEM_RSS}MB, Peak Memory: ${MAX_MEM_RSS}MB"
     fi
-    
-    fusermount -u "$MOUNT_DIR" || umount "$MOUNT_DIR"
     
     # Upload test results
     gcloud storage cp -r "$TEST_DIR" "${RESULT_BASE}/"
     
     # Update manifest with resource usage
-    TEST_PARAMS="{\"bs\":\"$BS\",\"file_size\":\"$FILE_SIZE\",\"io_depth\":\"$IO_DEPTH\",\"io_type\":\"$IO_TYPE\",\"threads\":\"$THREADS\",\"nrfiles\":\"$NRFILES\",\"avg_cpu\":\"$AVG_CPU\",\"avg_mem_mb\":\"$AVG_MEM_RSS\",\"peak_mem_mb\":\"$MAX_MEM_RSS\"}"
+    TEST_PARAMS="{\"bs\":\"$BS\",\"file_size\":\"$FILE_SIZE\",\"io_depth\":\"$IO_DEPTH\",\"io_type\":\"$IO_TYPE\",\"threads\":\"$THREADS\",\"nrfiles\":\"$NRFILES\",\"avg_cpu\":\"$AVG_CPU\",\"peak_cpu\":\"$MAX_CPU\",\"avg_mem_mb\":\"$AVG_MEM_RSS\",\"peak_mem_mb\":\"$MAX_MEM_RSS\"}"
     jq ".tests += [{\"test_id\":$TEST_ID,\"status\":\"success\",\"params\":$TEST_PARAMS}]" manifest.json > manifest_tmp.json
     mv manifest_tmp.json manifest.json
     
