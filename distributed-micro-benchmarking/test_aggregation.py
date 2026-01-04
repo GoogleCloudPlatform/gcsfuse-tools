@@ -35,7 +35,7 @@ def main():
     
     # Generate report
     print("\nGenerating report...")
-    report_file = f"results/{benchmark_id}_report.txt"
+    report_file = f"results/{benchmark_id}_report.csv"
     report_generator.generate_report(metrics, report_file)
     
     print(f"\nReport saved to: {report_file}")

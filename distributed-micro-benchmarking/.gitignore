@@ -8,7 +8,7 @@ __pycache__/
 *.pyd
 .Python
 
-# Results directory contents
+#  Results directory contents
 results/
 
 # Temporary files

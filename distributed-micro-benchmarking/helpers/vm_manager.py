@@ -51,13 +51,15 @@ def run_worker_script(vm_name, zone, project, script_path, benchmark_id, artifac
         raise
     
     # Execute script with benchmark_id and artifacts_bucket as arguments
+    # Logs will be written to /tmp/worker_<benchmark_id>.log and uploaded to GCS by worker.sh
+    log_file = f"/tmp/worker_{benchmark_id}.log"
     exec_cmd = [
         'gcloud', 'compute', 'ssh', vm_name,
         f'--zone={zone}',
         f'--project={project}',
         '--internal-ip',
         '--command',
-        f'bash {remote_script} {benchmark_id} {artifacts_bucket} > /tmp/worker.log 2>&1 &'
+        f'nohup bash {remote_script} {benchmark_id} {artifacts_bucket} > {log_file} 2>&1 &'
     ]
     
     try:
@@ -67,6 +69,29 @@ def run_worker_script(vm_name, zone, project, script_path, benchmark_id, artifac
         print(f"STDOUT: {e.stdout}")
         print(f"STDERR: {e.stderr}")
         raise
+
+
+def fetch_worker_logs(vm_name, benchmark_id, artifacts_bucket, lines=50):
+    """Fetch and display worker logs from GCS"""
+    log_path = f"gs://{artifacts_bucket}/{benchmark_id}/logs/{vm_name}/worker.log"
+    
+    try:
+        cmd = ['gsutil', 'cat', log_path]
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+        
+        if result.returncode == 0:
+            log_lines = result.stdout.split('\n')
+            if lines and len(log_lines) > lines:
+                # Show first 10 and last (lines-10) lines
+                print('\n'.join(log_lines[:10]))
+                print(f"\n... [{len(log_lines) - lines} lines omitted] ...\n")
+                print('\n'.join(log_lines[-(lines-10):]))
+            else:
+                print(result.stdout)
+        else:
+            print(f"Log not yet available for {vm_name}")
+    except Exception as e:
+        print(f"Could not fetch logs for {vm_name}: {e}")
 
 
 def wait_for_completion(vms, benchmark_id, artifacts_bucket, poll_interval=30, timeout=7200):
@@ -93,6 +118,10 @@ def wait_for_completion(vms, benchmark_id, artifacts_bucket, poll_interval=30, t
                 elif manifest.get('status') == 'failed':
                     failed_vms.add(vm)
                     print(f"  ✗ {vm} failed")
+                    print(f"\nLogs from {vm}:")
+                    print("=" * 80)
+                    fetch_worker_logs(vm, benchmark_id, artifacts_bucket, lines=100)
+                    print("=" * 80)
         
         # Check if done
         if len(completed_vms) + len(failed_vms) == len(vms):

@@ -1,14 +1,15 @@
 """Report generation for benchmark results"""
 
 import os
+import csv
 from tabulate import tabulate
 
 
 def generate_report(metrics, output_file):
-    """Generate concise benchmark report"""
+    """Generate benchmark report in CSV format and print as table"""
     os.makedirs(os.path.dirname(output_file) if os.path.dirname(output_file) else '.', exist_ok=True)
     
-    headers = ["Test ID", "BS|FSize|IOD|IOType|Jobs|NrFiles", "Read BW (MB/s)", "Write BW (MB/s)", "Iter"]
+    headers = ["Test ID", "BS|FSize|IOD|IOType|Jobs|NrFiles", "Read BW (MB/s)", "Write BW (MB/s)", "Avg CPU (%)", "Avg Mem (MB)", "Peak Mem (MB)", "Iter"]
     rows = []
     
     for test_id in sorted(metrics.keys()):
@@ -16,27 +17,32 @@ def generate_report(metrics, output_file):
         params = m.get('test_params', {})
         param_str = format_params(params)
         
+        # Get resource metrics
+        avg_cpu = params.get('avg_cpu', '-')
+        avg_mem = params.get('avg_mem_mb', '-')
+        peak_mem = params.get('peak_mem_mb', '-')
+        
         rows.append([
             test_id,
             param_str,
             f"{m['read_bw_mbps']:.2f}" if m['read_bw_mbps'] > 0 else "-",
             f"{m['write_bw_mbps']:.2f}" if m['write_bw_mbps'] > 0 else "-",
+            avg_cpu,
+            avg_mem,
+            peak_mem,
             m['iterations']
         ])
     
+    # Write to CSV file
+    with open(output_file, 'w', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow(headers)
+        writer.writerows(rows)
+    
+    # Print table to console
     table = tabulate(rows, headers=headers, tablefmt="grid")
-    
-    # Print to console
     print("\n" + table)
-    
-    # Write to file
-    with open(output_file, 'w') as f:
-        f.write("Distributed Benchmark Results\n")
-        f.write("=" * 80 + "\n\n")
-        f.write(table)
-        f.write("\n")
-    
-    print(f"Report saved to: {output_file}")
+    print(f"\nReport saved to: {output_file}")
 
 
 def format_params(params):
@@ -44,9 +50,9 @@ def format_params(params):
     if not params:
         return "-"
     
-    # Extract common FIO parameters
+    # Extract common FIO parameters (excluding resource metrics)
     parts = []
-    for key in ['bs', 'file_size', 'iodepth', 'iotype', 'threads', 'nrfiles']:
+    for key in ['bs', 'file_size', 'io_depth', 'io_type', 'threads', 'nrfiles']:
         if key in params:
             parts.append(f"{params[key]}")
     

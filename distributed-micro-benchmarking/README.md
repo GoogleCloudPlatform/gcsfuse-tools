@@ -16,17 +16,39 @@ Edit [run.sh](run.sh) with your configuration and run:
 ./run.sh
 ```
 
-Configuration variables:
+**Configuration in run.sh:**
 ```bash
-INSTANCE_GROUP="my-instance-group"     # GCE instance group name
-TEST_CSV="sample-tests.csv"            # Test cases file
-FIO_JOB_FILE="jobfile.fio"            # FIO job template
-BUCKET="my-test-bucket"               # GCS bucket for testing
-ARTIFACTS_BUCKET="my-artifacts-bucket" # GCS bucket for artifacts
-ZONE="us-west4-a"                     # GCP zone
-PROJECT="my-gcp-project"              # GCP project
-ITERATIONS=5                          # Iterations per test
-GCSFUSE_COMMIT="master"               # GCSFuse branch/commit
+BENCHMARK_ID="benchmark-$(date +%s)"
+INSTANCE_GROUP="my-instance-group"
+ZONE="us-west4-a"
+PROJECT="my-gcp-project"
+ARTIFACTS_BUCKET="my-artifacts-bucket"
+TEST_CSV="sample-tests.csv"
+FIO_JOB_FILE="jobfile.fio"
+BUCKET="my-test-bucket"
+ITERATIONS=5
+GCSFUSE_COMMIT="master"
+GCSFUSE_MOUNT_ARGS="--implicit-dirs"
+POLL_INTERVAL=30
+TIMEOUT=7200
+```
+
+The script passes all parameters as CLI arguments to the orchestrator.
+
+**Direct orchestrator usage:**
+```bash
+python3 orchestrator.py \
+    --benchmark-id "benchmark-123" \
+    --instance-group "my-group" \
+    --zone "us-west4-a" \
+    --project "my-project" \
+    --artifacts-bucket "artifacts" \
+    --test-csv "tests.csv" \
+    --fio-job-file "job.fio" \
+    --bucket "test-bucket" \
+    --iterations 5 \
+    --gcsfuse-commit "master" \
+    --gcsfuse-mount-args "--implicit-dirs"
 ```
 
 ## Test Configuration
@@ -41,27 +63,42 @@ block_size,file_size,io_depth,io_type,num_jobs,nr_files
 
 ### FIO Job Template
 
-Create `jobfile.fio` with placeholders that get replaced by worker:
+Create `jobfile.fio` with bash variable syntax:
 
 ```ini
 [global]
 ioengine=libaio
 direct=0
 verify=0
-bs=BLOCK_SIZE
-iodepth=IO_DEPTH
-nrfiles=NR_FILES
+bs=$BS
+iodepth=$IO_DEPTH
+nrfiles=$NRFILES
 group_reporting=1
 
 [test]
-rw=IO_TYPE
-filesize=FILE_SIZE
-directory=MOUNT_POINT
-numjobs=NUM_JOBS
+rw=$IO_TYPE
+filesize=$FILE_SIZE
+directory=$TEST_DATA_DIR
+numjobs=$THREADS
 ```
 
-**Placeholders:**
-- `BLOCK_SIZE`, `FILE_SIZE`, `IO_DEPTH`, `IO_TYPE`, `NUM_JOBS`, `NR_FILES`, `MOUNT_POINT`
+**Variables:**
+- `$BS`, `$FILE_SIZE`, `$IO_DEPTH`, `$IO_TYPE`, `$THREADS`, `$NRFILES`, `$TEST_DATA_DIR`
+
+### Config JSON (Internal)
+
+The orchestrator automatically creates `config.json` from CLI parameters and uploads it to GCS for worker coordination:
+
+```json
+{
+  "gcsfuse_commit": "master",
+  "iterations": 5,
+  "bucket": "my-test-bucket",
+  "gcsfuse_mount_args": "--implicit-dirs --stat-cache-ttl 60s"
+}
+```
+
+Workers download this file to get test execution parameters.
 
 ## GCS Directory Structure
 

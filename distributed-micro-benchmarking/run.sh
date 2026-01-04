@@ -13,22 +13,22 @@ create_fio_config() {
 ioengine=libaio
 direct=0
 verify=0
-bs=BLOCK_SIZE
-iodepth=IO_DEPTH
+bs=$BS
+iodepth=$IO_DEPTH
 runtime=120s
 time_based=0
 fadvise_hint=0
-nrfiles=NR_FILES
+nrfiles=$NRFILES
 thread=1
 openfiles=1
 group_reporting=1
 filename_format=test.$jobnum.$filenum
 
 [test]
-rw=IO_TYPE
-filesize=FILE_SIZE
-directory=MOUNT_POINT
-numjobs=NUM_JOBS
+rw=$IO_TYPE
+filesize=$FILE_SIZE
+directory=$TEST_DATA_DIR
+numjobs=$THREADS
 FIO_CONFIG_EOF
     echo "Created FIO config: $output_file"
 }
@@ -38,8 +38,18 @@ create_test_cases() {
     local output_file="$1"
     cat > "$output_file" << 'TEST_CSV_EOF'
 block_size,file_size,io_depth,io_type,num_jobs,nr_files
-4k,1g,32,read,1,1
-128k,1g,64,read,1,1
+1m,1g,2,randread,48,20
+1m,1m,2,randread,48,200
+1m,2g,2,randread,48,10
+1m,4m,2,randread,48,100
+1m,5g,2,randread,48,10
+1m,8m,2,randread,48,75
+1m,10g,2,randread,48,4
+1m,16m,2,randread,48,75
+1m,32m,2,randread,48,50
+1m,64m,2,randread,48,50
+64k,64k,2,randread,48,400
+256k,256k,2,randread,48,400
 TEST_CSV_EOF
     echo "Created test cases: $output_file"
 }
@@ -55,6 +65,7 @@ ZONE="us-west4-a"
 PROJECT="gcs-tess"
 ITERATIONS=1
 GCSFUSE_COMMIT="master"
+GCSFUSE_MOUNT_ARGS="--implicit-dirs"
 
 # Advanced options
 POLL_INTERVAL=30
@@ -76,47 +87,31 @@ echo "GCSFuse Commit: $GCSFUSE_COMMIT"
 echo "=========================================="
 echo ""
 
-# Generate FIO job file if it doesn't exist
-if [ ! -f "$FIO_JOB_FILE" ]; then
-    echo "FIO job file not found. Creating default: $FIO_JOB_FILE"
-    create_fio_config "$FIO_JOB_FILE"
-fi
+# Always generate FIO job file with latest content
+echo "Generating FIO job file: $FIO_JOB_FILE"
+create_fio_config "$FIO_JOB_FILE"
 
-# Generate test CSV if it doesn't exist
-if [ ! -f "$TEST_CSV" ]; then
-    echo "Test CSV not found. Creating default: $TEST_CSV"
-    create_test_cases "$TEST_CSV"
-fi
+# Always generate test CSV with latest content
+echo "Generating test cases: $TEST_CSV"
+create_test_cases "$TEST_CSV"
 
 # Create results directory
 mkdir -p results
-
-# Upload config to GCS
-CONFIG_JSON=$(mktemp)
-cat > "$CONFIG_JSON" <<EOF
-{
-  "gcsfuse_commit": "$GCSFUSE_COMMIT",
-  "iterations": $ITERATIONS,
-  "bucket": "$BUCKET"
-}
-EOF
-
-echo "Uploading config..."
-gcloud storage cp "$CONFIG_JSON" "gs://${ARTIFACTS_BUCKET}/${BENCHMARK_ID}/config.json"
-rm "$CONFIG_JSON"
 
 # Run orchestrator
 echo ""
 python3 orchestrator.py \
     --benchmark-id "$BENCHMARK_ID" \
     --instance-group "$INSTANCE_GROUP" \
+    --zone "$ZONE" \
+    --project "$PROJECT" \
+    --artifacts-bucket "$ARTIFACTS_BUCKET" \
     --test-csv "$TEST_CSV" \
     --fio-job-file "$FIO_JOB_FILE" \
     --bucket "$BUCKET" \
-    --artifacts-bucket "$ARTIFACTS_BUCKET" \
-    --zone "$ZONE" \
-    --project "$PROJECT" \
     --iterations "$ITERATIONS" \
+    --gcsfuse-commit "$GCSFUSE_COMMIT" \
+    --gcsfuse-mount-args="$GCSFUSE_MOUNT_ARGS" \
     --poll-interval "$POLL_INTERVAL" \
     --timeout "$TIMEOUT"
 
