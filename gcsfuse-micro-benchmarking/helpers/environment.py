@@ -100,13 +100,11 @@ def wait_for_ssh(vm_name, zone, project, retries=15, delay=20):
         'gcloud', 'compute', 'ssh', vm_name,
         f'--zone={zone}', f'--project={project}',
         '--quiet',  # Suppress interactive prompts
-        # '--', 'echo "SSH ready"'
+        '--', 'echo "SSH ready"'
     ]
     if is_running_on_gce():
         print("Detected environment: GCE VM. Using internal IP.")
-        ssh_args = ['--', 'echo "SSH ready"', '-vvv', '-o StrictHostKeyChecking=no', '-o UserKnownHostsFile=/dev/null']
         ssh_cmd.append('--internal-ip')
-        ssh_cmd = ssh_cmd + ssh_args
     else:
         print("Detected environment: Cloudtop/External. Using default (External IP).")
 
