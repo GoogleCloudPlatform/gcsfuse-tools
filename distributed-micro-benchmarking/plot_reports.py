@@ -37,12 +37,12 @@ def parse_params(param_str):
 
 
 def sort_key(param_str):
-    """Generate sort key for parameter string: (file_size_numeric, io_type, threads)"""
+    """Generate sort key for parameter string: (io_type, file_size_numeric, threads)"""
     params = parse_params(param_str)
     if params:
         file_size_val = parse_file_size(params['file_size'])
         io_type_order = 0 if params['io_type'] == 'randread' else 1
-        return (file_size_val, io_type_order, params['threads'])
+        return (io_type_order, file_size_val, params['threads'])
     return (0, 0, 0)
 
 
