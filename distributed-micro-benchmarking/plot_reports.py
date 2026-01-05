@@ -1,0 +1,143 @@
+#!/usr/bin/env python3
+"""Plot read throughput from benchmark reports"""
+
+import pandas as pd
+import matplotlib.pyplot as plt
+import glob
+import os
+import re
+from pathlib import Path
+
+
+def parse_file_size(size_str):
+    """Convert file size string to numeric value for sorting"""
+    size_str = size_str.lower()
+    if 'k' in size_str:
+        return float(size_str.replace('k', '')) / 1024  # Convert to MB
+    elif 'm' in size_str:
+        return float(size_str.replace('m', ''))
+    elif 'g' in size_str:
+        return float(size_str.replace('g', '')) * 1024  # Convert to MB
+    return float(size_str)
+
+
+def parse_params(param_str):
+    """Parse compressed parameter string into components"""
+    parts = param_str.split('|')
+    if len(parts) >= 6:
+        return {
+            'bs': parts[0],
+            'file_size': parts[1],
+            'io_depth': parts[2],
+            'io_type': parts[3],
+            'threads': int(parts[4]),
+            'nr_files': int(parts[5])
+        }
+    return None
+
+
+def sort_key(param_str):
+    """Generate sort key for parameter string: (file_size_numeric, io_type, threads)"""
+    params = parse_params(param_str)
+    if params:
+        file_size_val = parse_file_size(params['file_size'])
+        io_type_order = 0 if params['io_type'] == 'randread' else 1
+        return (file_size_val, io_type_order, params['threads'])
+    return (0, 0, 0)
+
+
+def main():
+    # Find all CSV files in good_reports directory
+    reports_dir = "good_results"
+    csv_files = glob.glob(os.path.join(reports_dir, "*.csv"))
+    
+    if not csv_files:
+        print(f"No CSV files found in {reports_dir}/")
+        return
+    
+    print(f"Found {len(csv_files)} CSV files:")
+    for f in csv_files:
+        print(f"  - {os.path.basename(f)}")
+    
+    # Create figure with larger size for readability
+    plt.figure(figsize=(20, 10))
+    
+    # Color palette
+    colors = plt.cm.tab10(range(len(csv_files)))
+    
+    all_data = []
+    
+    # Read and process each CSV file
+    for idx, csv_file in enumerate(csv_files):
+        df = pd.read_csv(csv_file)
+        
+        # Get file name for legend
+        file_name = os.path.basename(csv_file).replace('.csv', '')
+        
+        # Extract relevant columns
+        if 'BS|FSize|IOD|IOType|Jobs|NrFiles' in df.columns and 'Read BW (MB/s)' in df.columns:
+            # Create data with sort key
+            for _, row in df.iterrows():
+                param_str = row['BS|FSize|IOD|IOType|Jobs|NrFiles']
+                read_bw = row['Read BW (MB/s)']
+                
+                # Skip if read_bw is not a number or is '-'
+                if pd.isna(read_bw) or read_bw == '-':
+                    continue
+                
+                all_data.append({
+                    'param': param_str,
+                    'read_bw': float(read_bw),
+                    'file': file_name,
+                    'sort_key': sort_key(param_str),
+                    'color_idx': idx
+                })
+    
+    if not all_data:
+        print("No valid data found in CSV files")
+        return
+    
+    # Convert to DataFrame and sort
+    plot_df = pd.DataFrame(all_data)
+    plot_df = plot_df.sort_values('sort_key')
+    
+    # Get unique parameter strings in sorted order
+    unique_params = plot_df['param'].unique()
+    x_positions = {param: i for i, param in enumerate(unique_params)}
+    
+    # Plot each file's data
+    for file_name in plot_df['file'].unique():
+        file_data = plot_df[plot_df['file'] == file_name]
+        color_idx = file_data['color_idx'].iloc[0]
+        
+        x_vals = [x_positions[p] for p in file_data['param']]
+        y_vals = file_data['read_bw'].values
+        
+        plt.plot(x_vals, y_vals, marker='o', linewidth=2, markersize=6, 
+                label=file_name, color=colors[color_idx])
+    
+    # Customize plot
+    plt.xlabel('Test Configuration (File Size | IO Type | Threads)', fontsize=12, fontweight='bold')
+    plt.ylabel('Read Throughput (MB/s)', fontsize=12, fontweight='bold')
+    plt.title('Read Throughput Comparison Across Benchmark Reports', fontsize=14, fontweight='bold')
+    plt.legend(loc='best', fontsize=10)
+    plt.grid(True, alpha=0.3, linestyle='--')
+    
+    # Set x-axis labels
+    plt.xticks(range(len(unique_params)), unique_params, rotation=90, ha='right', fontsize=8)
+    
+    # Adjust layout to prevent label cutoff
+    plt.tight_layout()
+    
+    # Save and show plot
+    output_file = "reports/throughput_comparison.png"
+    os.makedirs("reports", exist_ok=True)
+    plt.savefig(output_file, dpi=150, bbox_inches='tight')
+    print(f"\nPlot saved to: {output_file}")
+    
+    # Show plot
+    plt.show()
+
+
+if __name__ == "__main__":
+    main()

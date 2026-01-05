@@ -200,7 +200,7 @@ for TEST_ID in $TEST_IDS; do
         $GCSFUSE_BIN $GCSFUSE_MOUNT_ARGS "$BUCKET" "$MOUNT_DIR"
         
         # Get GCSFuse PID for monitoring
-        GCSFUSE_PID=$(pgrep -f "gcsfuse.*$BUCKET" | head -1)
+        GCSFUSE_PID=$(pgrep -f "gcsfuse.*${MOUNT_DIR}" | head -1)
         echo "    GCSFuse PID: $GCSFUSE_PID"
         
         # Start memory and CPU monitoring in background
@@ -226,6 +226,9 @@ for TEST_ID in $TEST_IDS; do
         
         # Create subdirectory for this file size
         mkdir -p "$TEST_DATA_DIR"
+
+        # Bulk populate metadata-cache via a hack.
+        time ls -R "$TEST_DATA_DIR" 1> /dev/null
         
         # Run FIO
         OUTPUT_FILE="${TEST_DIR}/fio_output_${i}.json"

@@ -125,7 +125,7 @@ ZONE="us-west4-a"
 PROJECT="gcs-tess"
 ITERATIONS=3
 GCSFUSE_COMMIT="default_fuse_settings"
-GCSFUSE_MOUNT_ARGS="--implicit-dirs"
+GCSFUSE_MOUNT_ARGS="--implicit-dirs --stat-cache-max-size-mb=-1 --stat-cache-ttl=2h --max-read-ahead-kb=16384"
 
 # Advanced options
 POLL_INTERVAL=30
