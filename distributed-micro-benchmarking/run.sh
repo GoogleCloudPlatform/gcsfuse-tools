@@ -68,7 +68,7 @@ ITERATIONS=3
 # GCSFUSE_MOUNT_ARGS="--implicit-dirs"
 GCSFUSE_COMMIT="default_fuse_settings"
 # GCSFUSE_MOUNT_ARGS="--implicit-dirs --stat-cache-max-size-mb=-1 --stat-cache-ttl=2h --max-background=600 --congestion-threshold=600"
-GCSFUSE_MOUNT_ARGS="--implicit-dirs --stat-cache-max-size-mb=-1 --stat-cache-ttl=2h --max-read-ahead-kb=24576 --max-background=600 --congestion-threshold=600"
+GCSFUSE_MOUNT_ARGS="--implicit-dirs --stat-cache-max-size-mb=-1 --stat-cache-ttl=2h --max-read-ahead-kb=32768 --max-background=800 --congestion-threshold=800"
 
 # Advanced options
 POLL_INTERVAL=30
