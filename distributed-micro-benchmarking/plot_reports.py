@@ -6,6 +6,8 @@ import matplotlib.pyplot as plt
 import glob
 import os
 import re
+import sys
+import argparse
 from pathlib import Path
 
 
@@ -37,18 +39,26 @@ def parse_params(param_str):
 
 
 def sort_key(param_str):
-    """Generate sort key for parameter string: (io_type, file_size_numeric, threads)"""
+    """Generate sort key for parameter string: (io_type, threads, file_size_numeric)"""
     params = parse_params(param_str)
     if params:
         file_size_val = parse_file_size(params['file_size'])
         io_type_order = 0 if params['io_type'] == 'randread' else 1
-        return (io_type_order, file_size_val, params['threads'])
+        return (io_type_order, params['threads'], file_size_val)
     return (0, 0, 0)
 
 
 def main():
-    # Find all CSV files in good_reports directory
-    reports_dir = "c4-192-results"
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(description='Plot read throughput from benchmark reports')
+    parser.add_argument('--src', default='good_reports', 
+                       help='Source directory containing CSV files (default: good_reports)')
+    parser.add_argument('--output-file', default='results/throughput_comparison.png',
+                       help='Output file path (default: results/throughput_comparison.png)')
+    args = parser.parse_args()
+    
+    # Find all CSV files in source directory
+    reports_dir = args.src
     csv_files = glob.glob(os.path.join(reports_dir, "*.csv"))
     
     if not csv_files:
@@ -129,9 +139,14 @@ def main():
     # Adjust layout to prevent label cutoff
     plt.tight_layout()
     
-    # Save and show plot
-    output_file = "reports/c4-sequential-read-throughput.png"
-    os.makedirs("reports", exist_ok=True)
+    # Save plot
+    output_file = args.output_file
+    
+    # Create parent directory if needed
+    parent_dir = os.path.dirname(output_file)
+    if parent_dir:
+        os.makedirs(parent_dir, exist_ok=True)
+    
     plt.savefig(output_file, dpi=150, bbox_inches='tight')
     print(f"\nPlot saved to: {output_file}")
     
