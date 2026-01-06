@@ -86,9 +86,9 @@ def main():
       help="File name for the summary of results. It will be created in each configuration's output directory.",
   )
   parser.add_argument(
-      "--bq-project-id",
+      "--project-id",
       default=None,
-      help="BigQuery project ID to upload results. If provided, --bq-dataset-id and --bq-table-id must also be provided.",
+      help="Project ID to upload results. If provided, --bq-dataset-id and --bq-table-id must also be provided.",
   )
   parser.add_argument(
       "--bq-dataset-id",
@@ -147,7 +147,7 @@ def main():
           work_dir=args.work_dir, output_dir=config_output_dir, fio_env=fio_env,
           summary_file=summary_file_path, cpu_limit_list=args.cpu_limit_list, 
           bind_fio=args.bind_fio,
-          bq_project_id=args.bq_project_id,
+          project_id=args.project_id,
           bq_dataset_id=args.bq_dataset_id,
           bq_table_id=args.bq_table_id)
     except Exception as e:

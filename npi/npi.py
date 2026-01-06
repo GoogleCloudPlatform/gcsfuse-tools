@@ -14,7 +14,7 @@ Usage:
 
 Example:
   python3 npi.py --benchmarks read_http1 write_grpc --bucket-name my-bucket \\
-    --project-id my-bq-project --bq-dataset-id my_bq_dataset --gcsfuse-version v1.2.0
+    --project-id my-project --bq-dataset-id my_bq_dataset --gcsfuse-version v1.2.0
 """
 
 import argparse

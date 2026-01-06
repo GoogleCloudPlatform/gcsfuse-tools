@@ -472,7 +472,7 @@ start_benchmarking_runs() {
         return 1
     fi
         
-    # Read the CSV file line by line, skipping the header.
+    # Read the CSV file line by line, skipping the header
     while IFS=, read -r bs file_size iodepth iotype threads nrfiles || [[ -n "$nrfiles" ]]; do
         # Iterate for the specified number of runs for this job case       
         nrfiles="${nrfiles%$'\r'}"
