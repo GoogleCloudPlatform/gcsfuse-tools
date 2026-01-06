@@ -477,7 +477,7 @@ start_benchmarking_runs() {
     fi
     
     # Read the CSV file line by line, skipping the header
-    tail -n +2 "$fio_job_cases" | while IFS=, read -r bs file_size iodepth iotype threads nrfiles; do
+    while IFS=, read -r bs file_size iodepth iotype threads nrfiles || [[ -n "$nrfiles" ]]; do
         # Iterate for the specified number of runs for this job case
             # Mount the bucket once before the loop if reuse_same_mount is 'true'
         if [[ "$reuse_same_mount" == "true" ]]; then
@@ -522,7 +522,7 @@ start_benchmarking_runs() {
         if [[ "$reuse_same_mount" == "true" ]]; then
             unmount_gcsfuse "$mntdir"
         fi
-    done
+    done < <(tail -n +2 "$fio_job_cases")
 
 
 }
