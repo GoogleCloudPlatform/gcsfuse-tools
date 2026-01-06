@@ -82,7 +82,18 @@ def create_vm_if_not_exists(vm_details, zone, project):
         return None
 
 def is_running_on_gce():
-    """Checks if the script is running on a GCE VM."""
+    """
+    Checks if the script is running on a GCE VM *on the same network*.
+    Returns False for Cloudtop/Corp workstations to force External IP/IAP usage.
+    """
+    # 1. CRITICAL: Check for Corporate Environment (Cloudtop)
+    # Cloudtops reside on a different VPC and cannot use --internal-ip
+    # to reach project VMs. We detect them by their unique home directory path.
+    if os.path.exists("/usr/local/google/home"):
+        print("Debug: Detected Cloudtop environment. Forcing External/IAP connection.")
+        return False
+
+    # 2. Standard GCE Metadata Check
     try:
         response = requests.get(
             "http://metadata.google.internal/computeMetadata/v1/instance/",
@@ -100,15 +111,14 @@ def wait_for_ssh(vm_name, zone, project, retries=15, delay=20):
         'gcloud', 'compute', 'ssh', vm_name,
         f'--zone={zone}', f'--project={project}',
         '--quiet',  # Suppress interactive prompts
-        # '--', 'echo "SSH ready"'
     ]
     if is_running_on_gce():
         print("Detected environment: GCE VM. Using internal IP.")
-        ssh_args = ['--', 'echo "SSH ready"', '-vvv', '-o StrictHostKeyChecking=no', '-o UserKnownHostsFile=/dev/null']
         ssh_cmd.append('--internal-ip')
-        ssh_cmd = ssh_cmd + ssh_args
+        ssh_cmd.extend(['--', '-vvv', '-o', 'StrictHostKeyChecking=no', '-o', 'UserKnownHostsFile=/dev/null', 'echo "SSH ready"'])
     else:
         print("Detected environment: Cloudtop/External. Using default (External IP).")
+        ssh_cmd.extend(['--', 'echo "SSH ready"'])
 
     print(f"Waiting for VM '{vm_name}' to become SSH-ready...")
     for i in range(retries):
