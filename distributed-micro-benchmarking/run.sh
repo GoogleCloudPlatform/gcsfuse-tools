@@ -56,7 +56,8 @@ TEST_CSV_EOF
 
 # Configuration - EDIT THESE VALUES
 BENCHMARK_ID="benchmark-$(date +%s)"
-INSTANCE_GROUP="princer-test"
+# INSTANCE_GROUP="princer-test"
+INSTANCE_GROUP="princer-c4-192-us-west4-a-mg"
 TEST_CSV="sample-tests.csv"
 FIO_JOB_FILE="jobfile.fio"
 BUCKET="princer-zonal-us-west4-a"
@@ -65,10 +66,10 @@ ZONE="us-west4-a"
 PROJECT="gcs-tess"
 ITERATIONS=3
 # GCSFUSE_COMMIT="master"
-# GCSFUSE_MOUNT_ARGS="--implicit-dirs"
+# GCSFUSE_MOUNT_ARGS="--implicit-dirs --stat-cache-max-size-mb=-1 --stat-cache-ttl=2h"
 GCSFUSE_COMMIT="default_fuse_settings"
 # GCSFUSE_MOUNT_ARGS="--implicit-dirs --stat-cache-max-size-mb=-1 --stat-cache-ttl=2h --max-background=600 --congestion-threshold=600"
-GCSFUSE_MOUNT_ARGS="--implicit-dirs --stat-cache-max-size-mb=-1 --stat-cache-ttl=2h --max-read-ahead-kb=32768 --max-background=800 --congestion-threshold=800"
+GCSFUSE_MOUNT_ARGS="--implicit-dirs --stat-cache-max-size-mb=-1 --stat-cache-ttl=2h --max-read-ahead-kb=8192 --max-background=600 --congestion-threshold=600"
 
 # Advanced options
 POLL_INTERVAL=30

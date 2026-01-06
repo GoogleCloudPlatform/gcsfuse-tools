@@ -48,7 +48,7 @@ def sort_key(param_str):
 
 def main():
     # Find all CSV files in good_reports directory
-    reports_dir = "good_results"
+    reports_dir = "c4-192-results"
     csv_files = glob.glob(os.path.join(reports_dir, "*.csv"))
     
     if not csv_files:
@@ -130,7 +130,7 @@ def main():
     plt.tight_layout()
     
     # Save and show plot
-    output_file = "reports/throughput_comparison.png"
+    output_file = "reports/c4-sequential-read-throughput.png"
     os.makedirs("reports", exist_ok=True)
     plt.savefig(output_file, dpi=150, bbox_inches='tight')
     print(f"\nPlot saved to: {output_file}")
