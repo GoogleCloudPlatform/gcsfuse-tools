@@ -55,6 +55,9 @@ def main():
                        help='Source directory containing CSV files (default: good_reports)')
     parser.add_argument('--output-file', default='results/throughput_comparison.png',
                        help='Output file path (default: results/throughput_comparison.png)')
+    parser.add_argument('--metric', default='read_bw', 
+                       choices=['read_bw', 'write_bw', 'avg_cpu', 'peak_cpu', 'avg_mem', 'peak_mem'],
+                       help='Metric to plot (default: read_bw)')
     args = parser.parse_args()
     
     # Find all CSV files in source directory
@@ -72,8 +75,22 @@ def main():
     # Create figure with larger size for readability
     plt.figure(figsize=(20, 10))
     
-    # Color palette
+    # Color palette and line styles
     colors = plt.cm.tab10(range(len(csv_files)))
+    line_styles = ['-', '--', '-.', ':', '-', '--', '-.', ':', '-', '--']
+    markers = ['o', 's', '^', 'D', 'v', '<', '>', 'p', '*', 'h']
+    
+    # Map metric argument to column name and display info
+    metric_map = {
+        'read_bw': ('Read BW (MB/s)', 'Read Throughput (MB/s)'),
+        'write_bw': ('Write BW (MB/s)', 'Write Throughput (MB/s)'),
+        'avg_cpu': ('Avg CPU (%)', 'Average CPU (%)'),
+        'peak_cpu': ('Peak CPU (%)', 'Peak CPU (%)'),
+        'avg_mem': ('Avg Mem (MB)', 'Average Memory (MB)'),
+        'peak_mem': ('Peak Mem (MB)', 'Peak Memory (MB)')
+    }
+    
+    column_name, y_label = metric_map[args.metric]
     
     all_data = []
     
@@ -85,19 +102,19 @@ def main():
         file_name = os.path.basename(csv_file).replace('.csv', '')
         
         # Extract relevant columns
-        if 'BS|FSize|IOD|IOType|Jobs|NrFiles' in df.columns and 'Read BW (MB/s)' in df.columns:
+        if 'BS|FSize|IOD|IOType|Jobs|NrFiles' in df.columns and column_name in df.columns:
             # Create data with sort key
             for _, row in df.iterrows():
                 param_str = row['BS|FSize|IOD|IOType|Jobs|NrFiles']
-                read_bw = row['Read BW (MB/s)']
+                metric_value = row[column_name]
                 
-                # Skip if read_bw is not a number or is '-'
-                if pd.isna(read_bw) or read_bw == '-':
+                # Skip if metric_value is not a number or is '-'
+                if pd.isna(metric_value) or metric_value == '-':
                     continue
                 
                 all_data.append({
                     'param': param_str,
-                    'read_bw': float(read_bw),
+                    'metric_value': float(metric_value),
                     'file': file_name,
                     'sort_key': sort_key(param_str),
                     'color_idx': idx
@@ -121,15 +138,37 @@ def main():
         color_idx = file_data['color_idx'].iloc[0]
         
         x_vals = [x_positions[p] for p in file_data['param']]
-        y_vals = file_data['read_bw'].values
+        y_vals = file_data['metric_value'].values
         
-        plt.plot(x_vals, y_vals, marker='o', linewidth=2, markersize=6, 
-                label=file_name, color=colors[color_idx])
+        plt.plot(x_vals, y_vals, 
+                marker=markers[color_idx % len(markers)],
+                linestyle=line_styles[color_idx % len(line_styles)],
+                linewidth=2.5, 
+                markersize=8, 
+                label=file_name, 
+                color=colors[color_idx],
+                alpha=0.8)
+    
+    # Draw thin red dotted lines connecting points at the same x position
+    for x_pos in range(len(unique_params)):
+        # Get all y values at this x position
+        y_values = []
+        for file_name in plot_df['file'].unique():
+            file_data = plot_df[plot_df['file'] == file_name]
+            param = unique_params[x_pos]
+            matching = file_data[file_data['param'] == param]
+            if not matching.empty:
+                y_values.append(matching['metric_value'].iloc[0])
+        
+        # Draw vertical line connecting all points at this x position
+        if len(y_values) > 1:
+            plt.plot([x_pos] * len(y_values), y_values, 
+                    color='red', linestyle=':', linewidth=1.5, alpha=0.5, zorder=1)
     
     # Customize plot
     plt.xlabel('Test Configuration (File Size | IO Type | Threads)', fontsize=12, fontweight='bold')
-    plt.ylabel('Read Throughput (MB/s)', fontsize=12, fontweight='bold')
-    plt.title('Read Throughput Comparison Across Benchmark Reports', fontsize=14, fontweight='bold')
+    plt.ylabel(y_label, fontsize=12, fontweight='bold')
+    plt.title(f'{y_label} Comparison Across Benchmark Reports', fontsize=14, fontweight='bold')
     plt.legend(loc='best', fontsize=10)
     plt.grid(True, alpha=0.3, linestyle='--')
     
