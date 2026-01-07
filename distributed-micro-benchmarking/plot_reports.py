@@ -55,10 +55,13 @@ def main():
                        help='Source directory containing CSV files (default: good_reports)')
     parser.add_argument('--output-file', default='results/throughput_comparison.png',
                        help='Output file path (default: results/throughput_comparison.png)')
-    parser.add_argument('--metric', default='read_bw', 
-                       choices=['read_bw', 'write_bw', 'avg_cpu', 'peak_cpu', 'avg_mem', 'peak_mem'],
-                       help='Metric to plot (default: read_bw)')
+    parser.add_argument('--metric', '--metrics', nargs='+', default=['read_bw'],
+                       choices=['read_bw', 'write_bw', 'avg_cpu', 'peak_cpu', 'avg_mem', 'peak_mem', 'avg_page_cache', 'peak_page_cache', 'avg_sys_cpu', 'peak_sys_cpu'],
+                       help='Metric(s) to plot - single or multiple (default: read_bw)')
     args = parser.parse_args()
+    
+    # Determine which metrics to plot
+    metrics_to_plot = args.metric
     
     # Find all CSV files in source directory
     reports_dir = args.src
@@ -72,8 +75,19 @@ def main():
     for f in csv_files:
         print(f"  - {os.path.basename(f)}")
     
-    # Create figure with larger size for readability
-    plt.figure(figsize=(20, 10))
+    # Determine subplot layout based on number of metrics (vertical arrangement)
+    num_metrics = len(metrics_to_plot)
+    nrows, ncols = num_metrics, 1
+    fig_height = 8 * num_metrics  # 8 inches per subplot
+    
+    # Create figure with subplots
+    fig, axes = plt.subplots(nrows, ncols, figsize=(20, fig_height))
+    
+    # Flatten axes array for easier iteration
+    if num_metrics == 1:
+        axes = [axes]
+    else:
+        axes = axes.flatten()
     
     # Color palette and line styles
     colors = plt.cm.tab10(range(len(csv_files)))
@@ -84,99 +98,116 @@ def main():
     metric_map = {
         'read_bw': ('Read BW (MB/s)', 'Read Throughput (MB/s)'),
         'write_bw': ('Write BW (MB/s)', 'Write Throughput (MB/s)'),
-        'avg_cpu': ('Avg CPU (%)', 'Average CPU (%)'),
-        'peak_cpu': ('Peak CPU (%)', 'Peak CPU (%)'),
-        'avg_mem': ('Avg Mem (MB)', 'Average Memory (MB)'),
-        'peak_mem': ('Peak Mem (MB)', 'Peak Memory (MB)')
+        'avg_cpu': ('Avg CPU (%)', 'Average GCSFuse CPU (%)'),
+        'peak_cpu': ('Peak CPU (%)', 'Peak GCSFuse CPU (%)'),
+        'avg_mem': ('Avg Mem (MB)', 'Average GCSFuse Memory (MB)'),
+        'peak_mem': ('Peak Mem (MB)', 'Peak GCSFuse Memory (MB)'),
+        'avg_page_cache': ('Avg PgCache (MB)', 'Average Page Cache (MB)'),
+        'peak_page_cache': ('Peak PgCache (MB)', 'Peak Page Cache (MB)'),
+        'avg_sys_cpu': ('Avg Sys CPU (%)', 'Average System CPU (%)'),
+        'peak_sys_cpu': ('Peak Sys CPU (%)', 'Peak System CPU (%)')
     }
     
-    column_name, y_label = metric_map[args.metric]
-    
-    all_data = []
-    
-    # Read and process each CSV file
-    for idx, csv_file in enumerate(csv_files):
-        df = pd.read_csv(csv_file)
+    # Plot each metric in a separate subplot
+    for metric_idx, metric in enumerate(metrics_to_plot):
+        ax = axes[metric_idx]
+        column_name, y_label = metric_map[metric]
         
-        # Get file name for legend
-        file_name = os.path.basename(csv_file).replace('.csv', '')
+        all_data = []
         
-        # Extract relevant columns
-        if 'BS|FSize|IOD|IOType|Jobs|NrFiles' in df.columns and column_name in df.columns:
-            # Create data with sort key
-            for _, row in df.iterrows():
-                param_str = row['BS|FSize|IOD|IOType|Jobs|NrFiles']
-                metric_value = row[column_name]
-                
-                # Skip if metric_value is not a number or is '-'
-                if pd.isna(metric_value) or metric_value == '-':
-                    continue
-                
-                all_data.append({
-                    'param': param_str,
-                    'metric_value': float(metric_value),
-                    'file': file_name,
-                    'sort_key': sort_key(param_str),
-                    'color_idx': idx
-                })
-    
-    if not all_data:
-        print("No valid data found in CSV files")
-        return
-    
-    # Convert to DataFrame and sort
-    plot_df = pd.DataFrame(all_data)
-    plot_df = plot_df.sort_values('sort_key')
-    
-    # Get unique parameter strings in sorted order
-    unique_params = plot_df['param'].unique()
-    x_positions = {param: i for i, param in enumerate(unique_params)}
-    
-    # Plot each file's data
-    for file_name in plot_df['file'].unique():
-        file_data = plot_df[plot_df['file'] == file_name]
-        color_idx = file_data['color_idx'].iloc[0]
+        # Read and process each CSV file
+        for idx, csv_file in enumerate(csv_files):
+            df = pd.read_csv(csv_file)
+            
+            # Get file name for legend
+            file_name = os.path.basename(csv_file).replace('.csv', '')
+            
+            # Extract relevant columns
+            if 'BS|FSize|IOD|IOType|Jobs|NrFiles' in df.columns and column_name in df.columns:
+                # Create data with sort key
+                for _, row in df.iterrows():
+                    param_str = row['BS|FSize|IOD|IOType|Jobs|NrFiles']
+                    metric_value = row[column_name]
+                    
+                    # Skip if metric_value is not a number or is '-'
+                    if pd.isna(metric_value) or metric_value == '-':
+                        continue
+                    
+                    # Parse params and filter for only threads 1, 48, 192
+                    params = parse_params(param_str)
+                    if params and params['threads'] not in [1, 48, 192]:
+                        continue
+                    
+                    all_data.append({
+                        'param': param_str,
+                        'metric_value': float(metric_value),
+                        'file': file_name,
+                        'sort_key': sort_key(param_str),
+                        'color_idx': idx
+                    })
         
-        x_vals = [x_positions[p] for p in file_data['param']]
-        y_vals = file_data['metric_value'].values
+        if not all_data:
+            print(f"No valid data found for metric: {metric}")
+            continue
         
-        plt.plot(x_vals, y_vals, 
-                marker=markers[color_idx % len(markers)],
-                linestyle=line_styles[color_idx % len(line_styles)],
-                linewidth=2.5, 
-                markersize=8, 
-                label=file_name, 
-                color=colors[color_idx],
-                alpha=0.8)
-    
-    # Draw thin red dotted lines connecting points at the same x position
-    for x_pos in range(len(unique_params)):
-        # Get all y values at this x position
-        y_values = []
+        # Convert to DataFrame and sort
+        plot_df = pd.DataFrame(all_data)
+        plot_df = plot_df.sort_values('sort_key')
+        
+        # Get unique parameter strings in sorted order
+        unique_params = plot_df['param'].unique()
+        x_positions = {param: i for i, param in enumerate(unique_params)}
+        
+        # Plot each file's data
         for file_name in plot_df['file'].unique():
             file_data = plot_df[plot_df['file'] == file_name]
-            param = unique_params[x_pos]
-            matching = file_data[file_data['param'] == param]
-            if not matching.empty:
-                y_values.append(matching['metric_value'].iloc[0])
+            color_idx = file_data['color_idx'].iloc[0]
+            
+            x_vals = [x_positions[p] for p in file_data['param']]
+            y_vals = file_data['metric_value'].values
+            
+            ax.plot(x_vals, y_vals, 
+                    marker=markers[color_idx % len(markers)],
+                    linestyle=line_styles[color_idx % len(line_styles)],
+                    linewidth=2.5, 
+                    markersize=8, 
+                    label=file_name, 
+                    color=colors[color_idx],
+                    alpha=0.8)
         
-        # Draw vertical line connecting all points at this x position
-        if len(y_values) > 1:
-            plt.plot([x_pos] * len(y_values), y_values, 
-                    color='red', linestyle=':', linewidth=1.5, alpha=0.5, zorder=1)
+        # Draw thin red dotted lines connecting points at the same x position
+        for x_pos in range(len(unique_params)):
+            # Get all y values at this x position
+            y_values = []
+            for file_name in plot_df['file'].unique():
+                file_data = plot_df[plot_df['file'] == file_name]
+                param = unique_params[x_pos]
+                matching = file_data[file_data['param'] == param]
+                if not matching.empty:
+                    y_values.append(matching['metric_value'].iloc[0])
+            
+            # Draw vertical line connecting all points at this x position
+            if len(y_values) > 1:
+                ax.plot([x_pos] * len(y_values), y_values, 
+                        color='red', linestyle=':', linewidth=1.5, alpha=0.5, zorder=1)
+        
+        # Customize subplot
+        ax.set_xlabel('Test Configuration (File Size | IO Type | Threads)', fontsize=10, fontweight='bold')
+        ax.set_ylabel(y_label, fontsize=10, fontweight='bold')
+        ax.set_title(f'{y_label} Comparison', fontsize=12, fontweight='bold')
+        ax.legend(loc='best', fontsize=8)
+        ax.grid(True, alpha=0.3, linestyle='--')
+        
+        # Set x-axis labels
+        ax.set_xticks(range(len(unique_params)))
+        ax.set_xticklabels(unique_params, rotation=90, ha='right', fontsize=7)
     
-    # Customize plot
-    plt.xlabel('Test Configuration (File Size | IO Type | Threads)', fontsize=12, fontweight='bold')
-    plt.ylabel(y_label, fontsize=12, fontweight='bold')
-    plt.title(f'{y_label} Comparison Across Benchmark Reports', fontsize=14, fontweight='bold')
-    plt.legend(loc='best', fontsize=10)
-    plt.grid(True, alpha=0.3, linestyle='--')
-    
-    # Set x-axis labels
-    plt.xticks(range(len(unique_params)), unique_params, rotation=90, ha='right', fontsize=8)
+    # Add overall figure title explaining x-axis and sort order
+    fig.suptitle('X-axis: BS|FileSize|IODepth|IOType|Jobs|NrFiles  •  Sorted by: IO Type (randread → read), Threads (1→48→192), File Size (ascending)', 
+                 fontsize=13, fontweight='bold', y=0.995)
     
     # Adjust layout to prevent label cutoff
-    plt.tight_layout()
+    plt.tight_layout(rect=[0, 0, 1, 0.99])  # Leave space for suptitle
     
     # Save plot
     output_file = args.output_file

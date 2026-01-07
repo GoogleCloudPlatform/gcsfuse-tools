@@ -9,7 +9,7 @@ def generate_report(metrics, output_file):
     """Generate benchmark report in CSV format and print as table"""
     os.makedirs(os.path.dirname(output_file) if os.path.dirname(output_file) else '.', exist_ok=True)
     
-    headers = ["Test ID", "BS|FSize|IOD|IOType|Jobs|NrFiles", "Read BW (MB/s)", "Write BW (MB/s)", "Avg CPU (%)", "Peak CPU (%)", "Avg Mem (MB)", "Peak Mem (MB)", "Iter"]
+    headers = ["Test ID", "BS|FSize|IOD|IOType|Jobs|NrFiles", "Read BW (MB/s)", "Write BW (MB/s)", "Avg CPU (%)", "Peak CPU (%)", "Avg Mem (MB)", "Peak Mem (MB)", "Avg PgCache (MB)", "Peak PgCache (MB)", "Avg Sys CPU (%)", "Peak Sys CPU (%)", "Iter"]
     rows = []
     
     for test_id in sorted(metrics.keys()):
@@ -22,6 +22,10 @@ def generate_report(metrics, output_file):
         peak_cpu = params.get('peak_cpu', '-')
         avg_mem = params.get('avg_mem_mb', '-')
         peak_mem = params.get('peak_mem_mb', '-')
+        avg_page_cache = params.get('avg_page_cache_mb', '-')
+        peak_page_cache = params.get('peak_page_cache_mb', '-')
+        avg_sys_cpu = params.get('avg_sys_cpu', '-')
+        peak_sys_cpu = params.get('peak_sys_cpu', '-')
         
         rows.append([
             test_id,
@@ -32,6 +36,10 @@ def generate_report(metrics, output_file):
             peak_cpu,
             avg_mem,
             peak_mem,
+            avg_page_cache,
+            peak_page_cache,
+            avg_sys_cpu,
+            peak_sys_cpu,
             m['iterations']
         ])
     

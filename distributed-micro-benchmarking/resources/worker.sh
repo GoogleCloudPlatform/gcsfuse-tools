@@ -189,7 +189,7 @@ for TEST_ID in $TEST_IDS; do
     
     # Initialize monitoring file
     MONITOR_FILE="$TEST_DIR/monitor.log"
-    echo "timestamp,cpu_percent,mem_rss_mb,mem_vsz_mb" > "$MONITOR_FILE"
+    echo "timestamp,cpu_percent,mem_rss_mb,mem_vsz_mb,page_cache_mb,system_cpu_percent" > "$MONITOR_FILE"
     
     # Run FIO iterations with mount/unmount for each
     for ((i=1; i<=ITERATIONS; i++)); do
@@ -217,7 +217,15 @@ for TEST_ID in $TEST_IDS; do
                     MEM_VSZ_KB=$(ps -p $GCSFUSE_PID -o vsz= 2>/dev/null || echo "0")
                     MEM_RSS_MB=$(echo "scale=2; $MEM_RSS_KB / 1024" | bc)
                     MEM_VSZ_MB=$(echo "scale=2; $MEM_VSZ_KB / 1024" | bc)
-                    echo "$TIMESTAMP,$CPU_PERCENT,$MEM_RSS_MB,$MEM_VSZ_MB" >> "$MONITOR_FILE"
+                    
+                    # Get page cache from /proc/meminfo (Cached value)
+                    PAGE_CACHE_KB=$(grep "^Cached:" /proc/meminfo | awk '{print $2}')
+                    PAGE_CACHE_MB=$(echo "scale=2; $PAGE_CACHE_KB / 1024" | bc)
+                    
+                    # Get overall system CPU usage
+                    SYSTEM_CPU=$(top -bn1 | grep "Cpu(s)" | awk '{print $2}' | sed 's/%us,//')
+                    
+                    echo "$TIMESTAMP,$CPU_PERCENT,$MEM_RSS_MB,$MEM_VSZ_MB,$PAGE_CACHE_MB,$SYSTEM_CPU" >> "$MONITOR_FILE"
                 fi
                 sleep 2
             done
@@ -256,14 +264,20 @@ for TEST_ID in $TEST_IDS; do
         MAX_CPU=$(awk -F',' 'NR>1 {if($2>max) max=$2} END {printf "%.2f", max+0}' "$MONITOR_FILE")
         AVG_MEM_RSS=$(awk -F',' 'NR>1 {sum+=$3; count++} END {if(count>0) printf "%.2f", sum/count; else print "0"}' "$MONITOR_FILE")
         MAX_MEM_RSS=$(awk -F',' 'NR>1 {if($3>max) max=$3} END {printf "%.2f", max+0}' "$MONITOR_FILE")
+        AVG_PAGE_CACHE=$(awk -F',' 'NR>1 {sum+=$5; count++} END {if(count>0) printf "%.2f", sum/count; else print "0"}' "$MONITOR_FILE")
+        MAX_PAGE_CACHE=$(awk -F',' 'NR>1 {if($5>max) max=$5} END {printf "%.2f", max+0}' "$MONITOR_FILE")
+        AVG_SYS_CPU=$(awk -F',' 'NR>1 {sum+=$6; count++} END {if(count>0) printf "%.2f", sum/count; else print "0"}' "$MONITOR_FILE")
+        MAX_SYS_CPU=$(awk -F',' 'NR>1 {if($6>max) max=$6} END {printf "%.2f", max+0}' "$MONITOR_FILE")
         echo "  Resource Usage - Avg CPU: ${AVG_CPU}%, Peak CPU: ${MAX_CPU}%, Avg Memory: ${AVG_MEM_RSS}MB, Peak Memory: ${MAX_MEM_RSS}MB"
+        echo "                   Avg Page Cache: ${AVG_PAGE_CACHE}MB, Peak Page Cache: ${MAX_PAGE_CACHE}MB"
+        echo "                   Avg System CPU: ${AVG_SYS_CPU}%, Peak System CPU: ${MAX_SYS_CPU}%"
     fi
     
     # Upload test results
     gcloud storage cp -r "$TEST_DIR" "${RESULT_BASE}/"
     
     # Update manifest with resource usage
-    TEST_PARAMS="{\"bs\":\"$BS\",\"file_size\":\"$FILE_SIZE\",\"io_depth\":\"$IO_DEPTH\",\"io_type\":\"$IO_TYPE\",\"threads\":\"$THREADS\",\"nrfiles\":\"$NRFILES\",\"avg_cpu\":\"$AVG_CPU\",\"peak_cpu\":\"$MAX_CPU\",\"avg_mem_mb\":\"$AVG_MEM_RSS\",\"peak_mem_mb\":\"$MAX_MEM_RSS\"}"
+    TEST_PARAMS="{\"bs\":\"$BS\",\"file_size\":\"$FILE_SIZE\",\"io_depth\":\"$IO_DEPTH\",\"io_type\":\"$IO_TYPE\",\"threads\":\"$THREADS\",\"nrfiles\":\"$NRFILES\",\"avg_cpu\":\"$AVG_CPU\",\"peak_cpu\":\"$MAX_CPU\",\"avg_mem_mb\":\"$AVG_MEM_RSS\",\"peak_mem_mb\":\"$MAX_MEM_RSS\",\"avg_page_cache_mb\":\"$AVG_PAGE_CACHE\",\"peak_page_cache_mb\":\"$MAX_PAGE_CACHE\",\"avg_sys_cpu\":\"$AVG_SYS_CPU\",\"peak_sys_cpu\":\"$MAX_SYS_CPU\"}"
     jq ".tests += [{\"test_id\":$TEST_ID,\"status\":\"success\",\"params\":$TEST_PARAMS}]" manifest.json > manifest_tmp.json
     mv manifest_tmp.json manifest.json
     
