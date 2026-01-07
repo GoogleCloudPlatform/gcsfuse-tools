@@ -133,9 +133,9 @@ def main():
                     if pd.isna(metric_value) or metric_value == '-':
                         continue
                     
-                    # Parse params and filter for only threads 1, 48, 192
+                    # Parse params and filter for only threads 1, 48, 96
                     params = parse_params(param_str)
-                    if params and params['threads'] not in [1, 48, 192]:
+                    if params and params['threads'] not in [1, 48, 96]:
                         continue
                     
                     all_data.append({
@@ -203,7 +203,7 @@ def main():
         ax.set_xticklabels(unique_params, rotation=90, ha='right', fontsize=7)
     
     # Add overall figure title explaining x-axis and sort order
-    fig.suptitle('X-axis: BS|FileSize|IODepth|IOType|Jobs|NrFiles  •  Sorted by: IO Type (randread → read), Threads (1→48→192), File Size (ascending)', 
+    fig.suptitle('X-axis: BS|FileSize|IODepth|IOType|Jobs|NrFiles  •  Sorted by: IO Type (randread → read), Threads (1→48→96), File Size (ascending)', 
                  fontsize=13, fontweight='bold', y=0.995)
     
     # Adjust layout to prevent label cutoff
