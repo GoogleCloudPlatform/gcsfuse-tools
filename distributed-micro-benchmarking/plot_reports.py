@@ -133,11 +133,6 @@ def main():
                     if pd.isna(metric_value) or metric_value == '-':
                         continue
                     
-                    # Parse params and filter for only threads 1, 48, 96
-                    params = parse_params(param_str)
-                    if params and params['threads'] not in [1, 48, 96]:
-                        continue
-                    
                     all_data.append({
                         'param': param_str,
                         'metric_value': float(metric_value),
