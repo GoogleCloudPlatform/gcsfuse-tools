@@ -30,7 +30,7 @@ It scans Google Cloud Logging for errors, retrieves the surrounding log context 
 2.  Initialize the module and download dependencies:
 
     ```bash
-    go mod init log_detective # If not already initialized
+    go mod init gke_genAI-log_analyzer # If not already initialized
     go mod tidy
     ```
 
