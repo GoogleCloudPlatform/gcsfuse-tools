@@ -158,6 +158,23 @@ steps:
       - '${_REGISTRY}/${_PROJECT}/gcsfuse-benchmarks/orbax-emulated-benchmark-${_GCSFUSE_VERSION}:latest'
       - 'fio'
 
+# Build and push the lssd-benchmark image.
+  # This uses a separate standalone Dockerfile but shares the same registry location.
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'lssd-raid0-benchmark'
+    waitFor: ['buildx-setup']
+    args:
+      - 'buildx'
+      - 'build'
+      - '--push'
+      - '-f'
+      - 'lssd_throughput_tests/lssd.dockerfile'
+      - '--platform'
+      - 'linux/amd64,linux/arm64'
+      - '-t'
+      - '${_REGISTRY}/${_PROJECT}/gcsfuse-benchmarks/lssd-raid0-benchmark-${_GCSFUSE_VERSION}:latest'
+      - 'lssd_throughput_tests'
+
 options:
   # Using a more powerful machine is recommended for multi-platform builds.
   machineType: 'E2_HIGHCPU_32'

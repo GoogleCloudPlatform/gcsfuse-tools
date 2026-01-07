@@ -239,6 +239,12 @@ class BenchmarkFactory:
                     bq_table_id=bq_table_id,
                     **config_params
                 )
+         # Add go-storage-tests
+        definitions["lssd_raid0_benchmark"] = functools.partial(
+            self._create_docker_command,
+            benchmark_image_suffix="lssd-raid0-benchmark",
+            bq_table_id="lssd_raid0_benchmark"
+        )
         return definitions
 
 
