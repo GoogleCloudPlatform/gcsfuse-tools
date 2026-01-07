@@ -158,6 +158,26 @@ steps:
       - '${_REGISTRY}/${_PROJECT}/gcsfuse-benchmarks/orbax-emulated-benchmark-${_GCSFUSE_VERSION}:latest'
       - 'fio'
 
+  # Build and push the go-storage-benchmark image.
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'go-storage-benchmark'
+    waitFor: ['base']
+    args:
+      - 'buildx'
+      - 'build'
+      - '--push'
+      - '-f'
+      - 'go-storage/go_storage.dockerfile'
+      - '--platform'
+      - 'linux/amd64,linux/arm64'
+      - '--build-arg'
+      - 'GO_VERSION=${_GO_VERSION}'
+      - '--build-arg'
+      - 'UBUNTU_VERSION=${_UBUNTU_VERSION}'
+      - '-t'
+      - '${_REGISTRY}/${_PROJECT}/gcsfuse-benchmarks/go-storage-benchmark-${_GCSFUSE_VERSION}:latest'
+      - '.'
+
 options:
   # Using a more powerful machine is recommended for multi-platform builds.
   machineType: 'E2_HIGHCPU_32'
