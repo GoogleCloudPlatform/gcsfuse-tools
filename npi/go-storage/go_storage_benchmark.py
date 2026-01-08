@@ -16,6 +16,8 @@ import time
 import re
 import uuid
 import json
+import concurrent.futures
+import tempfile
 
 from google.cloud import storage
 from google.cloud import bigquery
@@ -42,20 +44,6 @@ def run_command(command, cwd=None, env=None, check=True):
         logging.error(f"STDERR: {e.stderr}")
         raise
 
-def setup_go_environment():
-    """Ensures Go is available."""
-    if os.path.exists("/usr/local/bin/benchmark_tool"):
-        return
-
-    if shutil.which("go"):
-        return
-    
-    # In the container, Go should be installed via Dockerfile.
-    # If running locally without Go, this might fail or we could try to install it.
-    # For now, assume it's present (Docker).
-    logging.error("Go is not found in PATH.")
-    sys.exit(1)
-
 def prepare_test_data(project_id, bucket_name):
     """Ensures bucket exists and populates it with test data."""
     storage_client = storage.Client(project=project_id)
@@ -70,8 +58,6 @@ def prepare_test_data(project_id, bucket_name):
 
     # 2. Generate and Upload Data
     # 128 files of 10MB each.
-    # To speed up, we can generate one 10MB file and upload it multiple times?
-    # Or generate in memory.
     blob_prefix = "10MB/experiment."
     
     # Check if data exists? The original script just overwrites.
@@ -83,7 +69,6 @@ def prepare_test_data(project_id, bucket_name):
     # Upload concurrently? The python client is synchronous. 
     # For 128 files it might take a bit.
     # Let's use a thread pool for upload speed.
-    import concurrent.futures
     
     def upload_blob(i):
         blob_name = f"{blob_prefix}{i}.0"
@@ -236,12 +221,10 @@ def main():
     parser.add_argument("--bind-fio", action="store_true", help="Ignored")
     
     args = parser.parse_args()
-
-    setup_go_environment()
     
     # Create work dir
-    work_dir = "/tmp/go-benchmark"
-    os.makedirs(work_dir, exist_ok=True)
+    work_dir = tempfile.mkdtemp(prefix="go-benchmark-")
+    print("workd_dir", work_dir)
 
     try:
         prepare_test_data(args.project_id, args.bucket_name)

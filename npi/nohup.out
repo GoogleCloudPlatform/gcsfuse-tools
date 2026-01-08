@@ -1,0 +1,293 @@
+usage: npi.py [-h] [-b BENCHMARKS [BENCHMARKS ...]] --bucket-name BUCKET_NAME
+              --project-id PROJECT_ID --bq-dataset-id BQ_DATASET_ID
+              --gcsfuse-version GCSFUSE_VERSION [--iterations ITERATIONS]
+              [--dry-run] [--temp-dir {memory,boot-disk}]
+npi.py: error: unrecognized arguments: --benchamrks go-storage-tests
+usage: npi.py [-h] [-b BENCHMARKS [BENCHMARKS ...]] --bucket-name BUCKET_NAME
+              --project-id PROJECT_ID --bq-dataset-id BQ_DATASET_ID
+              --gcsfuse-version GCSFUSE_VERSION [--iterations ITERATIONS]
+              [--dry-run] [--temp-dir {memory,boot-disk}]
+npi.py: error: unrecognized arguments: --benchamrks go-storage-tests
+latest: Pulling from gcs-fuse-test/gcsfuse-benchmarks/go-storage-benchmark-v3.4.0
+02d7611c4eae: Pulling fs layer
+5527b5a51039: Pulling fs layer
+c1106e3d41ed: Pulling fs layer
+3495ee58cb31: Pulling fs layer
+3eb01ffd546b: Pulling fs layer
+6818054bc0c1: Pulling fs layer
+f1a1869fe2bf: Pulling fs layer
+4f4fb700ef54: Pulling fs layer
+59aaf62c1389: Download complete
+6818054bc0c1: Download complete
+4f4fb700ef54: Download complete
+5527b5a51039: Download complete
+3495ee58cb31: Download complete
+f1a1869fe2bf: Download complete
+3eb01ffd546b: Download complete
+02d7611c4eae: Download complete
+c1106e3d41ed: Download complete
+02d7611c4eae: Pull complete
+5527b5a51039: Pull complete
+f1a1869fe2bf: Pull complete
+6818054bc0c1: Pull complete
+c1106e3d41ed: Pull complete
+4f4fb700ef54: Pull complete
+3495ee58cb31: Pull complete
+3eb01ffd546b: Pull complete
+Digest: sha256:53cdb8e05d20e8612c17385ec8fed481e7e2e0a8b51a69b75802758324da3f48
+Status: Downloaded newer image for us-docker.pkg.dev/gcs-fuse-test/gcsfuse-benchmarks/go-storage-benchmark-v3.4.0:latest
+2026-01-08 08:51:42,749 - INFO - Using existing bucket pranjal-bucket-1.
+2026-01-08 08:51:42,749 - INFO - Generating and uploading data (128 x 10MB files)...
+2026-01-08 08:51:42,990 - WARNING - Connection pool is full, discarding connection: storage.googleapis.com. Connection pool size: 10
+2026-01-08 08:51:42,991 - WARNING - Connection pool is full, discarding connection: storage.googleapis.com. Connection pool size: 10
+2026-01-08 08:51:42,991 - WARNING - Connection pool is full, discarding connection: storage.googleapis.com. Connection pool size: 10
+2026-01-08 08:51:42,992 - WARNING - Connection pool is full, discarding connection: storage.googleapis.com. Connection pool size: 10
+2026-01-08 08:51:42,993 - WARNING - Connection pool is full, discarding connection: storage.googleapis.com. Connection pool size: 10
+2026-01-08 08:51:42,994 - WARNING - Connection pool is full, discarding connection: storage.googleapis.com. Connection pool size: 10
+2026-01-08 08:51:42,994 - INFO - Cleaning up work directory /tmp/go-benchmark-tulcjnz_...
+workd_dir /tmp/go-benchmark-tulcjnz_
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.13/site-packages/google/cloud/storage/blob.py", line 2835, in _prep_and_do_upload
+    created_json = self._do_upload(
+        client,
+    ...<12 lines>...
+        crc32c_checksum_value=crc32c_checksum_value,
+    )
+  File "/usr/local/lib/python3.13/site-packages/google/cloud/storage/blob.py", line 2646, in _do_upload
+    response = self._do_resumable_upload(
+        client,
+    ...<12 lines>...
+        crc32c_checksum_value=crc32c_checksum_value,
+    )
+  File "/usr/local/lib/python3.13/site-packages/google/cloud/storage/blob.py", line 2434, in _do_resumable_upload
+    upload, transport = self._initiate_resumable_upload(
+                        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        client,
+        ^^^^^^^
+    ...<12 lines>...
+        crc32c_checksum_value=crc32c_checksum_value,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/usr/local/lib/python3.13/site-packages/google/cloud/storage/blob.py", line 2285, in _initiate_resumable_upload
+    upload.initiate(
+    ~~~~~~~~~~~~~~~^
+        transport,
+        ^^^^^^^^^^
+    ...<5 lines>...
+        timeout=timeout,
+        ^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/usr/local/lib/python3.13/site-packages/google/cloud/storage/_media/requests/upload.py", line 436, in initiate
+    return _request_helpers.wait_and_retry(retriable_request, self._retry_strategy)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.13/site-packages/google/cloud/storage/_media/requests/_request_helpers.py", line 107, in wait_and_retry
+    return func()
+  File "/usr/local/lib/python3.13/site-packages/google/api_core/retry/retry_unary.py", line 294, in retry_wrapped_func
+    return retry_target(
+        target,
+    ...<3 lines>...
+        on_error=on_error,
+    )
+  File "/usr/local/lib/python3.13/site-packages/google/api_core/retry/retry_unary.py", line 156, in retry_target
+    next_sleep = _retry_error_helper(
+        exc,
+    ...<6 lines>...
+        timeout,
+    )
+  File "/usr/local/lib/python3.13/site-packages/google/api_core/retry/retry_base.py", line 214, in _retry_error_helper
+    raise final_exc from source_exc
+  File "/usr/local/lib/python3.13/site-packages/google/api_core/retry/retry_unary.py", line 147, in retry_target
+    result = target()
+  File "/usr/local/lib/python3.13/site-packages/google/cloud/storage/_media/requests/upload.py", line 432, in retriable_request
+    self._process_initiate_response(result)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^
+  File "/usr/local/lib/python3.13/site-packages/google/cloud/storage/_media/_upload.py", line 573, in _process_initiate_response
+    _helpers.require_status_code(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        response,
+        ^^^^^^^^^
+    ...<2 lines>...
+        callback=self._make_invalid,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/usr/local/lib/python3.13/site-packages/google/cloud/storage/_media/_helpers.py", line 105, in require_status_code
+    raise InvalidResponse(
+    ...<5 lines>...
+    )
+google.cloud.storage.exceptions.InvalidResponse: ('Request failed with status code', 403, 'Expected one of', <HTTPStatus.OK: 200>, <HTTPStatus.CREATED: 201>)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/app/go_storage_benchmark.py", line 264, in <module>
+    main()
+    ~~~~^^
+  File "/app/go_storage_benchmark.py", line 230, in main
+    prepare_test_data(args.project_id, args.bucket_name)
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/app/go_storage_benchmark.py", line 82, in prepare_test_data
+    future.result() # Raise exception if any
+    ~~~~~~~~~~~~~^^
+  File "/usr/local/lib/python3.13/concurrent/futures/_base.py", line 449, in result
+    return self.__get_result()
+           ~~~~~~~~~~~~~~~~~^^
+  File "/usr/local/lib/python3.13/concurrent/futures/_base.py", line 401, in __get_result
+    raise self._exception
+  File "/usr/local/lib/python3.13/concurrent/futures/thread.py", line 59, in run
+    result = self.fn(*self.args, **self.kwargs)
+  File "/app/go_storage_benchmark.py", line 76, in upload_blob
+    blob.upload_from_string(payload, content_type='application/octet-stream')
+    ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.13/site-packages/google/cloud/storage/blob.py", line 3349, in upload_from_string
+    self.upload_from_file(
+    ~~~~~~~~~~~~~~~~~~~~~^
+        file_obj=string_buffer,
+        ^^^^^^^^^^^^^^^^^^^^^^^
+    ...<11 lines>...
+        crc32c_checksum_value=crc32c_checksum_value,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/usr/local/lib/python3.13/site-packages/google/cloud/storage/blob.py", line 3015, in upload_from_file
+    self._prep_and_do_upload(
+    ~~~~~~~~~~~~~~~~~~~~~~~~^
+        file_obj,
+        ^^^^^^^^^
+    ...<12 lines>...
+        crc32c_checksum_value=crc32c_checksum_value,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/usr/local/lib/python3.13/site-packages/google/cloud/storage/blob.py", line 2853, in _prep_and_do_upload
+    _raise_from_invalid_response(exc)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^
+  File "/usr/local/lib/python3.13/site-packages/google/cloud/storage/blob.py", line 5145, in _raise_from_invalid_response
+    raise exceptions.from_http_status(response.status_code, message, response=response)
+google.api_core.exceptions.Forbidden: 403 POST https://storage.googleapis.com/upload/storage/v1/b/pranjal-bucket-1/o?uploadType=resumable: {
+  "error": {
+    "code": 403,
+    "message": "Provided scope(s) are not authorized",
+    "errors": [
+      {
+        "message": "Provided scope(s) are not authorized",
+        "domain": "global",
+        "reason": "forbidden"
+      }
+    ]
+  }
+}
+: ('Request failed with status code', 403, 'Expected one of', <HTTPStatus.OK: 200>, <HTTPStatus.CREATED: 201>)
+--- Benchmark go-storage-tests on localhost FAILED ---
+Return code: 1
+
+--- Some benchmarks failed: go-storage-tests ---
+Starting benchmark orchestration...
+Benchmarks to run: go-storage-tests
+BigQuery Target: gcs-fuse-test.cpranjal-go-storage-2
+--- Running benchmark: go-storage-tests on localhost ---
+Created temporary directory on host: /tmp/gcsfuse-npi-_qhjpfa8
+Command: docker run --pull=always --network=host --privileged --rm -v /tmp/gcsfuse-npi-_qhjpfa8:/gcsfuse-temp us-docker.pkg.dev/gcs-fuse-test/gcsfuse-benchmarks/go-storage-benchmark-v3.4.0:latest --iterations=5 --bucket-name=pranjal-bucket-1 --project-id=gcs-fuse-test --bq-dataset-id=cpranjal-go-storage-2 --bq-table-id=go_storage_tests --gcsfuse-flags=--temp-dir=/gcsfuse-temp -o allow_other
+Cleaning up temporary directory: /tmp/gcsfuse-npi-_qhjpfa8
+latest: Pulling from gcs-fuse-test/gcsfuse-benchmarks/go-storage-benchmark-v3.4.0
+Digest: sha256:53cdb8e05d20e8612c17385ec8fed481e7e2e0a8b51a69b75802758324da3f48
+Status: Image is up to date for us-docker.pkg.dev/gcs-fuse-test/gcsfuse-benchmarks/go-storage-benchmark-v3.4.0:latest
+2026-01-08 09:16:36,356 - INFO - Using existing bucket pranjal-bucket-1.
+2026-01-08 09:16:36,356 - INFO - Generating and uploading data (128 x 10MB files)...
+2026-01-08 09:16:39,142 - WARNING - Connection pool is full, discarding connection: storage.googleapis.com. Connection pool size: 10
+2026-01-08 09:16:39,143 - WARNING - Connection pool is full, discarding connection: storage.googleapis.com. Connection pool size: 10
+2026-01-08 09:16:39,163 - WARNING - Connection pool is full, discarding connection: storage.googleapis.com. Connection pool size: 10
+2026-01-08 09:16:39,165 - WARNING - Connection pool is full, discarding connection: storage.googleapis.com. Connection pool size: 10
+2026-01-08 09:16:39,191 - WARNING - Connection pool is full, discarding connection: storage.googleapis.com. Connection pool size: 10
+2026-01-08 09:16:39,208 - WARNING - Connection pool is full, discarding connection: storage.googleapis.com. Connection pool size: 10
+2026-01-08 09:16:39,211 - INFO - Data upload complete.
+2026-01-08 09:16:39,211 - INFO - Using pre-built benchmark tool.
+2026-01-08 09:16:39,211 - INFO - Iteration 1/5
+2026-01-08 09:16:39,211 - INFO -   Running http...
+2026-01-08 09:16:39,212 - INFO - Executing: /usr/local/bin/benchmark_tool --warm-up-time 30s --run-time 2m --worker 128 --bucket pranjal-bucket-1 --client-protocol http --obj-prefix 10MB/experiment. --obj-suffix .0
+latest: Pulling from gcs-fuse-test/gcsfuse-benchmarks/go-storage-benchmark-v3.4.0
+Digest: sha256:53cdb8e05d20e8612c17385ec8fed481e7e2e0a8b51a69b75802758324da3f48
+Status: Image is up to date for us-docker.pkg.dev/gcs-fuse-test/gcsfuse-benchmarks/go-storage-benchmark-v3.4.0:latest
+2026-01-08 09:18:09,378 - INFO - Using existing bucket pranjal-bucket-1.
+2026-01-08 09:18:09,378 - INFO - Generating and uploading data (128 x 10MB files)...
+2026-01-08 09:18:12,035 - WARNING - Connection pool is full, discarding connection: storage.googleapis.com. Connection pool size: 10
+2026-01-08 09:18:12,113 - WARNING - Connection pool is full, discarding connection: storage.googleapis.com. Connection pool size: 10
+2026-01-08 09:18:12,121 - WARNING - Connection pool is full, discarding connection: storage.googleapis.com. Connection pool size: 10
+2026-01-08 09:18:12,130 - WARNING - Connection pool is full, discarding connection: storage.googleapis.com. Connection pool size: 10
+2026-01-08 09:18:12,197 - WARNING - Connection pool is full, discarding connection: storage.googleapis.com. Connection pool size: 10
+2026-01-08 09:18:12,214 - WARNING - Connection pool is full, discarding connection: storage.googleapis.com. Connection pool size: 10
+2026-01-08 09:18:12,218 - INFO - Data upload complete.
+2026-01-08 09:18:12,218 - INFO - Using pre-built benchmark tool.
+2026-01-08 09:18:12,218 - INFO - Iteration 1/2
+2026-01-08 09:18:12,218 - INFO -   Running http...
+2026-01-08 09:18:12,218 - INFO - Executing: /usr/local/bin/benchmark_tool --warm-up-time 30s --run-time 2m --worker 128 --bucket pranjal-bucket-1 --client-protocol http --obj-prefix 10MB/experiment. --obj-suffix .0
+2026-01-08 09:20:44,257 - INFO -   Running grpc...
+2026-01-08 09:20:44,258 - INFO - Executing: /usr/local/bin/benchmark_tool --warm-up-time 30s --run-time 2m --worker 128 --bucket pranjal-bucket-1 --client-protocol grpc --obj-prefix 10MB/experiment. --obj-suffix .0
+2026-01-08 09:23:16,368 - INFO - Iteration 2/2
+2026-01-08 09:23:16,369 - INFO -   Running http...
+2026-01-08 09:23:16,369 - INFO - Executing: /usr/local/bin/benchmark_tool --warm-up-time 30s --run-time 2m --worker 128 --bucket pranjal-bucket-1 --client-protocol http --obj-prefix 10MB/experiment. --obj-suffix .0
+2026-01-08 09:25:48,409 - INFO -   Running grpc...
+2026-01-08 09:25:48,409 - INFO - Executing: /usr/local/bin/benchmark_tool --warm-up-time 30s --run-time 2m --worker 128 --bucket pranjal-bucket-1 --client-protocol grpc --obj-prefix 10MB/experiment. --obj-suffix .0
+2026-01-08 09:28:20,488 - INFO - Results Summary:
+2026-01-08 09:28:20,488 - INFO - HTTP: [4000.0, 3955.0]
+2026-01-08 09:28:20,488 - INFO - gRPC: [2869.0, 3071.0]
+2026-01-08 09:28:20,523 - INFO - Dataset cpranjal-go-storage-2 not found, creating it.
+2026-01-08 09:28:20,562 - INFO - Cleaning up work directory /tmp/go-benchmark-ms6225nl...
+workd_dir /tmp/go-benchmark-ms6225nl
+Traceback (most recent call last):
+  File "/app/go_storage_benchmark.py", line 264, in <module>
+    main()
+    ~~~~^^
+  File "/app/go_storage_benchmark.py", line 250, in main
+    upload_to_bq(
+    ~~~~~~~~~~~~^
+        args.project_id,
+        ^^^^^^^^^^^^^^^^
+    ...<2 lines>...
+        {'http': http_results, 'grpc': grpc_results},
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/app/go_storage_benchmark.py", line 175, in upload_to_bq
+    client.create_dataset(bigquery.Dataset(dataset_ref))
+    ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.13/site-packages/google/cloud/bigquery/client.py", line 711, in create_dataset
+    api_response = self._call_api(
+        retry,
+    ...<5 lines>...
+        timeout=timeout,
+    )
+  File "/usr/local/lib/python3.13/site-packages/google/cloud/bigquery/client.py", line 861, in _call_api
+    return call()
+  File "/usr/local/lib/python3.13/site-packages/google/api_core/retry/retry_unary.py", line 294, in retry_wrapped_func
+    return retry_target(
+        target,
+    ...<3 lines>...
+        on_error=on_error,
+    )
+  File "/usr/local/lib/python3.13/site-packages/google/api_core/retry/retry_unary.py", line 156, in retry_target
+    next_sleep = _retry_error_helper(
+        exc,
+    ...<6 lines>...
+        timeout,
+    )
+  File "/usr/local/lib/python3.13/site-packages/google/api_core/retry/retry_base.py", line 214, in _retry_error_helper
+    raise final_exc from source_exc
+  File "/usr/local/lib/python3.13/site-packages/google/api_core/retry/retry_unary.py", line 147, in retry_target
+    result = target()
+  File "/usr/local/lib/python3.13/site-packages/google/cloud/_http/__init__.py", line 494, in api_request
+    raise exceptions.from_http_response(response)
+google.api_core.exceptions.BadRequest: 400 POST https://bigquery.googleapis.com/bigquery/v2/projects/gcs-fuse-test/datasets?prettyPrint=false: Invalid dataset ID "cpranjal-go-storage-2". Dataset IDs must be alphanumeric (plus underscores) and must be at most 1024 characters long.
+--- Benchmark go-storage-tests on localhost FAILED ---
+Return code: 1
+
+--- Some benchmarks failed: go-storage-tests ---
+Starting benchmark orchestration...
+Benchmarks to run: go-storage-tests
+BigQuery Target: gcs-fuse-test.cpranjal-go-storage-2
+--- Running benchmark: go-storage-tests on localhost ---
+Created temporary directory on host: /tmp/gcsfuse-npi-zqilnnfq
+Command: docker run --pull=always --network=host --privileged --rm -v /tmp/gcsfuse-npi-zqilnnfq:/gcsfuse-temp us-docker.pkg.dev/gcs-fuse-test/gcsfuse-benchmarks/go-storage-benchmark-v3.4.0:latest --iterations=2 --bucket-name=pranjal-bucket-1 --project-id=gcs-fuse-test --bq-dataset-id=cpranjal-go-storage-2 --bq-table-id=go_storage_tests --gcsfuse-flags=--temp-dir=/gcsfuse-temp -o allow_other
+Cleaning up temporary directory: /tmp/gcsfuse-npi-zqilnnfq
