@@ -166,6 +166,15 @@ To see a list of all available benchmarks, you can execute the script with a `--
 
 ## Benchmark Glossary
 
+The script supports multiple benchmark types. The primary category is FIO-based tests that measure GCSfuse performance. There is also a baseline test that measures raw GCS performance without GCSfuse.
+
+*   **`go-storage-tests`**: Runs a series of read tests directly against GCS using the Go storage client. It tests both **HTTP/1.1** and **gRPC** protocols and uploads the bandwidth results for each to BigQuery. This provides a performance baseline without the overhead of FUSE.
+
+*   **FIO Benchmarks (e.g., `read_http1`, `write_grpc_...`)**: These benchmarks use the Flexible I/O (FIO) tool to measure GCSfuse performance under various conditions. Their names follow a strict format, explained below.
+
+---
+### FIO Benchmark Naming Convention
+
 The names of the GCSFUSE performance benchmarks follow a strict format designed to clearly communicate the **access pattern**, **protocol**, **NUMA locality**, and **CPU affinity** being tested.
 
 ---

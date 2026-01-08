@@ -239,6 +239,14 @@ class BenchmarkFactory:
                     bq_table_id=bq_table_id,
                     **config_params
                 )
+        
+        # Add go-storage-tests
+        definitions["go-storage-tests"] = functools.partial(
+            self._create_docker_command,
+            benchmark_image_suffix="go-storage-benchmark",
+            bq_table_id="go_storage_tests"
+        )
+        
         return definitions
 
 
