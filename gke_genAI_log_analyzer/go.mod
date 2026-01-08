@@ -1,6 +1,8 @@
-module log-detective
+module gke-genAI-log-analyzer
 
-go 1.24.8
+go 1.24.0
+
+toolchain go1.24.8
 
 require (
 	cloud.google.com/go/logging v1.13.1
