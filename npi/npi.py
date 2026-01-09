@@ -26,6 +26,7 @@ import subprocess
 import sys
 import tempfile
 import shutil
+import os
 
 class BenchmarkFactory:
     """A factory for creating benchmark commands.
@@ -96,7 +97,8 @@ class BenchmarkFactory:
 
     def _create_docker_command(self, benchmark_image_suffix, bq_table_id,
                                bucket_name, project_id, bq_dataset_id,
-                               gcsfuse_flags=None, cpu_list=None, bind_fio=None):
+                               gcsfuse_flags=None, cpu_list=None, bind_fio=None, 
+                               extra_docker_flags=None): # <--- [NEW ARGUMENT]
         """Helper to construct the full docker run command.
 
         This method assembles the final `docker run` command string with all
@@ -111,15 +113,17 @@ class BenchmarkFactory:
             gcsfuse_flags (str, optional): Additional flags for GCSfuse.
             cpu_list (str, optional): The list of CPUs to pin the container to.
             bind_fio (bool, optional): Whether to bind FIO to the same CPUs.
-
-        Returns:
-            str: The complete Docker command.
+            extra_docker_flags (str, optional): Extra flags for the docker run command (e.g. volumes).
         """
         container_temp_dir = "/gcsfuse-temp"
         volume_mount = ""
+        
+        # Handle existing temp_dir logic
         if self.temp_dir == "memory":
             volume_mount = f"--mount type=tmpfs,destination={container_temp_dir}"
         elif self.temp_dir == "boot-disk":
+            # FIX: Use the <temp_dir_path> placeholder. 
+            # run_benchmark() replaces this with the actual path later.
             volume_mount = f"-v <temp_dir_path>:{container_temp_dir}"
 
         default_gcsfuse_flags = f"--temp-dir={container_temp_dir} -o allow_other"
@@ -130,9 +134,14 @@ class BenchmarkFactory:
         else:
             gcsfuse_flags = default_gcsfuse_flags
 
+        # [NEW LOGIC] Handle extra docker flags
+        docker_flags_str = ""
+        if extra_docker_flags:
+            docker_flags_str = f" {extra_docker_flags}"
+
         base_cmd = (
             "docker run --pull=always --network=host --privileged --rm "
-            f"{volume_mount} "
+            f"{volume_mount}{docker_flags_str} "  # <--- [INJECTED HERE]
             f"us-docker.pkg.dev/{project_id}/gcsfuse-benchmarks/{benchmark_image_suffix}-{self.gcsfuse_version}:latest "
             f"--iterations={self.iterations} "
             f"--bucket-name={bucket_name} "
@@ -239,11 +248,14 @@ class BenchmarkFactory:
                     bq_table_id=bq_table_id,
                     **config_params
                 )
-         # Add go-storage-tests
+        
+        # --- Add LSSD RAID0 Benchmark ---
         definitions["lssd_raid0_benchmark"] = functools.partial(
             self._create_docker_command,
             benchmark_image_suffix="lssd-raid0-benchmark",
-            bq_table_id="lssd_raid0_benchmark"
+            bq_table_id="lssd_raid0_benchmark",
+            # CRITICAL: This mounts the host's /dev directory so the container can see the NVMe disks
+            extra_docker_flags="-v /dev:/dev" 
         )
         return definitions
 

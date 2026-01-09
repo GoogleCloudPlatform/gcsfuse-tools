@@ -1,11 +1,6 @@
-# Use a lightweight Python base, but we need OS utilities for disk management
 FROM python:3.11-slim-bookworm
 
 # Install system dependencies
-# mdadm: for RAID management
-# fio: for benchmarking
-# xfsprogs/e2fsprogs: for filesystem formatting
-# libaio1: required for fio libaio engine
 RUN apt-get update && apt-get install -y --no-install-recommends \
     mdadm \
     fio \
@@ -14,10 +9,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libaio1 \
     && rm -rf /var/lib/apt/lists/*
 
+# Install BigQuery client
+RUN pip install --no-cache-dir google-cloud-bigquery
+
 WORKDIR /app
 
-# Copy the benchmark script
-COPY lssd_benchmark.py /app/lssd_benchmark.py
+COPY fio/fio_benchmark_runner.py /app/fio_benchmark_runner.py
 
-# Entry point triggers the python script
+COPY lssd_throughput_tests/lssd_benchmark.py /app/lssd_benchmark.py
+
 ENTRYPOINT ["python3", "lssd_benchmark.py"]
