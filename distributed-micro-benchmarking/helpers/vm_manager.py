@@ -115,6 +115,9 @@ def wait_for_completion(vms, benchmark_id, artifacts_bucket, poll_interval=30, t
                 if manifest.get('status') == 'completed':
                     completed_vms.add(vm)
                     print(f"  ✓ {vm} completed - {manifest.get('total_tests', 0)} tests")
+                elif manifest.get('status') == 'cancelled':
+                    completed_vms.add(vm)
+                    print(f"  ⚠ {vm} cancelled - {len(manifest.get('tests', []))} tests completed")
                 elif manifest.get('status') == 'failed':
                     failed_vms.add(vm)
                     print(f"  ✗ {vm} failed")
@@ -131,8 +134,34 @@ def wait_for_completion(vms, benchmark_id, artifacts_bucket, poll_interval=30, t
                 return False
             return True
         
-        print(f"  Progress: {len(completed_vms)}/{len(vms)} completed, {len(failed_vms)} failed")
+        # Calculate in-progress VMs
+        in_progress_vms = set(vms) - completed_vms - failed_vms
+        
+        # Build status message
+        status_msg = f"  Progress: {len(completed_vms)}/{len(vms)} completed"
+        if failed_vms:
+            status_msg += f", {len(failed_vms)} failed"
+        if in_progress_vms:
+            status_msg += f" | In-progress: {', '.join(sorted(in_progress_vms))}"
+        
+        print(status_msg)
         time.sleep(poll_interval)
     
-    print(f"\nTimeout reached. Completed: {len(completed_vms)}/{len(vms)}")
+    # Timeout reached - trigger cancellation
+    print(f"\n⚠ Timeout reached after {timeout}s. Completed: {len(completed_vms)}/{len(vms)}")
+    
+    in_progress_vms = set(vms) - completed_vms - failed_vms
+    if in_progress_vms:
+        print(f"Triggering cancellation for in-progress VMs: {', '.join(sorted(in_progress_vms))}")
+        
+        # Create cancellation flag
+        cancel_path = f"gs://{artifacts_bucket}/{benchmark_id}/cancel"
+        cmd = ['gsutil', 'cp', '-', cancel_path]
+        subprocess.run(cmd, input=b'timeout', capture_output=True)
+        
+        print(f"Cancellation flag created. Waiting 30s for workers to detect and shutdown...")
+        time.sleep(30)
+        
+        print("Workers should have detected cancellation and stopped gracefully.")
+    
     return False

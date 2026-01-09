@@ -1,0 +1,3 @@
+commit,mount_args,label
+master,"--implicit-dirs --stat-cache-max-size-mb=-1 --enable-kernel-reader=false",agareader
+master,"--implicit-dirs --stat-cache-max-size-mb=-1",simplereader

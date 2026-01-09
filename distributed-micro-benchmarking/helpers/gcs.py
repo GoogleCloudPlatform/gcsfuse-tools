@@ -58,3 +58,11 @@ def download_directory(gcs_path, local_path):
     """Download a directory from GCS"""
     cmd = ['gcloud', 'storage', 'cp', '-r', gcs_path, local_path]
     subprocess.run(cmd, check=True, capture_output=True)
+
+
+def check_cancellation(benchmark_id, artifacts_bucket):
+    """Check if cancellation flag exists in GCS"""
+    cancel_path = f"gs://{artifacts_bucket}/{benchmark_id}/cancel"
+    cmd = ['gcloud', 'storage', 'ls', cancel_path]
+    result = subprocess.run(cmd, capture_output=True)
+    return result.returncode == 0

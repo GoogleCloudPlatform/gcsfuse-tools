@@ -19,11 +19,13 @@ def parse_args():
     parser.add_argument('--project', type=str, required=True, help='GCP project')
     parser.add_argument('--artifacts-bucket', type=str, required=True, help='GCS bucket for artifacts')
     parser.add_argument('--test-csv', type=str, required=True, help='Path to test cases CSV')
+    parser.add_argument('--configs-csv', type=str, default=None, help='Path to configs CSV (optional)')
+    parser.add_argument('--separate-configs', action='store_true', help='Generate separate reports per config')
     parser.add_argument('--fio-job-file', type=str, required=True, help='Path to FIO job template file')
     parser.add_argument('--bucket', type=str, required=True, help='GCS bucket for testing')
     parser.add_argument('--iterations', type=int, required=True, help='Iterations per test')
-    parser.add_argument('--gcsfuse-commit', type=str, default='master', help='GCSFuse branch/commit to build')
-    parser.add_argument('--gcsfuse-mount-args', type=str, default='', help='GCSFuse mount arguments')
+    parser.add_argument('--gcsfuse-commit', type=str, default='master', help='GCSFuse branch/commit (used if no configs-csv)')
+    parser.add_argument('--gcsfuse-mount-args', type=str, default='', help='GCSFuse mount arguments (used if no configs-csv)')
     parser.add_argument('--poll-interval', type=int, default=30, help='Polling interval in seconds')
     parser.add_argument('--timeout', type=int, default=7200, help='Timeout in seconds')
     return parser.parse_args()
@@ -44,11 +46,26 @@ def main():
     
     print(f"\nFound {len(vms)} running VMs: {', '.join(vms)}")
     
-    # 2. Load test cases and distribute
+    # 2. Load test cases and optionally configs
     test_cases = job_generator.load_test_cases(args.test_csv)
     print(f"Loaded {len(test_cases)} test cases")
     
-    distribution = job_generator.distribute_tests(test_cases, vms)
+    # Check if multi-config mode
+    if args.configs_csv:
+        configs = job_generator.load_configs(args.configs_csv)
+        print(f"Loaded {len(configs)} config variations")
+        
+        # Generate test matrix (cartesian product)
+        test_matrix = job_generator.generate_test_matrix(test_cases, configs)
+        print(f"Generated test matrix: {len(test_matrix)} total tests ({len(configs)} configs × {len(test_cases)} tests)")
+        
+        distribution = job_generator.distribute_tests(test_matrix, vms, is_matrix=True)
+        mode = "multi-config"
+    else:
+        # Single config mode (backwards compatible)
+        print(f"Single config mode (commit: {args.gcsfuse_commit})")
+        distribution = job_generator.distribute_tests(test_cases, vms, is_matrix=False)
+        mode = "single-config"
     
     print(f"\nTest Distribution:")
     for vm_name, tests in distribution.items():
@@ -56,28 +73,39 @@ def main():
     
     # 3. Create config dict and upload to GCS
     config = {
-        'gcsfuse_commit': args.gcsfuse_commit,
+        'mode': mode,
         'iterations': args.iterations,
         'bucket': args.bucket,
-        'gcsfuse_mount_args': args.gcsfuse_mount_args
+        'separate_configs': args.separate_configs
     }
+    
+    # Add single-config params if applicable
+    if mode == "single-config":
+        config['gcsfuse_commit'] = args.gcsfuse_commit
+        config['gcsfuse_mount_args'] = args.gcsfuse_mount_args
     
     base_path = f"gs://{args.artifacts_bucket}/{args.benchmark_id}"
     
     config_path = f"{base_path}/config.json"
     gcs.upload_json(config, config_path)
-    print(f"Uploaded config: iterations={args.iterations}, bucket={args.bucket}, gcsfuse_commit={args.gcsfuse_commit}")
+    print(f"Uploaded config: mode={mode}, iterations={args.iterations}, bucket={args.bucket}")
     
     gcs.upload_test_cases(args.test_csv, base_path)
     print(f"Uploaded test cases to: {base_path}/test-cases.csv")
+    
+    # Upload configs.csv if in multi-config mode
+    if args.configs_csv:
+        configs_dest = f"{base_path}/configs.csv"
+        gcs.upload_test_cases(args.configs_csv, configs_dest)
+        print(f"Uploaded configs to: {configs_dest}")
     
     gcs.upload_fio_job_file(args.fio_job_file, base_path)
     print(f"Uploaded FIO job file to: {base_path}/jobfile.fio")
     
     # 4. Generate and upload job files for each VM
     active_vms = []  # Track VMs with actual test assignments
-    for vm_name, test_ids in distribution.items():
-        if not test_ids:
+    for vm_name, test_entries in distribution.items():
+        if not test_entries:
             print(f"Skipping {vm_name}: No tests assigned")
             continue
             
@@ -86,15 +114,16 @@ def main():
         job = job_generator.create_job_spec(
             vm_name=vm_name,
             benchmark_id=args.benchmark_id,
-            test_ids=test_ids,
+            test_entries=test_entries,
             bucket=args.bucket,
             artifacts_bucket=args.artifacts_bucket,
-            iterations=args.iterations
+            iterations=args.iterations,
+            mode=mode
         )
         
         job_path = f"{base_path}/jobs/{vm_name}.json"
         gcs.upload_json(job, job_path)
-        print(f"Uploaded job for {vm_name}: {len(test_ids)} tests, {len(test_ids) * args.iterations} total runs")
+        print(f"Uploaded job for {vm_name}: {len(test_entries)} tests, {len(test_entries) * args.iterations} total runs")
     
     if not active_vms:
         print("\nERROR: No VMs have test assignments")
@@ -130,7 +159,8 @@ def main():
     metrics = result_aggregator.aggregate_results(
         benchmark_id=args.benchmark_id,
         artifacts_bucket=args.artifacts_bucket,
-        vms=vms
+        vms=active_vms,
+        mode=mode
     )
     
     if not metrics:
@@ -139,8 +169,12 @@ def main():
     
     # 8. Generate report
     report_file = f"results/{args.benchmark_id}_report.csv"
-    report_generator.generate_report(metrics, report_file)
-    print(f"\nReport generated: {report_file}")
+    report_generator.generate_report(metrics, report_file, mode=mode, separate_configs=args.separate_configs)
+    
+    if args.separate_configs:
+        print(f"\nReports generated: results/{args.benchmark_id}_*.csv")
+    else:
+        print(f"\nReport generated: {report_file}")
     
     print(f"\n========== Benchmark Complete ==========")
     
