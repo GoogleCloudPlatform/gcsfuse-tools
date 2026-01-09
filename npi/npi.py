@@ -26,7 +26,6 @@ import subprocess
 import sys
 import tempfile
 import shutil
-import os
 
 class BenchmarkFactory:
     """A factory for creating benchmark commands.

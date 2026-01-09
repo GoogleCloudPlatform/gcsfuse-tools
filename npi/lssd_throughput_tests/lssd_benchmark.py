@@ -146,12 +146,12 @@ def run_fio_benchmarks(iterations=1, project_id=None, dataset_id=None, table_id=
                     data = json.load(f)
                 
                 job_data = data['jobs'][0]
-                if 'read' in test['args'][0]:
-                    bw = job_data['read']['bw_bytes'] / (1024 * 1024)
-                    iops = job_data['read']['iops']
+                if 'read' in job_data:
+                    stats = job_data['read']
                 else:
-                    bw = job_data['write']['bw_bytes'] / (1024 * 1024)
-                    iops = job_data['write']['iops']
+                    stats = job_data['write']
+                bw = stats['bw_bytes'] / (1024 * 1024)
+                iops = stats['iops']
 
                 logger.info(f"Result {test['name']}: BW={bw:.2f} MiB/s, IOPS={iops:.2f}")
                 iter_results[test['name']] = {"bw_MiBps": bw, "iops": iops}
