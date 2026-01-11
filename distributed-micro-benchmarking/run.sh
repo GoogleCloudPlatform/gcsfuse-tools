@@ -17,7 +17,7 @@ BUCKET="princer-zonal-us-west4-a"
 ARTIFACTS_BUCKET="princer-working-dirs"
 ZONE="us-west4-a"
 PROJECT="gcs-tess"
-ITERATIONS=1
+ITERATIONS=3
 
 # For single-config mode (leave empty for multi-config):
 GCSFUSE_COMMIT="master"
@@ -30,7 +30,7 @@ SEPARATE_CONFIGS=false  # Set to true to generate separate CSV per config
 
 # Advanced options
 POLL_INTERVAL=30
-TIMEOUT=600
+TIMEOUT=7200
 
 echo "=========================================="
 echo "Distributed Benchmark Configuration"
