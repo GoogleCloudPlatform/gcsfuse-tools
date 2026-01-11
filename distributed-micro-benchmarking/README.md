@@ -8,6 +8,40 @@ Distributed benchmarking system for GCSFuse across multiple VMs.
 - **Worker** (`resources/worker.sh`) - Runs on each VM, executes assigned tests, uploads results
 - **Coordination** - GCS-based with job files and manifest tracking
 
+## Output Organization
+
+All benchmark results are organized by benchmark ID:
+
+```
+results/
+└── {benchmark-id}/
+    ├── test-cases.csv       # Input: Test cases used
+    ├── configs.csv          # Input: Config variations (if multi-config)
+    ├── jobfile.fio          # Input: FIO template used
+    ├── run-config.json      # Metadata: Run parameters and settings
+    ├── combined_report.csv  # Output: Aggregated results
+    ├── config1_report.csv   # Output: Per-config reports (if --separate-configs)
+    └── plots.png            # Output: Auto-generated visualizations
+```
+
+**Example:**
+```
+results/
+├── gareader_ra16mb/
+│   ├── test-cases.csv
+│   ├── jobfile.fio
+│   ├── run-config.json
+│   ├── combined_report.csv
+│   └── plots.png
+└── agareader_test/
+    └── ... (same structure)
+```
+
+**Benefits:**
+- Self-contained: All inputs and outputs in one directory
+- `run-config.json` captures exact parameters for reproducibility
+- Easy to organize different benchmark types by using descriptive benchmark IDs
+
 ## Usage
 
 Edit [run.sh](run.sh) with your configuration and run:
@@ -34,6 +68,7 @@ ITERATIONS=5
 GCSFUSE_COMMIT="master"
 GCSFUSE_MOUNT_ARGS="--implicit-dirs"
 CONFIGS_CSV=""  # Leave empty for single-config mode
+RUN_NAME=""     # Optional: descriptive name (default: benchmark-id)
 POLL_INTERVAL=30
 TIMEOUT=7200
 ```
@@ -70,6 +105,7 @@ The script passes all parameters as CLI arguments to the orchestrator.
 ```bash
 python3 orchestrator.py \
     --benchmark-id "benchmark-123" \
+    --run-name "gareader_test" \
     --instance-group "my-group" \
     --zone "us-west4-a" \
     --project "my-project" \
@@ -80,6 +116,8 @@ python3 orchestrator.py \
     --iterations 5 \
     --gcsfuse-commit "master" \
     --gcsfuse-mount-args "--implicit-dirs"
+
+# Results saved to: results/gareader_test/
 ```
 
 **Direct orchestrator usage (multi-config):**
@@ -96,7 +134,15 @@ python3 orchestrator.py \
     --iterations 5 \
     --configs-csv "configs.csv" \
     --separate-configs  # Optional: generate separate reports
+
+# Results saved to: results/benchmark-123/
 ```
+
+**Additional Options:**
+- `--no-auto-plot`: Disable automatic plot generation after report
+- `--plot-metric-group`: Metric group for auto-generated plots ('default' or 'full')
+  - `default`: read_bw, avg_cpu, avg_sys_cpu, avg_page_cache (4 key metrics)
+  - `full`: All 14 metrics including latency percentiles
 
 ## Test Configuration
 
@@ -218,6 +264,10 @@ python3 plot_reports.py results/benchmark-123_report.csv --output-file my_plots.
 # Plot specific metrics only
 python3 plot_reports.py results/benchmark-123_report.csv \
     --metric read_bw avg_cpu peak_cpu
+
+# Use metric groups
+python3 plot_reports.py results/benchmark-123_report.csv --metric-group default  # 4 key metrics
+python3 plot_reports.py results/benchmark-123_report.csv --metric-group full     # All 14 metrics
 ```
 
 ### X-Axis Switching
@@ -274,8 +324,14 @@ results/throughput_comparison_system_cp.png
 - `peak_page_cache` - Peak page cache (GB)
 - `avg_sys_cpu` - Average system CPU usage (%)
 - `peak_sys_cpu` - Peak system CPU usage (%)
+- `read_lat_p50_ms` - Read P50 latency (ms)
+- `read_lat_p90_ms` - Read P90 latency (ms)
+- `read_lat_p99_ms` - Read P99 latency (ms)
+- `read_lat_max_ms` - Read max latency (ms)
 
-**Per-Config Mode Features:**
+**Metric Groups:**
+- `default`: read_bw, avg_cpu, avg_sys_cpu, avg_page_cache (4 key metrics)
+- `full`: All 14 metrics including latency percentiles
 - Each config gets its own graph file
 - Test cases are on the x-axis (sorted by IO type, threads, file size)
 - Multiple metrics shown as subplots

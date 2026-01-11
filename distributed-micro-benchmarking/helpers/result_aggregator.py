@@ -82,11 +82,7 @@ def aggregate_results(benchmark_id, artifacts_bucket, vms, mode="single-config")
     return all_metrics
 
 
-def parse_test_results(
-    test_dir: str,
-    test_info: Dict[str, Any],
-    mode: str = "single-config"
-) -> Dict[str, Any]:
+def parse_test_results(test_dir, test_info, mode="single-config"):
     """Parse FIO results from a test directory.
     
     Args:
@@ -101,6 +97,13 @@ def parse_test_results(
     
     read_bws = []
     write_bws = []
+    read_lat_min = []
+    read_lat_max = []
+    read_lat_avg = []
+    read_lat_stddev = []
+    read_lat_p50 = []
+    read_lat_p90 = []
+    read_lat_p99 = []
     
     for fio_file in fio_files:
         with open(fio_file, 'r') as f:
@@ -109,6 +112,45 @@ def parse_test_results(
             for job in data.get('jobs', []):
                 if 'read' in job and job['read'].get('bw'):
                     read_bws.append(job['read']['bw'])
+                    
+                    # Extract read latency statistics
+                    # Note: clat_ns stores values in MICROSECONDS (despite the name)
+                    #       lat_ns stores values in NANOSECONDS
+                    # We prefer clat_ns (completion latency) over lat_ns (total latency)
+                    
+                    if 'clat_ns' in job['read']:
+                        lat_data = job['read']['clat_ns']
+                        # clat_ns values are in microseconds
+                        if 'min' in lat_data:
+                            read_lat_min.append(lat_data['min'] / 1000.0)  # µs to ms
+                        if 'max' in lat_data:
+                            read_lat_max.append(lat_data['max'] / 1000.0)  # µs to ms
+                        if 'mean' in lat_data:
+                            read_lat_avg.append(lat_data['mean'] / 1000.0)  # µs to ms
+                        if 'stddev' in lat_data:
+                            read_lat_stddev.append(lat_data['stddev'] / 1000.0)  # µs to ms
+                        
+                        # Extract percentiles from clat_ns.percentile (also in microseconds)
+                        if 'percentile' in lat_data:
+                            percentiles = lat_data['percentile']
+                            if '50.000000' in percentiles:
+                                read_lat_p50.append(percentiles['50.000000'] / 1000.0)  # µs to ms
+                            if '90.000000' in percentiles:
+                                read_lat_p90.append(percentiles['90.000000'] / 1000.0)  # µs to ms
+                            if '99.000000' in percentiles:
+                                read_lat_p99.append(percentiles['99.000000'] / 1000.0)  # µs to ms
+                    elif 'lat_ns' in job['read']:
+                        lat_data = job['read']['lat_ns']
+                        # lat_ns values are in nanoseconds
+                        if 'min' in lat_data:
+                            read_lat_min.append(lat_data['min'] / 1000000.0)  # ns to ms
+                        if 'max' in lat_data:
+                            read_lat_max.append(lat_data['max'] / 1000000.0)  # ns to ms
+                        if 'mean' in lat_data:
+                            read_lat_avg.append(lat_data['mean'] / 1000000.0)  # ns to ms
+                        if 'stddev' in lat_data:
+                            read_lat_stddev.append(lat_data['stddev'] / 1000000.0)  # ns to ms
+                
                 if 'write' in job and job['write'].get('bw'):
                     write_bws.append(job['write']['bw'])
     
@@ -117,6 +159,13 @@ def parse_test_results(
         'test_params': test_info.get('params', {}),
         'read_bw_mbps': sum(read_bws) / len(read_bws) / 1000.0 if read_bws else 0,
         'write_bw_mbps': sum(write_bws) / len(write_bws) / 1000.0 if write_bws else 0,
+        'read_lat_min_ms': sum(read_lat_min) / len(read_lat_min) if read_lat_min else 0,
+        'read_lat_max_ms': sum(read_lat_max) / len(read_lat_max) if read_lat_max else 0,
+        'read_lat_avg_ms': sum(read_lat_avg) / len(read_lat_avg) if read_lat_avg else 0,
+        'read_lat_stddev_ms': sum(read_lat_stddev) / len(read_lat_stddev) if read_lat_stddev else 0,
+        'read_lat_p50_ms': sum(read_lat_p50) / len(read_lat_p50) if read_lat_p50 else 0,
+        'read_lat_p90_ms': sum(read_lat_p90) / len(read_lat_p90) if read_lat_p90 else 0,
+        'read_lat_p99_ms': sum(read_lat_p99) / len(read_lat_p99) if read_lat_p99 else 0,
         'iterations': len(fio_files)
     }
     

@@ -71,8 +71,8 @@ CONFIGS_CSV_EOF
 BENCHMARK_ID="benchmark-$(date +%s)"
 # INSTANCE_GROUP="princer-test"
 INSTANCE_GROUP="princer-c4-192-us-west4-a-mg"
-TEST_CSV="sample-tests.csv"
-FIO_JOB_FILE="jobfile.fio"
+TEST_CSV="base/sample-tests.csv"
+FIO_JOB_FILE="base/jobfile.fio"
 BUCKET="princer-zonal-us-west4-a"
 ARTIFACTS_BUCKET="princer-working-dirs"
 ZONE="us-west4-a"
@@ -84,7 +84,7 @@ GCSFUSE_COMMIT="master"
 GCSFUSE_MOUNT_ARGS="--stat-cache-max-size-mb=-1 --type-cache-max-size-mb=-1 --metadata-cache-ttl-secs=2000 --enable-kernel-reader=false"
 
 # For multi-config mode (set to configs.csv file path):
-CONFIGS_CSV="configs.csv"  # Set to file path to enable multi-config mode, e.g., "configs.csv"
+CONFIGS_CSV="base/configs.csv"  # Set to file path to enable multi-config mode, e.g., "base/configs.csv"
 SEPARATE_CONFIGS=false  # Set to true to generate separate CSV per config
 
 # GCSFUSE_MOUNT_ARGS="--stat-cache-max-size-mb=-1 --type-cache-max-size-mb=-1 --metadata-cache-ttl-secs=2000"

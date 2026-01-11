@@ -8,6 +8,10 @@ Coordinates distributed benchmark execution across multiple VMs.
 import argparse
 import json
 import sys
+import os
+import shutil
+from datetime import datetime
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from helpers import gcs, vm_manager, job_generator, result_aggregator, report_generator
 
 
@@ -28,6 +32,10 @@ def parse_args():
     parser.add_argument('--gcsfuse-mount-args', type=str, default='', help='GCSFuse mount arguments (used if no configs-csv)')
     parser.add_argument('--poll-interval', type=int, default=30, help='Polling interval in seconds')
     parser.add_argument('--timeout', type=int, default=7200, help='Timeout in seconds')
+    parser.add_argument('--run-name', type=str, default=None, help='Descriptive run name (default: benchmark-id)')
+    parser.add_argument('--no-auto-plot', action='store_true', help='Disable automatic plot generation')
+    parser.add_argument('--plot-metric-group', type=str, default='default', choices=['default', 'full'],
+                       help='Metric group for auto-generated plots: default (read_bw, avg_cpu, avg_sys_cpu, avg_page_cache) or full (all metrics)')
     return parser.parse_args()
 
 
@@ -48,6 +56,18 @@ def run_benchmark(args):
     print(f"========== Distributed Benchmark Orchestrator ==========")
     print(f"Benchmark ID: {args.benchmark_id}")
     print(f"Instance Group: {args.instance_group}")
+    
+    # 0. Create results directory with benchmark ID
+    results_dir = f"results/{args.benchmark_id}"
+    os.makedirs(results_dir, exist_ok=True)
+    
+    print(f"Results directory: {results_dir}")
+    
+    # Save input files to preserve configuration
+    shutil.copy(args.test_csv, f"{results_dir}/test-cases.csv")
+    if args.configs_csv:
+        shutil.copy(args.configs_csv, f"{results_dir}/configs.csv")
+    shutil.copy(args.fio_job_file, f"{results_dir}/jobfile.fio")
     
     # 1. Get active VMs from instance group
     vms = vm_manager.get_running_vms(args.instance_group, args.zone, args.project)
@@ -77,6 +97,30 @@ def run_benchmark(args):
         print(f"Single config mode (commit: {args.gcsfuse_commit})")
         distribution = job_generator.distribute_tests(test_cases, vms, is_matrix=False)
         mode = "single-config"
+        configs = None
+    
+    # Save run configuration metadata
+    run_config = {
+        "timestamp": datetime.now().isoformat(),
+        "benchmark_id": args.benchmark_id,
+        "mode": mode,
+        "num_vms": len(vms),
+        "vm_names": vms,
+        "num_tests": len(test_cases),
+        "num_configs": len(configs) if configs else 1,
+        "iterations": args.iterations,
+        "gcsfuse_commit": args.gcsfuse_commit,
+        "gcsfuse_mount_args": args.gcsfuse_mount_args,
+        "bucket": args.bucket,
+        "artifacts_bucket": args.artifacts_bucket,
+        "instance_group": args.instance_group,
+        "zone": args.zone,
+        "project": args.project
+    }
+    with open(f"{results_dir}/run-config.json", 'w') as f:
+        json.dump(run_config, f, indent=2)
+    
+    print(f"✓ Run configuration saved to {results_dir}/run-config.json")
     
     print(f"\nTest Distribution:")
     for vm_name, tests in distribution.items():
@@ -113,8 +157,10 @@ def run_benchmark(args):
     gcs.upload_fio_job_file(args.fio_job_file, base_path)
     print(f"Uploaded FIO job file to: {base_path}/jobfile.fio")
     
-    # 4. Generate and upload job files for each VM
+    # 4. Generate and upload job files for each VM (in parallel)
     active_vms = []  # Track VMs with actual test assignments
+    jobs_to_upload = []
+    
     for vm_name, test_entries in distribution.items():
         if not test_entries:
             print(f"Skipping {vm_name}: No tests assigned")
@@ -133,8 +179,19 @@ def run_benchmark(args):
         )
         
         job_path = f"{base_path}/jobs/{vm_name}.json"
+        jobs_to_upload.append((vm_name, job, job_path, len(test_entries)))
+    
+    # Upload jobs in parallel
+    def upload_job(job_info):
+        vm_name, job, job_path, num_tests = job_info
         gcs.upload_json(job, job_path)
-        print(f"Uploaded job for {vm_name}: {len(test_entries)} tests, {len(test_entries) * args.iterations} total runs")
+        return vm_name, num_tests
+    
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        futures = [executor.submit(upload_job, job_info) for job_info in jobs_to_upload]
+        for future in as_completed(futures):
+            vm_name, num_tests = future.result()
+            print(f"Uploaded job for {vm_name}: {num_tests} tests, {num_tests * args.iterations} total runs")
     
     if not active_vms:
         print("\nERROR: No VMs have test assignments")
@@ -142,12 +199,19 @@ def run_benchmark(args):
     
     print(f"\nActive VMs: {len(active_vms)}/{len(vms)}")
     
-    # 5. Trigger VMs to start execution
+    # 5. Trigger VMs to start execution (in parallel)
     print(f"\nTriggering VMs...")
     worker_script = "resources/worker.sh"
-    for vm_name in active_vms:
+    
+    def trigger_vm(vm_name):
         vm_manager.run_worker_script(vm_name, args.zone, args.project, worker_script, args.benchmark_id, args.artifacts_bucket)
-        print(f"  Started {vm_name}")
+        return vm_name
+    
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        futures = [executor.submit(trigger_vm, vm_name) for vm_name in active_vms]
+        for future in as_completed(futures):
+            vm_name = future.result()
+            print(f"  Started {vm_name}")
     
     # 6. Monitor progress by polling manifests
     print(f"\nMonitoring progress (polling every {args.poll_interval}s)...")
@@ -179,15 +243,44 @@ def run_benchmark(args):
         sys.exit(1)
     
     # 8. Generate report
-    report_file = f"results/{args.benchmark_id}_report.csv"
+    report_file = f"{results_dir}/combined_report.csv"
     report_generator.generate_report(metrics, report_file, mode=mode, separate_configs=args.separate_configs)
     
     if args.separate_configs:
-        print(f"\nReports generated: results/{args.benchmark_id}_*.csv")
+        print(f"\n✓ Reports generated in {results_dir}/")
     else:
-        print(f"\nReport generated: {report_file}")
+        print(f"\n✓ Report generated: {report_file}")
+    
+    # 9. Auto-generate plots (unless disabled)
+    if not args.no_auto_plot:
+        print(f"\nGenerating plots (metric group: {args.plot_metric_group})...")
+        try:
+            import subprocess
+            subprocess.run([
+                'python3', 'plot_reports.py',
+                report_file,
+                '--metric-group', args.plot_metric_group,
+                '--output-file', f"{results_dir}/plots.png"
+            ], check=True)
+            print(f"✓ Plots generated: {results_dir}/plots.png")
+        except subprocess.CalledProcessError as e:
+            print(f"✗ Plot generation failed: {e}")
+    
+    # Update 'latest' symlink
+    latest_link = "results/latest"
+    if os.path.islink(latest_link):
+        os.unlink(latest_link)
+    elif os.path.exists(latest_link):
+        shutil.rmtree(latest_link)
+    os.symlink(args.benchmark_id, latest_link)
     
     print(f"\n========== Benchmark Complete ==========")
+    print(f"Results saved to: {results_dir}/")
+    print(f"  - Input files: test-cases.csv, configs.csv, jobfile.fio")
+    print(f"  - Report: combined_report.csv")
+    if not args.no_auto_plot:
+        print(f"  - Plots: plots.png")
+    print(f"  - Latest: results/latest/")
     
     # Exit with error code if some VMs failed
     if not completed:

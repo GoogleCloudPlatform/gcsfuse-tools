@@ -28,9 +28,9 @@ def generate_combined_report(metrics, output_file, mode):
     
     # Determine headers based on mode
     if mode == "multi-config":
-        headers = ["Matrix ID", "Test ID", "Config", "Commit", "BS|FSize|IOD|IOType|Jobs|NrFiles", "Read BW (MB/s)", "Write BW (MB/s)", "Avg CPU (%)", "Peak CPU (%)", "Avg Mem (MB)", "Peak Mem (MB)", "Avg PgCache (GB)", "Peak PgCache (GB)", "Avg Sys CPU (%)", "Peak Sys CPU (%)", "Iter"]
+        headers = ["Matrix ID", "Test ID", "Config", "Commit", "BS|FSize|IOD|IOType|Jobs|NrFiles", "Read BW (MB/s)", "Write BW (MB/s)", "Read Min (ms)", "Read Max (ms)", "Read Avg (ms)", "Read StdDev (ms)", "Read P50 (ms)", "Read P90 (ms)", "Read P99 (ms)", "Avg CPU (%)", "Peak CPU (%)", "Avg Mem (MB)", "Peak Mem (MB)", "Avg PgCache (GB)", "Peak PgCache (GB)", "Avg Sys CPU (%)", "Peak Sys CPU (%)", "Iter"]
     else:
-        headers = ["Test ID", "BS|FSize|IOD|IOType|Jobs|NrFiles", "Read BW (MB/s)", "Write BW (MB/s)", "Avg CPU (%)", "Peak CPU (%)", "Avg Mem (MB)", "Peak Mem (MB)", "Avg PgCache (GB)", "Peak PgCache (GB)", "Avg Sys CPU (%)", "Peak Sys CPU (%)", "Iter"]
+        headers = ["Test ID", "BS|FSize|IOD|IOType|Jobs|NrFiles", "Read BW (MB/s)", "Write BW (MB/s)", "Read Min (ms)", "Read Max (ms)", "Read Avg (ms)", "Read StdDev (ms)", "Read P50 (ms)", "Read P90 (ms)", "Read P99 (ms)", "Avg CPU (%)", "Peak CPU (%)", "Avg Mem (MB)", "Peak Mem (MB)", "Avg PgCache (GB)", "Peak PgCache (GB)", "Avg Sys CPU (%)", "Peak Sys CPU (%)", "Iter"]
     
     rows = []
     
@@ -65,6 +65,13 @@ def generate_combined_report(metrics, output_file, mode):
                 param_str,
                 f"{m['read_bw_mbps']:.2f}" if m['read_bw_mbps'] > 0 else "-",
                 f"{m['write_bw_mbps']:.2f}" if m['write_bw_mbps'] > 0 else "-",
+                f"{m['read_lat_min_ms']:.2f}" if m.get('read_lat_min_ms', 0) > 0 else "-",
+                f"{m['read_lat_max_ms']:.2f}" if m.get('read_lat_max_ms', 0) > 0 else "-",
+                f"{m['read_lat_avg_ms']:.2f}" if m.get('read_lat_avg_ms', 0) > 0 else "-",
+                f"{m['read_lat_stddev_ms']:.2f}" if m.get('read_lat_stddev_ms', 0) > 0 else "-",
+                f"{m['read_lat_p50_ms']:.2f}" if m.get('read_lat_p50_ms', 0) > 0 else "-",
+                f"{m['read_lat_p90_ms']:.2f}" if m.get('read_lat_p90_ms', 0) > 0 else "-",
+                f"{m['read_lat_p99_ms']:.2f}" if m.get('read_lat_p99_ms', 0) > 0 else "-",
                 avg_cpu,
                 peak_cpu,
                 avg_mem,
@@ -81,6 +88,13 @@ def generate_combined_report(metrics, output_file, mode):
                 param_str,
                 f"{m['read_bw_mbps']:.2f}" if m['read_bw_mbps'] > 0 else "-",
                 f"{m['write_bw_mbps']:.2f}" if m['write_bw_mbps'] > 0 else "-",
+                f"{m['read_lat_min_ms']:.2f}" if m.get('read_lat_min_ms', 0) > 0 else "-",
+                f"{m['read_lat_max_ms']:.2f}" if m.get('read_lat_max_ms', 0) > 0 else "-",
+                f"{m['read_lat_avg_ms']:.2f}" if m.get('read_lat_avg_ms', 0) > 0 else "-",
+                f"{m['read_lat_stddev_ms']:.2f}" if m.get('read_lat_stddev_ms', 0) > 0 else "-",
+                f"{m['read_lat_p50_ms']:.2f}" if m.get('read_lat_p50_ms', 0) > 0 else "-",
+                f"{m['read_lat_p90_ms']:.2f}" if m.get('read_lat_p90_ms', 0) > 0 else "-",
+                f"{m['read_lat_p99_ms']:.2f}" if m.get('read_lat_p99_ms', 0) > 0 else "-",
                 avg_cpu,
                 peak_cpu,
                 avg_mem,
@@ -130,7 +144,7 @@ def generate_separate_reports(metrics, base_output_file):
     for config_label, config_metrics in config_groups.items():
         output_file = os.path.join(base_dir, f"{base_name}_{config_label}.csv")
         
-        headers = ["Test ID", "BS|FSize|IOD|IOType|Jobs|NrFiles", "Read BW (MB/s)", "Write BW (MB/s)", "Avg CPU (%)", "Peak CPU (%)", "Avg Mem (MB)", "Peak Mem (MB)", "Avg PgCache (GB)", "Peak PgCache (GB)", "Avg Sys CPU (%)", "Peak Sys CPU (%)", "Iter"]
+        headers = ["Test ID", "BS|FSize|IOD|IOType|Jobs|NrFiles", "Read BW (MB/s)", "Write BW (MB/s)", "Read P50 (ms)", "Read P90 (ms)", "Read P99 (ms)", "Read Max (ms)", "Avg CPU (%)", "Peak CPU (%)", "Avg Mem (MB)", "Peak Mem (MB)", "Avg PgCache (GB)", "Peak PgCache (GB)", "Avg Sys CPU (%)", "Peak Sys CPU (%)", "Iter"]
         rows = []
         
         for test_key in sorted(config_metrics.keys()):
@@ -154,6 +168,10 @@ def generate_separate_reports(metrics, base_output_file):
                 param_str,
                 f"{m['read_bw_mbps']:.2f}" if m['read_bw_mbps'] > 0 else "-",
                 f"{m['write_bw_mbps']:.2f}" if m['write_bw_mbps'] > 0 else "-",
+                f"{m['read_lat_p50_ms']:.2f}" if m.get('read_lat_p50_ms', 0) > 0 else "-",
+                f"{m['read_lat_p90_ms']:.2f}" if m.get('read_lat_p90_ms', 0) > 0 else "-",
+                f"{m['read_lat_p99_ms']:.2f}" if m.get('read_lat_p99_ms', 0) > 0 else "-",
+                f"{m['read_lat_max_ms']:.2f}" if m.get('read_lat_max_ms', 0) > 0 else "-",
                 avg_cpu,
                 peak_cpu,
                 avg_mem,

@@ -55,18 +55,33 @@ def main():
                        help='Input: CSV file or directory containing CSV files (default: good_reports)')
     parser.add_argument('--output-file', default='results/throughput_comparison.png',
                        help='Output file path (default: results/throughput_comparison.png)')
-    parser.add_argument('--metric', '--metrics', nargs='+', 
-                       default=['read_bw', 'avg_cpu', 'peak_cpu', 'avg_mem', 'peak_mem', 'avg_page_cache', 'peak_page_cache', 'avg_sys_cpu', 'peak_sys_cpu'],
-                       choices=['read_bw', 'write_bw', 'avg_cpu', 'peak_cpu', 'avg_mem', 'peak_mem', 'avg_page_cache', 'peak_page_cache', 'avg_sys_cpu', 'peak_sys_cpu'],
-                       help='Metric(s) to plot - single or multiple (default: all except write_bw)')
+    parser.add_argument('--metric', '--metrics', nargs='+',
+                       choices=['read_bw', 'write_bw', 'read_lat_min', 'read_lat_max', 'read_lat_avg', 'read_lat_stddev',
+                                'read_lat_p50', 'read_lat_p90', 'read_lat_p99',
+                                'avg_cpu', 'peak_cpu', 'avg_mem', 'peak_mem', 'avg_page_cache', 'peak_page_cache',
+                                'avg_sys_cpu', 'peak_sys_cpu'],
+                       help='Specific metrics to plot (overrides --metric-group)')
+    parser.add_argument('--metric-group', '-g', default='default', choices=['default', 'full'],
+                       help='Metric group: default (read_bw, avg_cpu, avg_sys_cpu, avg_page_cache) or full (all metrics)')
     parser.add_argument('--mode', default='auto', choices=['auto', 'combined', 'per-config'],
                        help='Plot mode: auto (detect from input), combined (all on same graph), or per-config (separate graph per config)')
     parser.add_argument('--x-axis', default='test-cases', choices=['test-cases', 'configs'],
                        help='X-axis grouping: test-cases (configs as lines) or configs (test-cases as lines)')
     args = parser.parse_args()
     
-    # Determine which metrics to plot
-    metrics_to_plot = args.metric
+    # Determine which metrics to plot: --metric takes priority over --metric-group
+    if args.metric:
+        metrics_to_plot = args.metric
+    else:
+        # Use metric groups
+        if args.metric_group == 'default':
+            metrics_to_plot = ['read_bw', 'avg_cpu', 'avg_sys_cpu', 'avg_page_cache']
+        else:  # full
+            metrics_to_plot = ['read_bw', 'write_bw', 'read_lat_min', 'read_lat_max', 'read_lat_avg', 'read_lat_stddev',
+                             'read_lat_p50', 'read_lat_p90', 'read_lat_p99',
+                             'avg_cpu', 'peak_cpu', 'avg_mem', 'peak_mem', 'avg_page_cache', 'peak_page_cache',
+                             'avg_sys_cpu', 'peak_sys_cpu']
+    
     input_path = args.input
     
     # Check if input is a file or directory
@@ -144,6 +159,13 @@ def plot_per_config_from_single_csv(csv_file, output_file_base, metrics_to_plot)
     metric_map = {
         'read_bw': ('Read BW (MB/s)', 'Read Throughput (MB/s)'),
         'write_bw': ('Write BW (MB/s)', 'Write Throughput (MB/s)'),
+        'read_lat_min': ('Read Min (ms)', 'Read Latency Min (ms)'),
+        'read_lat_max': ('Read Max (ms)', 'Read Latency Max (ms)'),
+        'read_lat_avg': ('Read Avg (ms)', 'Read Latency Average (ms)'),
+        'read_lat_stddev': ('Read StdDev (ms)', 'Read Latency StdDev (ms)'),
+        'read_lat_p50': ('Read P50 (ms)', 'Read Latency P50 (ms)'),
+        'read_lat_p90': ('Read P90 (ms)', 'Read Latency P90 (ms)'),
+        'read_lat_p99': ('Read P99 (ms)', 'Read Latency P99 (ms)'),
         'avg_cpu': ('Avg CPU (%)', 'Average GCSFuse CPU (%)'),
         'peak_cpu': ('Peak CPU (%)', 'Peak GCSFuse CPU (%)'),
         'avg_mem': ('Avg Mem (MB)', 'Average GCSFuse Memory (MB)'),
@@ -308,6 +330,13 @@ def plot_combined_mode_single_file(csv_file, output_file, metrics_to_plot, x_axi
     metric_map = {
         'read_bw': ('Read BW (MB/s)', 'Read Throughput (MB/s)'),
         'write_bw': ('Write BW (MB/s)', 'Write Throughput (MB/s)'),
+        'read_lat_min': ('Read Min (ms)', 'Read Latency Min (ms)'),
+        'read_lat_max': ('Read Max (ms)', 'Read Latency Max (ms)'),
+        'read_lat_avg': ('Read Avg (ms)', 'Read Latency Average (ms)'),
+        'read_lat_stddev': ('Read StdDev (ms)', 'Read Latency StdDev (ms)'),
+        'read_lat_p50': ('Read P50 (ms)', 'Read Latency P50 (ms)'),
+        'read_lat_p90': ('Read P90 (ms)', 'Read Latency P90 (ms)'),
+        'read_lat_p99': ('Read P99 (ms)', 'Read Latency P99 (ms)'),
         'avg_cpu': ('Avg CPU (%)', 'Average GCSFuse CPU (%)'),
         'peak_cpu': ('Peak CPU (%)', 'Peak GCSFuse CPU (%)'),
         'avg_mem': ('Avg Mem (MB)', 'Average GCSFuse Memory (MB)'),
@@ -534,6 +563,13 @@ def plot_combined_mode(reports_dir, output_file, metrics_to_plot):
     metric_map = {
         'read_bw': ('Read BW (MB/s)', 'Read Throughput (MB/s)'),
         'write_bw': ('Write BW (MB/s)', 'Write Throughput (MB/s)'),
+        'read_lat_min': ('Read Min (ms)', 'Read Latency Min (ms)'),
+        'read_lat_max': ('Read Max (ms)', 'Read Latency Max (ms)'),
+        'read_lat_avg': ('Read Avg (ms)', 'Read Latency Average (ms)'),
+        'read_lat_stddev': ('Read StdDev (ms)', 'Read Latency StdDev (ms)'),
+        'read_lat_p50': ('Read P50 (ms)', 'Read Latency P50 (ms)'),
+        'read_lat_p90': ('Read P90 (ms)', 'Read Latency P90 (ms)'),
+        'read_lat_p99': ('Read P99 (ms)', 'Read Latency P99 (ms)'),
         'avg_cpu': ('Avg CPU (%)', 'Average GCSFuse CPU (%)'),
         'peak_cpu': ('Peak CPU (%)', 'Peak GCSFuse CPU (%)'),
         'avg_mem': ('Avg Mem (MB)', 'Average GCSFuse Memory (MB)'),

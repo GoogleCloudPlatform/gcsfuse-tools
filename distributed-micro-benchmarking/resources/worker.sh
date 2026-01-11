@@ -41,6 +41,20 @@ rm -rf "$WORKSPACE"
 mkdir -p "$WORKSPACE"
 cd "$WORKSPACE"
 
+##############################################################################
+# SECTION 1: SETUP
+#
+# This section defines all functions and performs initial setup:
+# - Error handling and cleanup functions (cleanup_gcsfuse, handle_error)
+# - Download job specs, test cases, FIO templates, and config from GCS
+# - Install dependencies (git, go, fio, bc) if not present
+# - Pre-flight checks for required commands
+# - Build GCSFuse from specified commit (build_gcsfuse_for_commit)
+# - Parse test parameters from CSV (parse_test_params)
+# - Resource monitoring functions (start_monitoring, stop_monitoring, calculate_metrics)
+# - Test execution functions (run_test_iterations, execute_test)
+##############################################################################
+
 # Cleanup function - unmount GCSFuse and kill processes
 cleanup_gcsfuse() {
     echo "Cleaning up GCSFuse mounts and processes..." >&2
@@ -239,6 +253,26 @@ fi
 echo "Checking for previous mounts and processes..."
 MOUNT_DIR="$WORKSPACE/mnt"
 
+##############################################################################
+# SECTION 2: TEST EXECUTION
+#
+# Main execution flow:
+# - Clean up any existing GCSFuse mounts and hanging processes
+# - Start background cancellation monitor (checks GCS for cancel flag)
+# - Initialize manifest.json for tracking test results
+# - Execute tests based on mode:
+#   * Single-config mode: Build GCSFuse once, run all assigned tests
+#   * Multi-config mode: For each test, build specific GCSFuse commit and run
+# - For each test:
+#   * Mount GCSFuse with specified arguments
+#   * Start resource monitoring (CPU, memory, page cache)
+#   * Run FIO benchmark for specified iterations
+#   * Stop monitoring and calculate metrics
+#   * Upload results to GCS and update manifest
+# - Upload final manifest with completion status
+# - Upload worker logs to GCS
+##############################################################################
+
 # Unmount if already mounted
 if mountpoint -q "$MOUNT_DIR" 2>/dev/null; then
     echo "  Found existing mount at $MOUNT_DIR, unmounting..."
@@ -286,6 +320,7 @@ MOUNT_DIR="$WORKSPACE/mnt"
 mkdir -p "$MOUNT_DIR"
 
 # Function to build GCSFuse for a specific commit (caching to avoid rebuilds)
+# Function to build GCSFuse from a specific commit
 build_gcsfuse_for_commit() {
     local COMMIT=$1
     local BUILD_DIR="$WORKSPACE/gcsfuse_${COMMIT}"
