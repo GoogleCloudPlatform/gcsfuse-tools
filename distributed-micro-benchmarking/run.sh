@@ -61,8 +61,8 @@ create_configs() {
     local output_file="$1"
     cat > "$output_file" << 'CONFIGS_CSV_EOF'
 commit,mount_args,label
-master,"--stat-cache-max-size-mb=-1 --type-cache-max-size-mb=-1 --metadata-cache-ttl-secs=2000 --enable-kernel-reader=false",agareader
-master,"--stat-cache-max-size-mb=-1 --type-cache-max-size-mb=-1 --metadata-cache-ttl-secs=2000",simplereader
+go_new_mrd,"--stat-cache-max-size-mb=-1 --type-cache-max-size-mb=-1 --metadata-cache-ttl-secs=2000 --enable-kernel-reader=false",agareader
+go_new_mrd,"--stat-cache-max-size-mb=-1 --type-cache-max-size-mb=-1 --metadata-cache-ttl-secs=2000",simplereader
 CONFIGS_CSV_EOF
     echo "Created configs: $output_file"
 }
@@ -92,7 +92,7 @@ SEPARATE_CONFIGS=false  # Set to true to generate separate CSV per config
 
 # Advanced options
 POLL_INTERVAL=30
-TIMEOUT=250
+TIMEOUT=400
 
 echo "=========================================="
 echo "Distributed Benchmark Configuration"

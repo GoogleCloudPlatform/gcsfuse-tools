@@ -220,6 +220,22 @@ python3 plot_reports.py results/benchmark-123_report.csv \
     --metric read_bw avg_cpu peak_cpu
 ```
 
+### X-Axis Switching
+
+By default, test-cases are on the x-axis and configs are shown as different lines. You can switch this:
+
+```bash
+# Default: test-cases on x-axis, configs as different lines
+python3 plot_reports.py results/benchmark-123_report.csv
+
+# Switch: configs on x-axis, test-cases as different lines
+python3 plot_reports.py results/benchmark-123_report.csv --x-axis configs
+```
+
+This is useful for:
+- `--x-axis test-cases`: Compare how different configs perform across test cases
+- `--x-axis configs`: Compare how different test cases perform across configs
+
 ### Mode Selection
 
 **Auto Mode (Default):**

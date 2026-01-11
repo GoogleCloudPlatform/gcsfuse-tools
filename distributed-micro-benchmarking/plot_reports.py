@@ -61,6 +61,8 @@ def main():
                        help='Metric(s) to plot - single or multiple (default: all except write_bw)')
     parser.add_argument('--mode', default='auto', choices=['auto', 'combined', 'per-config'],
                        help='Plot mode: auto (detect from input), combined (all on same graph), or per-config (separate graph per config)')
+    parser.add_argument('--x-axis', default='test-cases', choices=['test-cases', 'configs'],
+                       help='X-axis grouping: test-cases (configs as lines) or configs (test-cases as lines)')
     args = parser.parse_args()
     
     # Determine which metrics to plot
@@ -102,7 +104,7 @@ def main():
             plot_per_config_from_single_csv(input_path, args.output_file, metrics_to_plot)
         else:
             # Combined mode - plot all configs on same graph
-            plot_combined_mode_single_file(input_path, args.output_file, metrics_to_plot)
+            plot_combined_mode_single_file(input_path, args.output_file, metrics_to_plot, args.x_axis)
     
     elif os.path.isdir(input_path):
         # Input is a directory
@@ -254,14 +256,22 @@ def plot_per_config_from_single_csv(csv_file, output_file_base, metrics_to_plot)
     print(f"\n✓ Generated {len(configs)} per-config plots in {output_dir}/")
 
 
-def plot_combined_mode_single_file(csv_file, output_file, metrics_to_plot):
-    """Plot a single CSV file in combined mode - if it has Config column, plot each config as separate series"""
+def plot_combined_mode_single_file(csv_file, output_file, metrics_to_plot, x_axis='test-cases'):
+    """Plot a single CSV file in combined mode - if it has Config column, plot each config as separate series
+    
+    Args:
+        csv_file: Path to CSV file
+        output_file: Output plot file path
+        metrics_to_plot: List of metrics to plot
+        x_axis: 'test-cases' (configs as lines) or 'configs' (test-cases as lines)
+    """
     
     if not os.path.exists(csv_file):
         print(f"ERROR: CSV file not found: {csv_file}")
         sys.exit(1)
     
     print(f"Plotting single CSV file: {csv_file}")
+    print(f"X-axis mode: {x_axis}")
     
     # Read the CSV
     df = pd.read_csv(csv_file)
@@ -269,11 +279,26 @@ def plot_combined_mode_single_file(csv_file, output_file, metrics_to_plot):
     # Check if it has a Config column
     has_config_column = 'Config' in df.columns
     
+    if x_axis == 'configs' and not has_config_column:
+        print("ERROR: --x-axis configs requires CSV with 'Config' column")
+        sys.exit(1)
+    
     if has_config_column:
-        # Group by config and plot each as a separate series
         configs = df['Config'].unique()
         print(f"Found {len(configs)} configs: {', '.join(configs)}")
-        csv_groups = [(config, df[df['Config'] == config]) for config in configs]
+        
+        if x_axis == 'test-cases':
+            # Original behavior: test-cases on x-axis, configs as different lines
+            csv_groups = [(config, df[df['Config'] == config]) for config in configs]
+        else:
+            # New behavior: configs on x-axis, test-cases as different lines
+            # Get unique test cases
+            if 'BS|FSize|IOD|IOType|Jobs|NrFiles' in df.columns:
+                test_cases = df['BS|FSize|IOD|IOType|Jobs|NrFiles'].unique()
+                csv_groups = [(test_case, df[df['BS|FSize|IOD|IOType|Jobs|NrFiles'] == test_case]) for test_case in test_cases]
+            else:
+                print("ERROR: CSV must have 'BS|FSize|IOD|IOType|Jobs|NrFiles' column for --x-axis configs")
+                sys.exit(1)
     else:
         # Single dataset
         file_name = os.path.basename(csv_file).replace('.csv', '')
@@ -319,92 +344,151 @@ def plot_combined_mode_single_file(csv_file, output_file, metrics_to_plot):
         
         all_data = []
         
-        # Read and process each group (config or file)
-        for idx, (group_name, group_df) in enumerate(csv_groups):
-            # Extract relevant columns
-            if 'BS|FSize|IOD|IOType|Jobs|NrFiles' in group_df.columns and column_name in group_df.columns:
-                # Create data with sort key
-                for _, row in group_df.iterrows():
-                    param_str = row['BS|FSize|IOD|IOType|Jobs|NrFiles']
-                    metric_value = row[column_name]
-                    
-                    # Skip if metric_value is not a number or is '-'
-                    if pd.isna(metric_value) or metric_value == '-':
-                        continue
-                    
-                    all_data.append({
-                        'param': param_str,
-                        'metric_value': float(metric_value),
-                        'group': group_name,
-                        'sort_key': sort_key(param_str),
-                        'color_idx': idx
-                    })
-        
-        if not all_data:
-            print(f"No valid data found for metric: {metric}")
-            continue
-        
-        # Convert to DataFrame and sort
-        plot_df = pd.DataFrame(all_data)
-        plot_df = plot_df.sort_values('sort_key')
-        
-        # Get unique parameter strings in sorted order
-        unique_params = plot_df['param'].unique()
-        x_positions = {param: i for i, param in enumerate(unique_params)}
-        
-        # Plot each group's data
-        for group_name in plot_df['group'].unique():
-            group_data = plot_df[plot_df['group'] == group_name]
-            color_idx = group_data['color_idx'].iloc[0]
+        if x_axis == 'test-cases':
+            # Original: test-cases on x-axis, configs as lines
+            for idx, (group_name, group_df) in enumerate(csv_groups):
+                if 'BS|FSize|IOD|IOType|Jobs|NrFiles' in group_df.columns and column_name in group_df.columns:
+                    for _, row in group_df.iterrows():
+                        param_str = row['BS|FSize|IOD|IOType|Jobs|NrFiles']
+                        metric_value = row[column_name]
+                        
+                        if pd.isna(metric_value) or metric_value == '-':
+                            continue
+                        
+                        all_data.append({
+                            'param': param_str,
+                            'metric_value': float(metric_value),
+                            'group': group_name,
+                            'sort_key': sort_key(param_str),
+                            'color_idx': idx
+                        })
             
-            x_vals = [x_positions[p] for p in group_data['param']]
-            y_vals = group_data['metric_value'].values
+            if not all_data:
+                print(f"No valid data found for metric: {metric}")
+                continue
             
-            ax.plot(x_vals, y_vals, 
-                    marker=markers[color_idx % len(markers)],
-                    linestyle=line_styles[color_idx % len(line_styles)],
-                    linewidth=2.5, 
-                    markersize=8, 
-                    label=group_name, 
-                    color=colors[color_idx],
-                    alpha=0.8)
-        
-        # Draw thin red dotted lines connecting points at the same x position
-        for x_pos in range(len(unique_params)):
-            # Get all y values at this x position
-            y_values = []
+            plot_df = pd.DataFrame(all_data)
+            plot_df = plot_df.sort_values('sort_key')
+            
+            unique_params = plot_df['param'].unique()
+            x_positions = {param: i for i, param in enumerate(unique_params)}
+            
+            # Plot each group's data
             for group_name in plot_df['group'].unique():
                 group_data = plot_df[plot_df['group'] == group_name]
-                param = unique_params[x_pos]
-                matching = group_data[group_data['param'] == param]
-                if not matching.empty:
-                    y_values.append(matching['metric_value'].iloc[0])
+                color_idx = group_data['color_idx'].iloc[0]
+                
+                x_vals = [x_positions[p] for p in group_data['param']]
+                y_vals = group_data['metric_value'].values
+                
+                ax.plot(x_vals, y_vals, 
+                        marker=markers[color_idx % len(markers)],
+                        linestyle=line_styles[color_idx % len(line_styles)],
+                        linewidth=2.5, 
+                        markersize=8, 
+                        label=group_name, 
+                        color=colors[color_idx],
+                        alpha=0.8)
             
-            # Draw vertical line connecting all points at this x position
-            if len(y_values) > 1:
-                ax.plot([x_pos] * len(y_values), y_values, 
-                        color='red', linestyle=':', linewidth=1.5, alpha=0.5, zorder=1)
+            # Draw red dotted lines connecting points at same x position
+            for x_pos in range(len(unique_params)):
+                y_values = []
+                for group_name in plot_df['group'].unique():
+                    group_data = plot_df[plot_df['group'] == group_name]
+                    param = unique_params[x_pos]
+                    matching = group_data[group_data['param'] == param]
+                    if not matching.empty:
+                        y_values.append(matching['metric_value'].iloc[0])
+                
+                if len(y_values) > 1:
+                    ax.plot([x_pos] * len(y_values), y_values, 
+                            color='red', linestyle=':', linewidth=1.5, alpha=0.5, zorder=1)
+            
+            ax.set_xlabel('Test Configuration (File Size | IO Type | Threads)', fontsize=10, fontweight='bold')
+            ax.set_xticks(range(len(unique_params)))
+            ax.set_xticklabels(unique_params, rotation=90, ha='right', fontsize=7)
+            
+        else:
+            # New: configs on x-axis, test-cases as lines
+            for idx, (group_name, group_df) in enumerate(csv_groups):
+                if 'Config' in group_df.columns and column_name in group_df.columns:
+                    for _, row in group_df.iterrows():
+                        config = row['Config']
+                        metric_value = row[column_name]
+                        
+                        if pd.isna(metric_value) or metric_value == '-':
+                            continue
+                        
+                        all_data.append({
+                            'config': config,
+                            'metric_value': float(metric_value),
+                            'group': group_name,
+                            'color_idx': idx
+                        })
+            
+            if not all_data:
+                print(f"No valid data found for metric: {metric}")
+                continue
+            
+            plot_df = pd.DataFrame(all_data)
+            
+            # Get unique configs in order they appear
+            unique_configs = plot_df['config'].unique()
+            x_positions = {config: i for i, config in enumerate(unique_configs)}
+            
+            # Plot each test case as a line
+            for group_name in plot_df['group'].unique():
+                group_data = plot_df[plot_df['group'] == group_name]
+                color_idx = group_data['color_idx'].iloc[0]
+                
+                x_vals = [x_positions[c] for c in group_data['config']]
+                y_vals = group_data['metric_value'].values
+                
+                ax.plot(x_vals, y_vals, 
+                        marker=markers[color_idx % len(markers)],
+                        linestyle=line_styles[color_idx % len(line_styles)],
+                        linewidth=2.5, 
+                        markersize=8, 
+                        label=group_name, 
+                        color=colors[color_idx],
+                        alpha=0.8)
+            
+            # Draw red dotted lines connecting points at same x position
+            for x_pos in range(len(unique_configs)):
+                y_values = []
+                for group_name in plot_df['group'].unique():
+                    group_data = plot_df[plot_df['group'] == group_name]
+                    config = unique_configs[x_pos]
+                    matching = group_data[group_data['config'] == config]
+                    if not matching.empty:
+                        y_values.append(matching['metric_value'].iloc[0])
+                
+                if len(y_values) > 1:
+                    ax.plot([x_pos] * len(y_values), y_values, 
+                            color='red', linestyle=':', linewidth=1.5, alpha=0.5, zorder=1)
+            
+            ax.set_xlabel('Configuration', fontsize=10, fontweight='bold')
+            ax.set_xticks(range(len(unique_configs)))
+            ax.set_xticklabels(unique_configs, rotation=45, ha='right', fontsize=9)
         
-        # Customize subplot
-        ax.set_xlabel('Test Configuration (File Size | IO Type | Threads)', fontsize=10, fontweight='bold')
+        # Common customization
         ax.set_ylabel(y_label, fontsize=10, fontweight='bold')
         ax.set_title(f'{y_label} Comparison', fontsize=12, fontweight='bold')
         ax.legend(loc='best', fontsize=8)
         ax.grid(True, alpha=0.3, linestyle='--')
-        
-        # Set x-axis labels
-        ax.set_xticks(range(len(unique_params)))
-        ax.set_xticklabels(unique_params, rotation=90, ha='right', fontsize=7)
     
     # Add overall figure title
-    fig.suptitle('X-axis: BS|FileSize|IODepth|IOType|Jobs|NrFiles  •  Sorted by: IO Type (randread → read), Threads (1→48→96), File Size (ascending)', 
-                 fontsize=13, fontweight='bold', y=0.995)
+    if x_axis == 'test-cases':
+        suptitle = 'X-axis: BS|FileSize|IODepth|IOType|Jobs|NrFiles  •  Sorted by: IO Type (randread → read), Threads (1→48→96), File Size (ascending)'
+    else:
+        suptitle = 'X-axis: Configurations  •  Lines: Individual Test Cases'
+    
+    fig.suptitle(suptitle, fontsize=13, fontweight='bold', y=0.995)
     
     # Adjust layout to prevent label cutoff
     plt.tight_layout(rect=[0, 0, 1, 0.99])  # Leave space for suptitle
     
     # Save plot
-    # Create parent directory if needed
     parent_dir = os.path.dirname(output_file)
     if parent_dir:
         os.makedirs(parent_dir, exist_ok=True)
