@@ -201,7 +201,7 @@ def run_benchmark(args):
     
     # 5. Trigger VMs to start execution (in parallel)
     print(f"\nTriggering VMs...")
-    worker_script = "resources/worker.sh"
+    worker_script = "workers/worker.sh"
     
     def trigger_vm(vm_name):
         vm_manager.run_worker_script(vm_name, args.zone, args.project, worker_script, args.benchmark_id, args.artifacts_bucket)

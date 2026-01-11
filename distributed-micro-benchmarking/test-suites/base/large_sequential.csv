@@ -1,4 +1,4 @@
-block_size,file_size,io_depth,io_type,num_jobs,nr_files
-1m,1g,1,read,1,20
-1m,1g,1,read,48,20
-1m,1g,1,read,96,20
+io_type,num_jobs,file_size,block_size,io_depth,nr_files
+read,1,1g,1m,1,20
+read,48,1g,1m,1,20
+read,96,1g,1m,1,20

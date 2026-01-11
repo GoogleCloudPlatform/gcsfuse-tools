@@ -28,9 +28,9 @@ def generate_combined_report(metrics, output_file, mode):
     
     # Determine headers based on mode
     if mode == "multi-config":
-        headers = ["Matrix ID", "Test ID", "Config", "Commit", "BS|FSize|IOD|IOType|Jobs|NrFiles", "Read BW (MB/s)", "Write BW (MB/s)", "Read Min (ms)", "Read Max (ms)", "Read Avg (ms)", "Read StdDev (ms)", "Read P50 (ms)", "Read P90 (ms)", "Read P99 (ms)", "Avg CPU (%)", "Peak CPU (%)", "Avg Mem (MB)", "Peak Mem (MB)", "Avg PgCache (GB)", "Peak PgCache (GB)", "Avg Sys CPU (%)", "Peak Sys CPU (%)", "Iter"]
+        headers = ["Matrix ID", "Test ID", "Config", "Commit", "IOType|Jobs|FSize|BS|IOD|NrFiles", "Read BW (MB/s)", "Write BW (MB/s)", "Read Min (ms)", "Read Max (ms)", "Read Avg (ms)", "Read StdDev (ms)", "Read P50 (ms)", "Read P90 (ms)", "Read P99 (ms)", "Avg CPU (%)", "Peak CPU (%)", "Avg Mem (MB)", "Peak Mem (MB)", "Avg PgCache (GB)", "Peak PgCache (GB)", "Avg Sys CPU (%)", "Peak Sys CPU (%)", "Iter"]
     else:
-        headers = ["Test ID", "BS|FSize|IOD|IOType|Jobs|NrFiles", "Read BW (MB/s)", "Write BW (MB/s)", "Read Min (ms)", "Read Max (ms)", "Read Avg (ms)", "Read StdDev (ms)", "Read P50 (ms)", "Read P90 (ms)", "Read P99 (ms)", "Avg CPU (%)", "Peak CPU (%)", "Avg Mem (MB)", "Peak Mem (MB)", "Avg PgCache (GB)", "Peak PgCache (GB)", "Avg Sys CPU (%)", "Peak Sys CPU (%)", "Iter"]
+        headers = ["Test ID", "IOType|Jobs|FSize|BS|IOD|NrFiles", "Read BW (MB/s)", "Write BW (MB/s)", "Read Min (ms)", "Read Max (ms)", "Read Avg (ms)", "Read StdDev (ms)", "Read P50 (ms)", "Read P90 (ms)", "Read P99 (ms)", "Avg CPU (%)", "Peak CPU (%)", "Avg Mem (MB)", "Peak Mem (MB)", "Avg PgCache (GB)", "Peak PgCache (GB)", "Avg Sys CPU (%)", "Peak Sys CPU (%)", "Iter"]
     
     rows = []
     
@@ -198,8 +198,9 @@ def format_params(params):
         return "-"
     
     # Extract common FIO parameters (excluding resource metrics and config info)
+    # Order: io_type, threads, file_size, block_size, io_depth, nr_files
     parts = []
-    for key in ['bs', 'file_size', 'io_depth', 'io_type', 'threads', 'nrfiles']:
+    for key in ['io_type', 'threads', 'file_size', 'bs', 'io_depth', 'nrfiles']:
         if key in params:
             parts.append(f"{params[key]}")
     

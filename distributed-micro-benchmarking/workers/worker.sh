@@ -366,7 +366,7 @@ parse_test_params() {
     LINE_NUM=$((TEST_ID + 1))
     
     # Extract test parameters from CSV
-    # CSV format: block_size,file_size,io_depth,io_type,num_jobs,nr_files
+    # CSV format: io_type,num_jobs,file_size,block_size,io_depth,nr_files
     TEST_LINE=$(awk -F',' -v line="$LINE_NUM" 'NR==line {print}' test-cases.csv)
     
     if [ -z "$TEST_LINE" ]; then
@@ -376,11 +376,11 @@ parse_test_params() {
     fi
     
     # Export variables for caller
-    BS=$(echo "$TEST_LINE" | cut -d',' -f1 | tr -d ' \r')
-    FILE_SIZE=$(echo "$TEST_LINE" | cut -d',' -f2 | tr -d ' \r')
-    IO_DEPTH=$(echo "$TEST_LINE" | cut -d',' -f3 | tr -d ' \r')
-    IO_TYPE=$(echo "$TEST_LINE" | cut -d',' -f4 | tr -d ' \r')
-    THREADS=$(echo "$TEST_LINE" | cut -d',' -f5 | tr -d ' \r')
+    IO_TYPE=$(echo "$TEST_LINE" | cut -d',' -f1 | tr -d ' \r')
+    THREADS=$(echo "$TEST_LINE" | cut -d',' -f2 | tr -d ' \r')
+    FILE_SIZE=$(echo "$TEST_LINE" | cut -d',' -f3 | tr -d ' \r')
+    BS=$(echo "$TEST_LINE" | cut -d',' -f4 | tr -d ' \r')
+    IO_DEPTH=$(echo "$TEST_LINE" | cut -d',' -f5 | tr -d ' \r')
     NRFILES=$(echo "$TEST_LINE" | cut -d',' -f6 | tr -d ' \r')
     
     # Validate parameters
