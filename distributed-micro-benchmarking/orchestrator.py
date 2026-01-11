@@ -34,6 +34,17 @@ def parse_args():
 def main():
     args = parse_args()
     
+    try:
+        run_benchmark(args)
+    except KeyboardInterrupt:
+        print("\n\nBenchmark interrupted by user")
+        sys.exit(130)
+    except Exception as e:
+        print(f"\nERROR: Benchmark failed: {e}")
+        sys.exit(1)
+
+
+def run_benchmark(args):
     print(f"========== Distributed Benchmark Orchestrator ==========")
     print(f"Benchmark ID: {args.benchmark_id}")
     print(f"Instance Group: {args.instance_group}")

@@ -154,6 +154,18 @@ if [ "$MODE" = "single-config" ]; then
     echo "GCSFuse mount args: $GCSFUSE_MOUNT_ARGS"
 fi
 
+# Pre-flight checks
+echo "Running pre-flight checks..."
+
+# Check required commands
+REQUIRED_CMDS="gcloud jq"
+for cmd in $REQUIRED_CMDS; do
+    if ! command -v $cmd &> /dev/null; then
+        echo "ERROR: Required command '$cmd' not found"
+        exit 1
+    fi
+done
+
 # Install dependencies if not present
 echo "Setting up dependencies..."
 
@@ -194,13 +206,33 @@ fi
 if [ "$MODE" = "single-config" ]; then
     echo "Building GCSFuse from commit: $GCSFUSE_COMMIT"
     GCSFUSE_DIR="$WORKSPACE/gcsfuse"
-    git clone https://github.com/GoogleCloudPlatform/gcsfuse.git "$GCSFUSE_DIR"
+    
+    if ! git clone https://github.com/GoogleCloudPlatform/gcsfuse.git "$GCSFUSE_DIR" 2>&1; then
+        echo "ERROR: Failed to clone GCSFuse repository"
+        exit 1
+    fi
+    
     cd "$GCSFUSE_DIR"
-    git checkout "$GCSFUSE_COMMIT"
-    go build -o gcsfuse
+    
+    if ! git checkout "$GCSFUSE_COMMIT" 2>&1; then
+        echo "ERROR: Failed to checkout commit/branch: $GCSFUSE_COMMIT"
+        exit 1
+    fi
+    
+    echo "  Building GCSFuse binary..."
+    if ! go build -o gcsfuse 2>&1; then
+        echo "ERROR: GCSFuse build failed"
+        exit 1
+    fi
+    
     GCSFUSE_BIN="$GCSFUSE_DIR/gcsfuse"
+    if [ ! -f "$GCSFUSE_BIN" ]; then
+        echo "ERROR: GCSFuse binary not created"
+        exit 1
+    fi
+    
     cd "$WORKSPACE"
-    echo "GCSFuse binary: $GCSFUSE_BIN"
+    echo "✓ GCSFuse binary ready: $GCSFUSE_BIN"
 fi
 
 # Cleanup any previous mounts and processes

@@ -18,6 +18,8 @@ def aggregate_results(benchmark_id, artifacts_bucket, vms, mode="single-config")
         mode: "single-config" or "multi-config"
     """
     all_metrics = {}
+    successful_vms = 0
+    failed_vms = []
     
     with tempfile.TemporaryDirectory() as tmpdir:
         for vm in vms:
@@ -31,9 +33,10 @@ def aggregate_results(benchmark_id, artifacts_bucket, vms, mode="single-config")
                 cmd = ['gcloud', 'storage', 'cp', '-r', f"{vm_path}/*", local_vm_dir]
                 result = subprocess.run(cmd, capture_output=True, text=True)
                 if result.returncode != 0:
-                    raise Exception(f"Command {cmd} returned non-zero exit status {result.returncode}.\nSTDOUT: {result.stdout}\nSTDERR: {result.stderr}")
+                    raise Exception(f"gcloud command failed: {result.stderr}")
             except Exception as e:
                 print(f"Warning: Could not download results for {vm}: {e}")
+                failed_vms.append(vm)
                 continue
             
             # Load manifest
@@ -65,6 +68,12 @@ def aggregate_results(benchmark_id, artifacts_bucket, vms, mode="single-config")
                 if os.path.exists(test_dir):
                     metrics = parse_test_results(test_dir, test_info, mode)
                     all_metrics[test_key] = metrics
+                    successful_vms += 1
+    
+    # Print summary
+    if failed_vms:
+        print(f"\nWarning: Failed to get results from {len(failed_vms)} VM(s): {', '.join(failed_vms)}")
+    print(f"Successfully aggregated results from {successful_vms}/{len(vms)} VMs")
     
     return all_metrics
 

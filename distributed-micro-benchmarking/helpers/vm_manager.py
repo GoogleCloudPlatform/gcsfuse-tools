@@ -17,9 +17,12 @@ def get_running_vms(instance_group, zone, project):
         '--format=value(NAME)'
     ]
     
-    result = subprocess.run(cmd, check=True, capture_output=True, text=True)
-    vms = [vm.strip() for vm in result.stdout.strip().split('\n') if vm.strip()]
-    return vms
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        vms = [vm.strip() for vm in result.stdout.strip().split('\n') if vm.strip()]
+        return vms
+    except subprocess.CalledProcessError as e:
+        raise Exception(f"Failed to list VMs in instance group '{instance_group}': {e.stderr}")
 
 
 def run_worker_script(vm_name, zone, project, script_path, benchmark_id, artifacts_bucket):
