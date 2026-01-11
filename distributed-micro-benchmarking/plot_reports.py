@@ -173,7 +173,11 @@ def plot_per_config_from_single_csv(csv_file, output_file_base, metrics_to_plot)
         'avg_page_cache': ('Avg PgCache (GB)', 'Average Page Cache (GB)'),
         'peak_page_cache': ('Peak PgCache (GB)', 'Peak Page Cache (GB)'),
         'avg_sys_cpu': ('Avg Sys CPU (%)', 'Average System CPU (%)'),
-        'peak_sys_cpu': ('Peak Sys CPU (%)', 'Peak System CPU (%)')
+        'peak_sys_cpu': ('Peak Sys CPU (%)', 'Peak System CPU (%)'),
+        'avg_net_rx': ('Avg Net RX (MB/s)', 'Average Network RX (MB/s)'),
+        'peak_net_rx': ('Peak Net RX (MB/s)', 'Peak Network RX (MB/s)'),
+        'avg_net_tx': ('Avg Net TX (MB/s)', 'Average Network TX (MB/s)'),
+        'peak_net_tx': ('Peak Net TX (MB/s)', 'Peak Network TX (MB/s)')
     }
     
     # Determine subplot layout based on number of metrics (vertical arrangement)
@@ -344,7 +348,11 @@ def plot_combined_mode_single_file(csv_file, output_file, metrics_to_plot, x_axi
         'avg_page_cache': ('Avg PgCache (GB)', 'Average Page Cache (GB)'),
         'peak_page_cache': ('Peak PgCache (GB)', 'Peak Page Cache (GB)'),
         'avg_sys_cpu': ('Avg Sys CPU (%)', 'Average System CPU (%)'),
-        'peak_sys_cpu': ('Peak Sys CPU (%)', 'Peak System CPU (%)')
+        'peak_sys_cpu': ('Peak Sys CPU (%)', 'Peak System CPU (%)'),
+        'avg_net_rx': ('Avg Net RX (MB/s)', 'Average Network RX (MB/s)'),
+        'peak_net_rx': ('Peak Net RX (MB/s)', 'Peak Network RX (MB/s)'),
+        'avg_net_tx': ('Avg Net TX (MB/s)', 'Average Network TX (MB/s)'),
+        'peak_net_tx': ('Peak Net TX (MB/s)', 'Peak Network TX (MB/s)')
     }
     
     # Determine subplot layout based on number of metrics (vertical arrangement)
@@ -577,7 +585,11 @@ def plot_combined_mode(reports_dir, output_file, metrics_to_plot):
         'avg_page_cache': ('Avg PgCache (GB)', 'Average Page Cache (GB)'),
         'peak_page_cache': ('Peak PgCache (GB)', 'Peak Page Cache (GB)'),
         'avg_sys_cpu': ('Avg Sys CPU (%)', 'Average System CPU (%)'),
-        'peak_sys_cpu': ('Peak Sys CPU (%)', 'Peak System CPU (%)')
+        'peak_sys_cpu': ('Peak Sys CPU (%)', 'Peak System CPU (%)'),
+        'avg_net_rx': ('Avg Net RX (MB/s)', 'Average Network RX (MB/s)'),
+        'peak_net_rx': ('Peak Net RX (MB/s)', 'Peak Network RX (MB/s)'),
+        'avg_net_tx': ('Avg Net TX (MB/s)', 'Average Network TX (MB/s)'),
+        'peak_net_tx': ('Peak Net TX (MB/s)', 'Peak Network TX (MB/s)')
     }
     
     # Plot each metric in a separate subplot

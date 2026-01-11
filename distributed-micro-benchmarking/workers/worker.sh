@@ -410,6 +410,10 @@ start_monitoring() {
     PREV_SYS_IDLE=0
     PREV_SYS_TOTAL=0
     
+    # Initialize network tracking variables
+    PREV_NET_RX=0
+    PREV_NET_TX=0
+    
     # Start background monitoring process
     {
         while [ ! -f "$MONITOR_STOP_FLAG" ]; do
@@ -460,6 +464,27 @@ start_monitoring() {
                 PAGE_CACHE_KB=$(grep "^Cached:" /proc/meminfo | awk '{print $2}')
                 PAGE_CACHE_GB=$(echo "scale=2; $PAGE_CACHE_KB / 1024 / 1024" | bc 2>/dev/null || echo "0")
                 
+                # Get network throughput from /proc/net/dev
+                # Sum all interfaces' RX and TX bytes
+                NET_STATS=$(awk 'NR>2 {rx+=$2; tx+=$10} END {print rx, tx}' /proc/net/dev 2>/dev/null || echo "0 0")
+                NET_RX_BYTES=$(echo "$NET_STATS" | awk '{print $1}')
+                NET_TX_BYTES=$(echo "$NET_STATS" | awk '{print $2}')
+                
+                # Calculate network throughput in MB/s
+                if [ $PREV_NET_RX -gt 0 ]; then
+                    NET_RX_DELTA=$((NET_RX_BYTES - PREV_NET_RX))
+                    NET_TX_DELTA=$((NET_TX_BYTES - PREV_NET_TX))
+                    # Convert bytes/2sec to MB/s: (bytes / 2) / 1048576
+                    NET_RX_MBPS=$(echo "scale=2; $NET_RX_DELTA / 2 / 1048576" | bc 2>/dev/null || echo "0")
+                    NET_TX_MBPS=$(echo "scale=2; $NET_TX_DELTA / 2 / 1048576" | bc 2>/dev/null || echo "0")
+                else
+                    NET_RX_MBPS="0"
+                    NET_TX_MBPS="0"
+                fi
+                
+                PREV_NET_RX=$NET_RX_BYTES
+                PREV_NET_TX=$NET_TX_BYTES
+                
                 # Get overall system CPU usage from /proc/stat (more reliable than top)
                 # Format: cpu  user nice system idle iowait irq softirq steal guest guest_nice
                 SYS_STAT=$(head -1 /proc/stat)
@@ -484,7 +509,7 @@ start_monitoring() {
                 PREV_SYS_IDLE=$SYS_IDLE
                 PREV_SYS_TOTAL=$SYS_TOTAL
                 
-                echo "$TIMESTAMP,$CPU_PERCENT,$MEM_RSS_MB,$MEM_VSZ_MB,$PAGE_CACHE_GB,$SYSTEM_CPU" >> "$MONITOR_FILE"
+                echo "$TIMESTAMP,$CPU_PERCENT,$MEM_RSS_MB,$MEM_VSZ_MB,$PAGE_CACHE_GB,$SYSTEM_CPU,$NET_RX_MBPS,$NET_TX_MBPS" >> "$MONITOR_FILE"
             fi
             sleep 2
         done
@@ -510,7 +535,7 @@ calculate_metrics() {
     local MONITOR_FILE=$1
     
     if [ ! -f "$MONITOR_FILE" ]; then
-        echo "0" "0" "0" "0" "0" "0" "0" "0"
+        echo "0" "0" "0" "0" "0" "0" "0" "0" "0" "0"
         return
     fi
     
@@ -522,8 +547,12 @@ calculate_metrics() {
     MAX_PAGE_CACHE=$(awk -F',' 'NR>1 {if($5>max) max=$5} END {printf "%.2f", max+0}' "$MONITOR_FILE")
     AVG_SYS_CPU=$(awk -F',' 'NR>1 {sum+=$6; count++} END {if(count>0) printf "%.2f", sum/count; else print "0"}' "$MONITOR_FILE")
     MAX_SYS_CPU=$(awk -F',' 'NR>1 {if($6>max) max=$6} END {printf "%.2f", max+0}' "$MONITOR_FILE")
+    AVG_NET_RX=$(awk -F',' 'NR>1 {sum+=$7; count++} END {if(count>0) printf "%.2f", sum/count; else print "0"}' "$MONITOR_FILE")
+    MAX_NET_RX=$(awk -F',' 'NR>1 {if($7>max) max=$7} END {printf "%.2f", max+0}' "$MONITOR_FILE")
+    AVG_NET_TX=$(awk -F',' 'NR>1 {sum+=$8; count++} END {if(count>0) printf "%.2f", sum/count; else print "0"}' "$MONITOR_FILE")
+    MAX_NET_TX=$(awk -F',' 'NR>1 {if($8>max) max=$8} END {printf "%.2f", max+0}' "$MONITOR_FILE")
     
-    echo "$AVG_CPU" "$MAX_CPU" "$AVG_MEM_RSS" "$MAX_MEM_RSS" "$AVG_PAGE_CACHE" "$MAX_PAGE_CACHE" "$AVG_SYS_CPU" "$MAX_SYS_CPU"
+    echo "$AVG_CPU" "$MAX_CPU" "$AVG_MEM_RSS" "$MAX_MEM_RSS" "$AVG_PAGE_CACHE" "$MAX_PAGE_CACHE" "$AVG_SYS_CPU" "$MAX_SYS_CPU" "$AVG_NET_RX" "$MAX_NET_RX" "$AVG_NET_TX" "$MAX_NET_TX"
 }
 
 # Function to run FIO test iterations
@@ -645,7 +674,7 @@ execute_test() {
     
     # Initialize monitoring file
     MONITOR_FILE="$TEST_DIR/monitor.log"
-    echo "timestamp,cpu_percent,mem_rss_mb,mem_vsz_mb,page_cache_gb,system_cpu_percent" > "$MONITOR_FILE"
+    echo "timestamp,cpu_percent,mem_rss_mb,mem_vsz_mb,page_cache_gb,system_cpu_percent,net_rx_mbps,net_tx_mbps" > "$MONITOR_FILE"
     
     # Run test iterations
     if ! run_test_iterations "$TEST_DIR" "$FIO_JOB" "$MONITOR_FILE" "$GCSFUSE_BIN_PATH" "$MOUNT_ARGS"; then
@@ -654,8 +683,9 @@ execute_test() {
     fi
     
     # Calculate and report resource metrics
-    read AVG_CPU MAX_CPU AVG_MEM_RSS MAX_MEM_RSS AVG_PAGE_CACHE MAX_PAGE_CACHE AVG_SYS_CPU MAX_SYS_CPU < <(calculate_metrics "$MONITOR_FILE")
+    read AVG_CPU MAX_CPU AVG_MEM_RSS MAX_MEM_RSS AVG_PAGE_CACHE MAX_PAGE_CACHE AVG_SYS_CPU MAX_SYS_CPU AVG_NET_RX MAX_NET_RX AVG_NET_TX MAX_NET_TX < <(calculate_metrics "$MONITOR_FILE")
     echo "  Resource Usage - Avg CPU: ${AVG_CPU}%, Peak CPU: ${MAX_CPU}%, Avg Memory: ${AVG_MEM_RSS}MB, Peak Memory: ${MAX_MEM_RSS}MB"
+    echo "  Network Usage - Avg RX: ${AVG_NET_RX} MB/s, Peak RX: ${MAX_NET_RX} MB/s, Avg TX: ${AVG_NET_TX} MB/s, Peak TX: ${MAX_NET_TX} MB/s"
     echo "                   Avg Page Cache: ${AVG_PAGE_CACHE}GB, Peak Page Cache: ${MAX_PAGE_CACHE}GB"
     echo "                   Avg System CPU: ${AVG_SYS_CPU}%, Peak System CPU: ${MAX_SYS_CPU}%"
     
@@ -665,13 +695,13 @@ execute_test() {
     # Build manifest entry based on mode
     if [ "$MANIFEST_ENTRY_TYPE" = "multi" ]; then
         # Multi-config: include config information and test_id in params
-        TEST_PARAMS="{\"test_id\":\"$TEST_ID\",\"bs\":\"$BS\",\"file_size\":\"$FILE_SIZE\",\"io_depth\":\"$IO_DEPTH\",\"io_type\":\"$IO_TYPE\",\"threads\":\"$THREADS\",\"nrfiles\":\"$NRFILES\",\"config_id\":\"$CONFIG_ID\",\"config_label\":\"$CONFIG_LABEL\",\"commit\":\"$COMMIT\",\"mount_args\":\"$MOUNT_ARGS\",\"avg_cpu\":\"$AVG_CPU\",\"peak_cpu\":\"$MAX_CPU\",\"avg_mem_mb\":\"$AVG_MEM_RSS\",\"peak_mem_mb\":\"$MAX_MEM_RSS\",\"avg_page_cache_gb\":\"$AVG_PAGE_CACHE\",\"peak_page_cache_gb\":\"$MAX_PAGE_CACHE\",\"avg_sys_cpu\":\"$AVG_SYS_CPU\",\"peak_sys_cpu\":\"$MAX_SYS_CPU\"}"
+        TEST_PARAMS="{\"test_id\":\"$TEST_ID\",\"bs\":\"$BS\",\"file_size\":\"$FILE_SIZE\",\"io_depth\":\"$IO_DEPTH\",\"io_type\":\"$IO_TYPE\",\"threads\":\"$THREADS\",\"nrfiles\":\"$NRFILES\",\"config_id\":\"$CONFIG_ID\",\"config_label\":\"$CONFIG_LABEL\",\"commit\":\"$COMMIT\",\"mount_args\":\"$MOUNT_ARGS\",\"avg_cpu\":\"$AVG_CPU\",\"peak_cpu\":\"$MAX_CPU\",\"avg_mem_mb\":\"$AVG_MEM_RSS\",\"peak_mem_mb\":\"$MAX_MEM_RSS\",\"avg_page_cache_gb\":\"$AVG_PAGE_CACHE\",\"peak_page_cache_gb\":\"$MAX_PAGE_CACHE\",\"avg_sys_cpu\":\"$AVG_SYS_CPU\",\"peak_sys_cpu\":\"$MAX_SYS_CPU\",\"avg_net_rx_mbps\":\"$AVG_NET_RX\",\"peak_net_rx_mbps\":\"$MAX_NET_RX\",\"avg_net_tx_mbps\":\"$AVG_NET_TX\",\"peak_net_tx_mbps\":\"$MAX_NET_TX\"}"
         jq ".tests += [{\"matrix_id\":$MATRIX_ID,\"test_id\":$TEST_ID,\"config_id\":$CONFIG_ID,\"status\":\"success\",\"params\":$TEST_PARAMS}]" manifest.json > manifest_tmp.json
         mv manifest_tmp.json manifest.json
         echo "  ✓ Matrix test $MATRIX_ID completed"
     else
         # Single-config: simpler manifest entry
-        TEST_PARAMS="{\"bs\":\"$BS\",\"file_size\":\"$FILE_SIZE\",\"io_depth\":\"$IO_DEPTH\",\"io_type\":\"$IO_TYPE\",\"threads\":\"$THREADS\",\"nrfiles\":\"$NRFILES\",\"avg_cpu\":\"$AVG_CPU\",\"peak_cpu\":\"$MAX_CPU\",\"avg_mem_mb\":\"$AVG_MEM_RSS\",\"peak_mem_mb\":\"$MAX_MEM_RSS\",\"avg_page_cache_gb\":\"$AVG_PAGE_CACHE\",\"peak_page_cache_gb\":\"$MAX_PAGE_CACHE\",\"avg_sys_cpu\":\"$AVG_SYS_CPU\",\"peak_sys_cpu\":\"$MAX_SYS_CPU\"}"
+        TEST_PARAMS="{\"bs\":\"$BS\",\"file_size\":\"$FILE_SIZE\",\"io_depth\":\"$IO_DEPTH\",\"io_type\":\"$IO_TYPE\",\"threads\":\"$THREADS\",\"nrfiles\":\"$NRFILES\",\"avg_cpu\":\"$AVG_CPU\",\"peak_cpu\":\"$MAX_CPU\",\"avg_mem_mb\":\"$AVG_MEM_RSS\",\"peak_mem_mb\":\"$MAX_MEM_RSS\",\"avg_page_cache_gb\":\"$AVG_PAGE_CACHE\",\"peak_page_cache_gb\":\"$MAX_PAGE_CACHE\",\"avg_sys_cpu\":\"$AVG_SYS_CPU\",\"peak_sys_cpu\":\"$MAX_SYS_CPU\",\"avg_net_rx_mbps\":\"$AVG_NET_RX\",\"peak_net_rx_mbps\":\"$MAX_NET_RX\",\"avg_net_tx_mbps\":\"$AVG_NET_TX\",\"peak_net_tx_mbps\":\"$MAX_NET_TX\"}"
         jq ".tests += [{\"test_id\":$TEST_ID,\"status\":\"success\",\"params\":$TEST_PARAMS}]" manifest.json > manifest_tmp.json
         mv manifest_tmp.json manifest.json
         echo "  ✓ Test $TEST_ID completed"

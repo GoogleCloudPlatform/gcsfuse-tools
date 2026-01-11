@@ -28,9 +28,9 @@ def generate_combined_report(metrics, output_file, mode):
     
     # Determine headers based on mode
     if mode == "multi-config":
-        headers = ["Matrix ID", "Test ID", "Config", "Commit", "IOType|Jobs|FSize|BS|IOD|NrFiles", "Read BW (MB/s)", "Write BW (MB/s)", "Read Min (ms)", "Read Max (ms)", "Read Avg (ms)", "Read StdDev (ms)", "Read P50 (ms)", "Read P90 (ms)", "Read P99 (ms)", "Avg CPU (%)", "Peak CPU (%)", "Avg Mem (MB)", "Peak Mem (MB)", "Avg PgCache (GB)", "Peak PgCache (GB)", "Avg Sys CPU (%)", "Peak Sys CPU (%)", "Iter"]
+        headers = ["Matrix ID", "Test ID", "Config", "Commit", "IOType|Jobs|FSize|BS|IOD|NrFiles", "Read BW (MB/s)", "Write BW (MB/s)", "Read Min (ms)", "Read Max (ms)", "Read Avg (ms)", "Read StdDev (ms)", "Read P50 (ms)", "Read P90 (ms)", "Read P99 (ms)", "Avg CPU (%)", "Peak CPU (%)", "Avg Mem (MB)", "Peak Mem (MB)", "Avg PgCache (GB)", "Peak PgCache (GB)", "Avg Sys CPU (%)", "Peak Sys CPU (%)", "Avg Net RX (MB/s)", "Peak Net RX (MB/s)", "Avg Net TX (MB/s)", "Peak Net TX (MB/s)", "Iter"]
     else:
-        headers = ["Test ID", "IOType|Jobs|FSize|BS|IOD|NrFiles", "Read BW (MB/s)", "Write BW (MB/s)", "Read Min (ms)", "Read Max (ms)", "Read Avg (ms)", "Read StdDev (ms)", "Read P50 (ms)", "Read P90 (ms)", "Read P99 (ms)", "Avg CPU (%)", "Peak CPU (%)", "Avg Mem (MB)", "Peak Mem (MB)", "Avg PgCache (GB)", "Peak PgCache (GB)", "Avg Sys CPU (%)", "Peak Sys CPU (%)", "Iter"]
+        headers = ["Test ID", "IOType|Jobs|FSize|BS|IOD|NrFiles", "Read BW (MB/s)", "Write BW (MB/s)", "Read Min (ms)", "Read Max (ms)", "Read Avg (ms)", "Read StdDev (ms)", "Read P50 (ms)", "Read P90 (ms)", "Read P99 (ms)", "Avg CPU (%)", "Peak CPU (%)", "Avg Mem (MB)", "Peak Mem (MB)", "Avg PgCache (GB)", "Peak PgCache (GB)", "Avg Sys CPU (%)", "Peak Sys CPU (%)", "Avg Net RX (MB/s)", "Peak Net RX (MB/s)", "Avg Net TX (MB/s)", "Peak Net TX (MB/s)", "Iter"]
     
     rows = []
     
@@ -48,6 +48,10 @@ def generate_combined_report(metrics, output_file, mode):
         peak_page_cache = params.get('peak_page_cache_gb', '-')
         avg_sys_cpu = params.get('avg_sys_cpu', '-')
         peak_sys_cpu = params.get('peak_sys_cpu', '-')
+        avg_net_rx = params.get('avg_net_rx_mbps', '-')
+        peak_net_rx = params.get('peak_net_rx_mbps', '-')
+        avg_net_tx = params.get('avg_net_tx_mbps', '-')
+        peak_net_tx = params.get('peak_net_tx_mbps', '-')
         
         if mode == "multi-config":
             # Extract config info
@@ -80,6 +84,10 @@ def generate_combined_report(metrics, output_file, mode):
                 peak_page_cache,
                 avg_sys_cpu,
                 peak_sys_cpu,
+                avg_net_rx,
+                peak_net_rx,
+                avg_net_tx,
+                peak_net_tx,
                 m['iterations']
             ])
         else:
@@ -103,6 +111,10 @@ def generate_combined_report(metrics, output_file, mode):
                 peak_page_cache,
                 avg_sys_cpu,
                 peak_sys_cpu,
+                avg_net_rx,
+                peak_net_rx,
+                avg_net_tx,
+                peak_net_tx,
                 m['iterations']
             ])
     
@@ -144,7 +156,7 @@ def generate_separate_reports(metrics, base_output_file):
     for config_label, config_metrics in config_groups.items():
         output_file = os.path.join(base_dir, f"{base_name}_{config_label}.csv")
         
-        headers = ["Test ID", "BS|FSize|IOD|IOType|Jobs|NrFiles", "Read BW (MB/s)", "Write BW (MB/s)", "Read P50 (ms)", "Read P90 (ms)", "Read P99 (ms)", "Read Max (ms)", "Avg CPU (%)", "Peak CPU (%)", "Avg Mem (MB)", "Peak Mem (MB)", "Avg PgCache (GB)", "Peak PgCache (GB)", "Avg Sys CPU (%)", "Peak Sys CPU (%)", "Iter"]
+        headers = ["Test ID", "BS|FSize|IOD|IOType|Jobs|NrFiles", "Read BW (MB/s)", "Write BW (MB/s)", "Read P50 (ms)", "Read P90 (ms)", "Read P99 (ms)", "Read Max (ms)", "Avg CPU (%)", "Peak CPU (%)", "Avg Mem (MB)", "Peak Mem (MB)", "Avg PgCache (GB)", "Peak PgCache (GB)", "Avg Sys CPU (%)", "Peak Sys CPU (%)", "Avg Net RX (MB/s)", "Peak Net RX (MB/s)", "Avg Net TX (MB/s)", "Peak Net TX (MB/s)", "Iter"]
         rows = []
         
         for test_key in sorted(config_metrics.keys()):
@@ -162,6 +174,10 @@ def generate_separate_reports(metrics, base_output_file):
             peak_page_cache = params.get('peak_page_cache_gb', '-')
             avg_sys_cpu = params.get('avg_sys_cpu', '-')
             peak_sys_cpu = params.get('peak_sys_cpu', '-')
+            avg_net_rx = params.get('avg_net_rx_mbps', '-')
+            peak_net_rx = params.get('peak_net_rx_mbps', '-')
+            avg_net_tx = params.get('avg_net_tx_mbps', '-')
+            peak_net_tx = params.get('peak_net_tx_mbps', '-')
             
             rows.append([
                 test_id,
@@ -180,6 +196,10 @@ def generate_separate_reports(metrics, base_output_file):
                 peak_page_cache,
                 avg_sys_cpu,
                 peak_sys_cpu,
+                avg_net_rx,
+                peak_net_rx,
+                avg_net_tx,
+                peak_net_tx,
                 m['iterations']
             ])
         
