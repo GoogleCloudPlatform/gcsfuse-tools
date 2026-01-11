@@ -59,7 +59,7 @@ def main():
                        choices=['read_bw', 'write_bw', 'read_lat_min', 'read_lat_max', 'read_lat_avg', 'read_lat_stddev',
                                 'read_lat_p50', 'read_lat_p90', 'read_lat_p99',
                                 'avg_cpu', 'peak_cpu', 'avg_mem', 'peak_mem', 'avg_page_cache', 'peak_page_cache',
-                                'avg_sys_cpu', 'peak_sys_cpu'],
+                                'avg_sys_cpu', 'peak_sys_cpu', 'avg_net_rx', 'peak_net_rx', 'avg_net_tx', 'peak_net_tx'],
                        help='Specific metrics to plot (overrides --metric-group)')
     parser.add_argument('--metric-group', '-g', default='default', choices=['default', 'full'],
                        help='Metric group: default (read_bw, avg_cpu, avg_sys_cpu, avg_page_cache) or full (all metrics)')
@@ -75,12 +75,12 @@ def main():
     else:
         # Use metric groups
         if args.metric_group == 'default':
-            metrics_to_plot = ['read_bw', 'avg_cpu', 'avg_sys_cpu', 'avg_page_cache']
+            metrics_to_plot = ['read_bw', 'read_lat_avg', 'avg_cpu', 'avg_sys_cpu', 'avg_page_cache', 'avg_net_rx', 'avg_net_tx']
         else:  # full
             metrics_to_plot = ['read_bw', 'write_bw', 'read_lat_min', 'read_lat_max', 'read_lat_avg', 'read_lat_stddev',
                              'read_lat_p50', 'read_lat_p90', 'read_lat_p99',
                              'avg_cpu', 'peak_cpu', 'avg_mem', 'peak_mem', 'avg_page_cache', 'peak_page_cache',
-                             'avg_sys_cpu', 'peak_sys_cpu']
+                             'avg_sys_cpu', 'peak_sys_cpu', 'avg_net_rx', 'peak_net_rx', 'avg_net_tx', 'peak_net_tx']
     
     input_path = args.input
     
@@ -215,12 +215,12 @@ def plot_per_config_from_single_csv(csv_file, output_file_base, metrics_to_plot)
             axes = axes.flatten()
         
         # Sort by test parameters
-        if 'BS|FSize|IOD|IOType|Jobs|NrFiles' in config_df.columns:
-            config_df['sort_key'] = config_df['BS|FSize|IOD|IOType|Jobs|NrFiles'].apply(sort_key)
+        if 'IOType|Jobs|FSize|BS|IOD|NrFiles' in config_df.columns:
+            config_df['sort_key'] = config_df['IOType|Jobs|FSize|BS|IOD|NrFiles'].apply(sort_key)
             config_df = config_df.sort_values('sort_key')
         
         # Get test case labels (x-axis)
-        test_labels = config_df['BS|FSize|IOD|IOType|Jobs|NrFiles'].tolist()
+        test_labels = config_df['IOType|Jobs|FSize|BS|IOD|NrFiles'].tolist()
         x_positions = list(range(len(test_labels)))
         
         # Plot each metric in a separate subplot
@@ -319,11 +319,11 @@ def plot_combined_mode_single_file(csv_file, output_file, metrics_to_plot, x_axi
         else:
             # New behavior: configs on x-axis, test-cases as different lines
             # Get unique test cases
-            if 'BS|FSize|IOD|IOType|Jobs|NrFiles' in df.columns:
-                test_cases = df['BS|FSize|IOD|IOType|Jobs|NrFiles'].unique()
-                csv_groups = [(test_case, df[df['BS|FSize|IOD|IOType|Jobs|NrFiles'] == test_case]) for test_case in test_cases]
+            if 'IOType|Jobs|FSize|BS|IOD|NrFiles' in df.columns:
+                test_cases = df['IOType|Jobs|FSize|BS|IOD|NrFiles'].unique()
+                csv_groups = [(test_case, df[df['IOType|Jobs|FSize|BS|IOD|NrFiles'] == test_case]) for test_case in test_cases]
             else:
-                print("ERROR: CSV must have 'BS|FSize|IOD|IOType|Jobs|NrFiles' column for --x-axis configs")
+                print("ERROR: CSV must have 'IOType|Jobs|FSize|BS|IOD|NrFiles' column for --x-axis configs")
                 sys.exit(1)
     else:
         # Single dataset
@@ -384,9 +384,9 @@ def plot_combined_mode_single_file(csv_file, output_file, metrics_to_plot, x_axi
         if x_axis == 'test-cases':
             # Original: test-cases on x-axis, configs as lines
             for idx, (group_name, group_df) in enumerate(csv_groups):
-                if 'BS|FSize|IOD|IOType|Jobs|NrFiles' in group_df.columns and column_name in group_df.columns:
+                if 'IOType|Jobs|FSize|BS|IOD|NrFiles' in group_df.columns and column_name in group_df.columns:
                     for _, row in group_df.iterrows():
-                        param_str = row['BS|FSize|IOD|IOType|Jobs|NrFiles']
+                        param_str = row['IOType|Jobs|FSize|BS|IOD|NrFiles']
                         metric_value = row[column_name]
                         
                         if pd.isna(metric_value) or metric_value == '-':
@@ -607,10 +607,10 @@ def plot_combined_mode(reports_dir, output_file, metrics_to_plot):
             file_name = os.path.basename(csv_file).replace('.csv', '')
             
             # Extract relevant columns
-            if 'BS|FSize|IOD|IOType|Jobs|NrFiles' in df.columns and column_name in df.columns:
+            if 'IOType|Jobs|FSize|BS|IOD|NrFiles' in df.columns and column_name in df.columns:
                 # Create data with sort key
                 for _, row in df.iterrows():
-                    param_str = row['BS|FSize|IOD|IOType|Jobs|NrFiles']
+                    param_str = row['IOType|Jobs|FSize|BS|IOD|NrFiles']
                     metric_value = row[column_name]
                     
                     # Skip if metric_value is not a number or is '-'
