@@ -1,6 +1,7 @@
 commit,mount_args,label
-master,"--stat-cache-max-size-mb=-1 --type-cache-max-size-mb=-1 --metadata-cache-ttl-secs=2000 --max-read-ahead-kb=16384 --max-background=100 --congestion-threshold=100",ct-100
-master,"--stat-cache-max-size-mb=-1 --type-cache-max-size-mb=-1 --metadata-cache-ttl-secs=2000 --max-read-ahead-kb=16384 --max-background=200 --congestion-threshold=200",ct-200
-master,"--stat-cache-max-size-mb=-1 --type-cache-max-size-mb=-1 --metadata-cache-ttl-secs=2000 --max-read-ahead-kb=16384 --max-background=300 --congestion-threshold=300",ct-300
-master,"--stat-cache-max-size-mb=-1 --type-cache-max-size-mb=-1 --metadata-cache-ttl-secs=2000 --max-read-ahead-kb=16384 --max-background=400 --congestion-threshold=400",ct-400
-master,"--stat-cache-max-size-mb=-1 --type-cache-max-size-mb=-1 --metadata-cache-ttl-secs=2000 --max-read-ahead-kb=16384 --max-background=500 --congestion-threshold=500",ct-500
+go_new_mrd,"--stat-cache-max-size-mb=-1 --type-cache-max-size-mb=-1 --metadata-cache-ttl-secs=2000 --congestion-threshold=100",ct-100
+go_new_mrd,"--stat-cache-max-size-mb=-1 --type-cache-max-size-mb=-1 --metadata-cache-ttl-secs=2000 --congestion-threshold=200",ct-200
+go_new_mrd,"--stat-cache-max-size-mb=-1 --type-cache-max-size-mb=-1 --metadata-cache-ttl-secs=2000 --congestion-threshold=300",ct-300
+go_new_mrd,"--stat-cache-max-size-mb=-1 --type-cache-max-size-mb=-1 --metadata-cache-ttl-secs=2000 --congestion-threshold=400",ct-400
+go_new_mrd,"--stat-cache-max-size-mb=-1 --type-cache-max-size-mb=-1 --metadata-cache-ttl-secs=2000 --congestion-threshold=500",ct-500
+go_new_mrd,"--stat-cache-max-size-mb=-1 --type-cache-max-size-mb=-1 --metadata-cache-ttl-secs=2000 --congestion-threshold=600",ct-600
