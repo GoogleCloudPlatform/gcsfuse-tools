@@ -9,13 +9,17 @@ from . import gcs
 
 
 def aggregate_results(benchmark_id, artifacts_bucket, vms, mode="single-config"):
-    """Aggregate results from all VMs
+    """Aggregate results from all VMs.
     
-    Args:
-        benchmark_id: Unique identifier for this benchmark run
-        artifacts_bucket: GCS bucket for storing artifacts
-        vms: List of VM names
-        mode: "single-config" or "multi-config"
+    Downloads results from gs://<artifacts_bucket>/<benchmark_id>/results/<vm>/ for each VM.
+    Each VM's results directory contains:
+    - manifest.json: List of tests with status and metadata
+    - test-<id>/: Directory per test with FIO JSON outputs and resource metrics
+    
+    In multi-config mode, test_key is matrix_id (unique across config×test combinations).
+    In single-config mode, test_key is test_id (can be same across VMs if distributed).
+    
+    Returns dict mapping test_key -> aggregated metrics (bandwidth, CPU, memory, etc).
     """
     all_metrics = {}
     successful_vms = 0
@@ -78,8 +82,21 @@ def aggregate_results(benchmark_id, artifacts_bucket, vms, mode="single-config")
     return all_metrics
 
 
-def parse_test_results(test_dir, test_info, mode="single-config"):
-    """Parse FIO results from a test directory"""
+def parse_test_results(
+    test_dir: str,
+    test_info: Dict[str, Any],
+    mode: str = "single-config"
+) -> Dict[str, Any]:
+    """Parse FIO results from a test directory.
+    
+    Args:
+        test_dir: Path to test directory containing FIO output files
+        test_info: Test metadata from manifest
+        mode: Benchmark mode ('single-config' or 'multi-config')
+        
+    Returns:
+        Dictionary containing aggregated metrics and parameters
+    """
     fio_files = glob.glob(os.path.join(test_dir, "fio_output_*.json"))
     
     read_bws = []

@@ -98,7 +98,15 @@ def fetch_worker_logs(vm_name, benchmark_id, artifacts_bucket, lines=50):
 
 
 def wait_for_completion(vms, benchmark_id, artifacts_bucket, poll_interval=30, timeout=7200):
-    """Wait for all VMs to complete by monitoring manifests"""
+    """Wait for all VMs to complete by monitoring manifests.
+    
+    Polls GCS for manifest.json files from each VM. Manifests indicate completion status:
+    - 'completed': VM finished all assigned tests successfully
+    - 'cancelled': User cancelled via cancel.py, partial results available
+    - 'failed': VM encountered errors, logs fetched automatically
+    
+    Returns True if all VMs completed/cancelled, False if any failed or timeout occurred.
+    """
     print(f"Waiting for {len(vms)} VMs to complete...")
     
     deadline = datetime.now() + timedelta(seconds=timeout)

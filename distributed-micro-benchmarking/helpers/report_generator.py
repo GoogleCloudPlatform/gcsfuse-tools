@@ -6,14 +6,7 @@ from tabulate import tabulate
 
 
 def generate_report(metrics, output_file, mode="single-config", separate_configs=False):
-    """Generate benchmark report in CSV format and print as table
-    
-    Args:
-        metrics: Dictionary of test metrics
-        output_file: Path to output CSV file
-        mode: "single-config" or "multi-config"
-        separate_configs: If True and multi-config, generate separate CSV per config
-    """
+    """Generate benchmark report in CSV format and print as table"""
     os.makedirs(os.path.dirname(output_file) if os.path.dirname(output_file) else '.', exist_ok=True)
     
     if mode == "multi-config" and separate_configs:
@@ -25,7 +18,13 @@ def generate_report(metrics, output_file, mode="single-config", separate_configs
 
 
 def generate_combined_report(metrics, output_file, mode):
-    """Generate a combined report with optional config columns"""
+    """Generate a combined report with optional config columns.
+    
+    In multi-config mode, adds columns for Matrix ID, Test ID, Config, and Commit.
+    In single-config mode, only includes Test ID and test parameters.
+    
+    Writes CSV file and prints formatted table to console.
+    """
     
     # Determine headers based on mode
     if mode == "multi-config":
@@ -106,7 +105,13 @@ def generate_combined_report(metrics, output_file, mode):
 
 
 def generate_separate_reports(metrics, base_output_file):
-    """Generate separate CSV reports per config"""
+    """Generate separate CSV reports per config.
+    
+    Groups metrics by config_label and creates one CSV file per config.
+    Output files named: <base_name>_<config_label>.csv
+    
+    Useful for comparing test cases within a single config without clutter from other configs.
+    """
     
     # Group metrics by config
     config_groups = {}
