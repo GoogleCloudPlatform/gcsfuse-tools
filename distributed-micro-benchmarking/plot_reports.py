@@ -75,7 +75,7 @@ def main():
     else:
         # Use metric groups
         if args.metric_group == 'default':
-            metrics_to_plot = ['read_bw', 'read_lat_avg', 'avg_cpu', 'avg_sys_cpu', 'avg_page_cache', 'avg_net_rx', 'avg_net_tx']
+            metrics_to_plot = ['read_bw', 'read_lat_avg', 'read_lat_p50', 'read_lat_p90', 'avg_cpu', 'avg_sys_cpu', 'avg_page_cache', 'avg_net_rx', 'avg_net_tx']
         else:  # full
             metrics_to_plot = ['read_bw', 'write_bw', 'read_lat_min', 'read_lat_max', 'read_lat_avg', 'read_lat_stddev',
                              'read_lat_p50', 'read_lat_p90', 'read_lat_p99',
