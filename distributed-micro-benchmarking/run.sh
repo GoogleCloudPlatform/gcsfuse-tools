@@ -5,74 +5,12 @@
 
 set -e
 
-# Function to create FIO config file
-create_fio_config() {
-    local output_file="$1"
-    cat > "$output_file" << 'FIO_CONFIG_EOF'
-[global]
-ioengine=libaio
-direct=0
-verify=0
-bs=$BS
-iodepth=$IO_DEPTH
-runtime=120s
-time_based=0
-fadvise_hint=0
-nrfiles=$NRFILES
-thread=1
-openfiles=1
-group_reporting=1
-filename_format=test.$jobnum.$filenum
-
-[test]
-rw=$IO_TYPE
-filesize=$FILE_SIZE
-directory=$TEST_DATA_DIR
-numjobs=$THREADS
-FIO_CONFIG_EOF
-    echo "Created FIO config: $output_file"
-}
-
-# Function to create test cases CSV
-create_test_cases() {
-    local output_file="$1"
-    cat > "$output_file" << 'TEST_CSV_EOF'
-block_size,file_size,io_depth,io_type,num_jobs,nr_files
-1m,1g,1,randread,96,20
-1m,1m,1,randread,96,200
-TEST_CSV_EOF
-    echo "Created test cases: $output_file"
-}
-
-# Additional test cases (uncomment to add more):
-# 1m,10g,1,randread,96,4
-# 1m,16m,1,randread,96,120
-# 1m,32m,1,randread,96,100
-# 1m,64m,1,randread,96,100
-# 64k,64k,1,randread,96,400
-# 256k,256k,1,randread,96,400
-# 1m,2g,1,randread,96,10
-# 1m,4m,1,randread,96,150
-# 1m,5g,1,randread,96,10
-# 1m,8m,1,randread,96,120
-
-# Function to create configs CSV
-create_configs() {
-    local output_file="$1"
-    cat > "$output_file" << 'CONFIGS_CSV_EOF'
-commit,mount_args,label
-go_new_mrd,"--stat-cache-max-size-mb=-1 --type-cache-max-size-mb=-1 --metadata-cache-ttl-secs=2000 --enable-kernel-reader=false",agareader
-go_new_mrd,"--stat-cache-max-size-mb=-1 --type-cache-max-size-mb=-1 --metadata-cache-ttl-secs=2000",simplereader
-CONFIGS_CSV_EOF
-    echo "Created configs: $output_file"
-}
-
 # Configuration - EDIT THESE VALUES
 BENCHMARK_ID="benchmark-$(date +%s)"
 # INSTANCE_GROUP="princer-test"
 INSTANCE_GROUP="princer-c4-192-us-west4-a-mg"
-TEST_CSV="base/sample-tests.csv"
-FIO_JOB_FILE="base/jobfile.fio"
+TEST_CSV="test-suites/base/large_sequential.csv"
+FIO_JOB_FILE="test-suites/base/jobfile.fio"
 BUCKET="princer-zonal-us-west4-a"
 ARTIFACTS_BUCKET="princer-working-dirs"
 ZONE="us-west4-a"
@@ -84,15 +22,12 @@ GCSFUSE_COMMIT="master"
 GCSFUSE_MOUNT_ARGS="--stat-cache-max-size-mb=-1 --type-cache-max-size-mb=-1 --metadata-cache-ttl-secs=2000 --enable-kernel-reader=false"
 
 # For multi-config mode (set to configs.csv file path):
-CONFIGS_CSV="base/configs.csv"  # Set to file path to enable multi-config mode, e.g., "base/configs.csv"
+CONFIGS_CSV="test-suites/base/configs.csv"  # Set to file path to enable multi-config mode, e.g., "test-suites/base/configs.csv"
 SEPARATE_CONFIGS=false  # Set to true to generate separate CSV per config
-
-# GCSFUSE_MOUNT_ARGS="--stat-cache-max-size-mb=-1 --type-cache-max-size-mb=-1 --metadata-cache-ttl-secs=2000"
-# GCSFUSE_MOUNT_ARGS="--implicit-dirs --stat-cache-max-size-mb=-1 --stat-cache-ttl=2h --max-read-ahead-kb=8192 --max-background=600 --congestion-threshold=600"
 
 # Advanced options
 POLL_INTERVAL=30
-TIMEOUT=400
+TIMEOUT=600
 
 echo "=========================================="
 echo "Distributed Benchmark Configuration"
@@ -120,24 +55,29 @@ fi
 echo "=========================================="
 echo ""
 
-# Always generate FIO job file with latest content
-echo "Generating FIO job file: $FIO_JOB_FILE"
-create_fio_config "$FIO_JOB_FILE"
+# Verify required files exist
+if [ ! -f "$FIO_JOB_FILE" ]; then
+    echo "ERROR: FIO job file not found: $FIO_JOB_FILE"
+    exit 1
+fi
+echo "Using FIO job file: $FIO_JOB_FILE"
 
-# Always generate test CSV with latest content
-echo "Generating test cases: $TEST_CSV"
-create_test_cases "$TEST_CSV"
-
-# Verify test CSV was created correctly
+if [ ! -f "$TEST_CSV" ]; then
+    echo "ERROR: Test CSV file not found: $TEST_CSV"
+    exit 1
+fi
+echo "Using test cases: $TEST_CSV"
 TEST_COUNT=$(tail -n +2 "$TEST_CSV" | wc -l)
-echo "  Created $TEST_COUNT test cases"
+echo "  Found $TEST_COUNT test cases"
 
-# Always generate configs if in multi-config mode
 if [ -n "$CONFIGS_CSV" ]; then
-    echo "Generating configs: $CONFIGS_CSV"
-    create_configs "$CONFIGS_CSV"
+    if [ ! -f "$CONFIGS_CSV" ]; then
+        echo "ERROR: Configs CSV file not found: $CONFIGS_CSV"
+        exit 1
+    fi
+    echo "Using configs: $CONFIGS_CSV"
     CONFIG_COUNT=$(tail -n +2 "$CONFIGS_CSV" | wc -l)
-    echo "  Created $CONFIG_COUNT configs"
+    echo "  Found $CONFIG_COUNT configs"
     echo "  Total matrix size: $((TEST_COUNT * CONFIG_COUNT)) tests"
 fi
 

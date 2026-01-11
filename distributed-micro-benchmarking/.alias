@@ -1,0 +1,14 @@
+#!/bin/bash
+
+gssh() {
+    if [ -z "$1" ]; then
+        echo "Usage: gssh <vm-name> [zone]"
+        return 1
+    fi
+
+    # Use the first argument as the VM name
+    # Default to us-west4-a if a second argument isn't provided
+    local zone="${2:-us-west4-a}"
+
+    gcloud compute ssh "$1" --zone "$zone" --internal-ip
+}
