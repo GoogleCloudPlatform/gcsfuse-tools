@@ -1,5 +1,5 @@
 # Ignore benchmark result directories and files
-benchmark-*
+results/*/
 
 # Python cache
 __pycache__/
