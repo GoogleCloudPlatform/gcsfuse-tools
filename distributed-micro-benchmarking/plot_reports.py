@@ -28,11 +28,11 @@ def parse_params(param_str):
     parts = param_str.split('|')
     if len(parts) >= 6:
         return {
-            'bs': parts[0],
-            'file_size': parts[1],
-            'io_depth': parts[2],
-            'io_type': parts[3],
-            'threads': int(parts[4]),
+            'io_type': parts[0],
+            'threads': int(parts[1]),
+            'file_size': parts[2],
+            'bs': parts[3],
+            'io_depth': parts[4],
             'nr_files': int(parts[5])
         }
     return None
@@ -266,7 +266,7 @@ def plot_per_config_from_single_csv(csv_file, output_file_base, metrics_to_plot)
             ax.set_xticklabels(test_labels, rotation=90, ha='right', fontsize=7)
         
         # Add overall figure title
-        fig.suptitle(f'Performance Metrics for Config: {config}\\nX-axis: BS|FileSize|IODepth|IOType|Jobs|NrFiles  •  Sorted by: IO Type, Threads, File Size', 
+        fig.suptitle(f'Performance Metrics for Config: {config}\nX-axis: IOType|Jobs|FSize|BS|IOD|NrFiles  •  Sorted by: IO Type, Threads, File Size', 
                      fontsize=13, fontweight='bold', y=0.995)
         
         # Adjust layout to prevent label cutoff
@@ -441,7 +441,7 @@ def plot_combined_mode_single_file(csv_file, output_file, metrics_to_plot, x_axi
                     ax.plot([x_pos] * len(y_values), y_values, 
                             color='red', linestyle=':', linewidth=1.5, alpha=0.5, zorder=1)
             
-            ax.set_xlabel('Test Configuration (File Size | IO Type | Threads)', fontsize=10, fontweight='bold')
+            ax.set_xlabel('Test Configuration (IOType|Jobs|FSize|BS|IOD|NrFiles)', fontsize=10, fontweight='bold')
             ax.set_xticks(range(len(unique_params)))
             ax.set_xticklabels(unique_params, rotation=90, ha='right', fontsize=7)
             
@@ -516,7 +516,7 @@ def plot_combined_mode_single_file(csv_file, output_file, metrics_to_plot, x_axi
     
     # Add overall figure title
     if x_axis == 'test-cases':
-        suptitle = 'X-axis: BS|FileSize|IODepth|IOType|Jobs|NrFiles  •  Sorted by: IO Type (randread → read), Threads (1→48→96), File Size (ascending)'
+        suptitle = 'X-axis: IOType|Jobs|FSize|BS|IOD|NrFiles  •  Sorted by: IO Type (randread → read), Threads (1→48→96), File Size (ascending)'
     else:
         suptitle = 'X-axis: Configurations  •  Lines: Individual Test Cases'
     
@@ -671,7 +671,7 @@ def plot_combined_mode(reports_dir, output_file, metrics_to_plot):
                         color='red', linestyle=':', linewidth=1.5, alpha=0.5, zorder=1)
         
         # Customize subplot
-        ax.set_xlabel('Test Configuration (File Size | IO Type | Threads)', fontsize=10, fontweight='bold')
+        ax.set_xlabel('Test Configuration (IOType|Jobs|FSize|BS|IOD|NrFiles)', fontsize=10, fontweight='bold')
         ax.set_ylabel(y_label, fontsize=10, fontweight='bold')
         ax.set_title(f'{y_label} Comparison', fontsize=12, fontweight='bold')
         ax.legend(loc='best', fontsize=8)
@@ -682,7 +682,7 @@ def plot_combined_mode(reports_dir, output_file, metrics_to_plot):
         ax.set_xticklabels(unique_params, rotation=90, ha='right', fontsize=7)
     
     # Add overall figure title explaining x-axis and sort order
-    fig.suptitle('X-axis: BS|FileSize|IODepth|IOType|Jobs|NrFiles  •  Sorted by: IO Type (randread → read), Threads (1→48→96), File Size (ascending)', 
+    fig.suptitle('X-axis: IOType|Jobs|FSize|BS|IOD|NrFiles  •  Sorted by: IO Type (randread → read), Threads (1→48→96), File Size (ascending)', 
                  fontsize=13, fontweight='bold', y=0.995)
     
     # Adjust layout to prevent label cutoff
