@@ -4,13 +4,16 @@ direct=0
 verify=0
 bs=$BS
 iodepth=$IO_DEPTH
-number_ios=10
+runtime=120s
+time_based=0
 fadvise_hint=0
 nrfiles=$NRFILES
 thread=1
 openfiles=1
 group_reporting=1
 filename_format=test.$jobnum.$filenum
+file_service_type=roundrobin:200
+number_ios=4000
 
 [test]
 rw=$IO_TYPE

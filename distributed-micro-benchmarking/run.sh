@@ -11,15 +11,17 @@ BENCHMARK_ID="benchmark-$(date +%s)"
 INSTANCE_GROUP="princer-c4-192-us-west4-a-mg"
 # TEST_CSV="test-suites/base/large_sequential.csv"
 # TEST_CSV="test-suites/tune_kernel_settings/test-cases.csv"
-TEST_CSV="test-suites/sequential-read-tests/full_test_cases.csv"
+# TEST_CSV="test-suites/sequential-read-tests/full_test_cases.csv"
+TEST_CSV="test-suites/random-read-tests/test-cases.csv"
 # FIO_JOB_FILE="test-suites/base/jobfile.fio"
 # FIO_JOB_FILE="test-suites/tune_kernel_settings/jobfile.fio"
-FIO_JOB_FILE="test-suites/sequential-read-tests/jobfile-libaio.fio"
+# FIO_JOB_FILE="test-suites/sequential-read-tests/jobfile-libaio.fio"
+FIO_JOB_FILE="test-suites/random-read-tests/jobfile-libaio.fio"
 BUCKET="princer-zonal-us-west4-a"
 ARTIFACTS_BUCKET="princer-working-dirs"
 ZONE="us-west4-a"
 PROJECT="gcs-tess"
-ITERATIONS=3
+ITERATIONS=1
 
 # For single-config mode (leave empty for multi-config):
 GCSFUSE_COMMIT="master"
@@ -27,7 +29,9 @@ GCSFUSE_MOUNT_ARGS="--stat-cache-max-size-mb=-1 --type-cache-max-size-mb=-1 --me
 
 # For multi-config mode (set to configs.csv file path):
 # CONFIGS_CSV="test-suites/base/configs.csv"  # Set to file path to enable multi-config mode, e.g., "test-suites/base/configs.csv"
-CONFIGS_CSV="test-suites/sequential-read-tests/configs.csv"
+# CONFIGS_CSV="test-suites/sequential-read-tests/configs.csv"
+CONFIGS_CSV="test-suites/random-read-tests/configs.csv"
+
 SEPARATE_CONFIGS=false  # Set to true to generate separate CSV per config
 
 # Advanced options
