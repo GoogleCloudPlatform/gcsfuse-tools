@@ -7,7 +7,7 @@ FROM debian:bookworm-slim
 # - iproute2: for 'ip' command
 # - grep: for 'grep -P' (PCRE support)
 # - gawk: for 'awk'
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     iproute2 \
     grep \
     gawk \
