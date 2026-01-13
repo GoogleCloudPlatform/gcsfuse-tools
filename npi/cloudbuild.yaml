@@ -158,6 +158,22 @@ steps:
       - '${_REGISTRY}/${_PROJECT}/gcsfuse-benchmarks/orbax-emulated-benchmark-${_GCSFUSE_VERSION}:latest'
       - 'fio'
 
+  # Build and push the routing init-container image.
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'routing'
+    waitFor: ['buildx-setup']
+    args:
+      - 'buildx'
+      - 'build'
+      - '--push'
+      - '-f'
+      - 'multinic/routing.dockerfile'
+      - '--platform'
+      - 'linux/amd64,linux/arm64'
+      - '-t'
+      - '${_REGISTRY}/${_PROJECT}/gcsfuse-benchmarks/multinic-routing-${_GCSFUSE_VERSION}:latest'
+      - 'multinic'
+
 options:
   # Using a more powerful machine is recommended for multi-platform builds.
   machineType: 'E2_HIGHCPU_32'
