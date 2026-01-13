@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-GCSFUSE_VERSION ?= v3.4.0
-GO_VERSION=1.24.5
+GCSFUSE_VERSION ?= v3.5.6
+GO_VERSION=1.24.11
 UBUNTU_VERSION=24.04
 REGISTRY=us-docker.pkg.dev
 PROJECT=gcs-fuse-test
