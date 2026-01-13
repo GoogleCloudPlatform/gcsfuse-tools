@@ -1,17 +1,17 @@
 # Dockerfile for a privileged init-container to configure routing.
 # It routes Private Google Access VIPs through eth1.
 
-FROM debian:bookworm-slim
+FROM alpine:latest
 
 # Install necessary packages:
 # - iproute2: for 'ip' command
 # - grep: for 'grep -P' (PCRE support)
 # - gawk: for 'awk'
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN apk add --no-cache \
+    bash \
     iproute2 \
     grep \
-    gawk \
-    && rm -rf /var/lib/apt/lists/*
+    gawk
 
 # 1. Get Gateway IP from eth1
 # 2. Route Private Google Access VIPs through eth1
