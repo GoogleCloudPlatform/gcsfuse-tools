@@ -1,4 +1,10 @@
 io_type,num_jobs,file_size,block_size,io_depth,nr_files
 read,1,1g,1m,1,20
+read,2,1g,1m,1,20
+read,4,1g,1m,1,20
+read,8,1g,1m,1,20
+read,16,1g,1m,1,20
+read,32,1g,1m,1,20
 read,48,1g,1m,1,20
+read,64,1g,1m,1,20
 read,96,1g,1m,1,20
