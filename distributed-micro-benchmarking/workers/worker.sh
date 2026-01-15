@@ -408,7 +408,8 @@ start_monitoring() {
     PREV_PROC_TIME=0
     PREV_SYSTEM_TIME=0
     PREV_SYS_IDLE=0
-    PREV_SYS_TOTAL=0
+    PREV_SYS_ACTIVE=0
+    PREV_SYS_IOWAIT=0
     
     # Initialize network tracking variables
     PREV_NET_RX=0
@@ -487,18 +488,26 @@ start_monitoring() {
                 
                 # Get overall system CPU usage from /proc/stat (more reliable than top)
                 # Format: cpu  user nice system idle iowait irq softirq steal guest guest_nice
+                # Awk fields: $1=label $2=user $3=nice $4=system $5=idle $6=iowait $7=irq $8=softirq $9=steal $10=guest $11=guest_nice
                 SYS_STAT=$(head -1 /proc/stat)
                 SYS_IDLE=$(echo "$SYS_STAT" | awk '{print $5}')
-                SYS_TOTAL=$(echo "$SYS_STAT" | awk '{sum=0; for(i=2;i<=NF;i++) sum+=$i; print sum}')
+                SYS_IOWAIT=$(echo "$SYS_STAT" | awk '{print $6}')
+                # Calculate active time (all fields except idle and iowait)
+                SYS_ACTIVE=$(echo "$SYS_STAT" | awk '{sum=0; for(i=2;i<=NF;i++) {if(i!=5 && i!=6) sum+=$i} print sum}')
                 
-                # Calculate overall system CPU utilization percentage
-                if [ $PREV_SYS_TOTAL -gt 0 ]; then
+                # Calculate overall system CPU utilization percentage (standard method)
+                # iowait is excluded from active time but included in total time
+                if [ $PREV_SYS_ACTIVE -gt 0 ]; then
                     SYS_IDLE_DELTA=$((SYS_IDLE - PREV_SYS_IDLE))
-                    SYS_TOTAL_DELTA=$((SYS_TOTAL - PREV_SYS_TOTAL))
+                    SYS_IOWAIT_DELTA=$((SYS_IOWAIT - PREV_SYS_IOWAIT))
+                    SYS_ACTIVE_DELTA=$((SYS_ACTIVE - PREV_SYS_ACTIVE))
+                    SYS_TOTAL_DELTA=$((SYS_ACTIVE_DELTA + SYS_IDLE_DELTA + SYS_IOWAIT_DELTA))
                     
                     if [ $SYS_TOTAL_DELTA -gt 0 ]; then
-                        # System CPU% = 100 - (idle_delta / total_delta * 100)
-                        SYSTEM_CPU=$(echo "scale=2; 100 - ($SYS_IDLE_DELTA * 100 / $SYS_TOTAL_DELTA)" | bc 2>/dev/null || echo "0")
+                        # System CPU% = (active_delta / total_delta * 100)
+                        # This is the standard calculation: active work as % of total time
+                        # iowait is NOT counted as active CPU work, but IS included in total time
+                        SYSTEM_CPU=$(echo "scale=2; ($SYS_ACTIVE_DELTA * 100) / $SYS_TOTAL_DELTA" | bc 2>/dev/null || echo "0")
                     else
                         SYSTEM_CPU="0"
                     fi
@@ -507,7 +516,8 @@ start_monitoring() {
                 fi
                 
                 PREV_SYS_IDLE=$SYS_IDLE
-                PREV_SYS_TOTAL=$SYS_TOTAL
+                PREV_SYS_IOWAIT=$SYS_IOWAIT
+                PREV_SYS_ACTIVE=$SYS_ACTIVE
                 
                 echo "$TIMESTAMP,$CPU_PERCENT,$MEM_RSS_MB,$MEM_VSZ_MB,$PAGE_CACHE_GB,$SYSTEM_CPU,$NET_RX_MBPS,$NET_TX_MBPS" >> "$MONITOR_FILE"
             fi

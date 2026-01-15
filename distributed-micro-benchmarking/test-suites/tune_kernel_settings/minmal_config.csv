@@ -1,4 +1,12 @@
 commit,mount_args,label
-go_new_mrd_da,"--stat-cache-max-size-mb=-1 --type-cache-max-size-mb=-1 --metadata-cache-ttl-secs=2000 --enable-kernel-reader=false --enable-dummy-io --dummy-io-per-mb-latency=5ms",agareader
-go_new_mrd_da,"--stat-cache-max-size-mb=-1 --type-cache-max-size-mb=-1 --metadata-cache-ttl-secs=2000 --enable-dummy-io --dummy-io-per-mb-latency=5ms",simplereader
-go_new_mrd_da,"--stat-cache-max-size-mb=-1 --type-cache-max-size-mb=-1 --metadata-cache-ttl-secs=2000 --max-read-ahead-kb 128 --max-background 128 --congestion-threshold 96 --enable-dummy-io --dummy-io-per-mb-latency=5ms",effsimplereader
+go_new_mrd,"--stat-cache-max-size-mb=-1 --type-cache-max-size-mb=-1 --metadata-cache-ttl-secs=2000 --enable-kernel-reader=false",agareader
+go_new_mrd,"--stat-cache-max-size-mb=-1 --type-cache-max-size-mb=-1 --metadata-cache-ttl-secs=2000",simplereader
+go_new_mrd,"--stat-cache-max-size-mb=-1 --type-cache-max-size-mb=-1 --metadata-cache-ttl-secs=2000 --max-read-ahead-kb 8192 --max-background 128 --congestion-threshold 96",simplereader_8mb_128_96
+go_new_mrd,"--stat-cache-max-size-mb=-1 --type-cache-max-size-mb=-1 --metadata-cache-ttl-secs=2000 --max-read-ahead-kb 12288 --max-background 128 --congestion-threshold 96",simplereader_12mb_128_96
+go_new_mrd,"--stat-cache-max-size-mb=-1 --type-cache-max-size-mb=-1 --metadata-cache-ttl-secs=2000 --max-read-ahead-kb 16384 --max-background 128 --congestion-threshold 96",simplereader_16mb_128_96
+go_new_mrd,"--stat-cache-max-size-mb=-1 --type-cache-max-size-mb=-1 --metadata-cache-ttl-secs=2000 --max-read-ahead-kb 8192 --max-background 184 --congestion-threshold 138",simplereader_8mb_184_138
+go_new_mrd,"--stat-cache-max-size-mb=-1 --type-cache-max-size-mb=-1 --metadata-cache-ttl-secs=2000 --max-read-ahead-kb 12288 --max-background 184 --congestion-threshold 138",simplereader_12mb_184_138
+go_new_mrd,"--stat-cache-max-size-mb=-1 --type-cache-max-size-mb=-1 --metadata-cache-ttl-secs=2000 --max-read-ahead-kb 16384 --max-background 184 --congestion-threshold 138",simplereader_16mb_184_138
+go_new_mrd,"--stat-cache-max-size-mb=-1 --type-cache-max-size-mb=-1 --metadata-cache-ttl-secs=2000 --max-read-ahead-kb 8192 --max-background 276 --congestion-threshold 207",simplereader_8mb_276_207
+go_new_mrd,"--stat-cache-max-size-mb=-1 --type-cache-max-size-mb=-1 --metadata-cache-ttl-secs=2000 --max-read-ahead-kb 12288 --max-background 276 --congestion-threshold 207",simplereader_12mb_276_207
+go_new_mrd,"--stat-cache-max-size-mb=-1 --type-cache-max-size-mb=-1 --metadata-cache-ttl-secs=2000 --max-read-ahead-kb 16384 --max-background 276 --congestion-threshold 207",simplereader_16mb_184_207

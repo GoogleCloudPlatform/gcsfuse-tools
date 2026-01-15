@@ -21,7 +21,7 @@ BUCKET="princer-zonal-us-west4-a"
 ARTIFACTS_BUCKET="princer-working-dirs"
 ZONE="us-west4-a"
 PROJECT="gcs-tess"
-ITERATIONS=1
+ITERATIONS=3
 
 # For single-config mode (leave empty for multi-config):
 GCSFUSE_COMMIT="master"
