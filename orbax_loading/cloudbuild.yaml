@@ -1,0 +1,15 @@
+steps:
+  # Build the container image
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', '${_REGISTRY}/${_PROJECT}/${_REPO_NAME}/${_IMAGE_NAME}:${_TAG}', '.']
+
+# Push the image to Google Artifact Registry
+images:
+  - '${_REGISTRY}/${_PROJECT}/${_REPO_NAME}/${_IMAGE_NAME}:${_TAG}'
+
+substitutions:
+  _REGISTRY: 'us-docker.pkg.dev'
+  _PROJECT: 'my-project' # Will be overridden by Makefile
+  _REPO_NAME: 'orbax-repo'
+  _IMAGE_NAME: 'orbax-loading'
+  _TAG: 'latest'

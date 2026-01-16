@@ -1,0 +1,88 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: orbax-script-pod
+  annotations:
+    gke-gcsfuse/volumes: "true"
+  labels:
+    app: orbax-script
+spec:
+  nodeSelector:
+    # Make sure you run on a node with these configurations (ct6e-standard-8t)
+    cloud.google.com/gke-tpu-topology: 2x4
+    cloud.google.com/gke-tpu-accelerator: tpu-v6e-slice
+  restartPolicy: Never
+  # Ensure the service account has permissions to access GCS buckets (Workload Identity)
+  serviceAccountName: default
+  initContainers:
+    - name: prep-caches
+      securityContext:
+        privileged: true
+      image: ubuntu:22.04
+      command: ["bash", "-c"]
+      args:
+      - |
+        echo always > /sys/kernel/mm/transparent_hugepage/enabled
+        # Clear the page cache once prior to every benchmark run. 
+        echo 3 > /proc/sys/vm/drop_caches
+      volumeMounts:
+      - name: sys-mm
+        mountPath: /sys/kernel/mm
+  containers:
+  - name: orbax-container
+    resources:
+      limits:
+        # Make sure you run on a node with these configurations (ct6e-standard-8t)
+        google.com/tpu: "8"
+    # Replace with the actual image path built from the Dockerfile
+    image: us-docker.pkg.dev/gcs-fuse-test/orbax-repo/orbax-loading:latest
+    imagePullPolicy: Always
+    env:
+    - name: TPU_ACCELERATOR_TYPE
+      value: "v6e-8"
+    - name: TPU_TOPOLOGY
+      value: "2x4"
+    - name: TPU_TOPOLOGY_ALT
+      value: "false"
+    - name: ALT
+      value: "false"
+    - name: TPU_TOPOLOGY_WRAP
+      value: "false,false,false"
+    - name: WRAP
+      value: "false,false,false"
+    - name: HOST_BOUNDS
+      value: "1,1,1"
+    - name: TPU_HOST_BOUNDS
+      value: "1,1,1"
+    - name: CHIPS_PER_HOST_BOUNDS
+      value: "2,4,1"
+    - name: TPU_CHIPS_PER_HOST_BOUNDS
+      value: "2,4,1"
+    - name: TPU_WORKER_ID
+      value: "0"
+    - name: TPU_WORKER_HOSTNAMES
+      value: "localhost"
+    - name: TPU_SKIP_MDS_QUERY
+      value: "true"
+    - name: TPU_RUNTIME_METRICS_PORTS
+      value: "8431,8432,8433,8434,8435,8436,8437,8438"
+    args:
+    - "restore"  # Command: create or restore
+    - "--path"
+    - "/data/llama_70b_checkpoints" # Target GCS path
+    - "--step"
+    - "1"
+    volumeMounts:
+    - name: gcs-fuse-csi-ephemeral
+      mountPath: /data
+  volumes:
+  - name: sys-mm
+    hostPath:
+      path: /sys/kernel/mm
+      type: Directory
+  - name: gcs-fuse-csi-ephemeral
+    csi:
+      driver: gcsfuse.csi.storage.gke.io
+      volumeAttributes:
+        bucketName: kislayk_long_running_eu_west4
+        mountOptions: "gcs-connection:enable-http-dns-cache:false,read_ahead_kb=1024"
