@@ -612,6 +612,11 @@ run_test_iterations() {
             echo "    Warning: ls -R failed, directory may not exist in GCS"
         fi
         
+        # Clear page cache before FIO run to ensure consistent results
+        echo "    Clearing page cache..."
+        sync
+        sudo sh -c 'echo 3 > /proc/sys/vm/drop_caches' 2>/dev/null || echo "    Warning: Failed to clear page cache (requires sudo)"
+        
         # Run FIO
         echo "    Running FIO benchmark..."
         OUTPUT_FILE="${TEST_DIR}/fio_output_${i}.json"
@@ -629,6 +634,11 @@ run_test_iterations() {
         # Unmount GCSFuse
         echo "    Unmounting GCSFuse..."
         fusermount -u "$MOUNT_DIR" 2>/dev/null || umount "$MOUNT_DIR" 2>/dev/null || true
+        
+        # Clear page cache after unmount to ensure clean state for next iteration
+        echo "    Clearing page cache after unmount..."
+        sync
+        sudo sh -c 'echo 3 > /proc/sys/vm/drop_caches' 2>/dev/null || echo "    Warning: Failed to clear page cache (requires sudo)"
         
         # Wait before next iteration
         if [ $i -lt $ITERATIONS ]; then

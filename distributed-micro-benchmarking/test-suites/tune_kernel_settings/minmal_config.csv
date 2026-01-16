@@ -1,6 +1,6 @@
 commit,mount_args,label
+go_new_mrd,"--stat-cache-max-size-mb=-1 --type-cache-max-size-mb=-1 --metadata-cache-ttl-secs=2000 --max-read-ahead-kb 16384 --max-background 192 --congestion-threshold 144",simplereader_16mb_192_144
 go_new_mrd,"--stat-cache-max-size-mb=-1 --type-cache-max-size-mb=-1 --metadata-cache-ttl-secs=2000 --enable-kernel-reader=false",agareader
 go_new_mrd,"--stat-cache-max-size-mb=-1 --type-cache-max-size-mb=-1 --metadata-cache-ttl-secs=2000",simplereader
 go_new_mrd,"--stat-cache-max-size-mb=-1 --type-cache-max-size-mb=-1 --metadata-cache-ttl-secs=2000 --max-read-ahead-kb 8192 --max-background 128 --congestion-threshold 96",simplereader_8mb_128_96
-go_new_mrd,"--stat-cache-max-size-mb=-1 --type-cache-max-size-mb=-1 --metadata-cache-ttl-secs=2000 --max-read-ahead-kb 16384 --max-background 192 --congestion-threshold 144",simplereader_16mb_192_144
 go_new_mrd,"--stat-cache-max-size-mb=-1 --type-cache-max-size-mb=-1 --metadata-cache-ttl-secs=2000 --max-read-ahead-kb 16384 --max-background 256 --congestion-threshold 192",simplereader_16mb_256_192
