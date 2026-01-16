@@ -85,4 +85,4 @@ spec:
       driver: gcsfuse.csi.storage.gke.io
       volumeAttributes:
         bucketName: kislayk_long_running_eu_west4
-        mountOptions: "gcs-connection:enable-http-dns-cache:false,read_ahead_kb=1024"
+        mountOptions: "read_ahead_kb=1024"
