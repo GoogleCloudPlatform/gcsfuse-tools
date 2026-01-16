@@ -9,4 +9,4 @@ go_new_mrd,"--stat-cache-max-size-mb=-1 --type-cache-max-size-mb=-1 --metadata-c
 go_new_mrd,"--stat-cache-max-size-mb=-1 --type-cache-max-size-mb=-1 --metadata-cache-ttl-secs=2000 --max-read-ahead-kb 16384 --max-background 184 --congestion-threshold 138",simplereader_16mb_184_138
 go_new_mrd,"--stat-cache-max-size-mb=-1 --type-cache-max-size-mb=-1 --metadata-cache-ttl-secs=2000 --max-read-ahead-kb 8192 --max-background 276 --congestion-threshold 207",simplereader_8mb_276_207
 go_new_mrd,"--stat-cache-max-size-mb=-1 --type-cache-max-size-mb=-1 --metadata-cache-ttl-secs=2000 --max-read-ahead-kb 12288 --max-background 276 --congestion-threshold 207",simplereader_12mb_276_207
-go_new_mrd,"--stat-cache-max-size-mb=-1 --type-cache-max-size-mb=-1 --metadata-cache-ttl-secs=2000 --max-read-ahead-kb 16384 --max-background 276 --congestion-threshold 207",simplereader_16mb_184_207
+go_new_mrd,"--stat-cache-max-size-mb=-1 --type-cache-max-size-mb=-1 --metadata-cache-ttl-secs=2000 --max-read-ahead-kb 16384 --max-background 276 --congestion-threshold 207",simplereader_16mb_276_207
