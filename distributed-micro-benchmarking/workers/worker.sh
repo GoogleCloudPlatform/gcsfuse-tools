@@ -201,11 +201,26 @@ if ! command -v go &> /dev/null; then
     cd "$WORKSPACE"
 fi
 
-# Install FIO if not present
+# Install FIO from source if not present
 if ! command -v fio &> /dev/null; then
-    echo "  Installing FIO..."
+    echo "  Installing FIO from latest master..."
     sudo apt-get update -qq
-    sudo apt-get install -y -qq fio
+    # Install build-essential for gcc and other build tools
+    sudo apt-get install -y -qq build-essential
+    # Install libaio-dev as fio has a dependency on libaio
+    sudo apt-get install -y -qq libaio-dev
+    
+    # Build fio from source for better latency percentile support
+    # We increase FIO_IO_U_PLAT_GROUP_NR from 29 to 32 to allow
+    # latencies up to 137.44s to be calculated accurately (instead of just 17.17s)
+    FIO_SRC_DIR="/tmp/fio"
+    sudo rm -rf "$FIO_SRC_DIR"
+    git clone https://github.com/axboe/fio.git "$FIO_SRC_DIR"
+    cd "$FIO_SRC_DIR"
+    sed -i 's/define \+FIO_IO_U_PLAT_GROUP_NR \+\([0-9]\+\)/define FIO_IO_U_PLAT_GROUP_NR 32/g' stat.h
+    ./configure && make && sudo make install
+    cd "$WORKSPACE"
+    echo "  FIO version: $(fio --version)"
 fi
 
 # Install bc for calculations
