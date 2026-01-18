@@ -2,21 +2,31 @@
 #
 # Distributed Micro-Benchmarking Run Script
 #
+# Usage: run.sh [fio_job_file] [test_csv] [config_csv]
+#
+# Arguments:
+#   fio_job_file  - Path to FIO job file (optional, default: test-suites/base/fio-job-default.fio)
+#   test_csv      - Path to test cases CSV (optional, default: test-suites/base/test-cases-large-sequential.csv)
+#   config_csv    - Path to configs CSV (optional, default: test-suites/base/mount-configs.csv)
+#
+# Examples:
+#   ./run.sh
+#   ./run.sh test-suites/base/fio-job-default.fio
+#   ./run.sh test-suites/base/fio-job-default.fio test-suites/base/test-cases-large-sequential.csv
+#   ./run.sh test-suites/base/fio-job-default.fio test-suites/base/test-cases-large-sequential.csv test-suites/base/mount-configs.csv
+#
 
 set -e
+
+# Parse command-line arguments or use defaults
+FIO_JOB_FILE="${1:-test-suites/base/fio-job-default.fio}"
+TEST_CSV="${2:-test-suites/base/test-cases-large-sequential.csv}"
+CONFIGS_CSV="${3:-test-suites/base/mount-configs.csv}"
 
 # Configuration - EDIT THESE VALUES
 BENCHMARK_ID="benchmark-$(date +%s)"
 # INSTANCE_GROUP="princer-test"
 INSTANCE_GROUP="princer-c4-192-us-west4-a-mg"
-# TEST_CSV="test-suites/base/large_sequential.csv"
-TEST_CSV="test-suites/tune_kernel_settings/minimal_test.csv"
-# TEST_CSV="test-suites/sequential-read-tests/full_test_cases.csv"
-# TEST_CSV="test-suites/random-read-tests/test-cases.csv"
-# FIO_JOB_FILE="test-suites/base/jobfile.fio"
-FIO_JOB_FILE="test-suites/tune_kernel_settings/jobfile.fio"
-# FIO_JOB_FILE="test-suites/sequential-read-tests/jobfile-libaio.fio"
-# FIO_JOB_FILE="test-suites/random-read-tests/jobfile-libaio.fio"
 BUCKET="princer-zonal-us-west4-a"
 ARTIFACTS_BUCKET="princer-working-dirs"
 ZONE="us-west4-a"
@@ -26,12 +36,6 @@ ITERATIONS=1
 # For single-config mode (leave empty for multi-config):
 GCSFUSE_COMMIT="master"
 GCSFUSE_MOUNT_ARGS="--stat-cache-max-size-mb=-1 --type-cache-max-size-mb=-1 --metadata-cache-ttl-secs=2000 --enable-kernel-reader=false"
-
-# For multi-config mode (set to configs.csv file path):
-# CONFIGS_CSV="test-suites/base/configs.csv"  # Set to file path to enable multi-config mode, e.g., "test-suites/base/configs.csv"
-CONFIGS_CSV="test-suites/tune_kernel_settings/minmal_config.csv"
-# CONFIGS_CSV="test-suites/sequential-read-tests/configs.csv"
-# CONFIGS_CSV="test-suites/random-read-tests/configs.csv"
 
 SEPARATE_CONFIGS=false  # Set to true to generate separate CSV per config
 

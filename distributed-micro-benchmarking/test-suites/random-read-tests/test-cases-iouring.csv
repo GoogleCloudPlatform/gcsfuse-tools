@@ -1,0 +1,11 @@
+io_type,num_jobs,file_size,block_size,io_depth,nr_files
+randread,1,1g,4k,4,1
+randread,1,1g,64k,4,1
+randread,1,1g,1m,4,1
+randread,1,1g,4m,4,1
+randread,1,1g,16m,4,1
+randread,48,1g,4k,4,1
+randread,48,1g,64k,4,1
+randread,48,1g,1m,4,1
+randread,48,1g,4m,4,1
+randread,48,1g,16m,4,1

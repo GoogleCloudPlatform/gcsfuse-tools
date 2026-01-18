@@ -1,0 +1,4 @@
+commit,mount_args,label
+master,"--stat-cache-max-size-mb=-1 --type-cache-max-size-mb=-1 --metadata-cache-ttl-secs=2000 --enable-kernel-reader=false",agareader
+master,"--stat-cache-max-size-mb=-1 --type-cache-max-size-mb=-1 --metadata-cache-ttl-secs=2000",simplereader
+master,"--stat-cache-max-size-mb=-1 --type-cache-max-size-mb=-1 --metadata-cache-ttl-secs=2000 --max-read-ahead-kb 16384 --max-background 288 --congestion-threshold 216",effsimplereader
