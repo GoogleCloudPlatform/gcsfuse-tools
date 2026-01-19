@@ -80,22 +80,6 @@ def rationalize_gce_vm_config(default_cfg, new_cfg):
 
 
 def check_bucket_storage_class(bucket_name: str):
-    """
-    Checks a GCS bucket's default storage class using 'gcloud storage buckets list'.
-
-    - If the bucket does not exist, this function silently returns.
-    - If the bucket exists and its default storage class is "RAPID",
-      it raises a BucketStorageClassError.
-    - Otherwise (bucket exists with a different storage class), it prints a
-      success message and returns peacefully.
-
-    Args:
-        bucket_name: The name of the GCS bucket to check.
-
-    Raises:
-        BucketStorageClassError: If the bucket's default storage class is "RAPID".
-        RuntimeError: If the 'gcloud' command-line tool is not found.
-    """
     try:
         # Construct the gcloud command to list bucket details, filtering by the exact bucket name.
         # We request JSON output containing only the name and storageClass.
@@ -104,14 +88,10 @@ def check_bucket_storage_class(bucket_name: str):
             "storage",
             "buckets",
             "list",
-            f"--filter=name={bucket_name}",  # Filter for the specific bucket URI
-            "--format=json"  # Output format
+            f"--filter=name={bucket_name}",
+            "--format=json"
         ]
 
-        # Execute the gcloud command.
-        # capture_output=True: Captures stdout and stderr.
-        # text=True: Decodes stdout and stderr as strings.
-        # check=False: Prevents raising an exception for non-zero gcloud exit codes.
         result = subprocess.run(
             cmd,
             capture_output=True,
@@ -120,9 +100,6 @@ def check_bucket_storage_class(bucket_name: str):
         )
 
         if result.returncode != 0:
-            # Log gcloud command errors to stderr for debugging.
-            # These could be permission issues, gcloud internal errors, etc.
-            # The function should still exit peacefully in these cases as per requirements.
             print(
                 f"Warning: gcloud command exited with code {result.returncode} for bucket '{bucket_name}'.\n"
                 f"Stderr: {result.stderr.strip()}",
@@ -131,21 +108,16 @@ def check_bucket_storage_class(bucket_name: str):
             return "invalid"
 
         try:
-            # The expected output is a JSON array.
             bucket_list = json.loads(result.stdout)
         except json.JSONDecodeError:
-            # Handle cases where gcloud output isn't valid JSON.
             print(
                 f"Warning: Failed to parse JSON output from gcloud for bucket '{bucket_name}'.\n"
                 f"Stdout: {result.stdout.strip()}",
                 file=sys.stderr
             )
-            # Exit peacefully.
             return "invalid"
 
         if not bucket_list:
-            # The filter returned an empty list, meaning the bucket does not exist.
-            # Silently ignore and return as per requirements.
             return "dne"
 
         # Since we filtered by exact name, we expect at most one item.
@@ -157,9 +129,7 @@ def check_bucket_storage_class(bucket_name: str):
         # This error occurs if the gcloud binary is not in the system's PATH.
         raise RuntimeError("gcloud command not found. Ensure Google Cloud SDK is installed and in your PATH.") from None
     except Exception as e:
-        # Catch any other unexpected exceptions.
         print(f"An unexpected error occurred while checking bucket '{bucket_name}': {e}", file=sys.stderr)
-        # Exit peacefully for other issues.
         return
 
 
@@ -290,23 +260,3 @@ def rationalize_config(cfg):
     cfg['job_details']=rationalize_job_details(cfg.get('job_details')) 
     cfg['bench_env']=rationalize_bench_env(cfg.get('zonal_benchmarking'),cfg.get('bench_env'))
     return cfg
-
-
-if __name__ == '__main__':
-    cfg = {
-        'zonal_benchmarking':False,
-        'fio_jobfile_template': '/path/default',
-        'mount_config_file': 'lambda',
-        'version_details': {
-            'gcsfuse_version_or_commit': 'beta',
-        },
-        'job_details':{
-            'bs': ["1KB", "4KB"],
-        },
-        'bench_env':{
-            'gce_env':{
-                'machine_type': "linda",
-            },
-        }
-    }
-    print(rationalize_config(cfg))
