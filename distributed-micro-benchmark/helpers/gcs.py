@@ -29,7 +29,7 @@ def upload_json(data, gcs_path):
         try:
             gcloud_utils.gcloud_storage_cp(f.name, gcs_path, retries=3, check=True)
         except Exception as e:
-            raise RunTimeError(f"Failed to upload to {gcs_path} after 3 attempts: {e}")
+            raise RuntimeError(f"Failed to upload to {gcs_path} after 3 attempts: {e}")
 
 
 def download_json(gcs_path):

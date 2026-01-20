@@ -86,8 +86,7 @@ def fetch_worker_logs(vm_name, benchmark_id, artifacts_bucket, lines=50):
     log_path = f"gs://{artifacts_bucket}/{benchmark_id}/logs/{vm_name}/worker.log"
     
     try:
-        cmd = ['gsutil', 'cat', log_path]
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+        result = gcloud_utils.run_gcloud_command(['gcloud', 'storage', 'cat', log_path], capture_output=True, text=True, timeout=10, check=False)
         
         if result.returncode == 0:
             log_lines = result.stdout.split('\n')
@@ -174,8 +173,7 @@ def wait_for_completion(vms, benchmark_id, artifacts_bucket, poll_interval=30, t
         
         # Create cancellation flag
         cancel_path = f"gs://{artifacts_bucket}/{benchmark_id}/cancel"
-        cmd = ['gsutil', 'cp', '-', cancel_path]
-        subprocess.run(cmd, input=b'timeout', capture_output=True)
+        gcloud_utils.run_gcloud_command(['gcloud', 'storage', 'cp', '-', cancel_path], input=b'timeout', capture_output=True)
         
         print(f"Cancellation flag created. Waiting 30s for workers to detect and shutdown...")
         time.sleep(30)

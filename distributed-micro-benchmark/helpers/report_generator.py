@@ -134,7 +134,7 @@ def generate_separate_reports(metrics, base_output_file):
     base_dir = os.path.dirname(base_output_file)
     base_name = os.path.splitext(os.path.basename(base_output_file))[0]
     
-    headers = ["Test ID", "IOType|Jobs|FSize|BS|IOD|NrFiles", "Read BW (MB/s)", "Write BW (MB/s)" 
+    headers = ["Test ID", "IOType|Jobs|FSize|BS|IOD|NrFiles", "Read BW (MB/s)", "Write BW (MB/s)",
                "Read P50 (ms)", "Read P90 (ms)", "Read P99 (ms)", "Read Max (ms)", 
                "Avg CPU (%)", "Peak CPU (%)", "Avg Mem (MB)", "Peak Mem (MB)", 
                "Avg PgCache (GB)", "Peak PgCache (GB)", "Avg Sys CPU (%)", "Peak Sys CPU (%)", 

@@ -34,7 +34,7 @@ def run_gcloud_command(cmd, retries=1, retry_delay=2, check=False, capture_outpu
         subprocess.CompletedProcess object
         
     Raises:
-        Exception: If command fails after all retries and check=True
+        subprocess.CalledProcessError: If command fails after all retries and check=True
     """
     for attempt in range(retries):
         result = subprocess.run(cmd, capture_output=capture_output, text=text, **kwargs)

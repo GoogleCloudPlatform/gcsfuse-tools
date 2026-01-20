@@ -65,6 +65,10 @@ def distribute_tests(test_cases, vms, is_matrix=False):
     # TODO: Add is_matrix case!
     """Distribute test cases evenly across VMs"""
     num_vms = len(vms)
+    if not num_vms:
+        if test_cases:
+            raise ValueError("Cannot distribute tests to an empty list of VMs.")
+        return {}
     tests_per_vm = len(test_cases) // num_vms
     remaining = len(test_cases) % num_vms
     
