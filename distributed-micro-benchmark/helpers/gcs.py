@@ -21,7 +21,7 @@ from . import gcloud_utils
 
 
 def upload_json(data, gcs_path):
-    """Upload JSON data to GCS with retry on failure"""
+    """Upload JSON data to GCS json path"""
     with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=True) as f:
         json.dump(data, f, indent=2)
         f.flush()
@@ -33,7 +33,7 @@ def upload_json(data, gcs_path):
 
 
 def download_json(gcs_path):
-    """Download and parse JSON from GCS"""
+    """Download the JSON file and returns as dictionary"""
     with tempfile.NamedTemporaryFile(mode='r', suffix='.json', delete=True) as f:
         result = gcloud_utils.gcloud_storage_cp(gcs_path, f.name, retries=1, check=False)
         

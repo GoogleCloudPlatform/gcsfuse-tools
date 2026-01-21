@@ -12,7 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Result aggregation from distributed VMs"""
+"""
+Aggregates and normalizes distributed FIO benchmark results from GCS.
+
+- Downloads results from gs://<artifacts_bucket>/<benchmark_id>/results/<vm>/ for each VM.
+- Parses the `manifest.json` for each VM to identify successful test executions.
+- Resolves test keys based on mode (using `matrix_id` for multi-config or `test_id` for single).
+- Parses and normalizes raw FIO JSON output to extract key performance metrics.
+- Computes critical latency statistics including min, max, mean, stddev, and percentiles (p50/p90/p99).
+- Averages performance metrics across multiple iterations to reduce variance.
+- Returns a unified dictionary mapping test identifiers to their final calculated metrics.
+
+"""
 
 import json
 import glob
