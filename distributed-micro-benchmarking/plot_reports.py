@@ -39,13 +39,14 @@ def parse_params(param_str):
 
 
 def sort_key(param_str):
-    """Generate sort key for parameter string: (io_type, threads, file_size_numeric)"""
+    """Generate sort key for parameter string: (io_type, threads, file_size_numeric, block_size_numeric)"""
     params = parse_params(param_str)
     if params:
         file_size_val = parse_file_size(params['file_size'])
+        block_size_val = parse_file_size(params['bs'])
         io_type_order = 0 if params['io_type'] == 'randread' else 1
-        return (io_type_order, params['threads'], file_size_val)
-    return (0, 0, 0)
+        return (io_type_order, params['threads'], file_size_val, block_size_val)
+    return (0, 0, 0, 0)
 
 
 def main():
@@ -266,7 +267,7 @@ def plot_per_config_from_single_csv(csv_file, output_file_base, metrics_to_plot)
             ax.set_xticklabels(test_labels, rotation=90, ha='right', fontsize=7)
         
         # Add overall figure title
-        fig.suptitle(f'Performance Metrics for Config: {config}\nX-axis: IOType|Jobs|FSize|BS|IOD|NrFiles  •  Sorted by: IO Type, Threads, File Size', 
+        fig.suptitle(f'Performance Metrics for Config: {config}\nX-axis: IOType|Jobs|FSize|BS|IOD|NrFiles  •  Sorted by: IO Type, Threads, File Size, Block Size', 
                      fontsize=13, fontweight='bold', y=0.995)
         
         # Adjust layout to prevent label cutoff
@@ -413,10 +414,16 @@ def plot_combined_mode_single_file(csv_file, output_file, metrics_to_plot, x_axi
             # Plot each group's data
             for group_name in plot_df['group'].unique():
                 group_data = plot_df[plot_df['group'] == group_name]
+                # Sort by sort_key to ensure points are connected in the correct order
+                group_data = group_data.sort_values('sort_key').reset_index(drop=True)
                 color_idx = group_data['color_idx'].iloc[0]
                 
-                x_vals = [x_positions[p] for p in group_data['param']]
-                y_vals = group_data['metric_value'].values
+                x_vals = [x_positions[p] for p in group_data['param'].tolist()]
+                y_vals = group_data['metric_value'].tolist()
+                
+                # Sort by x position to ensure lines connect left-to-right
+                sorted_pairs = sorted(zip(x_vals, y_vals), key=lambda pair: pair[0])
+                x_vals, y_vals = zip(*sorted_pairs) if sorted_pairs else ([], [])
                 
                 ax.plot(x_vals, y_vals, 
                         marker=markers[color_idx % len(markers)],
@@ -516,7 +523,7 @@ def plot_combined_mode_single_file(csv_file, output_file, metrics_to_plot, x_axi
     
     # Add overall figure title
     if x_axis == 'test-cases':
-        suptitle = 'X-axis: IOType|Jobs|FSize|BS|IOD|NrFiles  •  Sorted by: IO Type (randread → read), Threads (1→48→96), File Size (ascending)'
+        suptitle = 'X-axis: IOType|Jobs|FSize|BS|IOD|NrFiles  •  Sorted by: IO Type (randread → read), Threads (1→48→96), File Size (ascending), Block Size (ascending)'
     else:
         suptitle = 'X-axis: Configurations  •  Lines: Individual Test Cases'
     
@@ -640,10 +647,16 @@ def plot_combined_mode(reports_dir, output_file, metrics_to_plot):
         # Plot each file's data
         for file_name in plot_df['file'].unique():
             file_data = plot_df[plot_df['file'] == file_name]
+            # Sort by sort_key to ensure points are connected in the correct order
+            file_data = file_data.sort_values('sort_key').reset_index(drop=True)
             color_idx = file_data['color_idx'].iloc[0]
             
-            x_vals = [x_positions[p] for p in file_data['param']]
-            y_vals = file_data['metric_value'].values
+            x_vals = [x_positions[p] for p in file_data['param'].tolist()]
+            y_vals = file_data['metric_value'].tolist()
+            
+            # Sort by x position to ensure lines connect left-to-right
+            sorted_pairs = sorted(zip(x_vals, y_vals), key=lambda pair: pair[0])
+            x_vals, y_vals = zip(*sorted_pairs) if sorted_pairs else ([], [])
             
             ax.plot(x_vals, y_vals, 
                     marker=markers[color_idx % len(markers)],
@@ -682,7 +695,7 @@ def plot_combined_mode(reports_dir, output_file, metrics_to_plot):
         ax.set_xticklabels(unique_params, rotation=90, ha='right', fontsize=7)
     
     # Add overall figure title explaining x-axis and sort order
-    fig.suptitle('X-axis: IOType|Jobs|FSize|BS|IOD|NrFiles  •  Sorted by: IO Type (randread → read), Threads (1→48→96), File Size (ascending)', 
+    fig.suptitle('X-axis: IOType|Jobs|FSize|BS|IOD|NrFiles  •  Sorted by: IO Type (randread → read), Threads (1→48→96), File Size (ascending), Block Size (ascending)', 
                  fontsize=13, fontweight='bold', y=0.995)
     
     # Adjust layout to prevent label cutoff
