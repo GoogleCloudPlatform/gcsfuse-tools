@@ -19,7 +19,6 @@ filename_format=test.0.$filenum
 directory=$TEST_DATA_DIR
 bs=$BS
 filesize=$FILE_SIZE
-size=2M
 rw=$IO_TYPE
 offset=0
 offset_increment=20%
