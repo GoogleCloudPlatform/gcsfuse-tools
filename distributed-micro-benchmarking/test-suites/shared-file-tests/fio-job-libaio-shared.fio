@@ -2,23 +2,20 @@
 ioengine=libaio
 direct=0
 fadvise_hint=0
-iodepth=$IO_DEPTH
+iodepth=1
 invalidate=1
-nrfiles=$NRFILES
 runtime=120s
 time_based=0
 thread=1
-openfiles=1
 group_reporting=1
 create_serialize=0
 allrandrepeat=1
 numjobs=$THREADS
-filename_format=test.0.$filenum
+filename=$TEST_DATA_DIR/test.0.0
 
 [Workload]
-directory=$TEST_DATA_DIR
 bs=$BS
-filesize=$FILE_SIZE
+size=$FILE_SIZE
 rw=$IO_TYPE
 offset=0
-offset_increment=20%
+offset_increment=2%
