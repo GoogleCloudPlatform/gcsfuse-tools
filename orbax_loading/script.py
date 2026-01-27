@@ -73,9 +73,9 @@ def get_abstract_tree():
     }
 
 def get_checkpointer(path):
-    """Returns the AsyncCheckpointer configured for Zarr3."""
+    """Returns the AsyncCheckpointer configured for OCDBT."""
     checkpointer = ocp.AsyncCheckpointer(
-        ocp.PyTreeCheckpointHandler(use_zarr3=True)
+        ocp.PyTreeCheckpointHandler(use_ocdbt=True, ocdbt_target_data_file_size=200*1024*1024)
     )
     # CheckpointManager manages the folder structure
     return ocp.CheckpointManager(
@@ -132,15 +132,8 @@ def run_create(args):
     # Save
     manager = get_checkpointer(args.path)
     
-    # 200 MiB Limit
-    SHARD_SIZE = 200 * 1024 * 1024
-    save_args = jax.tree_util.tree_map(
-        lambda x: ocp.SaveArgs(chunk_byte_size=SHARD_SIZE),
-        model_state
-    )
-
-    print(f"Saving step {args.step} with 200MiB shard limit...")
-    manager.save(args.step, model_state, save_kwargs={'save_args': save_args})
+    print(f"Saving step {args.step} with 200MiB target data file size...")
+    manager.save(args.step, model_state)
     manager.wait_until_finished()
     print("Checkpoint creation successful.")
 
