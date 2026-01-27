@@ -41,8 +41,7 @@ def run_worker_script(vm_name, zone, project, script_path, benchmark_id, artifac
         script_path,
         f'{vm_name}:{remote_script}',
         f'--zone={zone}',
-        f'--project={project}',
-        '--internal-ip'
+        f'--project={project}'
     ]
     
     try:
