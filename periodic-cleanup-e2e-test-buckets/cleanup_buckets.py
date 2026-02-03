@@ -4,7 +4,7 @@ from google.cloud import storage
 
 PROJECT_ID = "gcs-fuse-test-ml"
 BUCKET_PREFIX = "gcsfuse-e2e"
-RETENTION_DAYS = 5
+RETENTION_DAYS = 10
 DRY_RUN = False
 
 
