@@ -15,8 +15,8 @@ def cleanup_buckets():
 
   print(f"Starting cleanup for project {PROJECT_ID}")
   if DRY_RUN:
-      print("DRY RUN MODE ENABLED: No buckets will be deleted.")
-  
+    print("DRY RUN MODE ENABLED: No buckets will be deleted.")
+
   print(
       f"Deleting buckets starting with '{BUCKET_PREFIX}' created before"
       f" {cutoff_time}"
@@ -31,15 +31,27 @@ def cleanup_buckets():
       print(f"Deleting bucket: {bucket.name} (Created: {bucket.time_created})")
       try:
         if not DRY_RUN:
-            bucket.delete(force=True)
-            print(f"Successfully deleted {bucket.name}")
+          # Explicitly delete blobs first to avoid "too many objects" errors
+          blobs = list(storage_client.list_blobs(bucket))
+          if blobs:
+            print(f"  Found {len(blobs)} objects. Deleting in batches...")
+            batch_size = 100
+            for i in range(0, len(blobs), batch_size):
+              batch = blobs[i : i + batch_size]
+              bucket.delete_blobs(batch)
+
+          bucket.delete(force=True)
+          print(f"Successfully deleted {bucket.name}")
         else:
-            print(f"DRY RUN: Would have deleted {bucket.name}")
+          print(f"DRY RUN: Would have deleted {bucket.name}")
         count += 1
       except Exception as e:
         print(f"Failed to delete {bucket.name}: {e}")
     else:
-      print(f"Skipping bucket: {bucket.name} (Created: {bucket.time_created} > {cutoff_time})")
+      print(
+          f"Skipping bucket: {bucket.name} (Created: {bucket.time_created} >"
+          f" {cutoff_time})"
+      )
 
   print(f"Cleanup complete. Deleted {count} buckets.")
 
