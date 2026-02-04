@@ -122,6 +122,7 @@ deploy_cloud_run_job() {
             --image "$IMAGE_NAME" \
             --region "$REGION" \
             --service-account "$JOB_SERVICE_ACCOUNT" \
+            --set-env-vars PROJECT_ID="$PROJECT_ID",RETENTION_DAYS=10,DRY_RUN=False,QUIET=True \
             --task-timeout=3600s || error_exit "Failed to update Cloud Run Job."
     else
         log "Job does not exist. Creating..."
@@ -130,6 +131,7 @@ deploy_cloud_run_job() {
             --image "$IMAGE_NAME" \
             --region "$REGION" \
             --service-account "$JOB_SERVICE_ACCOUNT" \
+            --set-env-vars PROJECT_ID="$PROJECT_ID",RETENTION_DAYS=10,DRY_RUN=False,QUIET=True \
             --task-timeout=3600s || error_exit "Failed to create Cloud Run Job."
     fi
 }
