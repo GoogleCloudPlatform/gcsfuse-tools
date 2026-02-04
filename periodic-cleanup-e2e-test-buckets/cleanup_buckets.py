@@ -60,6 +60,8 @@ def cleanup_buckets():
         else:
           log(f"DRY RUN: Would have deleted {bucket.name}")
         count += 1
+        if count % 10 == 0:
+          print(f"Milestone: Successfully deleted {count} buckets so far.")
       except Exception as e:
         print(f"Failed to delete {bucket.name}: {e}")
     else:
