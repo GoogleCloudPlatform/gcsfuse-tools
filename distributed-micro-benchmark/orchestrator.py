@@ -20,8 +20,8 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Orchestrate distributed GCSFuse benchmarks")
 
     parser.add_argument('--project', type=str, required=True, help='GCP project')
-    parser.add_argument('--zone', type=str, required=True, help='GCP compute zone (where MIG is located)')
-    parser.add_argument('--instance-group', type=str, required=True, help='Managed instance group name')
+    parser.add_argument('--zone', type=str, required=True, help='GCP compute zone (where MIG/VM is located)')
+    parser.add_argument('--target', type=str, required=True, help='Target VM name or Managed Instance Group name')
 
     parser.add_argument('--artifacts-bucket', type=str, required=True, help='GCS bucket for artifacts')
     parser.add_argument('--bucket', type=str, required=True, help='GCS bucket for testing')
@@ -58,7 +58,7 @@ def main():
 def run_benchmark(args):
     print(f"========== Distributed Benchmark Orchestrator ==========")
     print(f"Benchmark ID: {args.benchmark_id}")
-    print(f"Instance Group: {args.instance_group}")
+    print(f"Target: {args.target}")
     
     # 0. Create results directory with benchmark ID
     results_dir = f"results/{args.benchmark_id}"
@@ -72,10 +72,10 @@ def run_benchmark(args):
         shutil.copy(args.configs_csv, f"{results_dir}/configs.csv")
     shutil.copy(args.fio_job_file, f"{results_dir}/jobfile.fio")
     
-    # 1. Get active VMs from instance group
-    vms = vm_manager.get_running_vms(args.instance_group, args.zone, args.project)
+    # 1. Resolve active VMs from target (Single VM or MIG)
+    vms = vm_manager.resolve_target_vms(args.target, args.zone, args.project)
     if not vms:
-        print("ERROR: No running VMs found in instance group")
+        print(f"ERROR: No running VMs found for target '{args.target}'")
         sys.exit(1)
     
     print(f"\nFound {len(vms)} running VMs: {', '.join(vms)}")
@@ -114,7 +114,7 @@ def run_benchmark(args):
         "iterations": args.iterations,
         "bucket": args.bucket,
         "artifacts_bucket": args.artifacts_bucket,
-        "instance_group": args.instance_group,
+        "instance_group": args.target,
         "zone": args.zone,
         "project": args.project
     }

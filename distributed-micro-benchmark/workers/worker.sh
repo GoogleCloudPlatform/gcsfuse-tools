@@ -186,4 +186,6 @@ trap - ERR EXIT
 echo "Cleaning up workspace: $WORKSPACE"
 cd /tmp
 rm -rf "$WORKSPACE"
+rm -rf "$SCRIPT_DIR"
+
 echo "Done."

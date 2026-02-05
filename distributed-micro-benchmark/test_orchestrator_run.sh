@@ -51,7 +51,7 @@ sleep 90
 echo "--- 2. Running Orchestrator ---"
 python3 orchestrator.py \
     --benchmark-id "${BENCHMARK_ID}" \
-    --instance-group "${INSTANCE_GROUP}" \
+    --target "${INSTANCE_GROUP}" \
     --zone "${ZONE}" \
     --project "${PROJECT_ID}" \
     --artifacts-bucket "${BUCKET_NAME}" \

@@ -132,3 +132,33 @@ echo "Benchmark Complete!"
 echo "Benchmark ID: $BENCHMARK_ID"
 echo "Results: results/${BENCHMARK_ID}_report.txt"
 echo "=========================================="
+
+# 7. Upload to BigQuery (Optional)
+# Determines script location to allow running from anywhere
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+BQ_SCRIPT="$SCRIPT_DIR/helpers/upload_to_bq.py"
+RESULTS_DIR="results/${BENCHMARK_ID}"
+
+# Check if BQ script exists and results were generated
+if [ -f "$BQ_SCRIPT" ] && [ -d "$RESULTS_DIR" ]; then
+    echo ""
+    echo "=========================================="
+    echo "Uploading results to BigQuery..."
+    
+    # # Check if running in Kokoro (env var usually set in CI)
+    # IS_KOKORO_FLAG=""
+    # if [ "${KOKORO_BUILD_ID:-}" != "" ]; then
+    #     IS_KOKORO_FLAG="--is-kokoro"
+    # fi
+
+    # Execute upload
+    python3 "$BQ_SCRIPT" \
+        --results-dir "$RESULTS_DIR" \
+        --project-id "gcs-fuse-test-ml" \
+        $IS_KOKORO_FLAG
+else
+    echo "Skipping BigQuery upload (Script or Results not found)"
+fi
+
+echo ""
+echo "=========================================="
