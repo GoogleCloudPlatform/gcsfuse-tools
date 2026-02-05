@@ -7,8 +7,8 @@ BENCHMARK_ID="$1"
 ARTIFACTS_BUCKET="$2"
 
 if [ -z "$BENCHMARK_ID" ] || [ -z "$ARTIFACTS_BUCKET" ]; then
-    echo "Usage: $0 <benchmark_id> <artifacts_bucket>"
-    exit 1
+  echo "Usage: $0 <benchmark_id> <artifacts_bucket>"
+  exit 1
 fi
 
 VM_NAME=$(curl -H "Metadata-Flavor: Google" http://metadata.google.internal/computeMetadata/v1/instance/name)
@@ -129,11 +129,9 @@ gcloud storage cp "gs://${ARTIFACTS_BUCKET}/${BENCHMARK_ID}/jobfile.fio" jobfile
 gcloud storage cp "gs://${ARTIFACTS_BUCKET}/${BENCHMARK_ID}/config.json" config.json
 
 # 3. Parse Config
-MODE=$(jq -r '.mode // "single-config"' config.json)
 BUCKET=$(jq -r '.bucket' job.json)
 ITERATIONS=$(jq -r '.iterations' job.json)
 
-echo "Mode: $MODE"
 echo "Test bucket: $BUCKET"
 echo "Iterations: $ITERATIONS"
 
@@ -152,54 +150,40 @@ EOF
 gcloud storage cp manifest.json "${RESULT_BASE}/manifest.json"
 
 # 5. Run Tests
+TEST_ENTRIES=$(jq -c '.test_entries[]' job.json)
 TESTS_COMPLETED=0
+TOTAL_TESTS=$(echo "$TEST_ENTRIES" | wc -l)
 
-if [ "$MODE" = "single-config" ]; then
-    GCSFUSE_COMMIT=$(jq -r '.gcsfuse_commit // "master"' config.json)
-    GCSFUSE_MOUNT_ARGS=$(jq -r '.gcsfuse_mount_args // ""' config.json)
-    
-    # Build Once
-    GCSFUSE_BIN=$(build_gcsfuse_for_commit "$GCSFUSE_COMMIT")
-    
-    TEST_IDS=$(jq -r '.test_ids | join(" ")' job.json)
-    for TEST_ID in $TEST_IDS; do
-        if execute_test "$TEST_ID" "$TEST_ID" "$GCSFUSE_BIN" "$GCSFUSE_MOUNT_ARGS" "single"; then
-            TESTS_COMPLETED=$((TESTS_COMPLETED + 1))
-        fi
-    done
-else
-    # Multi-config
-    TEST_ENTRIES=$(jq -c '.test_entries[]' job.json)
-    while IFS= read -r ENTRY; do
-        MATRIX_ID=$(echo "$ENTRY" | jq -r '.matrix_id')
-        TEST_ID=$(echo "$ENTRY" | jq -r '.test_id')
-        COMMIT=$(echo "$ENTRY" | jq -r '.commit')
-        MOUNT_ARGS=$(echo "$ENTRY" | jq -r '.mount_args')
-        CONFIG_ID=$(echo "$ENTRY" | jq -r '.config_id')
-        CONFIG_LABEL=$(echo "$ENTRY" | jq -r '.config_label')
-        
-        GCSFUSE_BIN=$(build_gcsfuse_for_commit "$COMMIT")
-        
-        if execute_test "$TEST_ID" "$MATRIX_ID" "$GCSFUSE_BIN" "$MOUNT_ARGS" "multi" "$MATRIX_ID" "$CONFIG_ID" "$CONFIG_LABEL" "$COMMIT"; then
-            TESTS_COMPLETED=$((TESTS_COMPLETED + 1))
-        fi
-    done < <(echo "$TEST_ENTRIES")
-fi
+while IFS= read -r ENTRY; do
+    MATRIX_ID=$(echo "$ENTRY" | jq -r '.matrix_id')
+    TEST_ID=$(echo "$ENTRY" | jq -r '.test_id')
+    COMMIT=$(echo "$ENTRY" | jq -r '.commit')
+    MOUNT_ARGS=$(echo "$ENTRY" | jq -r '.mount_args')
+    CONFIG_ID=$(echo "$ENTRY" | jq -r '.config_id')
+    CONFIG_LABEL=$(echo "$ENTRY" | jq -r '.config_label')
+
+    # Build (Cached inside build_gcsfuse_for_commit)
+    GCSFUSE_BIN=$(build_gcsfuse_for_commit "$COMMIT")
+
+    if execute_test "$TEST_ID" "$MATRIX_ID" "$GCSFUSE_BIN" "$MOUNT_ARGS" "$MATRIX_ID" "$CONFIG_ID" "$CONFIG_LABEL" "$COMMIT"; then
+        TESTS_COMPLETED=$((TESTS_COMPLETED + 1))
+    fi
+done < <(echo "$TEST_ENTRIES")
 
 # 6. Finalize
-if [ "$MODE" = "single-config" ]; then
-    TOTAL_TESTS=$(echo "$TEST_IDS" | wc -w)
-else
-    TOTAL_TESTS=$(echo "$TEST_ENTRIES" | wc -l)
-fi
-
-END_TIME=$(date -u +"%Y-%m-%dT%H:%M:%S%z")
 STATUS="completed"
 if [ $TESTS_COMPLETED -lt $TOTAL_TESTS ]; then STATUS="partial"; fi
 
+END_TIME=$(date -u +"%Y-%m-%dT%H:%M:%S%z")
 jq ".status = \"$STATUS\" | .end_time = \"$END_TIME\" | .total_tests = $TOTAL_TESTS | .completed_tests = $TESTS_COMPLETED" manifest.json > manifest.final.json
 mv manifest.final.json manifest.json
 gcloud storage cp manifest.json "${RESULT_BASE}/manifest.json"
 
+# Disable error trap before final cleanup
 trap - ERR EXIT
+
+# 7. Cleanup: Delete the remote workspace directory if the script succeeded
+echo "Cleaning up workspace: $WORKSPACE"
+cd /tmp
+rm -rf "$WORKSPACE"
 echo "Done."

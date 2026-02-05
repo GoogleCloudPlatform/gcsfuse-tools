@@ -2,8 +2,6 @@
 set -e
 
 # --- 0. Set Working Directory ---
-# This ensures the script runs from its own directory, making relative paths work
-# regardless of where the script is invoked from.
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 cd "$SCRIPT_DIR"
 

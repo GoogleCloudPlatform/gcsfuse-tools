@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Combined E2E Worker Test (Inspired by test-worker-local.sh)
+# Combined E2E Local Worker Test
 #
 
 set -e
@@ -14,12 +14,16 @@ ARTIFACTS_BUCKET="worker-test-${TIMESTAMP}"
 BENCHMARK_ID="e2e-manual-test-${TIMESTAMP}"
 VM_NAME=$(curl -s -H "Metadata-Flavor: Google" http://metadata.google.internal/computeMetadata/v1/instance/name || echo "cpranjal-vm-1")
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+RUN_DIR="$(dirname "$SCRIPT_DIR")/worker_test_configs/${BENCHMARK_ID}"
+mkdir -p "$RUN_DIR"
+cd "$RUN_DIR"
 
 echo "=========================================="
 echo "Starting E2E Worker Test"
 echo "=========================================="
 echo "Benchmark ID: $BENCHMARK_ID"
 echo "Artifacts Bucket: $ARTIFACTS_BUCKET"
+echo "Config folder: $RUN_DIR"
 echo ""
 
 # --- 1. Infrastructure Setup ---
@@ -29,14 +33,12 @@ gcloud storage buckets create "gs://${ARTIFACTS_BUCKET}" --project="${PROJECT_ID
 cleanup() {
     echo ""
     echo "=========================================="
-    echo "SUCCESS: Deleting bucket gs://${ARTIFACTS_BUCKET}"
+    echo "SUCCESS: Cleaning up gs://${ARTIFACTS_BUCKET}"
     echo "=========================================="
     gcloud storage rm --recursive "gs://${ARTIFACTS_BUCKET}"
-    rm -f test-cases.csv jobfile.fio config.json "${VM_NAME}.json"
 }
 
 # --- 2. Preparing Configuration Files ---
-# CSV Header must match runner.sh: io_type,threads,file_size,block_size,io_depth,nr_files
 cat <<EOF > test-cases.csv
 io_type,num_jobs,file_size,block_size,io_depth,nr_files
 read,1,10m,1m,1,1
@@ -61,19 +63,26 @@ EOF
 
 cat <<EOF > config.json
 {
-  "mode": "single-config",
   "iterations": 1,
-  "bucket": "${ARTIFACTS_BUCKET}",
-  "gcsfuse_commit": "master",
-  "gcsfuse_mount_args": "--implicit-dirs"
+  "bucket": "${ARTIFACTS_BUCKET}"
 }
 EOF
 
+# FIXED: Updated to use 'test_entries' to satisfy the jq requirement in worker.sh
 cat <<EOF > "${VM_NAME}.json"
 {
   "bucket": "${ARTIFACTS_BUCKET}",
   "iterations": 1,
-  "test_ids": [0]
+  "test_entries": [
+    {
+      "matrix_id": 0,
+      "test_id": 0,
+      "config_id": 0,
+      "config_label": "default",
+      "commit": "master",
+      "mount_args": "--implicit-dirs"
+    }
+  ]
 }
 EOF
 

@@ -93,15 +93,14 @@ execute_test() {
     local TEST_DIR_NAME=$2
     local GCSFUSE_BIN_PATH=$3
     local MOUNT_ARGS=$4
-    local MANIFEST_ENTRY_TYPE=$5
-    local MATRIX_ID=${6:-""}
-    local CONFIG_ID=${7:-""}
-    local CONFIG_LABEL=${8:-""}
-    local COMMIT=${9:-""}
+    local MATRIX_ID=${5:-""}
+    local CONFIG_ID=${6:-""}
+    local CONFIG_LABEL=${7:-""}
+    local COMMIT=${8:-""}
 
     if ! parse_test_params "$TEST_ID"; then return 1; fi
     
-    echo "Running Test $TEST_ID (BS=$BS, Threads=$THREADS)"
+    echo "Running Test Matrix Entry $MATRIX_ID (Test ID: $TEST_ID, BS=$BS, Threads=$THREADS)"
     
     TEST_DIR="test-${TEST_DIR_NAME}"
     mkdir -p "$TEST_DIR"
@@ -121,18 +120,13 @@ execute_test() {
     
     # Calculate Metrics
     read AVG_CPU MAX_CPU AVG_MEM_RSS MAX_MEM_RSS AVG_PAGE_CACHE MAX_PAGE_CACHE AVG_SYS_CPU MAX_SYS_CPU AVG_NET_RX MAX_NET_RX AVG_NET_TX MAX_NET_TX < <(calculate_metrics "$MONITOR_FILE")
-    
     echo "  Results: CPU=${AVG_CPU}% Mem=${AVG_MEM_RSS}MB NetRX=${AVG_NET_RX}MB/s"
-    gcloud storage cp -r "$TEST_DIR" "${RESULT_BASE}/"
+
+    TEST_PARAMS="{\"test_id\":\"$TEST_ID\",\"bs\":\"$BS\",\"file_size\":\"$FILE_SIZE\",\"io_depth\":\"$IO_DEPTH\",\"io_type\":\"$IO_TYPE\",\"threads\":\"$THREADS\",\"nrfiles\":\"$NRFILES\",\"config_id\":\"$CONFIG_ID\",\"config_label\":\"$CONFIG_LABEL\",\"commit\":\"$COMMIT\",\"mount_args\":\"$MOUNT_ARGS\",\"avg_cpu\":\"$AVG_CPU\",\"peak_cpu\":\"$MAX_CPU\",\"avg_mem_mb\":\"$AVG_MEM_RSS\",\"peak_mem_mb\":\"$MAX_MEM_RSS\",\"avg_page_cache_gb\":\"$AVG_PAGE_CACHE\",\"peak_page_cache_gb\":\"$MAX_PAGE_CACHE\",\"avg_sys_cpu\":\"$AVG_SYS_CPU\",\"peak_sys_cpu\":\"$MAX_SYS_CPU\",\"avg_net_rx_mbps\":\"$AVG_NET_RX\",\"peak_net_rx_mbps\":\"$MAX_NET_RX\",\"avg_net_tx_mbps\":\"$AVG_NET_TX\",\"peak_net_tx_mbps\":\"$MAX_NET_TX\"}"
     
-    # Update Manifest
-    if [ "$MANIFEST_ENTRY_TYPE" = "multi" ]; then
-        TEST_PARAMS="{\"test_id\":\"$TEST_ID\",\"bs\":\"$BS\",\"file_size\":\"$FILE_SIZE\",\"io_depth\":\"$IO_DEPTH\",\"io_type\":\"$IO_TYPE\",\"threads\":\"$THREADS\",\"nrfiles\":\"$NRFILES\",\"config_id\":\"$CONFIG_ID\",\"config_label\":\"$CONFIG_LABEL\",\"commit\":\"$COMMIT\",\"mount_args\":\"$MOUNT_ARGS\",\"avg_cpu\":\"$AVG_CPU\",\"peak_cpu\":\"$MAX_CPU\",\"avg_mem_mb\":\"$AVG_MEM_RSS\",\"peak_mem_mb\":\"$MAX_MEM_RSS\",\"avg_page_cache_gb\":\"$AVG_PAGE_CACHE\",\"peak_page_cache_gb\":\"$MAX_PAGE_CACHE\",\"avg_sys_cpu\":\"$AVG_SYS_CPU\",\"peak_sys_cpu\":\"$MAX_SYS_CPU\",\"avg_net_rx_mbps\":\"$AVG_NET_RX\",\"peak_net_rx_mbps\":\"$MAX_NET_RX\",\"avg_net_tx_mbps\":\"$AVG_NET_TX\",\"peak_net_tx_mbps\":\"$MAX_NET_TX\"}"
-        jq ".tests += [{\"matrix_id\":$MATRIX_ID,\"test_id\":$TEST_ID,\"config_id\":$CONFIG_ID,\"status\":\"success\",\"params\":$TEST_PARAMS}]" manifest.json > manifest_tmp.json
-    else
-        TEST_PARAMS="{\"bs\":\"$BS\",\"file_size\":\"$FILE_SIZE\",\"io_depth\":\"$IO_DEPTH\",\"io_type\":\"$IO_TYPE\",\"threads\":\"$THREADS\",\"nrfiles\":\"$NRFILES\",\"avg_cpu\":\"$AVG_CPU\",\"peak_cpu\":\"$MAX_CPU\",\"avg_mem_mb\":\"$AVG_MEM_RSS\",\"peak_mem_mb\":\"$MAX_MEM_RSS\",\"avg_page_cache_gb\":\"$AVG_PAGE_CACHE\",\"peak_page_cache_gb\":\"$MAX_PAGE_CACHE\",\"avg_sys_cpu\":\"$AVG_SYS_CPU\",\"peak_sys_cpu\":\"$MAX_SYS_CPU\",\"avg_net_rx_mbps\":\"$AVG_NET_RX\",\"peak_net_rx_mbps\":\"$MAX_NET_RX\",\"avg_net_tx_mbps\":\"$AVG_NET_TX\",\"peak_net_tx_mbps\":\"$MAX_NET_TX\"}"
-        jq ".tests += [{\"test_id\":$TEST_ID,\"status\":\"success\",\"params\":$TEST_PARAMS}]" manifest.json > manifest_tmp.json
-    fi
+    jq ".tests += [{\"matrix_id\":$MATRIX_ID,\"test_id\":$TEST_ID,\"config_id\":$CONFIG_ID,\"status\":\"success\",\"params\":$TEST_PARAMS}]" manifest.json > manifest_tmp.json
     mv manifest_tmp.json manifest.json
+    
+    gcloud storage cp -r "$TEST_DIR" "${RESULT_BASE}/"
     return 0
 }

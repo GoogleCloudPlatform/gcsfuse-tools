@@ -1,7 +1,6 @@
 #!/bin/bash
 
 # Helper to calculate stats for a specific CSV column
-# Usage: get_col_stats <file> <col_num>
 # Returns: "AVG MAX"
 get_col_stats() {
     local file=$1
@@ -9,6 +8,7 @@ get_col_stats() {
     awk -F',' -v c="$col" 'NR>1 {sum+=$c; if($c>max) max=$c; count++} END {if(count>0) printf "%.2f %.2f", sum/count, max+0; else print "0 0"}' "$file"
 }
 
+# Aggregates monitoring data into a single line of AVG/MAX pairs for the manifest
 calculate_metrics() {
     local MONITOR_FILE=$1
     
@@ -18,10 +18,7 @@ calculate_metrics() {
     fi
     
     # Column mapping based on header:
-    # timestamp(1), cpu(2), mem_rss(3), mem_vsz(4), page_cache(5), 
-    # sys_cpu(6), net_rx(7), net_tx(8)
-    
-    # Using the helper function to reduce repetition
+    # timestamp(1), cpu(2), mem_rss(3), mem_vsz(4), page_cache(5), sys_cpu(6), net_rx(7), net_tx(8)
     read AVG_CPU MAX_CPU < <(get_col_stats "$MONITOR_FILE" 2)
     read AVG_MEM_RSS MAX_MEM_RSS < <(get_col_stats "$MONITOR_FILE" 3)
     read AVG_PAGE_CACHE MAX_PAGE_CACHE < <(get_col_stats "$MONITOR_FILE" 5)
@@ -32,6 +29,14 @@ calculate_metrics() {
     echo "$AVG_CPU" "$MAX_CPU" "$AVG_MEM_RSS" "$MAX_MEM_RSS" "$AVG_PAGE_CACHE" "$MAX_PAGE_CACHE" "$AVG_SYS_CPU" "$MAX_SYS_CPU" "$AVG_NET_RX" "$MAX_NET_RX" "$AVG_NET_TX" "$MAX_NET_TX"
 }
 
+# Starts the background monitoring loop for a specific GCSFuse process.
+
+# Arguments:
+#   GCSFUSE_PID: The process ID of the GCSFuse instance to sample.
+#   MONITOR_FILE: Path to the CSV file where sampled metrics are recorded.
+#   MONITOR_STOP_FLAG: A sentinel file path; the loop exits when this file is detected.
+#   MONITOR_PID_FILE: Stores the PID of the background subshell so the caller (runner.sh) 
+#                     can track and explicitly kill it during cleanup if the stop flag fails.
 start_monitoring() {
     local GCSFUSE_PID=$1
     local MONITOR_FILE=$2
@@ -124,15 +129,17 @@ start_monitoring() {
                 fi
                 PREV_SYS_IDLE=$SYS_IDLE; PREV_SYS_IOWAIT=$SYS_IOWAIT; PREV_SYS_ACTIVE=$SYS_ACTIVE
                 
+                # Write current samples to the monitor log file
                 echo "$TIMESTAMP,$CPU_PERCENT,$MEM_RSS_MB,$MEM_VSZ_MB,$PAGE_CACHE_GB,$SYSTEM_CPU,$NET_RX_MBPS,$NET_TX_MBPS" >> "$MONITOR_FILE"
             fi
             sleep 2
         done
     } &
-    
+    # Save the background process ID for lifecycle management
     echo $! > "$MONITOR_PID_FILE"
 }
 
+# Signals the background monitor to stop and cleans up the process
 stop_monitoring() {
     local MONITOR_PID=$1
     local MONITOR_STOP_FLAG=$2

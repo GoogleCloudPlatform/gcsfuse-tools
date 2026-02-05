@@ -25,7 +25,7 @@ install_dependencies() {
     sudo apt-get install -y -qq $MISSING_PACKAGES
   fi
 
-  # Install Go manually (Fixed for 1.25.0)
+  # Install Go manually
   if ! command -v go &> /dev/null || [[ "$(go version | awk '{print $3}' | sed 's/go//')" < "1.25" ]]; then
     echo " Installing/Updating Go to 1.25.0..."
     cd /tmp
@@ -34,7 +34,7 @@ install_dependencies() {
     sudo rm -rf /usr/local/go
     sudo tar -C /usr/local -xzf go1.25.0.linux-amd64.tar.gz
     
-    # CRITICAL: Prepend to PATH so it overrides system Go
+    # Prepend to PATH so it overrides system Go
     export PATH=/usr/local/go/bin:$PATH
     
     cd "$WORKSPACE"
