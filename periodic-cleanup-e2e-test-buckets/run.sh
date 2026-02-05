@@ -13,20 +13,40 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# ==============================================================================
+# Script: run.sh
+# Purpose: Automates the deployment of the GCS Bucket Cleanup Cloud Run Job.
+#
+# Actions:
+# 1. Checks prerequisites (gcloud CLI, active project).
+# 2. Enables required Google Cloud APIs.
+# 3. Creates/Configures the Service Account with necessary IAM roles.
+# 4. Builds the container image using Cloud Build.
+# 5. Creates/Updates the Cloud Run Job with environment variables.
+# 6. Creates/Updates the Cloud Scheduler trigger.
+#
+# Usage: ./run.sh [OPTIONS]
+# Options:
+#   --help    Show this help message.
+# ==============================================================================
+
 set -e
 
 # --- Configuration Constants ---
+# Project where the job and resources reside.
 readonly PROJECT_ID="gcs-fuse-test-ml"
+# Region for Cloud Run and Scheduler.
 readonly REGION="us-central1"
+# App name used for image repo, job name, and schedule name.
 readonly APP_NAME="gcsfuse-e2e-buckets-cleanup"
 readonly IMAGE_NAME="gcr.io/${PROJECT_ID}/${APP_NAME}"
 readonly JOB_NAME="${APP_NAME}-job"
 readonly SCHEDULE_NAME="${APP_NAME}-schedule"
-# Run everyday at 2 AM
+# Cron schedule: Run everyday at 2 AM
 readonly CRON_SCHEDULE="0 2 * * *" 
 
 # User Configuration
-# Defaults to current system user if not set
+# Defaults to current system user if not set. Used for unique Service Account naming.
 readonly USER_PREFIX="${USER:-$(whoami)}"
 
 # Service Accounts
@@ -42,15 +62,29 @@ readonly SA_EMAIL="${SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
 readonly JOB_SERVICE_ACCOUNT="$SA_EMAIL"
 readonly SCHEDULER_SERVICE_ACCOUNT="$SA_EMAIL"
 
-# --- Logging Helper ---
+# --- Helper Functions ---
+
 log() {
     echo "[$(date +'%Y-%m-%dT%H:%M:%S%z')] $*"
 }
 
-# --- Error Handling ---
 error_exit() {
     log "ERROR: $1"
     exit 1
+}
+
+usage() {
+    echo "Usage: $0 [OPTIONS]"
+    echo ""
+    echo "Deploys the Periodic GCS Bucket Cleanup Job to Cloud Run."
+    echo ""
+    echo "Options:"
+    echo "  --help    Show this help message."
+    echo ""
+    echo "Environment Variables (Optional overrides):"
+    echo "  JOB_SERVICE_ACCOUNT        Service Account email for the Job."
+    echo "  SCHEDULER_SERVICE_ACCOUNT  Service Account email for the Scheduler."
+    exit 0
 }
 
 # --- Prerequisites Check ---
@@ -64,11 +98,9 @@ check_prerequisites() {
 setup_service_account() {
     log "Checking Service Account: $SA_EMAIL"
     
+    # Check if SA exists
     if ! gcloud iam service-accounts describe "$SA_EMAIL" --project "$PROJECT_ID" >/dev/null 2>&1; then
         log "Service Account does not exist. Creating..."
-        # SA ID length limit is 30. We might need to truncate if USER_PREFIX is long.
-        # But 'gcsfuse-e2e-cleanup' is 19 chars. user prefix can only be ~10 chars.
-        # We'll try to create it.
         gcloud iam service-accounts create "$SA_NAME" \
             --project "$PROJECT_ID" \
             --display-name "GCSFuse E2E Bucket Cleanup SA for $USER_PREFIX" || error_exit "Failed to create Service Account."
@@ -85,8 +117,6 @@ setup_service_account() {
         --quiet >/dev/null || error_exit "Failed to grant Storage Admin role."
 
     # 2. Grant Cloud Run Invoker to the SA (so the scheduler can invoke the job)
-    # We bind this at the project level for simplicity, or we could bind it to the specific job later.
-    # Binding at project level ensures it works immediately.
     gcloud projects add-iam-policy-binding "$PROJECT_ID" \
         --member="serviceAccount:${SA_EMAIL}" \
         --role="roles/run.invoker" \
@@ -115,6 +145,7 @@ build_image() {
 deploy_cloud_run_job() {
     log "Deploying Cloud Run Job: $JOB_NAME"
     
+    # Check if job exists to update or create
     if gcloud run jobs describe "$JOB_NAME" --project "$PROJECT_ID" --region "$REGION" >/dev/null 2>&1; then
         log "Job exists. Updating..."
         gcloud run jobs update "$JOB_NAME" \
@@ -163,6 +194,18 @@ deploy_scheduler() {
 }
 
 main() {
+    # Parse arguments
+    for arg in "$@"; do
+        case $arg in
+            --help)
+                usage
+                ;;
+            *)
+                # Ignore other args or fail
+                ;;
+        esac
+    done
+
     log "Starting deployment for $APP_NAME..."
     check_prerequisites
     enable_apis
@@ -178,4 +221,4 @@ main() {
     log "Monitor the job at: https://console.cloud.google.com/run/jobs/details/${REGION}/${JOB_NAME}/executions?project=${PROJECT_ID}"
 }
 
-main
+main "$@"
