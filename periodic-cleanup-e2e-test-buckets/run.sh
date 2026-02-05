@@ -143,25 +143,22 @@ build_image() {
 deploy_cloud_run_job() {
     log "Deploying Cloud Run Job: $JOB_NAME"
     
+    local common_args=(
+        --project "$PROJECT_ID"
+        --image "$IMAGE_NAME"
+        --region "$REGION"
+        --service-account "$JOB_SERVICE_ACCOUNT"
+        --set-env-vars PROJECT_ID="$PROJECT_ID",RETENTION_DAYS=10,DRY_RUN=False,QUIET=True
+        --task-timeout=3600s
+    )
+
     # Check if job exists to update or create
     if gcloud run jobs describe "$JOB_NAME" --project "$PROJECT_ID" --region "$REGION" >/dev/null 2>&1; then
         log "Job exists. Updating..."
-        gcloud run jobs update "$JOB_NAME" \
-            --project "$PROJECT_ID" \
-            --image "$IMAGE_NAME" \
-            --region "$REGION" \
-            --service-account "$JOB_SERVICE_ACCOUNT" \
-            --set-env-vars PROJECT_ID="$PROJECT_ID",RETENTION_DAYS=10,DRY_RUN=False,QUIET=True \
-            --task-timeout=3600s || error_exit "Failed to update Cloud Run Job."
+        gcloud run jobs update "$JOB_NAME" "${common_args[@]}" || error_exit "Failed to update Cloud Run Job."
     else
         log "Job does not exist. Creating..."
-        gcloud run jobs create "$JOB_NAME" \
-            --project "$PROJECT_ID" \
-            --image "$IMAGE_NAME" \
-            --region "$REGION" \
-            --service-account "$JOB_SERVICE_ACCOUNT" \
-            --set-env-vars PROJECT_ID="$PROJECT_ID",RETENTION_DAYS=10,DRY_RUN=False,QUIET=True \
-            --task-timeout=3600s || error_exit "Failed to create Cloud Run Job."
+        gcloud run jobs create "$JOB_NAME" "${common_args[@]}" || error_exit "Failed to create Cloud Run Job."
     fi
 }
 
@@ -170,24 +167,21 @@ deploy_scheduler() {
     
     local job_uri="https://${REGION}-run.googleapis.com/apis/run.googleapis.com/v1/namespaces/${PROJECT_ID}/jobs/${JOB_NAME}:run"
     
+    local common_args=(
+        --project "$PROJECT_ID"
+        --location "$REGION"
+        --schedule "$CRON_SCHEDULE"
+        --uri "$job_uri"
+        --http-method POST
+        --oauth-service-account-email "$SCHEDULER_SERVICE_ACCOUNT"
+    )
+
     if gcloud scheduler jobs describe "$SCHEDULE_NAME" --project "$PROJECT_ID" --location "$REGION" >/dev/null 2>&1; then
         log "Schedule exists. Updating..."
-        gcloud scheduler jobs update http "$SCHEDULE_NAME" \
-            --project "$PROJECT_ID" \
-            --location "$REGION" \
-            --schedule "$CRON_SCHEDULE" \
-            --uri "$job_uri" \
-            --http-method POST \
-            --oauth-service-account-email "$SCHEDULER_SERVICE_ACCOUNT" || error_exit "Failed to update Schedule."
+        gcloud scheduler jobs update http "$SCHEDULE_NAME" "${common_args[@]}" || error_exit "Failed to update Schedule."
     else
         log "Schedule does not exist. Creating..."
-        gcloud scheduler jobs create http "$SCHEDULE_NAME" \
-            --project "$PROJECT_ID" \
-            --location "$REGION" \
-            --schedule "$CRON_SCHEDULE" \
-            --uri "$job_uri" \
-            --http-method POST \
-            --oauth-service-account-email "$SCHEDULER_SERVICE_ACCOUNT" || error_exit "Failed to create Schedule."
+        gcloud scheduler jobs create http "$SCHEDULE_NAME" "${common_args[@]}" || error_exit "Failed to create Schedule."
     fi
 }
 
