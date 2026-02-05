@@ -43,18 +43,12 @@ readonly IMAGE_NAME="gcr.io/${PROJECT_ID}/${APP_NAME}"
 readonly JOB_NAME="${APP_NAME}-job"
 readonly SCHEDULE_NAME="${APP_NAME}-schedule"
 # Cron schedule: Run everyday at 2 AM
-readonly CRON_SCHEDULE="0 2 * * *" 
-
-# User Configuration
-# Defaults to current system user if not set. Used for unique Service Account naming.
-readonly USER_PREFIX="${USER:-$(whoami)}"
+readonly CRON_SCHEDULE="0 2 * * *"
 
 # Service Accounts
-# Naming convention: {USER}-e2e-cleanup-sa@{PROJECT_ID}.iam.gserviceaccount.com
-# Account ID limit is 30 chars. Suffix "-e2e-cleanup-sa" is 15 chars.
-# So USER_PREFIX must be <= 15 chars. We truncate to 10 for safety.
-readonly SHORT_USER="${USER_PREFIX:0:10}"
-readonly SA_NAME="${SHORT_USER}-e2e-cleanup-sa"
+# We use a fixed Service Account to ensure consistent job identity across deployments.
+# Naming convention: gargnitin-e2e-cleanup-sa@{PROJECT_ID}.iam.gserviceaccount.com
+readonly SA_NAME="gargnitin-e2e-cleanup-sa"
 readonly SA_EMAIL="${SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
 
 # Using the same SA for both Job and Scheduler for simplicity in this script,
@@ -80,6 +74,10 @@ usage() {
     echo ""
     echo "Options:"
     echo "  --help    Show this help message."
+    echo ""
+    echo "Service Account:"
+    echo "  The script defaults to using 'gargnitin-e2e-cleanup-sa' to ensure consistent"
+    echo "  job identity across deployments. You can override this by setting environment variables."
     echo ""
     echo "Environment Variables (Optional overrides):"
     echo "  JOB_SERVICE_ACCOUNT        Service Account email for the Job."
