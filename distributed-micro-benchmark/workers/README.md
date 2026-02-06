@@ -9,7 +9,7 @@ The system consists of two primary roles acting in tandem:
 | Component | Description |
 | :--- | :--- |
 | **Orchestrator** | Manages the lifecycle of the benchmark. It distributes configurations via GCS, triggers workers, and aggregates final results. |
-| **Worker** | The execution engine residing on the Target VM. It prepares the environment, builds GCSFuse, executes FIO jobs, and monitors system health. |
+| **Worker** | The execution engine residing on the Target VMs. It prepares the environment, builds GCSFuse, executes FIO jobs, and monitors system health. |
 
 ## Architecture
 
@@ -30,19 +30,6 @@ results/
     ├── run-config.json      # Metadata: Run parameters and settings
     ├── combined_report.csv  # Output: Aggregated results
     ├── config1_report.csv   # Output: Per-config reports (if --separate-configs)
-```
-
-## Bucket Structure
-
-Results are stored in the artifacts bucket under the specific benchmark ID and VM name:
-
-```text
-gs://<BUCKET>/<BENCHMARK_ID>/results/<VM_NAME>/
-├── manifest.json        # Summary of all tests, status, and high-level metrics
-└── test-<TEST_ID>/      # Directory for individual test data
-    ├── fio_output_*.json    # Raw JSON output from FIO
-    ├── monitor.log          # Time-series CSV of resource usage
-    └── gcsfuse_mount_*.log  # Debug logs from GCSFuse
 ```
 
 ### Benefits
@@ -116,7 +103,7 @@ The script passes all parameters as CLI arguments to the orchestrator.
 ```bash
 python3 orchestrator.py \
     --benchmark-id "benchmark-123" \
-    --target "my-instance-group-or-vm" \
+    --executor-vm "my-instance-group-or-vm" \
     --zone "us-west4-a" \
     --project "my-project" \
     --artifacts-bucket "artifacts" \

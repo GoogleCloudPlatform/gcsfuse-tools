@@ -44,14 +44,14 @@ echo "--- 2. Running Orchestrator ---"
 # Targeting a single VM name
 python3 orchestrator.py \
   --benchmark-id "${BENCHMARK_ID}" \
-  --target "${VM_NAME}" \
+  --executor-vm "${VM_NAME}" \
   --zone "${ZONE}" \
   --project "${PROJECT_ID}" \
   --artifacts-bucket "${BUCKET_NAME}" \
   --test-csv "test_suites/test_orchestrator/test_cases_sample.csv" \
   --configs-csv "test_suites/test_orchestrator/mount_configs.csv" \
   --fio-job-file "test_suites/test_orchestrator/fio_job_default.fio" \
-  --bucket "${BUCKET_NAME}" \
+  --test-data-bucket "${BUCKET_NAME}" \
   --iterations 1 \
   --poll-interval 20 \
   --timeout 600

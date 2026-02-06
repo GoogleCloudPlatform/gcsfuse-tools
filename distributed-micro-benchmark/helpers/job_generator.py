@@ -62,7 +62,6 @@ def generate_test_matrix(test_cases, configs):
 
 
 def distribute_tests(test_cases, vms):
-    # TODO: Add is_matrix case!
     """Distribute test cases evenly across VMs"""
     num_vms = len(vms)
     if not num_vms:
