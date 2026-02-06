@@ -43,7 +43,7 @@ readonly IMAGE_NAME="gcr.io/${PROJECT_ID}/${APP_NAME}"
 readonly JOB_NAME="${APP_NAME}-job"
 readonly SCHEDULE_NAME="${APP_NAME}-schedule"
 # Cron schedule: Run everyday at 2 AM
-readonly CRON_SCHEDULE="0 2 * * *"
+readonly CRON_SCHEDULE="0 2 * * *" 
 
 # Service Accounts
 # We use a fixed Service Account to ensure consistent job identity across deployments.
@@ -101,7 +101,7 @@ setup_service_account() {
         log "Service Account does not exist. Creating..."
         gcloud iam service-accounts create "$SA_NAME" \
             --project "$PROJECT_ID" \
-            --display-name "GCSFuse E2E Bucket Cleanup SA for $USER_PREFIX" || error_exit "Failed to create Service Account."
+            --display-name "GCSFuse E2E Bucket Cleanup Service Account" || error_exit "Failed to create Service Account."
     else
         log "Service Account exists."
     fi
