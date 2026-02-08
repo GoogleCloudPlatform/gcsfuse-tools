@@ -42,33 +42,24 @@ def _format_metric(value, default="-"):
     return f"{value:.2f}" if value > 0 else default
 
 
-def generate_report(metrics, output_file, mode="single-config", separate_configs=False):
-    """Generate benchmark report in CSV format and print as table"""
+def generate_report(metrics, output_file, separate_configs=False):
+    """Generate report using a unified format for matrix runs"""
     os.makedirs(os.path.dirname(output_file) if os.path.dirname(output_file) else '.', exist_ok=True)
-    
-    if mode == "multi-config" and separate_configs:
-        # Generate separate reports per config
+    if separate_configs:
         generate_separate_reports(metrics, output_file)
     else:
-        # Generate combined report
-        generate_combined_report(metrics, output_file, mode)
+        generate_combined_report(metrics, output_file)
 
 
-def generate_combined_report(metrics, output_file, mode):
+def generate_combined_report(metrics, output_file):
     """Generate a combined report with optional config columns"""
-    
-    # Determine headers based on mode
-    base_headers = ["IOType|Jobs|FSize|BS|IOD|NrFiles", "Read BW (MB/s)", "Write BW (MB/s)", 
+
+    headers = ["Matrix ID", "Test ID", "Config", "Commit","IOType|Jobs|FSize|BS|IOD|NrFiles", "Read BW (MB/s)", "Write BW (MB/s)", 
                     "Read Min (ms)", "Read Max (ms)", "Read Avg (ms)", "Read StdDev (ms)", 
                     "Read P50 (ms)", "Read P90 (ms)", "Read P99 (ms)", 
                     "Avg CPU (%)", "Peak CPU (%)", "Avg Mem (MB)", "Peak Mem (MB)", 
                     "Avg PgCache (GB)", "Peak PgCache (GB)", "Avg Sys CPU (%)", "Peak Sys CPU (%)", 
                     "Avg Net RX (MB/s)", "Peak Net RX (MB/s)", "Avg Net TX (MB/s)", "Peak Net TX (MB/s)", "Iter"]
-    
-    if mode == "multi-config":
-        headers = ["Matrix ID", "Test ID", "Config", "Commit"] + base_headers
-    else:
-        headers = ["Test ID"] + base_headers
     
     rows = []
     for test_key in sorted(metrics.keys()):
@@ -77,7 +68,11 @@ def generate_combined_report(metrics, output_file, mode):
         resources = _extract_resource_metrics(params)
         
         # Build metric values
-        metric_values = [
+        row = [
+            m.get('matrix_id', test_key),
+            m.get('test_id') or params.get('test_id', '-'),
+            params.get('config_label', '-'),
+            params.get('commit', '-'),
             format_params(params),
             _format_metric(m['read_bw_mbps']),
             _format_metric(m['write_bw_mbps']),
@@ -96,15 +91,7 @@ def generate_combined_report(metrics, output_file, mode):
             resources['avg_net_tx'], resources['peak_net_tx'],
             m['iterations']
         ]
-        
-        if mode == "multi-config":
-            config_label = params.get('config_label', '-')
-            commit = params.get('commit', '-')
-            matrix_id = m.get('matrix_id', test_key)
-            test_id = m.get('test_id') or params.get('test_id', '-')
-            rows.append([matrix_id, test_id, config_label, commit] + metric_values)
-        else:
-            rows.append([test_key] + metric_values)
+        rows.append(row)
     
     # Write to CSV file
     with open(output_file, 'w', newline='') as f:

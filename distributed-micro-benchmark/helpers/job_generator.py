@@ -62,7 +62,6 @@ def generate_test_matrix(test_cases, configs):
 
 
 def distribute_tests(test_cases, vms):
-    # TODO: Add is_matrix case!
     """Distribute test cases evenly across VMs"""
     num_vms = len(vms)
     if not num_vms:
@@ -84,11 +83,11 @@ def distribute_tests(test_cases, vms):
     return distribution
 
 
-def create_job_spec(vm_name, benchmark_id, test_entries, bucket, artifacts_bucket, iterations, mode="single-config"):
+def create_job_spec(vm_name, benchmark_id, test_entries, bucket, artifacts_bucket, iterations):
     """Create job specification for a VM"""
     total_tests = len(test_entries)
     
-    job_spec = {
+    return {
         "vm_name": vm_name,
         "benchmark_id": benchmark_id,
         "bucket": bucket,
@@ -96,11 +95,5 @@ def create_job_spec(vm_name, benchmark_id, test_entries, bucket, artifacts_bucke
         "iterations": iterations,
         "total_tests": total_tests,
         "total_runs": total_tests * iterations,
+        "test_entries": test_entries
     }
-
-    if mode == "single-config":
-      job_spec['test_ids'] = [entry['test_id'] for entry in test_entries]
-    else:
-      job_spec['test_entries'] = test_entries
-    
-    return job_spec

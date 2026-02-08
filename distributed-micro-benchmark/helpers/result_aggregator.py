@@ -17,7 +17,6 @@ Aggregates and normalizes distributed FIO benchmark results from GCS.
 
 - Downloads results from gs://<artifacts_bucket>/<benchmark_id>/results/<vm>/ for each VM.
 - Parses the `manifest.json` for each VM to identify successful test executions.
-- Resolves test keys based on mode (using `matrix_id` for multi-config or `test_id` for single).
 - Parses and normalizes raw FIO JSON output to extract key performance metrics.
 - Computes critical latency statistics including min, max, mean, stddev, and percentiles (p50/p90/p99).
 - Averages performance metrics across multiple iterations to reduce variance.
@@ -71,7 +70,7 @@ def _extract_latency_metrics(job):
     return lat_metrics
 
 
-def aggregate_results(benchmark_id, artifacts_bucket, vms, mode="single-config"):
+def aggregate_results(benchmark_id, artifacts_bucket, vms):
     """Aggregate results from all VMs.
     
     Downloads results from gs://<artifacts_bucket>/<benchmark_id>/results/<vm>/ for each VM.
@@ -79,8 +78,7 @@ def aggregate_results(benchmark_id, artifacts_bucket, vms, mode="single-config")
     - manifest.json: List of tests with status and metadata
     - test-<id>/: Directory per test with FIO JSON outputs and resource metrics
     
-    In multi-config mode, test_key is matrix_id (unique across config×test combinations).
-    In single-config mode, test_key is test_id (can be same across VMs if distributed).
+    test_key is matrix_id (unique across config×test combinations).
     
     Returns dict mapping test_key -> aggregated metrics (bandwidth, CPU, memory, etc).
     """
@@ -96,7 +94,6 @@ def aggregate_results(benchmark_id, artifacts_bucket, vms, mode="single-config")
             os.makedirs(local_vm_dir, exist_ok=True)
             
             try:
-                # Download with wildcard to get contents
                 gcloud_utils.gcloud_storage_cp(f"{vm_path}/*", local_vm_dir, recursive=True, retries=1, check=True)
             except Exception as e:
                 print(f"Warning: Could not download results for {vm}: {e}")
@@ -119,20 +116,15 @@ def aggregate_results(benchmark_id, artifacts_bucket, vms, mode="single-config")
                 if test_info['status'] != 'success':
                     continue
                 
-                # In multi-config mode, use matrix_id as key; in single-config, use test_id
-                if mode == "multi-config":
-                    test_key = test_info.get('matrix_id', test_info['test_id'])
-                    test_dir_name = f"test-{test_key}"
-                else:
-                    test_key = test_info['test_id']
-                    test_dir_name = f"test-{test_key}"
-                
-                # Parse FIO results for this test
+                # Always resolve by matrix_id
+                test_key = test_info.get('matrix_id')
+                test_dir_name = f"test-{test_key}"
                 test_dir = os.path.join(local_vm_dir, test_dir_name)
+                
                 if os.path.exists(test_dir):
-                    metrics = parse_test_results(test_dir, test_info, mode)
+                    metrics = parse_test_results(test_dir, test_info)
                     all_metrics[test_key] = metrics
-                    successful_vms += 1
+            successful_vms += 1
     
     # Print summary
     if failed_vms:
@@ -141,8 +133,7 @@ def aggregate_results(benchmark_id, artifacts_bucket, vms, mode="single-config")
     
     return all_metrics
 
-
-def parse_test_results(test_dir, test_info, mode="single-config"):
+def parse_test_results(test_dir, test_info):
     """Parse FIO results from a test directory"""
     fio_files = glob.glob(os.path.join(test_dir, "fio_output_*.json"))
     
@@ -179,12 +170,7 @@ def parse_test_results(test_dir, test_info, mode="single-config"):
         'read_lat_p50_ms': _avg(lat_lists['p50']),
         'read_lat_p90_ms': _avg(lat_lists['p90']),
         'read_lat_p99_ms': _avg(lat_lists['p99']),
-        'iterations': len(fio_files)
+        'iterations': len(fio_files),
+        'matrix_id': test_info.get('matrix_id')
     }
-    
-    # In multi-config mode, include matrix_id and test_id
-    if mode == "multi-config":
-        result['matrix_id'] = test_info.get('matrix_id', test_info['test_id'])
-        result['test_id'] = test_info.get('test_id')
-    
     return result

@@ -22,12 +22,46 @@ from datetime import datetime, timedelta
 from . import gcs, gcloud_utils
 
 
-def get_running_vms(instance_group, zone, project):
-    """Get list of RUNNING VMs from instance group"""
+def resolve_executor_vms(executor_vm, zone, project):
+    """
+    Resolves the executor_vm into a list of running VM names.
+    The executor_vm can be a single VM name or a Managed Instance Group name.
+    Assumes machines are up and running, otherwise returns failure.
+    """
+    # 1. Try to describe as a single instance
     try:
-        return gcloud_utils.gcloud_compute_instance_group_list(instance_group, zone, project, filter_status='RUNNING')
-    except Exception as e:
-        raise Exception(f"Failed to list VMs in instance group '{instance_group}': {e}")
+        # We use describe to check if the name exists as a VM and get its status
+        cmd = [
+            'gcloud', 'compute', 'instances', 'describe', executor_vm,
+            f'--zone={zone}', f'--project={project}',
+            '--format=value(status)'
+        ]
+        result = gcloud_utils.run_gcloud_command(cmd, check=True, capture_output=True)
+        status = result.stdout.strip()
+        if status == 'RUNNING':
+            print(f"Executor VM identified as a single running VM: {executor_vm}")
+            return [executor_vm]
+        else:
+            print(f"Error: Executor VM '{executor_vm}' exists but is in status '{status}'. Expected 'RUNNING'.")
+            return []
+    except Exception:
+        # Not a single VM or describe failed, proceed to check if it's a MIG
+        pass
+
+    # 2. Try to list instances from a Managed Instance Group
+    try:
+        vms = gcloud_utils.gcloud_compute_instance_group_list(executor_vm, zone, project, filter_status='RUNNING')
+        if vms:
+            print(f"Executor VM identified as a MIG '{executor_vm}' with {len(vms)} running VMs.")
+            return vms
+        else:
+            print(f"Warning: No running VMs found in executor_vm instance group '{executor_vm}'.")
+            return []
+    except Exception:
+        # Neither a VM nor a MIG
+        pass
+
+    raise ValueError(f"Executor VM '{executor_vm}' is neither a running VM nor a valid Managed Instance Group in zone '{zone}'")
 
 
 def run_worker_script(vm_name, zone, project, script_path, benchmark_id, artifacts_bucket):
