@@ -44,7 +44,7 @@ def run_gcloud_command(cmd, retries=1, retry_delay=2, check=False, capture_outpu
         
         if attempt < retries - 1:
             time.sleep(retry_delay)
-    
+
     if check:
         raise subprocess.CalledProcessError(result.returncode, cmd, output=result.stdout, stderr=result.stderr)
     
@@ -78,13 +78,13 @@ def gcloud_compute_ssh(vm_name, zone, project, command=None, internal_ip=True, c
     return run_gcloud_command(cmd, retries=1, check=check, **kwargs)
 
 
-def gcloud_compute_scp(source, dest, zone, project, internal_ip=True, check=True):
+def gcloud_compute_scp(source, dest, zone, project, internal_ip=True, check=True, retries=5, retry_delay=15):
     """Copy files to/from a compute instance"""
     cmd = ['gcloud', 'compute', 'scp', source, dest, f'--zone={zone}', f'--project={project}']
     if internal_ip:
         cmd.append('--internal-ip')
     
-    return run_gcloud_command(cmd, retries=1, check=check)
+    return run_gcloud_command(cmd, retries=retries, retry_delay=retry_delay, check=check)
 
 
 def gcloud_compute_instance_group_list(instance_group, zone, project, filter_status='RUNNING'):
