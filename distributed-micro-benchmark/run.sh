@@ -5,7 +5,9 @@
 # Usage: run.sh [fio_job_file] [test_csv] [config_csv]
 
 set -e
-
+sudo apt-get update
+echo "Installing git"
+sudo apt-get install git
 # --- Step 1. Python Environment Setup ---
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 
@@ -13,6 +15,7 @@ cd "$SCRIPT_DIR"
 VENV_DIR="${SCRIPT_DIR}/venv"
 REQUIREMENTS_FILE="${SCRIPT_DIR}/requirements.txt"
 
+sudo apt install python3-venv -y
 python3 -m venv "$VENV_DIR"
 source "$VENV_DIR/bin/activate"
 # Install dependencies if requirements.txt exists
@@ -26,23 +29,32 @@ fi
 
 # Step 2. Configurations
 BENCHMARK_ID="benchmark-$(date +%s)"
-REGIONAL_TEST_DATA_BUCKET="kokoro-regional-test-data-bucket"
-ARTIFACTS_BUCKET="kokoro-perf-artifacts-bucket"
-PROJECT="gcs-fuse-test-ml"
+REGIONAL_TEST_DATA_BUCKET="kokoro-regional-test-data-bucket-1"
+ARTIFACTS_BUCKET="kokoro-perf-artifacts-bucket-1"
+PROJECT="gcs-fuse-test"
 
-INSTANCE_TEMPLATE_NAME="kokoro-perf-instance-template"
-INSTANCE_GROUP_NAME="kokoro-perf-c4-standard-192-mig"
+INSTANCE_TEMPLATE_NAME="kokoro-perf-instance-template-1"
+INSTANCE_GROUP_NAME="kokoro-perf-c4-standard-192-mig-1"
 ZONE="us-central1-c"
 
 FIO_JOB_FILE="${SCRIPT_DIR}/test_suites/kokoro/kokoro_fio_job.fio"
 TEST_CSV="${SCRIPT_DIR}/test_suites/kokoro/kokoro_test_cases.csv"
 CONFIGS_CSV="${SCRIPT_DIR}/test_suites/kokoro/kokoro_mount_configs.csv"
 
-ITERATIONS=5
+ITERATIONS=2
 SEPARATE_CONFIGS=false # Set to true to generate separate CSV per config
 POLL_INTERVAL=30
 TIMEOUT=14400
-GCSFUSE_COMMIT="127861aa99ec09b6aa2a2fa5a9ee01e0d905d1fd" # trial
+GCSFUSE_COMMIT=$(git log --before='yesterday 23:59:59' --max-count=1 --pretty=%H) # default
+
+# Parse command line arguments
+while [[ "$#" -gt 0 ]]; do
+    case $1 in
+        --commit) GCSFUSE_COMMIT="$2"; shift ;;
+        *) ;; # Ignore other arguments or handle them as needed
+    esac
+    shift
+done
 
 echo "=========================================="
 echo "Distributed Benchmark Configuration"
@@ -72,15 +84,25 @@ echo "Uploading worker scripts to gs://${ARTIFACTS_BUCKET}/scripts/..."
 gcloud storage rm -r "gs://${ARTIFACTS_BUCKET}/scripts/" 2> /dev/null || true
 gcloud storage cp "${SCRIPT_DIR}"/workers/*.sh "gs://${ARTIFACTS_BUCKET}/scripts/"
 
-# --- STEP 4: Resize MIG to Start VMs ---
-echo "Resizing Instance Group ${INSTANCE_GROUP_NAME} to 3 instances..."
-gcloud compute instance-groups managed resize "${INSTANCE_GROUP_NAME}" \
-    --size=3 \
-    --zone="${ZONE}" \
-    --project="${PROJECT}"
+# # --- STEP 4: Resize MIG to Start VMs ---
+# echo "Resizing Instance Group ${INSTANCE_GROUP_NAME} to 3 instances..."
+# gcloud compute instance-groups managed resize "${INSTANCE_GROUP_NAME}" \
+#     --size=3 \
+#     --zone="${ZONE}" \
+#     --project="${PROJECT}"
 
-# Wait briefly for resize to register
-sleep 300
+# Wait for instances to be RUNNING
+# echo "Waiting for 3 instances to be RUNNING..."
+# for i in {1..30}; do
+#     gcloud compute instance-groups managed list-instances "${INSTANCE_GROUP_NAME}" --zone="${ZONE}" --project="${PROJECT}" --format="table(instance.basename(), currentAction, instanceStatus)"
+#     RUNNING_COUNT=$(gcloud compute instance-groups managed list-instances "${INSTANCE_GROUP_NAME}" --zone="${ZONE}" --project="${PROJECT}" --format="value(instanceStatus)" | grep -c "RUNNING" || true)
+#     if [ "$RUNNING_COUNT" -ge 3 ]; then
+#         echo "All 3 instances are RUNNING."
+#         break
+#     fi
+#     echo "Currently $RUNNING_COUNT/3 instances running. Waiting 10s..."
+#     sleep 10
+# done
 
 # --- STEP 5: Run Orchestrator ---
 mkdir -p results
@@ -137,11 +159,11 @@ else
  echo "Skipping BigQuery upload (Script '$BQ_SCRIPT' or Results dir '$RESULTS_DIR' not found)"
 fi
 
-# --- STEP 7: Cleanup (Resize back to 0) ---
-echo "Cleaning up: Resizing Instance Group to 0..."
-gcloud compute instance-groups managed resize "${INSTANCE_GROUP_NAME}" \
-    --size=0 \
-    --zone="${ZONE}" \
-    --project="${PROJECT}"
+# # --- STEP 7: Cleanup (Resize back to 0) ---
+# echo "Cleaning up: Resizing Instance Group to 0..."
+# gcloud compute instance-groups managed resize "${INSTANCE_GROUP_NAME}" \
+#     --size=0 \
+#     --zone="${ZONE}" \
+#     --project="${PROJECT}"
 
 echo "Benchmark Complete!"

@@ -78,7 +78,7 @@ def gcloud_compute_ssh(vm_name, zone, project, command=None, internal_ip=True, c
     return run_gcloud_command(cmd, retries=1, check=check, **kwargs)
 
 
-def gcloud_compute_scp(source, dest, zone, project, internal_ip=True, check=True, retries=5, retry_delay=15):
+def gcloud_compute_scp(source, dest, zone, project, internal_ip=True, check=True, retries=15, retry_delay=20):
     """Copy files to/from a compute instance"""
     cmd = ['gcloud', 'compute', 'scp', source, dest, f'--zone={zone}', f'--project={project}']
     if internal_ip:
