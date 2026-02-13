@@ -81,7 +81,7 @@ def run_worker_script(vm_name, zone, project, script_path, benchmark_id, artifac
             try:
                 gcloud_utils.gcloud_compute_scp(
                     local_worker_file,
-                    f'{vm_name}:/tmp/{worker}',
+                    f'{vm_name}:~/{worker}',
                     zone=zone,
                     project=project,
                     internal_ip=True,

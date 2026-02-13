@@ -68,41 +68,32 @@ def gcloud_storage_ls(pattern, check=False):
     return run_gcloud_command(cmd, retries=1, check=check)
 
 
-def gcloud_compute_ssh(vm_name, zone, project, command=None, check=True, **kwargs):
-    """SSH to a compute instance using IAP tunneling"""
-    cmd = ['gcloud', 'compute', 'ssh', vm_name,
-           f'--zone={zone}',
-           f'--project={project}',
-           '--tunnel-through-iap',
-           '--quiet',  # Suppress interactive prompts
-           '--ssh-flag=-o StrictHostKeyChecking=no',
-           '--ssh-flag=-o UserKnownHostsFile=/dev/null']
+def gcloud_compute_ssh(vm_name, zone, project, command=None, internal_ip=True, check=True, retries=5, retry_delay=20, **kwargs):
+    """SSH to a compute instance"""
+    cmd = ['gcloud', 'compute', 'ssh', vm_name, f'--zone={zone}', f'--project={project}', '--quiet']
+    if internal_ip:
+        cmd.append('--internal-ip')
 
     if command:
         cmd.extend(['--command', command])
-
-    # Pass through any other kwargs to subprocess.run
-    return run_gcloud_command(cmd, retries=1, check=check, **kwargs)
-
-def gcloud_compute_scp(source, dest, zone, project, check=True, retries=3, retry_delay=20, recurse=False, **kwargs):
-    """Copy files to/from a compute instance using IAP tunneling"""
-    cmd = ['gcloud', 'compute', 'scp',
-           source, dest,
-           f'--zone={zone}',
-           f'--project={project}',
-           '--tunnel-through-iap',
-           '--quiet',  # Suppress interactive prompts
-           '--ssh-flag=-o StrictHostKeyChecking=no',
-           '--ssh-flag=-o UserKnownHostsFile=/dev/null',
-           '--scp-flag=-o StrictHostKeyChecking=no',
-           '--scp-flag=-o UserKnownHostsFile=/dev/null']
-
-    if recurse:
-        cmd.append('--recurse')
-
-    print(f"Constructed SCP command: {' '.join(shlex.quote(c) for c in cmd)}")
-    # Pass through any other kwargs to subprocess.run
     return run_gcloud_command(cmd, retries=retries, retry_delay=retry_delay, check=check, **kwargs)
+
+
+def gcloud_compute_scp(source, dest, zone, project, internal_ip=True, check=True, retries=5, retry_delay=20):
+    """Copy files to/from a compute instance"""
+    # Force use of home directory if destination is just a filename
+    if ":" in dest and not dest.endswith("/") and "/" not in dest.split(":")[1]:
+        vm, path = dest.split(":")
+        dest = f"{vm}:~/{path}"
+
+    cmd = ['gcloud', 'compute', 'scp', source, dest, 
+           f'--zone={zone}', f'--project={project}', '--quiet']
+    
+    if internal_ip:
+        cmd.append('--internal-ip')
+
+    return run_gcloud_command(cmd, retries=retries, retry_delay=retry_delay, check=check)
+
 
 def gcloud_compute_instance_group_list(instance_group, zone, project, filter_status='RUNNING'):
     """List VM names in a managed instance group"""

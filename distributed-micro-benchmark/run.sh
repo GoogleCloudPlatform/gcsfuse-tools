@@ -45,12 +45,12 @@ gcloud --version
 
 # Step 2. Configurations
 BENCHMARK_ID="benchmark-$(date +%s)"
-REGIONAL_TEST_DATA_BUCKET="kokoro-regional-test-data-bucket-1"
-ARTIFACTS_BUCKET="kokoro-perf-artifacts-bucket-1"
-PROJECT="gcs-fuse-test"
+REGIONAL_TEST_DATA_BUCKET="kokoro-regional-test-data-bucket"
+ARTIFACTS_BUCKET="kokoro-perf-artifacts-bucket"
+PROJECT="gcs-fuse-test-ml"
 
-INSTANCE_TEMPLATE_NAME="kokoro-perf-instance-template-1"
-INSTANCE_GROUP_NAME="kokoro-perf-c4-standard-192-mig-1"
+INSTANCE_TEMPLATE_NAME="kokoro-perf-instance-template"
+INSTANCE_GROUP_NAME="kokoro-perf-c4-standard-192-mig"
 ZONE="us-central1-c"
 
 FIO_JOB_FILE="${SCRIPT_DIR}/test_suites/kokoro/kokoro_fio_job.fio"
@@ -133,6 +133,33 @@ if ! gcloud compute instance-groups managed describe "$INSTANCE_GROUP_NAME" \
     # We don't exit here to let the orchestrator try, but it will likely fail.
 fi
 echo "==================================="
+
+# Sleep for 4 hours (14400 seconds) to allow debugging
+echo "Sleeping for 18 mins for debugging..."
+external_ip=$(curl -s -H "Metadata-Flavor: Google" http://metadata/computeMetadata/v1/instance/network-interfaces/0/access-configs/0/external-ip)
+echo "INSTANCE_EXTERNAL_IP=${external_ip}"
+
+# sleep 1000
+
+echo "--- FIXING SSH PERMISSIONS ---"
+# 1. Create .ssh directory and force correct permissions (700 is mandatory)
+mkdir -p ~/.ssh
+sudo chown -R $(whoami):$(whoami) ~/.ssh
+chmod 700 ~/.ssh
+
+# 2. Create known_hosts with correct permissions
+touch ~/.ssh/known_hosts
+chmod 600 ~/.ssh/known_hosts
+
+# 3. Pre-generate the SSH key so gcloud doesn't ask interactively
+if [ ! -f ~/.ssh/google_compute_engine ]; then
+    echo "Generating SSH key..."
+    ssh-keygen -t rsa -f ~/.ssh/google_compute_engine -N "" -q
+fi
+
+# 4. Force gcloud to respect these keys
+gcloud config set compute/zone us-central1-c
+gcloud config set project gcs-fuse-test-ml
 
 # --- STEP 5: Run Orchestrator ---
 mkdir -p results
