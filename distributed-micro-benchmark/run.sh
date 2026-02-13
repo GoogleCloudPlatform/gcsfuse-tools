@@ -134,12 +134,6 @@ if ! gcloud compute instance-groups managed describe "$INSTANCE_GROUP_NAME" \
 fi
 echo "==================================="
 
-# Pre-generate SSH keys so parallel workers don't crash trying to create them at the exact same time
-ssh-keygen -t rsa -f ~/.ssh/google_compute_engine -N "" -q || true
-
-# Tell the Python utils to use External IPs
-export FORCE_EXTERNAL_IP=1
-
 # --- STEP 5: Run Orchestrator ---
 mkdir -p results
 ORCHESTRATOR_CMD="python3 orchestrator.py \
