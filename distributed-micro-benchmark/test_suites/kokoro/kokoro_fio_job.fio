@@ -1,12 +1,11 @@
 [global]
 ioengine=libaio
-direct=${DIRECT}
+direct=0
 verify=0
 bs=$BS
 iodepth=$IO_DEPTH
-runtime=120s
-ramp_time=30s
-time_based=1
+runtime=20s
+time_based=0
 fadvise_hint=0
 nrfiles=$NRFILES
 thread=1

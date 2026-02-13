@@ -36,6 +36,8 @@ def resolve_executor_vms(executor_vm, zone, project):
             f'--zone={zone}', f'--project={project}',
             '--format=value(status)'
         ]
+        print("Checking if executor_vm is a single running VM...")
+        print(cmd)
         result = gcloud_utils.run_gcloud_command(cmd, check=True, capture_output=True)
         status = result.stdout.strip()
         if status == 'RUNNING':

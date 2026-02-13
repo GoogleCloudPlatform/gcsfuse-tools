@@ -1,4 +1,3 @@
 commit,mount_args,label
-master,"--metadata-cache-ttl-secs=-1 --write-global-max-blocks=6400 --implicit-dirs",optimized
-master,"--implicit-dirs",default-http
-master,"--implicit-dirs --client-protocol=grpc", grpc
+master,"--implicit-dirs",standard
+master,"--stat-cache-max-size-mb=-1 --implicit-dirs",infinite-stat-cache

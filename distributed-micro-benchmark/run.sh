@@ -27,6 +27,22 @@ else
     exit 1
 fi
 
+echo "Upgrading Google Cloud SDK to support 'gcloud storage'..."
+# Remove the old apt-installed version to avoid conflicts
+sudo apt-get remove -y google-cloud-sdk || true
+
+# Add the official Google Cloud SDK distribution URI as a package source
+echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main" | sudo tee -a /etc/apt/sources.list.d/google-cloud-sdk.list
+
+# Import the Google Cloud public key
+curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo apt-key --keyring /usr/share/keyrings/cloud.google.gpg add -
+
+# Update and install the latest version
+sudo apt-get update && sudo apt-get install -y google-cloud-cli
+
+# Verify version
+gcloud --version
+
 # Step 2. Configurations
 BENCHMARK_ID="benchmark-$(date +%s)"
 REGIONAL_TEST_DATA_BUCKET="kokoro-regional-test-data-bucket-1"
@@ -45,7 +61,7 @@ ITERATIONS=2
 SEPARATE_CONFIGS=false # Set to true to generate separate CSV per config
 POLL_INTERVAL=30
 TIMEOUT=14400
-GCSFUSE_COMMIT=$(git log --before='yesterday 23:59:59' --max-count=1 --pretty=%H) # default
+GCSFUSE_COMMIT=master # do not modify this to take last days commit, this is under gcsfuse-tools repo. 
 
 # Parse command line arguments
 while [[ "$#" -gt 0 ]]; do
@@ -103,6 +119,26 @@ gcloud storage cp "${SCRIPT_DIR}"/workers/*.sh "gs://${ARTIFACTS_BUCKET}/scripts
 #     echo "Currently $RUNNING_COUNT/3 instances running. Waiting 10s..."
 #     sleep 10
 # done
+
+# --- DEBUG SECTION: Check Permissions ---
+echo "=== DEBUG: Checking Permissions ==="
+gcloud auth list
+# Attempt to verify MIG existence before running Python script
+if ! gcloud compute instance-groups managed describe "$INSTANCE_GROUP_NAME" \
+    --project="$PROJECT" \
+    --zone="$ZONE" > /dev/null 2>&1; then
+    echo "ERROR: gcloud cannot see the Instance Group '$INSTANCE_GROUP_NAME'."
+    echo "Please run this command locally to fix permissions:"
+    echo "gcloud projects add-iam-policy-binding $PROJECT --member='serviceAccount:YOUR_SERVICE_ACCOUNT_EMAIL' --role='roles/compute.admin'"
+    # We don't exit here to let the orchestrator try, but it will likely fail.
+fi
+echo "==================================="
+
+# Pre-generate SSH keys so parallel workers don't crash trying to create them at the exact same time
+ssh-keygen -t rsa -f ~/.ssh/google_compute_engine -N "" -q || true
+
+# Tell the Python utils to use External IPs
+export FORCE_EXTERNAL_IP=1
 
 # --- STEP 5: Run Orchestrator ---
 mkdir -p results

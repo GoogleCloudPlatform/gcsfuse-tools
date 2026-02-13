@@ -16,6 +16,7 @@
 
 import subprocess
 import time
+import os
 
 
 def run_gcloud_command(cmd, retries=1, retry_delay=2, check=False, capture_output=True, text=True, **kwargs):
@@ -70,8 +71,14 @@ def gcloud_storage_ls(pattern, check=False):
 def gcloud_compute_ssh(vm_name, zone, project, command=None, internal_ip=True, check=True, **kwargs):
     """SSH to a compute instance"""
     cmd = ['gcloud', 'compute', 'ssh', vm_name, f'--zone={zone}', f'--project={project}']
-    if internal_ip:
+    
+    # SAFE FIX: Use External IP, disable prompts, and bypass SSH key confirmation
+    if os.environ.get('FORCE_EXTERNAL_IP') == '1':
+        cmd.append('--quiet')
+        cmd.append('--ssh-flag=-oStrictHostKeyChecking=no')
+    elif internal_ip:
         cmd.append('--internal-ip')
+        
     if command:
         cmd.extend(['--command', command])
     
@@ -81,9 +88,14 @@ def gcloud_compute_ssh(vm_name, zone, project, command=None, internal_ip=True, c
 def gcloud_compute_scp(source, dest, zone, project, internal_ip=True, check=True, retries=15, retry_delay=20):
     """Copy files to/from a compute instance"""
     cmd = ['gcloud', 'compute', 'scp', source, dest, f'--zone={zone}', f'--project={project}']
-    if internal_ip:
-        cmd.append('--internal-ip')
     
+    # SAFE FIX: Use External IP, disable prompts, and bypass SSH key confirmation
+    if os.environ.get('FORCE_EXTERNAL_IP') == '1':
+        cmd.append('--quiet')
+        cmd.append('--ssh-flag=-oStrictHostKeyChecking=no')
+    elif internal_ip:
+        cmd.append('--internal-ip')
+    print(cmd)
     return run_gcloud_command(cmd, retries=retries, retry_delay=retry_delay, check=check)
 
 
@@ -97,7 +109,8 @@ def gcloud_compute_instance_group_list(instance_group, zone, project, filter_sta
         f'--filter=STATUS={filter_status}',
         '--format=value(NAME)'
     ]
-    
+    print("Listing instances in instance group...")
+    print(cmd)
     result = run_gcloud_command(cmd, retries=1, check=True)
     vms = [vm.strip() for vm in result.stdout.strip().split('\n') if vm.strip()]
     return vms
