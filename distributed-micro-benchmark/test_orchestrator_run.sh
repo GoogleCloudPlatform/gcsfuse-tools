@@ -1,6 +1,9 @@
 #!/bin/bash
 set -e
 
+# Install dependencies
+sudo apt-get install python3-tabulate
+
 # --- 0. Set Working Directory ---
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 cd "$SCRIPT_DIR"

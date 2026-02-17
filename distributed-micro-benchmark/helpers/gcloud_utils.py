@@ -16,6 +16,7 @@
 
 import subprocess
 import time
+import os
 
 
 def run_gcloud_command(cmd, retries=1, retry_delay=2, check=False, capture_output=True, text=True, **kwargs):
@@ -44,7 +45,7 @@ def run_gcloud_command(cmd, retries=1, retry_delay=2, check=False, capture_outpu
         
         if attempt < retries - 1:
             time.sleep(retry_delay)
-    
+
     if check:
         raise subprocess.CalledProcessError(result.returncode, cmd, output=result.stdout, stderr=result.stderr)
     
@@ -67,24 +68,25 @@ def gcloud_storage_ls(pattern, check=False):
     return run_gcloud_command(cmd, retries=1, check=check)
 
 
-def gcloud_compute_ssh(vm_name, zone, project, command=None, internal_ip=True, check=True, **kwargs):
+def gcloud_compute_ssh(vm_name, zone, project, command=None, internal_ip=True, check=True, retries=5, retry_delay=20, **kwargs):
     """SSH to a compute instance"""
-    cmd = ['gcloud', 'compute', 'ssh', vm_name, f'--zone={zone}', f'--project={project}']
+    cmd = ['gcloud', 'compute', 'ssh', vm_name, f'--zone={zone}', f'--project={project}', '--quiet']
     if internal_ip:
         cmd.append('--internal-ip')
+
     if command:
         cmd.extend(['--command', command])
-    
-    return run_gcloud_command(cmd, retries=1, check=check, **kwargs)
+    return run_gcloud_command(cmd, retries=retries, retry_delay=retry_delay, check=check, **kwargs)
 
 
-def gcloud_compute_scp(source, dest, zone, project, internal_ip=True, check=True):
+def gcloud_compute_scp(source, dest, zone, project, internal_ip=True, check=True, retries=5, retry_delay=20):
     """Copy files to/from a compute instance"""
-    cmd = ['gcloud', 'compute', 'scp', source, dest, f'--zone={zone}', f'--project={project}']
+    cmd = ['gcloud', 'compute', 'scp', source, dest, f'--zone={zone}', f'--project={project}', '--quiet']
+    
     if internal_ip:
         cmd.append('--internal-ip')
-    
-    return run_gcloud_command(cmd, retries=1, check=check)
+
+    return run_gcloud_command(cmd, retries=retries, retry_delay=retry_delay, check=check)
 
 
 def gcloud_compute_instance_group_list(instance_group, zone, project, filter_status='RUNNING'):
@@ -97,7 +99,6 @@ def gcloud_compute_instance_group_list(instance_group, zone, project, filter_sta
         f'--filter=STATUS={filter_status}',
         '--format=value(NAME)'
     ]
-    
     result = run_gcloud_command(cmd, retries=1, check=True)
     vms = [vm.strip() for vm in result.stdout.strip().split('\n') if vm.strip()]
     return vms

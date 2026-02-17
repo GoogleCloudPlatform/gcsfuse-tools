@@ -70,27 +70,28 @@ def run_worker_script(vm_name, zone, project, script_path, benchmark_id, artifac
     # Convert to absolute path
     script_path = os.path.abspath(script_path)
     
-    # Create command to upload and execute script
-    remote_script = f"/tmp/worker_{benchmark_id}.sh"
+    # Upload worker scripts first to ensure they exist in /tmp
+    script_dir = os.path.dirname(script_path)
+    workers = ['setup.sh', 'monitor.sh', 'build.sh', 'runner.sh', 'worker.sh']
+    for worker in workers:
+        local_worker_file = os.path.join(script_dir, worker)
+        if os.path.exists(local_worker_file):
+            try:
+                gcloud_utils.gcloud_compute_scp(
+                    local_worker_file,
+                    f'{vm_name}:~/{worker}',
+                    zone=zone,
+                    project=project,
+                    internal_ip=True,
+                    check=True
+                )
+            except Exception as e:
+                print(f"Failed to upload script to {vm_name}: {e}")
+                raise
     
-    # Upload script
-    try:
-        gcloud_utils.gcloud_compute_scp(
-            script_path,
-            f'{vm_name}:{remote_script}',
-            zone=zone,
-            project=project,
-            internal_ip=True,
-            check=True
-        )
-    except Exception as e:
-        print(f"Failed to upload script to {vm_name}: {e}")
-        raise
-    
-    # Execute script with benchmark_id and artifacts_bucket as arguments
-    # Logs will be written to /tmp/worker_<benchmark_id>.log and uploaded to GCS by worker.sh
-    log_file = f"/tmp/worker_{benchmark_id}.log"
-    
+    log_file = f"worker_{benchmark_id}.log"
+    remote_script = f"./{os.path.basename(script_path)}"
+
     # Use shlex.quote to prevent command injection vulnerabilities
     quoted_script = shlex.quote(remote_script)
     quoted_id = shlex.quote(benchmark_id)
