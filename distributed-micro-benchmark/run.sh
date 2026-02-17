@@ -5,12 +5,13 @@
 # Usage: run.sh [fio_job_file] [test_csv] [config_csv]
 
 set -e
+
+# --- Step 1. Environment Setup ---
 sudo apt-get update
 echo "Installing git"
 sudo apt-get install git
-# --- Step 1. Python Environment Setup ---
-SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 cd "$SCRIPT_DIR"
 VENV_DIR="${SCRIPT_DIR}/venv"
 REQUIREMENTS_FILE="${SCRIPT_DIR}/requirements.txt"
@@ -18,6 +19,7 @@ REQUIREMENTS_FILE="${SCRIPT_DIR}/requirements.txt"
 sudo apt install python3-venv -y
 python3 -m venv "$VENV_DIR"
 source "$VENV_DIR/bin/activate"
+
 # Install dependencies if requirements.txt exists
 if [ -f "$REQUIREMENTS_FILE" ]; then
     echo "Installing dependencies from $REQUIREMENTS_FILE..."
@@ -30,17 +32,13 @@ fi
 echo "Upgrading Google Cloud SDK to support 'gcloud storage'..."
 # Remove the old apt-installed version to avoid conflicts
 sudo apt-get remove -y google-cloud-sdk || true
-
 # Add the official Google Cloud SDK distribution URI as a package source
 echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main" | sudo tee -a /etc/apt/sources.list.d/google-cloud-sdk.list
-
 # Import the Google Cloud public key
 curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo apt-key --keyring /usr/share/keyrings/cloud.google.gpg add -
 
 # Update and install the latest version
 sudo apt-get update && sudo apt-get install -y google-cloud-cli
-
-# Verify version
 gcloud --version
 
 # Step 2. Configurations
@@ -57,9 +55,9 @@ FIO_JOB_FILE="${SCRIPT_DIR}/test_suites/kokoro/kokoro_fio_job.fio"
 TEST_CSV="${SCRIPT_DIR}/test_suites/kokoro/kokoro_test_cases.csv"
 CONFIGS_CSV="${SCRIPT_DIR}/test_suites/kokoro/kokoro_mount_configs.csv"
 
-ITERATIONS=2
+ITERATIONS=5
 SEPARATE_CONFIGS=false # Set to true to generate separate CSV per config
-POLL_INTERVAL=30
+POLL_INTERVAL=60
 TIMEOUT=14400
 GCSFUSE_COMMIT=master # do not modify this to take last days commit, this is under gcsfuse-tools repo. 
 
@@ -100,48 +98,7 @@ echo "Uploading worker scripts to gs://${ARTIFACTS_BUCKET}/scripts/..."
 gcloud storage rm -r "gs://${ARTIFACTS_BUCKET}/scripts/" 2> /dev/null || true
 gcloud storage cp "${SCRIPT_DIR}"/workers/*.sh "gs://${ARTIFACTS_BUCKET}/scripts/"
 
-# # --- STEP 4: Resize MIG to Start VMs ---
-# echo "Resizing Instance Group ${INSTANCE_GROUP_NAME} to 3 instances..."
-# gcloud compute instance-groups managed resize "${INSTANCE_GROUP_NAME}" \
-#     --size=3 \
-#     --zone="${ZONE}" \
-#     --project="${PROJECT}"
-
-# Wait for instances to be RUNNING
-# echo "Waiting for 3 instances to be RUNNING..."
-# for i in {1..30}; do
-#     gcloud compute instance-groups managed list-instances "${INSTANCE_GROUP_NAME}" --zone="${ZONE}" --project="${PROJECT}" --format="table(instance.basename(), currentAction, instanceStatus)"
-#     RUNNING_COUNT=$(gcloud compute instance-groups managed list-instances "${INSTANCE_GROUP_NAME}" --zone="${ZONE}" --project="${PROJECT}" --format="value(instanceStatus)" | grep -c "RUNNING" || true)
-#     if [ "$RUNNING_COUNT" -ge 3 ]; then
-#         echo "All 3 instances are RUNNING."
-#         break
-#     fi
-#     echo "Currently $RUNNING_COUNT/3 instances running. Waiting 10s..."
-#     sleep 10
-# done
-
-# --- DEBUG SECTION: Check Permissions ---
-echo "=== DEBUG: Checking Permissions ==="
-gcloud auth list
-# Attempt to verify MIG existence before running Python script
-if ! gcloud compute instance-groups managed describe "$INSTANCE_GROUP_NAME" \
-    --project="$PROJECT" \
-    --zone="$ZONE" > /dev/null 2>&1; then
-    echo "ERROR: gcloud cannot see the Instance Group '$INSTANCE_GROUP_NAME'."
-    echo "Please run this command locally to fix permissions:"
-    echo "gcloud projects add-iam-policy-binding $PROJECT --member='serviceAccount:YOUR_SERVICE_ACCOUNT_EMAIL' --role='roles/compute.admin'"
-    # We don't exit here to let the orchestrator try, but it will likely fail.
-fi
-echo "==================================="
-
-# Sleep for 4 hours (14400 seconds) to allow debugging
-echo "Sleeping for 18 mins for debugging..."
-external_ip=$(curl -s -H "Metadata-Flavor: Google" http://metadata/computeMetadata/v1/instance/network-interfaces/0/access-configs/0/external-ip)
-echo "INSTANCE_EXTERNAL_IP=${external_ip}"
-
-# sleep 1000
-
-echo "--- FIXING SSH PERMISSIONS ---"
+# --- STEP 4: Provide permissions ---
 # 1. Create .ssh directory and force correct permissions (700 is mandatory)
 mkdir -p ~/.ssh
 sudo chown -R $(whoami):$(whoami) ~/.ssh
@@ -196,31 +153,24 @@ RESULTS_DIR="results/${BENCHMARK_ID}"
 
 # Check if BQ script exists and results were generated
 if [ -f "$BQ_SCRIPT" ] && [ -d "$RESULTS_DIR" ]; then
- echo ""
- echo "=========================================="
- echo "Uploading results to BigQuery..."
+    echo ""
+    echo "=========================================="
+    echo "Uploading results to BigQuery..."
  
- # Check if running in Kokoro (env var usually set in CI)
- IS_KOKORO_FLAG=""
- if [ "${KOKORO_BUILD_ID:-}" != "" ]; then
-  IS_KOKORO_FLAG="--is-kokoro"
- fi
+# Check if running in Kokoro (env var usually set in CI)
+IS_KOKORO_FLAG=""
+if [ "${KOKORO_BUILD_ID:-}" != "" ]; then
+    IS_KOKORO_FLAG="--is-kokoro"
+fi
  
- # Execute upload
- python3 "$BQ_SCRIPT" \
- --results-dir "$RESULTS_DIR" \
- --project-id "gcs-fuse-test-ml" \
- $IS_KOKORO_FLAG
+# Execute upload
+python3 "$BQ_SCRIPT" \
+--results-dir "$RESULTS_DIR" \
+--project-id "gcs-fuse-test-ml" \
+$IS_KOKORO_FLAG
 
 else
- echo "Skipping BigQuery upload (Script '$BQ_SCRIPT' or Results dir '$RESULTS_DIR' not found)"
+    echo "Skipping BigQuery upload (Script '$BQ_SCRIPT' or Results dir '$RESULTS_DIR' not found)"
 fi
-
-# # --- STEP 7: Cleanup (Resize back to 0) ---
-# echo "Cleaning up: Resizing Instance Group to 0..."
-# gcloud compute instance-groups managed resize "${INSTANCE_GROUP_NAME}" \
-#     --size=0 \
-#     --zone="${ZONE}" \
-#     --project="${PROJECT}"
 
 echo "Benchmark Complete!"

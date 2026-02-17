@@ -228,10 +228,10 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if args.is_kokoro:
-        dataset = "periodic_benchmarks_trial"
+        dataset = "periodic_benchmarks"
         prefix = "kokoro_run"
     else:
-        dataset = "adhoc_benchmarks_trial"
+        dataset = "adhoc_benchmarks"
         prefix = "local_run"
 
     upload_results_to_bq(args.results_dir, args.project_id, dataset, prefix)
