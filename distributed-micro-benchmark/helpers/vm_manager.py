@@ -36,8 +36,6 @@ def resolve_executor_vms(executor_vm, zone, project):
             f'--zone={zone}', f'--project={project}',
             '--format=value(status)'
         ]
-        print("Checking if executor_vm is a single running VM...")
-        print(cmd)
         result = gcloud_utils.run_gcloud_command(cmd, check=True, capture_output=True)
         status = result.stdout.strip()
         if status == 'RUNNING':
@@ -91,10 +89,8 @@ def run_worker_script(vm_name, zone, project, script_path, benchmark_id, artifac
                 print(f"Failed to upload script to {vm_name}: {e}")
                 raise
     
-    # Execute script with benchmark_id and artifacts_bucket as arguments
-    # Logs will be written to /tmp/worker_<benchmark_id>.log and uploaded to GCS by worker.sh
-    log_file = f"/tmp/worker_{benchmark_id}.log"
-    remote_script = f"/tmp/{os.path.basename(script_path)}"
+    log_file = f"worker_{benchmark_id}.log"
+    remote_script = f"./{os.path.basename(script_path)}"
 
     # Use shlex.quote to prevent command injection vulnerabilities
     quoted_script = shlex.quote(remote_script)

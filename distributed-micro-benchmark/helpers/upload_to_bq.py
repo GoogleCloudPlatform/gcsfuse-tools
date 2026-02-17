@@ -1,3 +1,17 @@
+# Copyright 2026 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import os
 import sys
 import json
@@ -13,11 +27,20 @@ logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
 
 def normalize_header(header):
     """Converts CSV headers to BigQuery-friendly snake_case."""
-    # Remove units like (MB/s), (ms), (%)
+    # Map units to schema suffixes
+    header = header.replace('(MB/s)', '_mbs')
+    header = header.replace('(ms)', '_ms')
+    header = header.replace('(%)', '_percent')
+    header = header.replace('(MB)', '_mb')
+    header = header.replace('(GB)', '_gb')
+
+    # Remove any other units like (KB) if they exist
     header = re.sub(r'\s*\(.*?\)', '', header)
     # Replace spaces and special chars with underscores
-    header = re.sub(r'[^a-zA-Z0-9]', '_', header)
-    return header.lower()
+    header = re.sub(r'[^a-zA-Z0-9_]', '_', header)
+    # Collapse multiple underscores
+    header = re.sub(r'_+', '_', header)
+    return header.strip('_').lower()
 
 def parse_io_params(io_params_str):
     """Parses 'IOType|Jobs|FSize|BS|IOD|NrFiles' into a dict."""

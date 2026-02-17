@@ -81,13 +81,7 @@ def gcloud_compute_ssh(vm_name, zone, project, command=None, internal_ip=True, c
 
 def gcloud_compute_scp(source, dest, zone, project, internal_ip=True, check=True, retries=5, retry_delay=20):
     """Copy files to/from a compute instance"""
-    # Force use of home directory if destination is just a filename
-    if ":" in dest and not dest.endswith("/") and "/" not in dest.split(":")[1]:
-        vm, path = dest.split(":")
-        dest = f"{vm}:~/{path}"
-
-    cmd = ['gcloud', 'compute', 'scp', source, dest, 
-           f'--zone={zone}', f'--project={project}', '--quiet']
+    cmd = ['gcloud', 'compute', 'scp', source, dest, f'--zone={zone}', f'--project={project}', '--quiet']
     
     if internal_ip:
         cmd.append('--internal-ip')
@@ -105,8 +99,6 @@ def gcloud_compute_instance_group_list(instance_group, zone, project, filter_sta
         f'--filter=STATUS={filter_status}',
         '--format=value(NAME)'
     ]
-    print("Listing instances in instance group...")
-    print(cmd)
     result = run_gcloud_command(cmd, retries=1, check=True)
     vms = [vm.strip() for vm in result.stdout.strip().split('\n') if vm.strip()]
     return vms

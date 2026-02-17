@@ -2,7 +2,7 @@
 #
 # Distributed Micro-Benchmarking Run Script
 #
-# Usage: run.sh [fio_job_file] [test_csv] [config_csv]
+# Usage: ./run.sh [--commit <gcsfuse_commit_hash>]
 
 set -e
 
@@ -55,7 +55,7 @@ FIO_JOB_FILE="${SCRIPT_DIR}/test_suites/kokoro/kokoro_fio_job.fio"
 TEST_CSV="${SCRIPT_DIR}/test_suites/kokoro/kokoro_test_cases.csv"
 CONFIGS_CSV="${SCRIPT_DIR}/test_suites/kokoro/kokoro_mount_configs.csv"
 
-ITERATIONS=5
+ITERATIONS=2
 SEPARATE_CONFIGS=false # Set to true to generate separate CSV per config
 POLL_INTERVAL=60
 TIMEOUT=14400
@@ -115,8 +115,8 @@ if [ ! -f ~/.ssh/google_compute_engine ]; then
 fi
 
 # 4. Force gcloud to respect these keys
-gcloud config set compute/zone us-central1-c
-gcloud config set project gcs-fuse-test-ml
+gcloud config set compute/zone $ZONE
+gcloud config set project $PROJECT
 
 # --- STEP 5: Run Orchestrator ---
 mkdir -p results
