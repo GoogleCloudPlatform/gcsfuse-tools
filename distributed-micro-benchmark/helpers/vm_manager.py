@@ -208,7 +208,7 @@ def wait_for_completion(vms, benchmark_id, artifacts_bucket, poll_interval=30, t
         
         # Create cancellation flag
         cancel_path = f"gs://{artifacts_bucket}/{benchmark_id}/cancel"
-        gcloud_utils.run_gcloud_command(['gcloud', 'storage', 'cp', '-', cancel_path], input=b'timeout', capture_output=True)
+        gcloud_utils.run_gcloud_command(['gcloud', 'storage', 'cp', '-', cancel_path], input='timeout', capture_output=True)
         
         print(f"Cancellation flag created. Waiting 30s for workers to detect and shutdown...")
         time.sleep(30)

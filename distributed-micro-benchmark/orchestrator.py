@@ -27,6 +27,7 @@ import shutil
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from helpers import gcs, vm_manager, job_generator, result_aggregator, report_generator
+import cancel
 
 
 def parse_args():
@@ -62,6 +63,8 @@ def main():
         run_benchmark(args)
     except KeyboardInterrupt:
         print("\n\nBenchmark interrupted by user")
+        print("Triggering cancellation on workers...")
+        cancel.create_cancel_flag(args.benchmark_id, args.artifacts_bucket)
         sys.exit(130)
     except Exception as e:
         print(f"\nERROR: Benchmark failed: {e}")

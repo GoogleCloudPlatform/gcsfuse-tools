@@ -34,12 +34,7 @@ gcloud compute instance-templates create "${INSTANCE_TEMPLATE}" \
     --machine-type=n2-standard-4 \
     --image-family=debian-12 \
     --image-project=debian-cloud \
-    --scopes=cloud-platform \
-    --metadata=startup-script="#!/bin/bash
-      # Download all modular scripts to /tmp so the orchestrator's 
-      # temporary worker script can find them via SCRIPT_DIR.
-      gcloud storage cp gs://${BUCKET_NAME}/${BENCHMARK_ID}/scripts/*.sh /tmp/
-      chmod +x /tmp/*.sh"
+    --scopes=cloud-platform
 
 # Create Managed Instance Group (MIG) with 2 VMs
 gcloud compute instance-groups managed create "${INSTANCE_GROUP}" \
@@ -64,7 +59,7 @@ python3 orchestrator.py \
     --test-data-bucket "${BUCKET_NAME}" \
     --iterations 1 \
     --poll-interval 20 \
-    --timeout 600
+    --timeout 1000
 
 # --- 3. Cleanup (Runs only on Success) ---
 echo ""
