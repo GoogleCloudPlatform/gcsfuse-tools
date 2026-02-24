@@ -10,10 +10,10 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 cd "$SCRIPT_DIR"
 
 BENCHMARK_ID="benchmark-$(date +%s)"
-REGIONAL_TEST_DATA_BUCKET="grpc-metric-dmb-regional"
-ARTIFACTS_BUCKET="dmb-artifacts-regional"
-PROJECT="gcs-fuse-test"
-INSTANCE_GROUP_NAME="dmb-instance-group"
+REGIONAL_TEST_DATA_BUCKET="kokoro-regional-test-data-bucket"
+ARTIFACTS_BUCKET="kokoro-perf-artifacts-bucket"
+PROJECT="gcs-fuse-test-ml"
+INSTANCE_GROUP_NAME="kokoro-perf-c4-standard-192-mig"
 ZONE="us-central1-c"
 
 READ_CONFIGS_CSV="${SCRIPT_DIR}/test_suites/kokoro/kokoro_read_mount_configs.csv"
@@ -24,7 +24,7 @@ WRITE_CONFIGS_CSV="${SCRIPT_DIR}/test_suites/kokoro/kokoro_write_mount_configs.c
 WRITE_FIO_JOB_FILE="${SCRIPT_DIR}/test_suites/kokoro/kokoro_write_fio_job.fio"
 WRITE_TEST_CSV="${SCRIPT_DIR}/test_suites/kokoro/kokoro_write_test_cases.csv"
 
-ITERATIONS=2
+ITERATIONS=1
 SEPARATE_CONFIGS=false # Set to true to generate separate CSV per config
 POLL_INTERVAL=60
 TIMEOUT=14400 # 4 hours
