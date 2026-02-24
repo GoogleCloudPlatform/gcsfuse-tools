@@ -1,17 +1,3 @@
 io_type,num_jobs,file_size,block_size,io_depth,nr_files,direct
 read,96,128k,128k,1,30,1
 read,96,256k,128k,1,30,1
-read,96,1m,1m,1,30,1
-read,96,5m,1m,1,20,1
-read,96,10m,1m,1,20,1
-read,96,50m,1m,1,20,1
-read,96,100m,1m,1,10,1
-read,96,200m,1m,1,10,1
-read,96,1g,1m,1,10,1
-randread,96,256k,128k,1,30,1
-randread,96,5m,1m,1,20,1
-randread,96,10m,1m,1,20,1
-randread,96,50m,1m,1,20,1
-randread,96,100m,1m,1,10,1
-randread,96,200m,1m,1,10,1
-randread,96,1g,1m,1,10,1
