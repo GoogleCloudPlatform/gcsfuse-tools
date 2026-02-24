@@ -10,21 +10,21 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 cd "$SCRIPT_DIR"
 
 BENCHMARK_ID="benchmark-$(date +%s)"
-REGIONAL_TEST_DATA_BUCKET="kokoro-regional-test-data-bucket"
-ARTIFACTS_BUCKET="kokoro-perf-artifacts-bucket"
-PROJECT="gcs-fuse-test-ml"
-INSTANCE_GROUP_NAME="kokoro-perf-c4-standard-192-mig"
+REGIONAL_TEST_DATA_BUCKET="grpc-metric-dmb-regional"
+ARTIFACTS_BUCKET="dmb-artifacts-regional"
+PROJECT="gcs-fuse-test"
+INSTANCE_GROUP_NAME="dmb-instance-group"
 ZONE="us-central1-c"
 
-READ_CONFIGS_CSV="${SCRIPT_DIR}/test_suites/kokoro/kokoro_read_mount_configs.csv"
-READ_FIO_JOB_FILE="${SCRIPT_DIR}/test_suites/kokoro/kokoro_read_fio_job.fio"
-READ_TEST_CSV="${SCRIPT_DIR}/test_suites/kokoro/kokoro_read_test_cases.csv"
+READ_CONFIGS_CSV="${SCRIPT_DIR}/test_suites/published_benchmarks/read_mount_configs.csv"
+READ_FIO_JOB_FILE="${SCRIPT_DIR}/test_suites/published_benchmarks/read.fio"
+READ_TEST_CSV="${SCRIPT_DIR}/test_suites/published_benchmarks/read_test_cases.csv"
 
-WRITE_CONFIGS_CSV="${SCRIPT_DIR}/test_suites/kokoro/kokoro_write_mount_configs.csv"
-WRITE_FIO_JOB_FILE="${SCRIPT_DIR}/test_suites/kokoro/kokoro_write_fio_job.fio"
-WRITE_TEST_CSV="${SCRIPT_DIR}/test_suites/kokoro/kokoro_write_test_cases.csv"
+WRITE_CONFIGS_CSV="${SCRIPT_DIR}/test_suites/published_benchmarks/write_mount_configs.csv"
+WRITE_FIO_JOB_FILE="${SCRIPT_DIR}/test_suites/published_benchmarks/write.fio"
+WRITE_TEST_CSV="${SCRIPT_DIR}/test_suites/published_benchmarks/write_test_cases.csv"
 
-ITERATIONS=4
+ITERATIONS=2
 SEPARATE_CONFIGS=false # Set to true to generate separate CSV per config
 POLL_INTERVAL=60
 TIMEOUT=14400 # 4 hours
@@ -94,18 +94,12 @@ setup_environment() {
         echo "ERROR: requirements.txt not found at $REQUIREMENTS_FILE"
         exit 1
     fi
-    
-    echo "Upgrading Google Cloud SDK to support 'gcloud storage'..."
-    # Remove the old apt-installed version to avoid conflicts
-    sudo apt-get remove -y google-cloud-sdk || true
-    # Add the official Google Cloud SDK distribution URI as a package source
-    echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main" | sudo tee -a /etc/apt/sources.list.d/google-cloud-sdk.list
-    # Import the Google Cloud public key
-    curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo apt-key --keyring /usr/share/keyrings/cloud.google.gpg add -
 
     # Update and install gcloud
-    sudo apt-get update && sudo apt-get install -y google-cloud-cli
-    gcloud --version
+    if ! command -v gcloud &> /dev/null; then
+        sudo apt-get install -y google-cloud-cli
+        gcloud --version
+    fi
 }
 
 update_commit_hashes() {
@@ -129,19 +123,19 @@ upload_scripts() {
 setup_permissions() {
     echo "--- STEP 4: Provide permissions ---"
     # 1. Create .ssh directory and force correct permissions (700 is mandatory)
-    mkdir -p ~/.ssh
-    sudo chown -R $(whoami):$(whoami) ~/.ssh
-    chmod 700 ~/.ssh
+    # mkdir -p ~/.ssh
+    # sudo chown -R $(whoami):$(whoami) ~/.ssh
+    # chmod 700 ~/.ssh
 
-    # 2. Create known_hosts with correct permissions
-    touch ~/.ssh/known_hosts
-    chmod 600 ~/.ssh/known_hosts
+    # # 2. Create known_hosts with correct permissions
+    # touch ~/.ssh/known_hosts
+    # chmod 600 ~/.ssh/known_hosts
 
-    # 3. Pre-generate the SSH key so gcloud doesn't ask interactively
-    if [ ! -f ~/.ssh/google_compute_engine ]; then
-        echo "Generating SSH key..."
-        ssh-keygen -t rsa -f ~/.ssh/google_compute_engine -N "" -q
-    fi
+    # # 3. Pre-generate the SSH key so gcloud doesn't ask interactively
+    # if [ ! -f ~/.ssh/google_compute_engine ]; then
+    #     echo "Generating SSH key..."
+    #     ssh-keygen -t rsa -f ~/.ssh/google_compute_engine -N "" -q
+    # fi
 
     # 4. Force gcloud to respect these keys
     gcloud config set compute/zone $ZONE
@@ -203,19 +197,12 @@ run_benchmark() {
         echo ""
         echo "=========================================="
         echo "Uploading results to BigQuery..."
-
-        # Check if running in Kokoro (env var usually set in CI)
-        IS_KOKORO_FLAG=""
-        if [ "${KOKORO_BUILD_ID:-}" != "" ]; then
-            IS_KOKORO_FLAG="--is-kokoro"
-        fi
-
+     
         # Execute upload
         python3 "$BQ_SCRIPT" \
         --results-dir "$RESULTS_DIR" \
         --project-id "$PROJECT" \
-        --report-name "$REPORT_NAME" || echo "WARNING: BigQuery upload failed. Continuing..." \
-        $IS_KOKORO_FLAG
+        --report-name "$REPORT_NAME" || echo "WARNING: BigQuery upload failed. Continuing..."
     fi
 }
 

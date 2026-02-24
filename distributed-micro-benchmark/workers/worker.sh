@@ -14,7 +14,6 @@ fi
 VM_NAME=$(curl -H "Metadata-Flavor: Google" http://metadata.google.internal/computeMetadata/v1/instance/name)
 RESULT_BASE="gs://${ARTIFACTS_BUCKET}/${BENCHMARK_ID}/results/${VM_NAME}"
 LOG_BASE="gs://${ARTIFACTS_BUCKET}/${BENCHMARK_ID}/logs/${VM_NAME}"
-LOG_FILE="/tmp/worker_${BENCHMARK_ID}.log"
 
 echo "VM: $VM_NAME"
 echo "Benchmark ID: $BENCHMARK_ID"
@@ -22,15 +21,9 @@ echo "Artifacts Bucket: $ARTIFACTS_BUCKET"
 echo "Start time: $(date)"
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+LOG_FILE="${SCRIPT_DIR}/worker_${BENCHMARK_ID}.log"
 
 echo "VM: $VM_NAME"
-
-# Wait up to 30 seconds for modular scripts to be downloaded by startup-script
-for i in {1..30}; do
-    if [ -f "$SCRIPT_DIR/setup.sh" ]; then break; fi
-    echo "Waiting for helper scripts to be deployed... ($i/60)"
-    sleep 1
-done
 
 # --- Import Modules using the absolute path ---
 source "$SCRIPT_DIR/setup.sh"
@@ -42,7 +35,7 @@ source "$SCRIPT_DIR/runner.sh"
 exec > >(tee -a "$LOG_FILE") 2>&1
 
 # Setup Workspace
-WORKSPACE="/tmp/benchmark-${BENCHMARK_ID}"
+WORKSPACE="$HOME/benchmark-${BENCHMARK_ID}"
 mkdir -p "$WORKSPACE"
 cd "$WORKSPACE"
 
@@ -124,9 +117,14 @@ install_dependencies
 # 2. Download Job Configs
 echo "Downloading job configuration..."
 gcloud storage cp "gs://${ARTIFACTS_BUCKET}/${BENCHMARK_ID}/jobs/${VM_NAME}.json" job.json
-gcloud storage cp "gs://${ARTIFACTS_BUCKET}/${BENCHMARK_ID}/test-cases.csv" test-cases.csv
-gcloud storage cp "gs://${ARTIFACTS_BUCKET}/${BENCHMARK_ID}/jobfile.fio" jobfile.fio
 gcloud storage cp "gs://${ARTIFACTS_BUCKET}/${BENCHMARK_ID}/config.json" config.json
+
+# Read filenames from config.json (fallback to defaults if missing)
+TEST_FILENAME=$(jq -r '.test_filename // "test-cases.csv"' config.json)
+JOB_FILENAME=$(jq -r '.job_filename // "jobfile.fio"' config.json)
+
+gcloud storage cp "gs://${ARTIFACTS_BUCKET}/${BENCHMARK_ID}/${TEST_FILENAME}" test-cases.csv
+gcloud storage cp "gs://${ARTIFACTS_BUCKET}/${BENCHMARK_ID}/${JOB_FILENAME}" jobfile.fio
 
 # 3. Parse Config
 BUCKET=$(jq -r '.bucket' job.json)
@@ -184,8 +182,9 @@ trap - ERR EXIT
 
 # 7. Cleanup: Delete the remote workspace directory if the script succeeded
 echo "Cleaning up workspace: $WORKSPACE"
-cd /tmp
-rm -rf "$WORKSPACE"
-rm -rf "$SCRIPT_DIR"
+# cd "$HOME"
+# # Handle read-only files (like Go cache)
+# chmod -R +w . 2>/dev/null || true
+# find . -mindepth 1 -delete
 
 echo "Done."

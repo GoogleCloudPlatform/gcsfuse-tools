@@ -27,6 +27,7 @@ import shutil
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from helpers import gcs, vm_manager, job_generator, result_aggregator, report_generator
+import cancel
 
 
 def parse_args():
@@ -52,6 +53,7 @@ def parse_args():
     parser.add_argument('--poll-interval', type=int, default=30, help='Polling interval in seconds')
     parser.add_argument('--timeout', type=int, default=7200, help='Timeout in seconds')
     parser.add_argument('--run-name', type=str, default=None, help='Descriptive run name (default: benchmark-id)')
+    parser.add_argument('--report-name', type=str, default='combined_report.csv', help='Report file name')
     return parser.parse_args()
 
 
@@ -62,6 +64,8 @@ def main():
         run_benchmark(args)
     except KeyboardInterrupt:
         print("\n\nBenchmark interrupted by user")
+        print("Triggering cancellation on workers...")
+        cancel.create_cancel_flag(args.benchmark_id, args.artifacts_bucket)
         sys.exit(130)
     except Exception as e:
         print(f"\nERROR: Benchmark failed: {e}")
@@ -78,11 +82,16 @@ def run_benchmark(args):
     os.makedirs(results_dir, exist_ok=True)
     print(f"Results directory: {results_dir}")
 
+    # Extract basenames to preserve original filenames
+    test_csv_name = os.path.basename(args.test_csv)
+    fio_job_name = os.path.basename(args.fio_job_file)
+    configs_csv_name = os.path.basename(args.configs_csv) if args.configs_csv else "configs.csv"
+
     # Save input files to preserve configuration
-    shutil.copy(args.test_csv, f"{results_dir}/test-cases.csv")
+    shutil.copy(args.test_csv, f"{results_dir}/{test_csv_name}")
     if args.configs_csv:
-        shutil.copy(args.configs_csv, f"{results_dir}/configs.csv")
-    shutil.copy(args.fio_job_file, f"{results_dir}/jobfile.fio")
+        shutil.copy(args.configs_csv, f"{results_dir}/{configs_csv_name}")
+    shutil.copy(args.fio_job_file, f"{results_dir}/{fio_job_name}")
     
     # 1. Resolve active VMs from executor-vm (Single VM or MIG)
     vms = vm_manager.resolve_executor_vms(args.executor_vm, args.zone, args.project)
@@ -137,21 +146,23 @@ def run_benchmark(args):
     config = {
         'iterations': args.iterations,
         'bucket': args.test_data_bucket,
-        'separate_configs': args.separate_configs
+        'separate_configs': args.separate_configs,
+        'test_filename': test_csv_name,
+        'job_filename': fio_job_name
     }
     base_path = f"gs://{args.artifacts_bucket}/{args.benchmark_id}"
     config_path = f"{base_path}/config.json"
     gcs.upload_json(config, config_path)
     print(f"Uploaded config: iterations={args.iterations}, bucket={args.artifacts_bucket}")
-    gcs.upload_test_cases(args.test_csv, base_path)
-    print(f"Uploaded test cases to: {base_path}/test-cases.csv")
+    gcs.upload_test_cases(args.test_csv, f"{base_path}/{test_csv_name}")
+    print(f"Uploaded test cases to: {base_path}/{test_csv_name}")
     # Upload configs.csv
     if args.configs_csv:
-        configs_dest = f"{base_path}/configs.csv"
+        configs_dest = f"{base_path}/{configs_csv_name}"
         gcs.upload_test_cases(args.configs_csv, configs_dest)
         print(f"Uploaded configs to: {configs_dest}")
-    gcs.upload_fio_job_file(args.fio_job_file, base_path)
-    print(f"Uploaded FIO job file to: {base_path}/jobfile.fio")
+    gcs.upload_fio_job_file(args.fio_job_file, f"{base_path}/{fio_job_name}")
+    print(f"Uploaded FIO job file to: {base_path}/{fio_job_name}")
     
     # 5. Generate and upload job files for each VM (in parallel)
     active_vms = [] 
@@ -246,7 +257,7 @@ def run_benchmark(args):
         sys.exit(1)
     
     # 9. Generate report
-    report_file = f"{results_dir}/combined_report.csv"
+    report_file = f"{results_dir}/{args.report_name}"
     report_generator.generate_report(metrics, report_file, separate_configs=args.separate_configs)
     if args.separate_configs:
         print(f"\n✓ Reports generated in {results_dir}/")
@@ -263,8 +274,8 @@ def run_benchmark(args):
     
     print(f"\n========== Benchmark Complete ==========")
     print(f"Results saved to: {results_dir}/")
-    print(f"  - Input files: test-cases.csv, configs.csv, jobfile.fio")
-    print(f"  - Report: combined_report.csv")
+    print(f"  - Input files: {test_csv_name}, {configs_csv_name if args.configs_csv else ''}, {fio_job_name}")
+    print(f"  - Report: {args.report_name}")
     print(f"  - Latest: results/latest/ ")
     
     # Exit with error code if some VMs failed

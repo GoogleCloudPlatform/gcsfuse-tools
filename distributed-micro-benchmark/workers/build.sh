@@ -11,17 +11,17 @@ build_gcsfuse_for_commit() {
         return 0
     fi
     
-    echo "Building GCSFuse from commit: $COMMIT"
+    echo "Building GCSFuse from commit: $COMMIT" >&2
     
     # Clone if not exists
     if [ ! -d "$BUILD_DIR" ]; then
-        git clone https://github.com/GoogleCloudPlatform/gcsfuse.git "$BUILD_DIR"
+        git clone https://github.com/GoogleCloudPlatform/gcsfuse.git "$BUILD_DIR" >&2
     fi
     
     cd "$BUILD_DIR"
     
-    if ! git checkout "$COMMIT"; then
-        echo "  ERROR: Failed to checkout commit/branch: $COMMIT"
+    if ! git checkout "$COMMIT" >&2; then
+        echo "  ERROR: Failed to checkout commit/branch: $COMMIT" >&2
         cd "$WORKSPACE"
         return 1
     fi
@@ -36,10 +36,10 @@ build_gcsfuse_for_commit() {
     # -o specifies the exact path for the resulting binary
     go build -C "$BUILD_DIR" -o "$BUILD_DIR/bin/gcsfuse" \
         -ldflags "-X github.com/googlecloudplatform/gcsfuse/v3/common.gcsfuseVersion=$COMMIT" \
-        github.com/googlecloudplatform/gcsfuse/v3
+        github.com/googlecloudplatform/gcsfuse/v3 >&2
         
     go build -C "$BUILD_DIR" -o "$BUILD_DIR/sbin/mount.gcsfuse" \
-        github.com/googlecloudplatform/gcsfuse/v3/tools/mount_gcsfuse
+        github.com/googlecloudplatform/gcsfuse/v3/tools/mount_gcsfuse >&2
     
     # Output the final path
     echo "$BUILD_DIR/bin/gcsfuse"

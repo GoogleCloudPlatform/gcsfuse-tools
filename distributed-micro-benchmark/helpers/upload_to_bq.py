@@ -137,9 +137,9 @@ def process_and_write_temp_csv(report_path, config_map, bench_id):
 
     return temp_csv.name, rows_processed
 
-def upload_results_to_bq(results_dir, project_id, dataset_id, table_prefix):
+def upload_results_to_bq(results_dir, project_id, dataset_id, table_prefix, report_name):
     """Main execution block combining config reading, processing, and BQ upload."""
-    report_path = os.path.join(results_dir, "combined_report.csv")
+    report_path = os.path.join(results_dir, report_name)
     if not os.path.exists(report_path):
         logging.error(f"Report file not found: {report_path}")
         sys.exit(1)
@@ -199,10 +199,11 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--results-dir", required=True)
     parser.add_argument("--project-id", default="gcs-fuse-test-ml")
+    parser.add_argument("--report-name", default="combined_report.csv")
     parser.add_argument("--is-kokoro", action="store_true")
     args = parser.parse_args()
 
     dataset = "periodic_benchmarks" if args.is_kokoro else "adhoc_benchmarks"
     prefix = "kokoro_run" if args.is_kokoro else "local_run"
 
-    upload_results_to_bq(args.results_dir, args.project_id, dataset, prefix)
+    upload_results_to_bq(args.results_dir, args.project_id, dataset, prefix, args.report_name)

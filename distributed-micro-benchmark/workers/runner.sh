@@ -21,6 +21,7 @@ parse_test_params() {
     BS=$(echo "$TEST_LINE" | cut -d',' -f4 | tr -d ' \r')
     IO_DEPTH=$(echo "$TEST_LINE" | cut -d',' -f5 | tr -d ' \r')
     NRFILES=$(echo "$TEST_LINE" | cut -d',' -f6 | tr -d ' \r')
+    DIRECT=$(echo "$TEST_LINE" | cut -d',' -f7 | tr -d ' \r')
     
     if [ -z "$BS" ] || [ -z "$FILE_SIZE" ] || [ -z "$IO_DEPTH" ]; then
         echo "ERROR: Invalid parameters from CSV line: $TEST_LINE" >&2
@@ -46,6 +47,12 @@ run_test_iterations() {
             --log-severity info \
             --log-file "$GCSFUSE_LOG_FILE" \
             "$BUCKET" "$MOUNT_DIR"
+        
+        # Verify mount success before proceeding
+        if ! mountpoint -q "$MOUNT_DIR"; then
+            echo "ERROR: Failed to mount GCSFuse on $MOUNT_DIR" >&2
+            return 1
+        fi
             
         GCSFUSE_PID=$(pgrep -f "gcsfuse.*${MOUNT_DIR}" | head -1)
         
@@ -107,14 +114,16 @@ execute_test() {
     
     # Generate FIO Job
     FIO_JOB="$TEST_DIR/job.fio"
-    TEST_DATA_DIR="$MOUNT_DIR/$FILE_SIZE"
-    export BS FILE_SIZE IO_DEPTH IO_TYPE THREADS NRFILES TEST_DATA_DIR
-    envsubst '$BS $FILE_SIZE $IO_DEPTH $IO_TYPE $THREADS $NRFILES $TEST_DATA_DIR' < jobfile.fio > "$FIO_JOB"
+    TEST_DATA_DIR="$MOUNT_DIR/${BENCHMARK_ID}/${VM_NAME}/${TEST_ID}_${FILE_SIZE}"
+    export BS FILE_SIZE IO_DEPTH IO_TYPE THREADS NRFILES DIRECT TEST_DATA_DIR
+    envsubst '$BS $FILE_SIZE $IO_DEPTH $IO_TYPE $THREADS $NRFILES $DIRECT $TEST_DATA_DIR' < jobfile.fio > "$FIO_JOB"
     
     MONITOR_FILE="$TEST_DIR/monitor.log"
     echo "timestamp,cpu_percent,mem_rss_mb,mem_vsz_mb,page_cache_gb,system_cpu_percent,net_rx_mbps,net_tx_mbps" > "$MONITOR_FILE"
     
     if ! run_test_iterations "$TEST_DIR" "$FIO_JOB" "$MONITOR_FILE" "$GCSFUSE_BIN_PATH" "$MOUNT_ARGS"; then
+        echo "Test failed, uploading logs for debugging..." >&2
+        gcloud storage cp -r "$TEST_DIR" "${RESULT_BASE}/"
         return 1
     fi
     

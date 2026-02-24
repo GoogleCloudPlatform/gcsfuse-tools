@@ -1,3 +1,0 @@
-io_type,num_jobs,file_size,block_size,io_depth,nr_files
-read,1,10m,1m,1,5
-read,2,1m,1m,1,5
