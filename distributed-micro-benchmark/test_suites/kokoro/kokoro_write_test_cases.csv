@@ -1,3 +1,7 @@
 io_type,num_jobs,file_size,block_size,io_depth,nr_files,direct
 write,96,128k,16k,64,30,0
 write,96,1m,1m,64,30,0
+write,96,50m,1m,64,30,0
+write,96,100m,1m,64,20,0
+write,96,500m,1m,64,20,0
+write,96,1g,1m,64,10,0
