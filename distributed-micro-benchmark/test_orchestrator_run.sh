@@ -54,8 +54,8 @@ python3 orchestrator.py \
     --project "${PROJECT_ID}" \
     --artifacts-bucket "${BUCKET_NAME}" \
     --test-csv "test_suites/test_orchestrator/test_cases_sample.csv" \
-    --configs-csv "test_suites/test_orchestrator/mount_configs.csv" \
-    --fio-job-file "test_suites/test_orchestrator/fio_job_default.fio" \
+    --configs-csv "test_suites/test_orchestrator/test_mount_configs.csv" \
+    --fio-job-file "test_suites/test_orchestrator/test_read.fio" \
     --test-data-bucket "${BUCKET_NAME}" \
     --iterations 1 \
     --poll-interval 20 \

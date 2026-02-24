@@ -44,22 +44,20 @@ def download_json(gcs_path):
             return json.load(rf)
 
 
-def upload_test_cases(csv_path, base_path):
+def upload_test_cases(csv_path, gcs_path):
     """Upload test cases CSV to GCS"""
     if not os.path.exists(csv_path):
         raise FileNotFoundError(f"Test cases file not found: {csv_path}")
     
-    dest = f"{base_path}/test-cases.csv"
-    gcloud_utils.gcloud_storage_cp(csv_path, dest, retries=1, check=True)
+    gcloud_utils.gcloud_storage_cp(csv_path, gcs_path, retries=1, check=True)
 
 
-def upload_fio_job_file(fio_path, base_path):
+def upload_fio_job_file(fio_path, gcs_path):
     """Upload FIO job template to GCS"""
     if not os.path.exists(fio_path):
         raise FileNotFoundError(f"FIO job file not found: {fio_path}")
     
-    dest = f"{base_path}/jobfile.fio"
-    gcloud_utils.gcloud_storage_cp(fio_path, dest, retries=1, check=True)
+    gcloud_utils.gcloud_storage_cp(fio_path, gcs_path, retries=1, check=True)
 
 
 def list_manifests(benchmark_id, artifacts_bucket):

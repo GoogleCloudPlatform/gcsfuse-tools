@@ -1,4 +1,0 @@
-io_type,num_jobs,file_size,block_size,io_depth,nr_files,direct
-read,192,128k,128k,1,30,1
-randread,192,256k,128k,1,30,1
-read,192,256k,128k,1,30,1

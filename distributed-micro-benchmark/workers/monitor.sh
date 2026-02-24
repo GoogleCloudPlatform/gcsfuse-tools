@@ -5,7 +5,7 @@
 get_col_stats() {
     local file=$1
     local col=$2
-    awk -F',' -v c="$col" 'NR>1 {sum+=$c; if($c>max) max=$c; count++} END {if(count>0) printf "%.2f %.2f", sum/count, max+0; else print "0 0"}' "$file"
+    awk -F',' -v c="$col" '{sum+=$c; if($c>max) max=$c; count++} END {if(count>0) printf "%.2f %.2f\n", sum/count, max+0; else print "0 0"}' "$file"
 }
 
 # Aggregates monitoring data into a single line of AVG/MAX pairs for the manifest

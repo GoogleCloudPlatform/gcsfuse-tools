@@ -21,7 +21,7 @@ echo "Artifacts Bucket: $ARTIFACTS_BUCKET"
 echo "Start time: $(date)"
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
-LOG_FILE="/${SCRIPT_DIR}/worker_${BENCHMARK_ID}.log"
+LOG_FILE="${SCRIPT_DIR}/worker_${BENCHMARK_ID}.log"
 
 echo "VM: $VM_NAME"
 
@@ -117,9 +117,14 @@ install_dependencies
 # 2. Download Job Configs
 echo "Downloading job configuration..."
 gcloud storage cp "gs://${ARTIFACTS_BUCKET}/${BENCHMARK_ID}/jobs/${VM_NAME}.json" job.json
-gcloud storage cp "gs://${ARTIFACTS_BUCKET}/${BENCHMARK_ID}/test-cases.csv" test-cases.csv
-gcloud storage cp "gs://${ARTIFACTS_BUCKET}/${BENCHMARK_ID}/jobfile.fio" jobfile.fio
 gcloud storage cp "gs://${ARTIFACTS_BUCKET}/${BENCHMARK_ID}/config.json" config.json
+
+# Read filenames from config.json (fallback to defaults if missing)
+TEST_FILENAME=$(jq -r '.test_filename // "test-cases.csv"' config.json)
+JOB_FILENAME=$(jq -r '.job_filename // "jobfile.fio"' config.json)
+
+gcloud storage cp "gs://${ARTIFACTS_BUCKET}/${BENCHMARK_ID}/${TEST_FILENAME}" test-cases.csv
+gcloud storage cp "gs://${ARTIFACTS_BUCKET}/${BENCHMARK_ID}/${JOB_FILENAME}" jobfile.fio
 
 # 3. Parse Config
 BUCKET=$(jq -r '.bucket' job.json)
@@ -177,9 +182,9 @@ trap - ERR EXIT
 
 # 7. Cleanup: Delete the remote workspace directory if the script succeeded
 echo "Cleaning up workspace: $WORKSPACE"
-cd "$HOME"
-# Handle read-only files (like Go cache)
-chmod -R +w . 2>/dev/null || true
-find . -mindepth 1 -delete
+# cd "$HOME"
+# # Handle read-only files (like Go cache)
+# chmod -R +w . 2>/dev/null || true
+# find . -mindepth 1 -delete
 
 echo "Done."

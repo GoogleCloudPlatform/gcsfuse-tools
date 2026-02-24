@@ -67,7 +67,7 @@ run_test_iterations() {
 
         # Populate Metadata
         mkdir -p "$TEST_DATA_DIR"
-        # if ! ls -R "$TEST_DATA_DIR" 1> /dev/null 2>&1; then :; fi
+        if ! ls -R "$TEST_DATA_DIR" 1> /dev/null 2>&1; then :; fi
         
         # Drop Cache
         sync

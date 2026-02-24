@@ -1,4 +1,4 @@
 io_type,num_jobs,file_size,block_size,io_depth,nr_files,direct
-read,1,4m,1m,1,1,1
-randread,1,10m,4k,1,1,1
-write,1,4m,1m,1,1,1
+read,192,128k,128k,1,30,1
+randread,192,256k,128k,1,30,1
+read,96,128k,1M,1,30,1
