@@ -1,75 +1,75 @@
 io_type,num_jobs,file_size,block_size,io_depth,nr_files,direct
-read,1,4k,4k,1,1,1
-read,1,4k,4k,1,1,0
-read,48,4k,4k,1,1,1
-read,48,4k,4k,1,1,0
+read,1,4k,4k,1,15000,1
+read,1,4k,4k,1,15000,0
+read,48,4k,4k,1,15000,1
+read,48,4k,4k,1,15000,0
 
-read,1,128k,128k,1,1,1
-read,1,128k,128k,1,1,0
-read,48,128k,128k,1,1,1
-read,48,128k,128k,1,1,0
+read,1,128k,128k,1,7500,1
+read,1,128k,128k,1,7500,0
+read,48,128k,128k,1,7500,1
+read,48,128k,128k,1,7500,0
 
-read,1,1m,1m,1,1,1
-read,1,1m,1m,1,1,0
-read,48,1m,1m,1,1,1
-read,48,1m,1m,1,1,0
+read,1,1m,1m,1,5000,1
+read,1,1m,1m,1,5000,0
+read,48,1m,1m,1,5000,1
+read,48,1m,1m,1,5000,0
 
-read,1,50m,1m,1,1,1
-read,1,50m,1m,1,1,0
-read,48,50m,1m,1,1,1
-read,48,50m,1m,1,1,0
+read,1,50m,1m,1,1000,1
+read,1,50m,1m,1,1000,0
+read,48,50m,1m,1,1000,1
+read,48,50m,1m,1,1000,0
 
-read,1,1g,1m,1,1,1
-read,1,1g,1m,1,1,0
-read,48,1g,1m,1,1,1
-read,48,1g,1m,1,1,0
+read,1,1g,1m,1,50,1
+read,1,1g,1m,1,50,0
+read,48,1g,1m,1,50,1
+read,48,1g,1m,1,50,0
 
 # 4K Block Size
-randread,1,1g,4k,1,1,1
-randread,1,1g,4k,1,1,0
-randread,1,1g,4k,4,1,1
-randread,1,1g,4k,4,1,0
-randread,48,1g,4k,1,1,1
-randread,48,1g,4k,1,1,0
-randread,48,1g,4k,4,1,1
-randread,48,1g,4k,4,1,0
+randread,1,1g,4k,1,50,1
+randread,1,1g,4k,1,50,0
+randread,1,1g,4k,4,50,1
+randread,1,1g,4k,4,50,0
+randread,48,1g,4k,1,50,1
+randread,48,1g,4k,1,50,0
+randread,48,1g,4k,4,50,1
+randread,48,1g,4k,4,50,0
 
 # 64K Block Size
-randread,1,1g,64k,1,1,1
-randread,1,1g,64k,1,1,0
-randread,1,1g,64k,4,1,1
-randread,1,1g,64k,4,1,0
-randread,48,1g,64k,1,1,1
-randread,48,1g,64k,1,1,0
-randread,48,1g,64k,4,1,1
-randread,48,1g,64k,4,1,0
+randread,1,1g,64k,1,50,1
+randread,1,1g,64k,1,50,0
+randread,1,1g,64k,4,50,1
+randread,1,1g,64k,4,50,0
+randread,48,1g,64k,1,50,1
+randread,48,1g,64k,1,50,0
+randread,48,1g,64k,4,50,1
+randread,48,1g,64k,4,50,0
 
 # 1MB Block Size
-randread,1,1g,1m,1,1,1
-randread,1,1g,1m,1,1,0
-randread,1,1g,1m,4,1,1
-randread,1,1g,1m,4,1,0
-randread,48,1g,1m,1,1,1
-randread,48,1g,1m,1,1,0
-randread,48,1g,1m,4,1,1
-randread,48,1g,1m,4,1,0
+randread,1,1g,1m,1,50,1
+randread,1,1g,1m,1,50,0
+randread,1,1g,1m,4,50,1
+randread,1,1g,1m,4,50,0
+randread,48,1g,1m,1,50,1
+randread,48,1g,1m,1,50,0
+randread,48,1g,1m,4,50,1
+randread,48,1g,1m,4,50,0
 
 # 4MB Block Size
-randread,1,1g,4m,1,1,1
-randread,1,1g,4m,1,1,0
-randread,1,1g,4m,4,1,1
-randread,1,1g,4m,4,1,0
-randread,48,1g,4m,1,1,1
-randread,48,1g,4m,1,1,0
-randread,48,1g,4m,4,1,1
-randread,48,1g,4m,4,1,0
+randread,1,1g,4m,1,50,1
+randread,1,1g,4m,1,50,0
+randread,1,1g,4m,4,50,1
+randread,1,1g,4m,4,50,0
+randread,48,1g,4m,1,50,1
+randread,48,1g,4m,1,50,0
+randread,48,1g,4m,4,50,1
+randread,48,1g,4m,4,50,0
 
 # 16MB Block Size
-randread,1,1g,16m,1,1,1
-randread,1,1g,16m,1,1,0
-randread,1,1g,16m,4,1,1
-randread,1,1g,16m,4,1,0
-randread,48,1g,16m,1,1,1
-randread,48,1g,16m,1,1,0
-randread,48,1g,16m,4,1,1
-randread,48,1g,16m,4,1,0
+randread,1,1g,16m,1,50,1
+randread,1,1g,16m,1,50,0
+randread,1,1g,16m,4,50,1
+randread,1,1g,16m,4,50,0
+randread,48,1g,16m,1,50,1
+randread,48,1g,16m,1,50,0
+randread,48,1g,16m,4,50,1
+randread,48,1g,16m,4,50,0
