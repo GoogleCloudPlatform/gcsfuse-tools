@@ -17,6 +17,10 @@
 import subprocess
 import time
 import os
+import sys
+import csv
+import io
+import json
 
 
 def run_gcloud_command(cmd, retries=1, retry_delay=2, check=False, capture_output=True, text=True, **kwargs):
@@ -90,25 +94,54 @@ def gcloud_compute_scp(source, dest, zone, project, internal_ip=True, check=True
 
 
 def gcloud_compute_instance_group_list(instance_group, zone, project, filter_status='RUNNING', include_template=False):
-    """List VM names in a managed instance group"""
-    format_string = 'value(instance.basename(),instanceTemplate.basename())' if include_template else 'value(NAME)'
+    """List VM names in a managed instance group using JSON"""
+    
+    # We drop the complicated CSV formatting and just ask for pure JSON
     cmd = [
         'gcloud', 'compute', 'instance-groups', 'managed', 'list-instances',
         instance_group,
         f'--zone={zone}',
         f'--project={project}',
         f'--filter=STATUS={filter_status}',
-        f'--format={format_string}'
+        '--format=json'
     ]
-    result = run_gcloud_command(cmd, retries=1, check=True)
-    lines = [line.strip() for line in result.stdout.strip().split('\n') if line.strip()]
 
-    if not include_template:
-        return lines
+    try:
+        result = run_gcloud_command(cmd, check=True)
+        output = result.stdout.strip()
 
-    # Parse into dicts if template is included
-    vm_list = []
-    for line in lines:
-        parts = line.split('\t')
-        vm_list.append({'name': parts[0], 'template': parts[1] if len(parts) > 1 else 'unknown'})
-    return vm_list
+        if not output:
+            return []
+
+        vms = []
+        # Parse the JSON string into a native Python dictionary
+        instances_data = json.loads(output)
+        
+        for item in instances_data:
+            # Extract instance name from the full URL string
+            instance_url = item.get('instance', '')
+            instance_name = instance_url.split('/')[-1] if instance_url else 'unknown'
+            
+            if include_template:
+                # Safely check for the template URL at both the root level and inside 'version'
+                template_url = item.get('instanceTemplate') or item.get('version', {}).get('instanceTemplate')
+                template_name = template_url.split('/')[-1] if template_url else 'unknown'
+                
+                vms.append({'name': instance_name, 'template': template_name})
+            else:
+                vms.append({'name': instance_name, 'template': 'unknown'})
+                
+        return vms
+
+    except subprocess.CalledProcessError as e:
+        print(f"Error running gcloud command: {e}", file=sys.stderr)
+        print(f"Command: {' '.join(cmd)}", file=sys.stderr)
+        print(f"Stderr: {e.stderr}", file=sys.stderr)
+        return []
+    except json.JSONDecodeError as e:
+        print(f"Failed to parse JSON output: {e}", file=sys.stderr)
+        print(f"Raw output was: {output}", file=sys.stderr)
+        return []
+    except Exception as e:
+        print(f"An unexpected error occurred: {e}", file=sys.stderr)
+        return []
