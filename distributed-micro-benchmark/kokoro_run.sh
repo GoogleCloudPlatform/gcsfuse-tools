@@ -24,7 +24,7 @@ WRITE_CONFIGS_CSV="${SCRIPT_DIR}/test_suites/kokoro/kokoro_write_mount_configs.c
 WRITE_FIO_JOB_FILE="${SCRIPT_DIR}/test_suites/kokoro/kokoro_write_fio_job.fio"
 WRITE_TEST_CSV="${SCRIPT_DIR}/test_suites/kokoro/kokoro_write_test_cases.csv"
 
-ITERATIONS=4
+ITERATIONS=2
 SEPARATE_CONFIGS=false # Set to true to generate separate CSV per config
 POLL_INTERVAL=60
 TIMEOUT=14400 # 4 hours
@@ -181,7 +181,7 @@ run_benchmark() {
      --report-name $REPORT_NAME"
      --report-name $REPORT_NAME \
      --single-thread-vm-type="kokoro-perf-instance-template-n2-standard-32-single-threaded" \
-     --multi-thread-vm-type="kokoro-perf-instance-template""
+     --multi-thread-vm-type="kokoro-perf-instance-template"
 
     if [ -n "$CONFIGS_CSV" ] && [ -f "$CONFIGS_CSV" ]; then
      ORCHESTRATOR_CMD="$ORCHESTRATOR_CMD --configs-csv $CONFIGS_CSV"
