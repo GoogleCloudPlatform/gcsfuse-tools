@@ -179,6 +179,9 @@ run_benchmark() {
      --poll-interval $POLL_INTERVAL \
      --timeout $TIMEOUT \
      --report-name $REPORT_NAME"
+     --report-name $REPORT_NAME \
+     --single-thread-vm-type="kokoro-perf-instance-template-n2-standard-32-single-threaded" \
+     --multi-thread-vm-type="kokoro-perf-instance-template""
 
     if [ -n "$CONFIGS_CSV" ] && [ -f "$CONFIGS_CSV" ]; then
      ORCHESTRATOR_CMD="$ORCHESTRATOR_CMD --configs-csv $CONFIGS_CSV"

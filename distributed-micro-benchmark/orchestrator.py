@@ -54,6 +54,9 @@ def parse_args():
     parser.add_argument('--timeout', type=int, default=7200, help='Timeout in seconds')
     parser.add_argument('--run-name', type=str, default=None, help='Descriptive run name (default: benchmark-id)')
     parser.add_argument('--report-name', type=str, default='combined_report.csv', help='Report file name')
+
+    parser.add_argument('--single-thread-vm-type', type=str, default=None, help='Identifier in instance template name for single-threaded VMs (e.g., n2-standard-32)')
+    parser.add_argument('--multi-thread-vm-type', type=str, default=None, help='Identifier in instance template name for multi-threaded VMs (e.g., c4-standard-192)')
     return parser.parse_args()
 
 
@@ -93,13 +96,7 @@ def run_benchmark(args):
         shutil.copy(args.configs_csv, f"{results_dir}/{configs_csv_name}")
     shutil.copy(args.fio_job_file, f"{results_dir}/{fio_job_name}")
     
-    # 1. Resolve active VMs from executor-vm (Single VM or MIG)
-    vms = vm_manager.resolve_executor_vms(args.executor_vm, args.zone, args.project)
-    if not vms:
-        print(f"ERROR: No running VMs found for executor-vm '{args.executor_vm}'")
-        sys.exit(1)
-    print(f"\nFound {len(vms)} running VMs: {', '.join(vms)}")
-    
+
     # 2. Load test cases and configs
     test_cases = job_generator.load_test_cases(args.test_csv)
     if args.configs_csv:
@@ -108,7 +105,7 @@ def run_benchmark(args):
         # Create a single default config from command line arguments
         configs = [{
             'config_id': 0,
-            'config_label': 'default',
+            'label': 'default',
             'commit': args.gcsfuse_commit,
             'mount_args': args.gcsfuse_mount_args
         }]
@@ -119,7 +116,34 @@ def run_benchmark(args):
     # 3. Generate test matrix and distribute
     test_matrix = job_generator.generate_test_matrix(test_cases, configs)
     print(f"Generated test matrix: {len(test_matrix)} total tests ({len(configs)} configs × {len(test_cases)} tests)")
-    distribution = job_generator.distribute_tests(test_matrix, vms)
+
+    # 1. Resolve VMs and distribute tests based on provided flags
+    if args.single_thread_vm_type and args.multi_thread_vm_type:
+        print("\nDistributing tests by VM type...")
+        # Fetch VMs with their instance templates
+        vms_with_templates = vm_manager.resolve_executor_vms(args.executor_vm, args.zone, args.project, include_template=True)
+        vms = [vm_info['name'] for vm_info in vms_with_templates]
+
+        # Classify VMs based on the provided identifiers
+        single_thread_vms = [vm['name'] for vm in vms_with_templates if args.single_thread_vm_type in vm.get('template', '')]
+        multi_thread_vms = [vm['name'] for vm in vms_with_templates if args.multi_thread_vm_type in vm.get('template', '')]
+
+        print(f"Found {len(vms)} total running VMs: {', '.join(vms)}")
+        print(f"  - Single-threaded VMs ({args.single_thread_vm_type}): {len(single_thread_vms)}")
+        print(f"  - Multi-threaded VMs ({args.multi_thread_vm_type}): {len(multi_thread_vms)}")
+
+        distribution = job_generator.distribute_tests_by_type(test_matrix, single_thread_vms, multi_thread_vms)
+    else:
+        print("\nDistributing tests evenly across all VMs (no VM types specified)...")
+        # Fetch only VM names
+        vms = vm_manager.resolve_executor_vms(args.executor_vm, args.zone, args.project)
+        print(f"Found {len(vms)} running VMs: {', '.join(vms)}")
+        distribution = job_generator.distribute_tests(test_matrix, vms)
+
+    if not vms:
+        print(f"ERROR: No running VMs found for executor-vm '{args.executor_vm}'")
+        sys.exit(1)
+
     # Save run configuration metadata
     run_config = {
         "timestamp": datetime.now().isoformat(),
