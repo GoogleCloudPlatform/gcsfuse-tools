@@ -14,7 +14,7 @@ end_fsync=1
 rw=${IO_TYPE}
 iodepth=${IO_DEPTH}
 direct=${DIRECT}
-filename_format=$jobname.$jobnum.$filenum.size-${FILESIZE}
+filename_format=$jobname.$jobnum.$filenum.size-${FILE_SIZE}
 
 [test]
 directory=${TEST_DATA_DIR}
