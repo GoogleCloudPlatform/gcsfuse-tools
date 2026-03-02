@@ -32,6 +32,10 @@ GCSFUSE_COMMIT=master
 RUN_READ=false
 RUN_WRITE=false
 
+SINGLE_THREAD_VM_TYPE="kokoro-perf-instance-template-n2-standard-32-single-threaded"
+MULTI_THREAD_VM_TYPE="kokoro-perf-instance-template"
+
+
 # Parse command line arguments
 while [[ "$#" -gt 0 ]]; do
     case $1 in
@@ -178,10 +182,9 @@ run_benchmark() {
      --iterations $ITERATIONS \
      --poll-interval $POLL_INTERVAL \
      --timeout $TIMEOUT \
-     --report-name $REPORT_NAME"
      --report-name $REPORT_NAME \
-     --single-thread-vm-type="kokoro-perf-instance-template-n2-standard-32-single-threaded" \
-     --multi-thread-vm-type="kokoro-perf-instance-template"
+     --single-thread-vm-type='$SINGLE_THREAD_VM_TYPE' \
+     --multi-thread-vm-type='$MULTI_THREAD_VM_TYPE'"
 
     if [ -n "$CONFIGS_CSV" ] && [ -f "$CONFIGS_CSV" ]; then
      ORCHESTRATOR_CMD="$ORCHESTRATOR_CMD --configs-csv $CONFIGS_CSV"
