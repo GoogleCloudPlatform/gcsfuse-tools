@@ -124,11 +124,14 @@ def run_benchmark(args):
         vms_with_templates = vm_manager.resolve_executor_vms(args.executor_vm, args.zone, args.project, include_template=True)
         vms = [vm_info['name'] for vm_info in vms_with_templates]
 
+        print(f"Found {len(vms)} total running VMs: {', '.join(vms)}")
+        print("\nResolved VM templates:")
+        for vm in vms_with_templates:
+            print(f"  - {vm['name']}: {vm['template']}")
+
         # Classify VMs based on the provided identifiers
         single_thread_vms = [vm['name'] for vm in vms_with_templates if args.single_thread_vm_type == vm.get('template', '')]
         multi_thread_vms = [vm['name'] for vm in vms_with_templates if args.multi_thread_vm_type == vm.get('template', '')]
-        
-        print(f"Found {len(vms)} total running VMs: {', '.join(vms)}")
         print(f"  - Single-threaded VMs ({args.single_thread_vm_type}): {len(single_thread_vms)}")
         print(f"  - Multi-threaded VMs ({args.multi_thread_vm_type}): {len(multi_thread_vms)}")
 
