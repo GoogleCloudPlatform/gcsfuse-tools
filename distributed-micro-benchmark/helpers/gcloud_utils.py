@@ -89,16 +89,26 @@ def gcloud_compute_scp(source, dest, zone, project, internal_ip=True, check=True
     return run_gcloud_command(cmd, retries=retries, retry_delay=retry_delay, check=check)
 
 
-def gcloud_compute_instance_group_list(instance_group, zone, project, filter_status='RUNNING'):
+def gcloud_compute_instance_group_list(instance_group, zone, project, filter_status='RUNNING', include_template=False):
     """List VM names in a managed instance group"""
+    format_string = 'value(instance.basename(),instanceTemplate.basename())' if include_template else 'value(NAME)'
     cmd = [
         'gcloud', 'compute', 'instance-groups', 'managed', 'list-instances',
         instance_group,
         f'--zone={zone}',
         f'--project={project}',
         f'--filter=STATUS={filter_status}',
-        '--format=value(NAME)'
+        f'--format={format_string}'
     ]
     result = run_gcloud_command(cmd, retries=1, check=True)
-    vms = [vm.strip() for vm in result.stdout.strip().split('\n') if vm.strip()]
-    return vms
+    lines = [line.strip() for line in result.stdout.strip().split('\n') if line.strip()]
+
+    if not include_template:
+        return lines
+
+    # Parse into dicts if template is included
+    vm_list = []
+    for line in lines:
+        parts = line.split('\t')
+        vm_list.append({'name': parts[0], 'template': parts[1] if len(parts) > 1 else 'unknown'})
+    return vm_list

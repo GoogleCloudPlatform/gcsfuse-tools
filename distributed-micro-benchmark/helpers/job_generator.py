@@ -62,26 +62,56 @@ def generate_test_matrix(test_cases, configs):
 
 
 def distribute_tests(test_cases, vms):
-    """Distribute test cases evenly across VMs"""
+    """Distribute test cases evenly across all VMs."""
+    print("Distributing tests evenly across all VMs.")
+    return _distribute_evenly(test_cases, vms)
+
+
+def distribute_tests_by_type(test_cases, single_thread_vms, multi_thread_vms):
+    """Distribute test cases to VMs based on thread count."""
+    single_thread_tests = [t for t in test_cases if int(t.get('num_jobs', 1)) == 1]
+    multi_thread_tests = [t for t in test_cases if int(t.get('num_jobs', 1)) > 1]
+
+    print(f"Separated tests: {len(single_thread_tests)} single-threaded, {len(multi_thread_tests)} multi-threaded.")
+
+    distribution = {}
+    # Distribute single-threaded tests
+    dist_single = _distribute_evenly(single_thread_tests, single_thread_vms)
+    distribution.update(dist_single)
+
+    # Distribute multi-threaded tests
+    dist_multi = _distribute_evenly(multi_thread_tests, multi_thread_vms)
+    distribution.update(dist_multi)
+
+    return distribution
+
+
+def _distribute_evenly(tests, vms):
+    """Distributes a list of tests evenly across a list of VMs."""
+    if not vms:
+        if tests:
+            # This is not a hard error, as one category might be empty.
+            print(f"Warning: {len(tests)} tests could not be assigned as no VMs were provided for their category.")
+        return {}
+
     num_vms = len(vms)
     if not num_vms:
-        if test_cases:
+        if tests:
             raise ValueError("Cannot distribute tests to an empty list of VMs.")
         return {}
-    tests_per_vm = len(test_cases) // num_vms
-    remaining = len(test_cases) % num_vms
+    tests_per_vm = len(tests) // num_vms
+    remaining = len(tests) % num_vms
     
     distribution = {}
     start_idx = 0
-    
+
     for i, vm in enumerate(vms):
         count = tests_per_vm + (1 if i < remaining else 0)
         end_idx = start_idx + count
-        distribution[vm] = test_cases[start_idx:end_idx]
+        distribution[vm] = tests[start_idx:end_idx]
         start_idx = end_idx
     
     return distribution
-
 
 def create_job_spec(vm_name, benchmark_id, test_entries, bucket, artifacts_bucket, iterations):
     """Create job specification for a VM"""

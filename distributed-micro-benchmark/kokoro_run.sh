@@ -24,7 +24,7 @@ WRITE_CONFIGS_CSV="${SCRIPT_DIR}/test_suites/kokoro/kokoro_write_mount_configs.c
 WRITE_FIO_JOB_FILE="${SCRIPT_DIR}/test_suites/kokoro/kokoro_write_fio_job.fio"
 WRITE_TEST_CSV="${SCRIPT_DIR}/test_suites/kokoro/kokoro_write_test_cases.csv"
 
-ITERATIONS=4
+ITERATIONS=2
 SEPARATE_CONFIGS=false # Set to true to generate separate CSV per config
 POLL_INTERVAL=60
 TIMEOUT=14400 # 4 hours
@@ -179,6 +179,9 @@ run_benchmark() {
      --poll-interval $POLL_INTERVAL \
      --timeout $TIMEOUT \
      --report-name $REPORT_NAME"
+     --report-name $REPORT_NAME \
+     --single-thread-vm-type="kokoro-perf-instance-template-n2-standard-32-single-threaded" \
+     --multi-thread-vm-type="kokoro-perf-instance-template"
 
     if [ -n "$CONFIGS_CSV" ] && [ -f "$CONFIGS_CSV" ]; then
      ORCHESTRATOR_CMD="$ORCHESTRATOR_CMD --configs-csv $CONFIGS_CSV"
@@ -229,7 +232,16 @@ if [ "$RUN_READ" = true ]; then
 fi
 
 if [ "$RUN_WRITE" = true ]; then
-    run_benchmark "write" "$WRITE_FIO_JOB_FILE" "$WRITE_TEST_CSV" "$WRITE_CONFIGS_CSV"
+    # Run write benchmark in a loop to ensure new directories are used for each iteration
+    (
+        original_benchmark_id="$BENCHMARK_ID"
+        total_iterations=$ITERATIONS
+        for ((i=1; i<=total_iterations; i++)); do
+            BENCHMARK_ID="${original_benchmark_id}-iter${i}"
+            ITERATIONS=1
+            run_benchmark "write" "$WRITE_FIO_JOB_FILE" "$WRITE_TEST_CSV" "$WRITE_CONFIGS_CSV"
+        done
+    )
 fi
 
 echo "Benchmark Complete!"
