@@ -233,15 +233,15 @@ fi
 
 if [ "$RUN_WRITE" = true ]; then
     # Run write benchmark in a loop to ensure new directories are used for each iteration
-    ORIGINAL_BENCHMARK_ID="$BENCHMARK_ID"
-    TOTAL_ITERATIONS=$ITERATIONS
-    for ((i=1; i<=TOTAL_ITERATIONS; i++)); do
-        BENCHMARK_ID="${ORIGINAL_BENCHMARK_ID}-iter${i}"
-        ITERATIONS=1
-        run_benchmark "write" "$WRITE_FIO_JOB_FILE" "$WRITE_TEST_CSV" "$WRITE_CONFIGS_CSV"
-    done
-    BENCHMARK_ID="$ORIGINAL_BENCHMARK_ID"
-    ITERATIONS=$TOTAL_ITERATIONS
+    (
+        original_benchmark_id="$BENCHMARK_ID"
+        total_iterations=$ITERATIONS
+        for ((i=1; i<=total_iterations; i++)); do
+            BENCHMARK_ID="${original_benchmark_id}-iter${i}"
+            ITERATIONS=1
+            run_benchmark "write" "$WRITE_FIO_JOB_FILE" "$WRITE_TEST_CSV" "$WRITE_CONFIGS_CSV"
+        done
+    )
 fi
 
 echo "Benchmark Complete!"
