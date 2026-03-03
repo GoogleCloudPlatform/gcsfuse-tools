@@ -66,13 +66,18 @@ run_test_iterations() {
         MONITOR_PID=$(cat "$MONITOR_PID_FILE" 2>/dev/null)
 
         # Populate Metadata
-        mkdir -p "$TEST_DATA_DIR"
-        if ! ls -R "$TEST_DATA_DIR" 1> /dev/null 2>&1; then :; fi
-        
+        # mkdir -p "$TEST_DATA_DIR"
+        # if ! ls -R "$TEST_DATA_DIR" 1> /dev/null 2>&1; then :; fi
+        echo "Not populating metadata!!"
         # Drop Cache
         sync
         sudo sh -c 'echo 3 > /proc/sys/vm/drop_caches' 2>/dev/null || true
-        
+        echo "Dropped Caches"
+
+        # --- TIME START ---
+        START_TIME=$(date +%s)
+        echo "  [$(date +'%H:%M:%S')] Starting FIO execution...!!!..."
+
         # Run FIO
         OUTPUT_FILE="${TEST_DIR}/fio_output_${i}.json"
         if ! fio "$FIO_JOB" --alloc-size=2097152 --output-format=json --output="$OUTPUT_FILE"; then
@@ -82,6 +87,11 @@ run_test_iterations() {
             return 1
         fi
         
+        # --- TIME END ---
+        END_TIME=$(date +%s)
+        DURATION=$((END_TIME - START_TIME))
+        echo "  [$(date +'%H:%M:%S')] FIO finished. Duration: ${DURATION}s ...!!!..."
+
         stop_monitoring "$MONITOR_PID" "$MONITOR_STOP_FLAG"
         
         # Unmount
