@@ -68,7 +68,7 @@ run_test_iterations() {
         
         # Run FIO
         OUTPUT_FILE="${TEST_DIR}/fio_output_${i}.json"
-        if ! fio "$FIO_JOB" --output-format=json --output="$OUTPUT_FILE"; then
+        if ! fio "$FIO_JOB" --alloc-size=$((512 * 1024)) --output-format=json --output="$OUTPUT_FILE"; then
             echo "ERROR: FIO execution failed" >&2
             stop_monitoring "$MONITOR_PID" "$MONITOR_STOP_FLAG"
             fusermount -u "$MOUNT_DIR" 2>/dev/null

@@ -142,9 +142,21 @@ def parse_test_results(test_dir, test_info):
     lat_lists = {key: [] for key in ['min', 'max', 'mean', 'stddev', 'p50', 'p90', 'p99']}
     
     for fio_file in fio_files:
-        with open(fio_file, 'r') as f:
-            data = json.load(f)
-            
+        if os.path.getsize(fio_file) == 0:
+            print(f"Warning: Skipping empty FIO output file: {fio_file}")
+            continue
+
+        try:
+            with open(fio_file, 'r') as f:
+                content = f.read()
+                # FIO sometimes prints warnings/errors before the JSON output.
+                # We find the first '{' to locate the start of the actual JSON object.
+                start_idx = content.find('{')
+                if start_idx == -1:
+                    print(f"Warning: No JSON object found in {fio_file}")
+                    continue
+                data = json.loads(content[start_idx:])
+
             for job in data.get('jobs', []):
                 # Extract read metrics
                 lat_metrics = _extract_latency_metrics(job)
@@ -157,6 +169,9 @@ def parse_test_results(test_dir, test_info):
                 # Extract write metrics
                 if 'write' in job and job['write'].get('bw'):
                     write_bws.append(job['write']['bw'])
+        except (json.JSONDecodeError, Exception) as e:
+            print(f"Warning: Failed to parse {fio_file}: {e}")
+            continue
     
     # Build result dict
     result = {

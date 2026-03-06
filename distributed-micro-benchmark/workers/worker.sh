@@ -170,7 +170,7 @@ done < <(echo "$TEST_ENTRIES")
 
 # 6. Finalize
 STATUS="completed"
-if [ $TESTS_COMPLETED -lt $TOTAL_TESTS ]; then STATUS="partial"; fi
+if [ $TESTS_COMPLETED -lt $TOTAL_TESTS ]; then STATUS="failed"; fi
 
 END_TIME=$(date -u +"%Y-%m-%dT%H:%M:%S%z")
 jq ".status = \"$STATUS\" | .end_time = \"$END_TIME\" | .total_tests = $TOTAL_TESTS | .completed_tests = $TESTS_COMPLETED" manifest.json > manifest.final.json
