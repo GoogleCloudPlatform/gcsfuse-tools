@@ -66,7 +66,8 @@ def main():
                     "Status": "PENDING"
                 }
                 vm_assignments[vm_full] += 1
-        except Exception:
+        except json.JSONDecodeError as e:
+            print(f"Warning: Failed to parse JSON from {line}: {e}", file=sys.stderr)
             continue
 
     # =========================================================================
