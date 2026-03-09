@@ -19,10 +19,6 @@ read,1,1g,1m,1,10,1
 read,1,1g,1m,1,10,0
 read,48,1g,1m,1,10,1
 read,48,1g,1m,1,10,0
-randread,1,1g,4k,1,15,1
-randread,1,1g,4k,1,15,0
-randread,48,1g,4k,4,15,1
-randread,48,1g,4k,4,15,0
 randread,1,1g,4m,1,15,1
 randread,1,1g,4m,1,15,0
 randread,48,1g,4m,4,15,1

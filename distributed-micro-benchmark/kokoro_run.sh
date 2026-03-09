@@ -24,9 +24,9 @@ WRITE_CONFIGS_CSV="${SCRIPT_DIR}/test_suites/kokoro/kokoro_write_mount_configs.c
 WRITE_FIO_JOB_FILE="${SCRIPT_DIR}/test_suites/kokoro/kokoro_write_fio_job.fio"
 WRITE_TEST_CSV="${SCRIPT_DIR}/test_suites/kokoro/kokoro_write_test_cases.csv"
 
-ITERATIONS=3
+ITERATIONS=1
 SEPARATE_CONFIGS=false # Set to true to generate separate CSV per config
-POLL_INTERVAL=60
+POLL_INTERVAL=120
 TIMEOUT=14400 # 4 hours
 GCSFUSE_COMMIT=master 
 RUN_READ=false

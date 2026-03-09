@@ -5,8 +5,8 @@ parse_test_params() {
     local TEST_LINE
     local LINE_NUM
     
-    # Calculate line number (TEST_ID + 2 to skip header)
-    LINE_NUM=$((TEST_ID + 2))
+    # Calculate line number (TEST_ID + 1 to skip header)
+    LINE_NUM=$((TEST_ID + 1))
     
     TEST_LINE=$(awk -F',' -v line="$LINE_NUM" 'NR==line {print}' test-cases.csv)
     

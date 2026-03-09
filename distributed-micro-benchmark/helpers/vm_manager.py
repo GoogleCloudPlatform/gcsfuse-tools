@@ -143,7 +143,25 @@ def fetch_worker_logs(vm_name, benchmark_id, artifacts_bucket, lines=50):
         print(f"Could not fetch logs for {vm_name}: {e}")
 
 
-def wait_for_completion(vms, benchmark_id, artifacts_bucket, poll_interval=30, timeout=7200):
+def _get_vm_test_progress(benchmark_id, artifacts_bucket):
+    """Poll GCS to count completed tests per VM based on result directories."""
+    path = f"gs://{artifacts_bucket}/{benchmark_id}/results/**/job.fio"
+    cmd = ['gcloud', 'storage', 'ls', path]
+    result = gcloud_utils.run_gcloud_command(cmd, capture_output=True, text=True, check=False)
+    
+    counts = {}
+    if result.returncode == 0:
+        prefix = f"gs://{artifacts_bucket}/{benchmark_id}/results/"
+        for line in result.stdout.splitlines():
+            if line.startswith(prefix):
+                # Extract VM name: it's the first part after the prefix
+                relative_path = line[len(prefix):]
+                vm_name = relative_path.split('/')[0]
+                counts[vm_name] = counts.get(vm_name, 0) + 1
+    return counts
+
+
+def wait_for_completion(vms, benchmark_id, artifacts_bucket, poll_interval=30, timeout=7200, expected_counts=None):
     """Wait for all VMs to complete by monitoring manifests.
     
     Polls GCS for manifest.json files from each VM. Manifests indicate completion status:
@@ -160,6 +178,9 @@ def wait_for_completion(vms, benchmark_id, artifacts_bucket, poll_interval=30, t
     failed_vms = set()
     
     while datetime.now() < deadline:
+        # Get granular progress by counting uploaded result files
+        progress_counts = _get_vm_test_progress(benchmark_id, artifacts_bucket)
+
         # Check for manifests
         for vm in vms:
             if vm in completed_vms or vm in failed_vms:
@@ -195,11 +216,17 @@ def wait_for_completion(vms, benchmark_id, artifacts_bucket, poll_interval=30, t
         in_progress_vms = set(vms) - completed_vms - failed_vms
         
         # Build status message
-        status_msg = f"  Progress: {len(completed_vms)}/{len(vms)} completed"
+        status_msg = f"  Progress: {len(completed_vms)}/{len(vms)} VMs finished"
         if failed_vms:
             status_msg += f", {len(failed_vms)} failed"
+            
         if in_progress_vms:
-            status_msg += f" | In-progress: {', '.join(sorted(in_progress_vms))}"
+            details = []
+            for vm in sorted(in_progress_vms):
+                done = progress_counts.get(vm, 0)
+                total = expected_counts.get(vm, "?") if expected_counts else "?"
+                details.append(f"{vm}: {done}/{total}")
+            status_msg += f" | In-progress: {', '.join(details)}"
         
         print(status_msg)
         time.sleep(poll_interval)

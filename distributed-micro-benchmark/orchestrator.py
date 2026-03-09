@@ -205,8 +205,8 @@ def run_benchmark(args):
 
         for entry in test_entries:
             if isinstance(entry, dict) and 'matrix_id' in entry and num_test_cases > 0:
-                # Map global ID back to [0, num_test_cases-1]
-                entry['test_id'] = entry['matrix_id'] % num_test_cases
+                # Map global ID back to [1, num_test_cases]
+                entry['test_id'] = ((entry['matrix_id'] - 1) % num_test_cases) + 1
         
         job = job_generator.create_job_spec(
             vm_name=vm_name,
@@ -259,12 +259,15 @@ def run_benchmark(args):
     
     # 7. Monitor progress by polling manifests
     print(f"\nMonitoring progress (polling every {args.poll_interval}s)...")
+    # Calculate expected test counts per VM for progress reporting
+    expected_counts = {vm: len(tests) for vm, tests in distribution.items() if tests}
     completed = vm_manager.wait_for_completion(
         vms=active_vms,
         benchmark_id=args.benchmark_id,
         artifacts_bucket=args.artifacts_bucket,
         poll_interval=args.poll_interval,
-        timeout=args.timeout
+        timeout=args.timeout,
+        expected_counts=expected_counts
     )
     if not completed:
         print("\nWARNING: Not all active VMs completed successfully")
