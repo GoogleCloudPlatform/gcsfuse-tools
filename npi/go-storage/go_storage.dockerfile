@@ -9,7 +9,8 @@ RUN go build -o benchmark_tool .
 
 FROM python:3.13-slim
 RUN pip install --no-cache-dir google-cloud-storage google-cloud-bigquery
-COPY --from=builder /app/custom-go-client-benchmark/benchmark_tool /usr/local/bin/benchmark_tool
+COPY --from=builder /app/custom_go_client_benchmark/benchmark_tool /usr/local/bin/benchmark_tool
+
 COPY go-storage/go_storage_benchmark.py /app/go_storage_benchmark.py
 WORKDIR /app
 ENTRYPOINT ["python3", "go_storage_benchmark.py"]
