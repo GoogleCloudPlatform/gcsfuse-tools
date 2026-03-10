@@ -1,8 +1,8 @@
 io_type,num_jobs,file_size,block_size,io_depth,nr_files,direct
-read,1,4k,4k,1,1500,1
-read,1,4k,4k,1,1500,0
-read,48,4k,4k,1,1500,1
-read,48,4k,4k,1,1500,0
+read,1,4k,4k,1,1000,1
+read,1,4k,4k,1,1000,0
+read,48,4k,4k,1,1000,1
+read,48,4k,4k,1,1000,0
 read,1,128k,128k,1,1000,1
 read,1,128k,128k,1,1000,0
 read,48,128k,128k,1,1000,1

@@ -1,6 +1,6 @@
 io_type,num_jobs,file_size,block_size,io_depth,nr_files,direct
-write,1,4k,4k,1,1500,0
-write,48,4k,4k,1,1500,0
+write,1,4k,4k,1,1000,0
+write,48,4k,4k,1,1000,0
 write,1,128k,16k,1,1000,0
 write,48,128k,16k,1,1000,0
 write,1,1m,1m,1,1000,0
