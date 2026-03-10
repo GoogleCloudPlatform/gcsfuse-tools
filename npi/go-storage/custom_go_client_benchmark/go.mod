@@ -1,8 +1,6 @@
-module github.com/raj-prince/custom-go-client-benchmark
+module github.com/GoogleCloudPlatform/gcsfuse-tools/npi/go-storage/custom_go_client_benchmark
 
-go 1.23.0
-
-toolchain go1.24.2
+go 1.24.11
 
 require (
 	cloud.google.com/go/storage v1.55.0
