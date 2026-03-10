@@ -1,0 +1,3 @@
+commit,mount_args,label
+master,"--implicit-dirs",standard
+master,"--stat-cache-max-size-mb=-1 --implicit-dirs",infinite-stat-cache
