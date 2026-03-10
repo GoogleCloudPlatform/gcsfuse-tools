@@ -233,13 +233,18 @@ def main():
         if os.path.exists("/usr/local/bin/benchmark_tool"):
             logging.info("Using pre-built benchmark tool.")
             executable_path = "/usr/local/bin/benchmark_tool"
-            # run_tests will handle the path. We just need to make sure permissions are executable.
-            # Docker COPY usually preserves permissions or we can chmod.
         else:
-            repo_url = "https://github.com/kislaykishore/custom-go-client-benchmark"
-            repo_path = build_benchmark_tool(repo_url, work_dir)
-            repo_name = repo_url.split("/")[-1]
-            executable_path = os.path.join(repo_path, repo_name)
+            # If running outside the container, point to the local source
+            local_repo_path = os.path.join(os.path.dirname(__file__), "custom_go_client_benchmark")
+            if os.path.exists(local_repo_path):
+                logging.info(f"Building benchmark tool from local source: {local_repo_path}")
+                # You can still use build_benchmark_tool but modify it to accept a local path
+                # or simply exit if you want to strictly enforce container-only builds.
+                run_command(["go", "build", "-o", "benchmark_tool", "."], cwd=local_repo_path)
+                executable_path = os.path.join(local_repo_path, "benchmark_tool")
+            else:
+                logging.error("Benchmark tool not found at /usr/local/bin/benchmark_tool and no local source available.")
+                sys.exit(1)
         
         http_results, grpc_results = run_tests(executable_path, args.bucket_name, args.iterations)
         
