@@ -24,7 +24,7 @@ WRITE_CONFIGS_CSV="${SCRIPT_DIR}/test_suites/kokoro/kokoro_write_mount_configs.c
 WRITE_FIO_JOB_FILE="${SCRIPT_DIR}/test_suites/kokoro/kokoro_write_fio_job.fio"
 WRITE_TEST_CSV="${SCRIPT_DIR}/test_suites/kokoro/kokoro_write_test_cases.csv"
 
-ITERATIONS=1
+ITERATIONS=3
 SEPARATE_CONFIGS=false # Set to true to generate separate CSV per config
 POLL_INTERVAL=120
 TIMEOUT=14400 # 4 hours
@@ -170,7 +170,7 @@ run_benchmark() {
 
     # --- STEP 5: Run Orchestrator ---
     mkdir -p results
-    ORCHESTRATOR_CMD="python3 orchestrator.py \
+    ORCHESTRATOR_CMD="python3 -u orchestrator.py \
      --benchmark-id $CURRENT_BENCHMARK_ID \
      --executor-vm $INSTANCE_GROUP_NAME \
      --zone $ZONE \
@@ -231,11 +231,15 @@ upload_scripts
 setup_permissions
 
 if [ "$RUN_READ" = true ]; then
+    START_READ=$(date +%s)
     run_benchmark "read" "$READ_FIO_JOB_FILE" "$READ_TEST_CSV" "$READ_CONFIGS_CSV"
+    END_READ=$(date +%s)
+    echo ">>> READ Benchmark Duration: $((END_READ - START_READ)) seconds"
 fi
 
 if [ "$RUN_WRITE" = true ]; then
     # Run write benchmark in a loop to ensure new directories are used for each iteration
+    START_WRITE=$(date +%s)
     (
         original_benchmark_id="$BENCHMARK_ID"
         total_iterations=$ITERATIONS
@@ -245,6 +249,8 @@ if [ "$RUN_WRITE" = true ]; then
             run_benchmark "write" "$WRITE_FIO_JOB_FILE" "$WRITE_TEST_CSV" "$WRITE_CONFIGS_CSV"
         done
     )
+    END_WRITE=$(date +%s)
+    echo ">>> WRITE Benchmark (Total for all iterations) Duration: $((END_WRITE - START_WRITE)) seconds"
 fi
 
 echo "Benchmark Complete!"

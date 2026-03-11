@@ -117,7 +117,7 @@ execute_test() {
 
     if ! parse_test_params "$TEST_ID"; then return 1; fi
     
-    echo "Running Test Matrix Entry $MATRIX_ID (Test ID: $TEST_ID, BS=$BS, Threads=$THREADS)"
+    echo "Running Test Matrix Entry $MATRIX_ID (Test ID: $TEST_ID, BS=$BS, File Size=$FILE_SIZE, IO Depth=$IO_DEPTH, IO Type=$IO_TYPE, Threads=$THREADS)"
     
     TEST_DIR="test-${TEST_DIR_NAME}"
     mkdir -p "$TEST_DIR"
