@@ -46,6 +46,7 @@ run_test_iterations() {
             --log-format text \
             --log-severity info \
             --log-file "$GCSFUSE_LOG_FILE" \
+            --experimental-tracing-sample-ratio=0.1 \
             "$BUCKET" "$MOUNT_DIR"
         
         # Verify mount success before proceeding
@@ -117,7 +118,7 @@ execute_test() {
 
     if ! parse_test_params "$TEST_ID"; then return 1; fi
     
-    echo "Running Test Matrix Entry $MATRIX_ID (Test ID: $TEST_ID, BS=$BS, Threads=$THREADS)"
+    echo "Running Test Matrix Entry $MATRIX_ID (Test ID: $TEST_ID, BS=$BS, File Size=$FILE_SIZE, IO Depth=$IO_DEPTH, IO Type=$IO_TYPE, Threads=$THREADS, Nrfiles=$NRFILES, Direct=$DIRECT)"
     
     TEST_DIR="test-${TEST_DIR_NAME}"
     mkdir -p "$TEST_DIR"
