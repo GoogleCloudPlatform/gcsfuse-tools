@@ -8,7 +8,10 @@ ARG TARGETOS
 ARG TARGETARCH
 WORKDIR /app
 RUN git clone -b ${GCSFUSE_VERSION} --depth 1 --single-branch https://github.com/GoogleCloudPlatform/gcsfuse.git
-RUN cd gcsfuse && GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build .
+RUN cd gcsfuse \
+    && go get google.golang.org/grpc@v1.79.2 \
+    && go mod tidy \
+    && GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build .
 
 FROM python:3.13
 # Install FUSE and related packages
@@ -18,3 +21,4 @@ rm -rf /var/lib/apt/lists/* && \
 pip install --no-cache-dir google-cloud-bigquery
 COPY --from=builder /app/gcsfuse/gcsfuse /gcsfuse/gcsfuse
 ENTRYPOINT ["/bin/bash"]
+
