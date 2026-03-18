@@ -138,6 +138,13 @@ echo "Iterations: $ITERATIONS"
 
 mkdir -p "$MOUNT_DIR"
 
+# Initialize durations summary file
+HEADER=$(head -n 1 test-cases.csv | tr -d '\r\n')
+for ((i=1; i<=ITERATIONS; i++)); do
+    HEADER="${HEADER}, iter${i}_time"
+done
+echo "$HEADER" > "$WORKSPACE/fio_durations.csv"
+
 # 4. Initialize Manifest
 cat > manifest.json <<EOF
 {
