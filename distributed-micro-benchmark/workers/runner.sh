@@ -91,7 +91,7 @@ run_test_iterations() {
         if ! fio "$FIO_JOB" $FIO_TIME_ARGS --alloc-size=$((2 * 1024 * 1024)) --output-format=json --output="$OUTPUT_FILE"; then
             echo "ERROR: FIO execution failed" >&2
             stop_monitoring "$MONITOR_PID" "$MONITOR_STOP_FLAG"
-            fusermount -u "$MOUNT_DIR" 2>/dev/null
+            sudo fusermount -u "$MOUNT_DIR" 2>/dev/null || sudo umount -f "$MOUNT_DIR" 2>/dev/null || true
             return 1
         fi
         
@@ -103,7 +103,7 @@ run_test_iterations() {
         stop_monitoring "$MONITOR_PID" "$MONITOR_STOP_FLAG"
         
         # Unmount
-        fusermount -u "$MOUNT_DIR" 2>/dev/null || umount "$MOUNT_DIR" 2>/dev/null || true
+        sudo fusermount -u "$MOUNT_DIR" 2>/dev/null || sudo umount -f "$MOUNT_DIR" 2>/dev/null || true
         
         # Clean cache again
         sync

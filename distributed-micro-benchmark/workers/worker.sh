@@ -39,23 +39,23 @@ WORKSPACE="$HOME/benchmark-${BENCHMARK_ID}"
 mkdir -p "$WORKSPACE"
 cd "$WORKSPACE"
 
+MOUNT_DIR="$WORKSPACE/mnt"
+
 # Error handling
 cleanup_gcsfuse() {
-    echo "Cleaning up GCSFuse mounts and processes..." >&2
+    echo "Cleaning up GCSFuse/FIO mounts and processes..." >&2
     
     # Unmount if mounted
     if [ -n "${MOUNT_DIR:-}" ] && mountpoint -q "$MOUNT_DIR" 2>/dev/null; then
         echo "  Unmounting $MOUNT_DIR..." >&2
-        fusermount -u "$MOUNT_DIR" 2>/dev/null || umount -f "$MOUNT_DIR" 2>/dev/null || true
+        sudo fusermount -u "$MOUNT_DIR" 2>/dev/null || sudo umount -f "$MOUNT_DIR" 2>/dev/null || true
         sleep 1
     fi
     
-    # Kill any GCSFuse processes
-    local GCSFUSE_PIDS=$(pgrep -f "gcsfuse.*${MOUNT_DIR:-mnt}" || true)
-    if [ -n "$GCSFUSE_PIDS" ]; then
-        echo "  Killing GCSFuse processes: $GCSFUSE_PIDS" >&2
-        kill -9 $GCSFUSE_PIDS 2>/dev/null || true
-    fi
+    # Kill any lingering GCSFuse and FIO processes aggressively
+    echo "  Killing any orphaned GCSFuse and FIO processes..." >&2
+    sudo pkill -9 -f gcsfuse 2>/dev/null || true
+    sudo pkill -9 -f fio 2>/dev/null || true
 }
 
 handle_error() {
@@ -111,6 +111,9 @@ trap 'handle_error $?' ERR EXIT
 
 # --- Main Flow ---
 
+# 0. Pre-flight cleanup of any existing orphaned processes from previous runs
+cleanup_gcsfuse
+
 # 1. Install Deps
 install_dependencies
 
@@ -133,7 +136,6 @@ ITERATIONS=$(jq -r '.iterations' job.json)
 echo "Test bucket: $BUCKET"
 echo "Iterations: $ITERATIONS"
 
-MOUNT_DIR="$WORKSPACE/mnt"
 mkdir -p "$MOUNT_DIR"
 
 # 4. Initialize Manifest
