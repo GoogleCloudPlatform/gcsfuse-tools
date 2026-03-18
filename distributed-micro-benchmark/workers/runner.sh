@@ -99,6 +99,7 @@ run_test_iterations() {
         END_TIME=$(date +%s)
         DURATION=$((END_TIME - START_TIME))
         echo "  [$(date +'%H:%M:%S')] FIO finished. Duration: ${DURATION}s ...!!!..."
+        echo "${DURATION}sec" >> "${TEST_DIR}/iter_durations.txt"
 
         stop_monitoring "$MONITOR_PID" "$MONITOR_STOP_FLAG"
         
@@ -148,6 +149,15 @@ execute_test() {
     # Calculate Metrics
     read AVG_CPU MAX_CPU AVG_MEM_RSS MAX_MEM_RSS AVG_PAGE_CACHE MAX_PAGE_CACHE AVG_SYS_CPU MAX_SYS_CPU AVG_NET_RX MAX_NET_RX AVG_NET_TX MAX_NET_TX < <(calculate_metrics "$MONITOR_FILE")
     echo "  Results: CPU=${AVG_CPU}% Mem=${AVG_MEM_RSS}MB NetRX=${AVG_NET_RX}MB/s"
+
+    # Combine durations and write to the summary file
+    if [ -f "${TEST_DIR}/iter_durations.txt" ]; then
+        local LINE_NUM=$((TEST_ID + 1))
+        local RAW_TEST_LINE=$(awk -F',' -v line="$LINE_NUM" 'NR==line {print}' test-cases.csv | tr -d '\r\n')
+        local DURATION_STR=$(paste -sd, "${TEST_DIR}/iter_durations.txt" | sed 's/,/, /g')
+        echo "${RAW_TEST_LINE}, ${DURATION_STR}" >> "$WORKSPACE/fio_durations.csv"
+        gcloud storage cp "$WORKSPACE/fio_durations.csv" "${RESULT_BASE}/fio_durations.csv" 2>/dev/null || true
+    fi
 
     TEST_PARAMS="{\"test_id\":\"$TEST_ID\",\"bs\":\"$BS\",\"file_size\":\"$FILE_SIZE\",\"io_depth\":\"$IO_DEPTH\",\"io_type\":\"$IO_TYPE\",\"threads\":\"$THREADS\",\"nrfiles\":\"$NRFILES\",\"config_id\":\"$CONFIG_ID\",\"config_label\":\"$CONFIG_LABEL\",\"commit\":\"$COMMIT\",\"mount_args\":\"$MOUNT_ARGS\",\"avg_cpu\":\"$AVG_CPU\",\"peak_cpu\":\"$MAX_CPU\",\"avg_mem_mb\":\"$AVG_MEM_RSS\",\"peak_mem_mb\":\"$MAX_MEM_RSS\",\"avg_page_cache_gb\":\"$AVG_PAGE_CACHE\",\"peak_page_cache_gb\":\"$MAX_PAGE_CACHE\",\"avg_sys_cpu\":\"$AVG_SYS_CPU\",\"peak_sys_cpu\":\"$MAX_SYS_CPU\",\"avg_net_rx_mbps\":\"$AVG_NET_RX\",\"peak_net_rx_mbps\":\"$MAX_NET_RX\",\"avg_net_tx_mbps\":\"$AVG_NET_TX\",\"peak_net_tx_mbps\":\"$MAX_NET_TX\"}"
     
