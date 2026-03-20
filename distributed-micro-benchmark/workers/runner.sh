@@ -66,9 +66,9 @@ run_test_iterations() {
         MONITOR_PID=$(cat "$MONITOR_PID_FILE" 2>/dev/null)
 
         # Populate Metadata
-        # mkdir -p "$TEST_DATA_DIR"
-        # if ! ls -R "$TEST_DATA_DIR" 1> /dev/null 2>&1; then :; fi
-        echo "Not populating metadata!!"
+        mkdir -p "$TEST_DATA_DIR"
+        if ! ls -R "$TEST_DATA_DIR" 1> /dev/null 2>&1; then :; fi
+        echo "Populated metadata for $TEST_DATA_DIR"
         # Drop Cache
         sync
         sudo sh -c 'echo 3 > /proc/sys/vm/drop_caches' 2>/dev/null || true
@@ -86,12 +86,12 @@ run_test_iterations() {
             echo "  [$(date +'%H:%M:%S')] Starting FIO execution...!!!..."
         fi
 
-        # Run FIO
+        # Run FIO wrapped in an OS-level timeout (20 minutes / 1200s) to prevent infinite hanging
         OUTPUT_FILE="${TEST_DIR}/fio_output_${i}.json"
-        if ! fio "$FIO_JOB" $FIO_TIME_ARGS --alloc-size=$((2 * 1024 * 1024)) --output-format=json --output="$OUTPUT_FILE"; then
-            echo "ERROR: FIO execution failed" >&2
+        if ! timeout -k 30 1200 fio "$FIO_JOB" $FIO_TIME_ARGS --alloc-size=$((2 * 1024 * 1024)) --output-format=json --output="$OUTPUT_FILE"; then
+            echo "ERROR: FIO execution failed or OS TIMEOUT REACHED" >&2
             stop_monitoring "$MONITOR_PID" "$MONITOR_STOP_FLAG"
-            sudo fusermount -u "$MOUNT_DIR" 2>/dev/null || sudo umount -f "$MOUNT_DIR" 2>/dev/null || true
+            sudo fusermount -uz "$MOUNT_DIR" 2>/dev/null || sudo umount -l "$MOUNT_DIR" 2>/dev/null || true
             return 1
         fi
         
@@ -104,7 +104,7 @@ run_test_iterations() {
         stop_monitoring "$MONITOR_PID" "$MONITOR_STOP_FLAG"
         
         # Unmount
-        sudo fusermount -u "$MOUNT_DIR" 2>/dev/null || sudo umount -f "$MOUNT_DIR" 2>/dev/null || true
+        sudo fusermount -uz "$MOUNT_DIR" 2>/dev/null || sudo umount -l "$MOUNT_DIR" 2>/dev/null || true
         
         # Clean cache again
         sync
