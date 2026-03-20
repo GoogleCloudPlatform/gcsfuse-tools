@@ -44,18 +44,19 @@ MOUNT_DIR="$WORKSPACE/mnt"
 # Error handling
 cleanup_gcsfuse() {
     echo "Cleaning up GCSFuse/FIO mounts and processes..." >&2
-    
+
+    # Kill any lingering GCSFuse and FIO processes aggressively
+    echo "  Killing any orphaned GCSFuse and FIO processes..." >&2
+    sudo pkill -9 fio 2>/dev/null || true
+    sudo pkill -9 gcsfuse 2>/dev/null || true
+
     # Unmount if mounted
     if [ -n "${MOUNT_DIR:-}" ] && mountpoint -q "$MOUNT_DIR" 2>/dev/null; then
         echo "  Unmounting $MOUNT_DIR..." >&2
-        sudo fusermount -u "$MOUNT_DIR" 2>/dev/null || sudo umount -f "$MOUNT_DIR" 2>/dev/null || true
+        sudo fusermount -uz "$MOUNT_DIR" 2>/dev/null || true
+        sudo umount -l "$MOUNT_DIR" 2>/dev/null || true
         sleep 1
     fi
-    
-    # Kill any lingering GCSFuse and FIO processes aggressively
-    echo "  Killing any orphaned GCSFuse and FIO processes..." >&2
-    sudo pkill -9 -f gcsfuse 2>/dev/null || true
-    sudo pkill -9 -f fio 2>/dev/null || true
 }
 
 handle_error() {
