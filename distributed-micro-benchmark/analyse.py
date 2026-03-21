@@ -21,28 +21,30 @@ def get_progress_bar(success, pending, failed, total, length=10):
 
 # Configuration
 BUCKET = "kokoro-perf-artifacts-bucket"
-BENCHMARK_ID = "benchmark-1773808356-read"
+BENCHMARK_ID = "benchmark-1774067490-read"
 
 def run_cmd(cmd):
     """Executes a shell command and returns the output."""
     result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
     return result.stdout.strip() if result.returncode == 0 else ""
 
-def get_test_status(vm, test_id):
-    """Determines if a test finished by checking for the FIO output file."""
-    path = f"gs://{BUCKET}/{BENCHMARK_ID}/results/{vm}/test-{test_id}/"
-    files = run_cmd(f"gcloud storage ls {path}")
-    if not files:
-        return "PENDING"
-    if "fio_output" in files:
-        return "SUCCESS"
-    return "FAILED/RUNNING"
+def get_config_signature(io_type, num_jobs, file_size, block_size, io_depth, nr_files, direct):
+    """Normalize the config values into a consistent tuple for comparison."""
+    return (
+        str(io_type).strip().lower(),
+        str(num_jobs).strip(),
+        str(file_size).strip().lower(),
+        str(block_size).strip().lower(),
+        str(io_depth).strip(),
+        str(nr_files).strip(),
+        str(direct).strip()
+    )
 
 def main():
-    print(f"Analyzing Benchmark: {BENCHMARK_ID}\n")
+    print(f"{Colors.BOLD}Analyzing Benchmark: {BENCHMARK_ID}{Colors.RESET}\n")
     
     # =========================================================================
-    # 1. Fetch Source of Truth (Job definitions) to eliminate '?' marks
+    # 1. Fetch Source of Truth (Job definitions) from GCS
     # =========================================================================
     jobs_path = f"gs://{BUCKET}/{BENCHMARK_ID}/jobs/*.json"
     files_output = run_cmd(f"gcloud storage ls {jobs_path}")
@@ -60,7 +62,7 @@ def main():
         
         vm_full = line.split('/')[-1].replace('.json', '')
         vms.append(vm_full)
-        vm_short = "mig-" + vm_full.split('-')[-1]
+        vm_short = "mig-" + vm_full.split('-')[-1] if "-mig-" in vm_full else vm_full
         
         content = run_cmd(f"gcloud storage cat {line}")
         if not content: continue
@@ -69,8 +71,19 @@ def main():
             data = json.loads(content)
             entries = data.get("test_entries", [])
             for entry in entries:
-                # Use matrix_id as the primary key
                 matrix_id = int(entry.get("matrix_id", 0))
+                
+                # Generate a unique signature for this configuration
+                sig = get_config_signature(
+                    entry.get("io_type", ""),
+                    entry.get("num_jobs", ""),
+                    entry.get("file_size", ""),
+                    entry.get("block_size", ""),
+                    entry.get("io_depth", ""),
+                    entry.get("nr_files", entry.get("nrfiles", "")),
+                    entry.get("direct", "")
+                )
+
                 job_data_by_id[matrix_id] = {
                     "VM": vm_short,
                     "VM_Full": vm_full,
@@ -80,89 +93,95 @@ def main():
                     "ReadType": entry.get("io_type", "?"),
                     "Direct": entry.get("direct", "?"),
                     "FileSize": entry.get("file_size", "?"),
-                    "NrFiles": entry.get("nrfiles", "?"),
+                    "NrFiles": entry.get("nr_files", entry.get("nrfiles", "?")),
+                    "IoDepth": entry.get("io_depth", "?"),
+                    "Protocol": entry.get("config_label"),
+                    "Signature": sig,
+                    "Duration": "-",
                     "Status": "PENDING"
                 }
                 vm_assignments[vm_full] += 1
-        except Exception:
+        except Exception as e:
+            print(f"Warning: Failed to parse JSON from {line}: {e}", file=sys.stderr)
             continue
 
     # =========================================================================
-    # 2. Fetch Statuses & Calculate VM Summaries
+    # 2. Fetch Statuses from fio_durations.csv & Calculate VM Summaries
     # =========================================================================
     vm_summaries = {}
     
     for vm in sorted(vms):
-        # Load Manifest for VM Status
+        # Fetch the manifest to know if the VM is generally completely done or not
         manifest_json = run_cmd(f"gcloud storage cat gs://{BUCKET}/{BENCHMARK_ID}/results/{vm}/manifest.json")
         manifest = json.loads(manifest_json) if manifest_json else None
+        vm_overall_status = manifest.get('status', 'running') if manifest else "running"
         
-        # Discover physical folders in GCS
-        res_path = f"gs://{BUCKET}/{BENCHMARK_ID}/results/{vm}/"
-        raw_output = run_cmd(f"gcloud storage ls {res_path}")
+        # Download and parse the fio_durations.csv which only contains SUCCESSFUL configs
+        csv_path = f"gs://{BUCKET}/{BENCHMARK_ID}/results/{vm}/fio_durations.csv"
+        csv_content = run_cmd(f"gcloud storage cat {csv_path}")
         
-        # Safely extract folder IDs (converting them to integers to match matrix_id)
-        found_test_ids = []
-        for l in raw_output.splitlines():
-            if 'test-' in l:
-                try:
-                    folder_name = [part for part in l.split('/') if part.startswith('test-')][-1]
-                    tid = int(folder_name.replace('test-', ''))
-                    if tid not in found_test_ids:
-                        found_test_ids.append(tid)
-                except ValueError:
-                    continue
-        
-        found_test_ids.sort()
-        last_dir = f"test-{found_test_ids[-1]}" if found_test_ids else "None"
-        
+        completed_signatures = {}
+        if csv_content:
+            lines = csv_content.splitlines()
+            for line in lines[1:]: # Skip the header
+                if not line.strip(): continue
+                parts = [p.strip() for p in line.split(',')]
+                # First 7 columns: io_type,num_jobs,file_size,block_size,io_depth,nr_files,direct
+                if len(parts) >= 7:
+                    sig = get_config_signature(*parts[0:7])
+                    durations = ", ".join([p.replace("sec", "s") for p in parts[7:]])
+                    completed_signatures[sig] = durations
+
         # Calculate Summary Stats & Update Job Details
         done_count = 0
-        for tid in found_test_ids:
-            status = get_test_status(vm, tid)
-            if status == "SUCCESS":
+        vm_jobs = [j for j in job_data_by_id.values() if j['VM_Full'] == vm]
+        
+        for job in vm_jobs:
+            if job["Signature"] in completed_signatures:
+                job["Status"] = "SUCCESS"
+                job["Duration"] = completed_signatures[job["Signature"]]
                 done_count += 1
-            
-            # Map the status back to our detailed dictionary using matrix_id
-            if tid in job_data_by_id:
-                job_data_by_id[tid]["Status"] = status
+            else:
+                # If missing from CSV and the VM finished executing, it definitely failed/timed out
+                if vm_overall_status in ["completed", "failed", "cancelled"]:
+                    job["Status"] = "FAILED/TIMEOUT"
+                else:
+                    job["Status"] = "RUNNING/PENDING"
+                job["Duration"] = "-"
                 
         # Determine overall VM Status
-        vm_status = manifest.get('status', 'running') if manifest else ("failed" if found_test_ids else "running")
         if done_count == vm_assignments[vm] and vm_assignments[vm] > 0:
-            vm_status = "completed"
+            vm_overall_status = "completed"
             
         vm_summaries[vm] = {
             "Completed": done_count,
-            "Status": vm_status,
-            "ActiveDir": last_dir
+            "Status": vm_overall_status
         }
 
     # =========================================================================
     # 3. Print the VM Pass/Fail Summary Table
     # =========================================================================
     print(f"\n{Colors.BOLD}--- VM SUMMARY ---{Colors.RESET}")
-    print(f"{'VM Name':<40} | {'Progress':<19} | {'Status':<10} | {'Active Dir':<10} | {'Jobs (S/P/F)'}")
-    print("-" * 105)
+    print(f"{'VM Name':<40} | {'Progress':<19} | {'Status':<10} | {'Jobs (S/P/F)'}")
+    print("-" * 92)
     for vm in sorted(vms):
         stats = vm_summaries.get(vm, {})
         
         vm_jobs = [j for j in job_data_by_id.values() if j['VM_Full'] == vm]
         t_count = len(vm_jobs)
         s_count = sum(1 for j in vm_jobs if j['Status'] == 'SUCCESS')
-        p_count = sum(1 for j in vm_jobs if j['Status'] == 'PENDING')
-        f_count = sum(1 for j in vm_jobs if j['Status'] == 'FAILED/RUNNING')
+        p_count = sum(1 for j in vm_jobs if j['Status'] == 'RUNNING/PENDING')
+        f_count = sum(1 for j in vm_jobs if j['Status'] == 'FAILED/TIMEOUT')
         
         tests_str = f"{s_count}/{t_count}"
         prog_bar = get_progress_bar(s_count, p_count, f_count, t_count, 10)
         status = stats.get("Status", "running")
-        active_dir = stats.get("ActiveDir", "-")
         spf_str = f"{Colors.GREEN}{s_count}S{Colors.RESET} / {Colors.YELLOW}{p_count}P{Colors.RESET} / {Colors.RED}{f_count}F{Colors.RESET}"
         
         status_color = Colors.GREEN if status == "completed" else (Colors.RED if status == "failed" else Colors.YELLOW)
         colored_status = f"{status_color}{status:<10}{Colors.RESET}"
         
-        print(f"{vm:<40} | {tests_str:<6} {prog_bar} | {colored_status} | {active_dir:<10} | {spf_str}")
+        print(f"{vm:<40} | {tests_str:<6} {prog_bar} | {colored_status} | {spf_str}")
 
     # =========================================================================
     # 4. Print the Detailed Job Distribution & Status Table
@@ -187,16 +206,20 @@ def main():
         def print_jobs_section(jobs_list, title):
             if not jobs_list: return
             print(f"  {Colors.BOLD}{title}{Colors.RESET}")
-            header = f"    {'ID':<4} | {'Threads':<8} | {'ReadType':<10} | {'Direct':<6} | {'BS':<6} | {'FileSize':<8} | {'Status'}"
-            header = f"    {'ID':<4} | {'Threads':<8} | {'ReadType':<10} | {'Direct':<6} | {'BS':<6} | {'FileSize':<8} | {'NrFiles':<7} | {'Status'}"
+            header = f"    {'ID':<4} | {'Protocol':<8} | {'Threads':<8} | {'ReadType':<10} | {'Direct':<6} | {'BS':<6} | {'FileSize':<8} | {'NrFiles':<7} | {'IoDepth':<7} | {'Status':<15} | {'Duration'}"
+            print("    " + "-" * 120)
             print(header)
-            print("    " + "-" * 66)
-            print("    " + "-" * 76)
+            print("    " + "-" * 120)
             for item in jobs_list:
                 st = item['Status']
-                c_st = f"{Colors.GREEN}{st}{Colors.RESET}" if st == 'SUCCESS' else (f"{Colors.YELLOW}{st}{Colors.RESET}" if st == 'PENDING' else f"{Colors.RED}{st}{Colors.RESET}")
-                print(f"    {item['ID']:<4} | {str(item['Threads']):<8} | {str(item['ReadType']):<10} | {str(item['Direct']):<6} | {str(item['BS']):<6} | {str(item['FileSize']):<8} | {c_st}")
-                print(f"    {item['ID']:<4} | {str(item['Threads']):<8} | {str(item['ReadType']):<10} | {str(item['Direct']):<6} | {str(item['BS']):<6} | {str(item['FileSize']):<8} | {str(item['NrFiles']):<7} | {c_st}")
+                padded_st = f"{st:<15}"
+                if st == 'SUCCESS':
+                    c_st = f"{Colors.GREEN}{padded_st}{Colors.RESET}"
+                elif st == 'RUNNING/PENDING':
+                    c_st = f"{Colors.YELLOW}{padded_st}{Colors.RESET}"
+                else:
+                    c_st = f"{Colors.RED}{padded_st}{Colors.RESET}"
+                print(f"    {item['ID']:<4} | {str(item['Protocol']):<8} | {str(item['Threads']):<8} | {str(item['ReadType']):<10} | {str(item['Direct']):<6} | {str(item['BS']):<6} | {str(item['FileSize']):<8} | {str(item['NrFiles']):<7} | {str(item['IoDepth']):<7} | {c_st} | {item['Duration']}")
 
         print_jobs_section(single_threaded, "Single-Threaded Tests")
         if single_threaded and multi_threaded: print()
