@@ -65,14 +65,19 @@ run_test_iterations() {
         sleep 1
         MONITOR_PID=$(cat "$MONITOR_PID_FILE" 2>/dev/null)
 
-        # Populate Metadata
-        mkdir -p "$TEST_DATA_DIR"
-        if ! ls -R "$TEST_DATA_DIR" 1> /dev/null 2>&1; then :; fi
-        echo "Populated metadata for $TEST_DATA_DIR"
         # Drop Cache
         sync
         sudo sh -c 'echo 3 > /proc/sys/vm/drop_caches' 2>/dev/null || true
-        echo "Dropped Caches"
+        echo "Dropped Page, Dentries, Inodes, Metadata Cache"
+
+        # Populate Metadata
+        echo "Populating metadata for $TEST_DATA_DIR"
+        POPULATE_START=$(date +%s)
+        mkdir -p "$TEST_DATA_DIR"
+        if ! ls -R "$TEST_DATA_DIR" 1> /dev/null 2>&1; then :; fi
+        POPULATE_END=$(date +%s)
+        POPULATE_DURATION=$((POPULATE_END - POPULATE_START))
+        echo "Populated metadata for $TEST_DATA_DIR in ${POPULATE_DURATION}s"
 
         # --- TIME START ---
         START_TIME=$(date +%s)
