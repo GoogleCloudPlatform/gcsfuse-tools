@@ -70,13 +70,19 @@ run_test_iterations() {
         sudo sh -c 'echo 3 > /proc/sys/vm/drop_caches' 2>/dev/null || true
         echo "Dropped Page, Dentries, Inodes, Metadata Cache"
 
+        mkdir -p "$TEST_DATA_DIR"
+
         # Populate Metadata
         echo "Populating metadata for $TEST_DATA_DIR"
+        RES_MEM=$(ps -o rss= -p "$GCSFUSE_PID" | tail -n 1 | tr -d ' ')
+        echo "GCSFuse Resident Memory before: $((RES_MEM / 1024)) MB"
         POPULATE_START=$(date +%s)
-        mkdir -p "$TEST_DATA_DIR"
+
         if ! ls -R "$TEST_DATA_DIR" 1> /dev/null 2>&1; then :; fi
         POPULATE_END=$(date +%s)
         POPULATE_DURATION=$((POPULATE_END - POPULATE_START))
+        RES_MEM=$(ps -o rss= -p "$GCSFUSE_PID" | tail -n 1 | tr -d ' ')
+        echo "GCSFuse Resident Memory before: $((RES_MEM / 1024)) MB"
         echo "Populated metadata for $TEST_DATA_DIR in ${POPULATE_DURATION}s"
 
         # --- TIME START ---
@@ -91,9 +97,9 @@ run_test_iterations() {
             echo "  [$(date +'%H:%M:%S')] Starting FIO execution...!!!..."
         fi
 
-        # Run FIO wrapped in an OS-level timeout (20 minutes / 1200s) to prevent infinite hanging
+        # Run FIO wrapped in an OS-level timeout (25 minutes / 1500s) to prevent infinite hanging
         OUTPUT_FILE="${TEST_DIR}/fio_output_${i}.json"
-        if ! timeout -k 30 1200 fio "$FIO_JOB" $FIO_TIME_ARGS --alloc-size=$((2 * 1024 * 1024)) --output-format=json --output="$OUTPUT_FILE"; then
+        if ! timeout -k 30 1500 fio "$FIO_JOB" $FIO_TIME_ARGS --alloc-size=$((2 * 1024 * 1024)) --output-format=json --output="$OUTPUT_FILE"; then
             echo "ERROR: FIO execution failed or OS TIMEOUT REACHED" >&2
             stop_monitoring "$MONITOR_PID" "$MONITOR_STOP_FLAG"
             sudo fusermount -uz "$MOUNT_DIR" 2>/dev/null || sudo umount -l "$MOUNT_DIR" 2>/dev/null || true
