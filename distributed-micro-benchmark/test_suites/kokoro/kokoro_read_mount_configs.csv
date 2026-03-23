@@ -1,3 +1,3 @@
 commit,mount_args,label
-master,"--implicit-dirs --client-protocol=grpc",grpc
-master,"--implicit-dirs --client-protocol=http1",http1
+master,"--implicit-dirs --client-protocol=grpc --metadata-cache-ttl-secs=-1 --stat-cache-max-size-mb=-1 --type-cache-max-size-mb=-1",grpc
+master,"--implicit-dirs --client-protocol=http1 --metadata-cache-ttl-secs=-1 --stat-cache-max-size-mb=-1 --type-cache-max-size-mb=-1",http1

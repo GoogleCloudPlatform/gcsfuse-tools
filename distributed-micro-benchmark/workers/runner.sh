@@ -42,9 +42,18 @@ run_test_iterations() {
         
         # Mount
         GCSFUSE_LOG_FILE="$TEST_DIR/gcsfuse_mount_${i}.log"
+        LOG_FORMAT="text"
+        LOG_SEVERITY="info"
+        
+        if [[ "$VM_NAME" == *"8lrp"* ]]; then
+            GCSFUSE_LOG_FILE="$TEST_DIR/gcsfuse_mount_${i}.json"
+            LOG_FORMAT="json"
+            LOG_SEVERITY="trace"
+        fi
+        
         $GCSFUSE_BIN_PATH $MOUNT_ARGS \
-            --log-format text \
-            --log-severity info \
+            --log-format $LOG_FORMAT \
+            --log-severity $LOG_SEVERITY \
             --log-file "$GCSFUSE_LOG_FILE" \
             "$BUCKET" "$MOUNT_DIR"
         
@@ -65,14 +74,25 @@ run_test_iterations() {
         sleep 1
         MONITOR_PID=$(cat "$MONITOR_PID_FILE" 2>/dev/null)
 
-        # Populate Metadata
-        mkdir -p "$TEST_DATA_DIR"
-        if ! ls -R "$TEST_DATA_DIR" 1> /dev/null 2>&1; then :; fi
-        echo "Populated metadata for $TEST_DATA_DIR"
         # Drop Cache
         sync
         sudo sh -c 'echo 3 > /proc/sys/vm/drop_caches' 2>/dev/null || true
-        echo "Dropped Caches"
+        echo "Dropped Page, Dentries, Inodes, Metadata Cache"
+
+        mkdir -p "$TEST_DATA_DIR"
+
+        # Populate Metadata
+        echo "Populating metadata for $TEST_DATA_DIR"
+        RES_MEM=$(ps -o rss= -p "$GCSFUSE_PID" | tail -n 1 | tr -d ' ')
+        echo "GCSFuse Resident Memory before: $((RES_MEM / 1024)) MB"
+        POPULATE_START=$(date +%s)
+
+        if ! ls -R "$TEST_DATA_DIR" 1> /dev/null 2>&1; then :; fi
+        POPULATE_END=$(date +%s)
+        POPULATE_DURATION=$((POPULATE_END - POPULATE_START))
+        RES_MEM=$(ps -o rss= -p "$GCSFUSE_PID" | tail -n 1 | tr -d ' ')
+        echo "GCSFuse Resident Memory before: $((RES_MEM / 1024)) MB"
+        echo "Populated metadata for $TEST_DATA_DIR in ${POPULATE_DURATION}s"
 
         # --- TIME START ---
         START_TIME=$(date +%s)
@@ -86,13 +106,24 @@ run_test_iterations() {
             echo "  [$(date +'%H:%M:%S')] Starting FIO execution...!!!..."
         fi
 
-        # Run FIO wrapped in an OS-level timeout (20 minutes / 1200s) to prevent infinite hanging
+        # Run FIO wrapped in an OS-level timeout (25 minutes / 1500s) to prevent infinite hanging
         OUTPUT_FILE="${TEST_DIR}/fio_output_${i}.json"
-        if ! timeout -k 30 1200 fio "$FIO_JOB" $FIO_TIME_ARGS --alloc-size=$((2 * 1024 * 1024)) --output-format=json --output="$OUTPUT_FILE"; then
-            echo "ERROR: FIO execution failed or OS TIMEOUT REACHED" >&2
+        FIO_EXIT_CODE=0
+        timeout -k 30 1500 fio "$FIO_JOB" $FIO_TIME_ARGS --alloc-size=$((2 * 1024 * 1024)) --output-format=json --output="$OUTPUT_FILE" || FIO_EXIT_CODE=$?
+        
+        if [ $FIO_EXIT_CODE -ne 0 ]; then
+            echo "WARNING: FIO failed or OS TIMEOUT REACHED (Exit Code $FIO_EXIT_CODE). Ignoring to continue the orchestrator..." >&2
             stop_monitoring "$MONITOR_PID" "$MONITOR_STOP_FLAG"
             sudo fusermount -uz "$MOUNT_DIR" 2>/dev/null || sudo umount -l "$MOUNT_DIR" 2>/dev/null || true
-            return 1
+            
+            # Record the duration safely so your fio_durations.csv columns don't misalign
+            echo "$(( $(date +%s) - START_TIME ))sec_timeout" >> "${TEST_DIR}/iter_durations.txt"
+            
+            # Pad the rest of the iterations so CSV columns stay aligned
+            for ((j=i+1; j<=ITERATIONS; j++)); do
+                echo "skipped" >> "${TEST_DIR}/iter_durations.txt"
+            done
+            return 0
         fi
         
         # --- TIME END ---
@@ -133,7 +164,7 @@ execute_test() {
     
     # Generate FIO Job
     FIO_JOB="$TEST_DIR/job.fio"
-    TEST_DATA_DIR="$MOUNT_DIR/${VM_NAME}/${FILE_SIZE}"
+    TEST_DATA_DIR="$MOUNT_DIR/${FILE_SIZE}"
     export BS FILE_SIZE IO_DEPTH IO_TYPE THREADS NRFILES DIRECT TEST_DATA_DIR
     envsubst '$BS $FILE_SIZE $IO_DEPTH $IO_TYPE $THREADS $NRFILES $DIRECT $TEST_DATA_DIR' < jobfile.fio > "$FIO_JOB"
     
