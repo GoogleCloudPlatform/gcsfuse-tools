@@ -42,9 +42,18 @@ run_test_iterations() {
         
         # Mount
         GCSFUSE_LOG_FILE="$TEST_DIR/gcsfuse_mount_${i}.log"
+        LOG_FORMAT="text"
+        LOG_SEVERITY="info"
+        
+        if [[ "$VM_NAME" == *"8lrp"* ]]; then
+            GCSFUSE_LOG_FILE="$TEST_DIR/gcsfuse_mount_${i}.json"
+            LOG_FORMAT="json"
+            LOG_SEVERITY="trace"
+        fi
+        
         $GCSFUSE_BIN_PATH $MOUNT_ARGS \
-            --log-format text \
-            --log-severity info \
+            --log-format $LOG_FORMAT \
+            --log-severity $LOG_SEVERITY \
             --log-file "$GCSFUSE_LOG_FILE" \
             "$BUCKET" "$MOUNT_DIR"
         
