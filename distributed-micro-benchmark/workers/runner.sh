@@ -99,11 +99,22 @@ run_test_iterations() {
 
         # Run FIO wrapped in an OS-level timeout (25 minutes / 1500s) to prevent infinite hanging
         OUTPUT_FILE="${TEST_DIR}/fio_output_${i}.json"
-        if ! timeout -k 30 1500 fio "$FIO_JOB" $FIO_TIME_ARGS --alloc-size=$((2 * 1024 * 1024)) --output-format=json --output="$OUTPUT_FILE"; then
-            echo "ERROR: FIO execution failed or OS TIMEOUT REACHED" >&2
+        FIO_EXIT_CODE=0
+        timeout -k 30 1500 fio "$FIO_JOB" $FIO_TIME_ARGS --alloc-size=$((2 * 1024 * 1024)) --output-format=json --output="$OUTPUT_FILE" || FIO_EXIT_CODE=$?
+        
+        if [ $FIO_EXIT_CODE -ne 0 ]; then
+            echo "WARNING: FIO failed or OS TIMEOUT REACHED (Exit Code $FIO_EXIT_CODE). Ignoring to continue the orchestrator..." >&2
             stop_monitoring "$MONITOR_PID" "$MONITOR_STOP_FLAG"
             sudo fusermount -uz "$MOUNT_DIR" 2>/dev/null || sudo umount -l "$MOUNT_DIR" 2>/dev/null || true
-            return 1
+            
+            # Record the duration safely so your fio_durations.csv columns don't misalign
+            echo "$(( $(date +%s) - START_TIME ))sec_timeout" >> "${TEST_DIR}/iter_durations.txt"
+            
+            # Pad the rest of the iterations so CSV columns stay aligned
+            for ((j=i+1; j<=ITERATIONS; j++)); do
+                echo "skipped" >> "${TEST_DIR}/iter_durations.txt"
+            done
+            return 0
         fi
         
         # --- TIME END ---
