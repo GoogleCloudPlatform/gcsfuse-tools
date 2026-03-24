@@ -96,20 +96,11 @@ run_test_iterations() {
 
         # --- TIME START ---
         START_TIME=$(date +%s)
-        
-        # Check if DIRECT is 1 and set FIO time arguments accordingly
-        local FIO_TIME_ARGS=""
-        if [ "$DIRECT" = "1" ]; then
-            FIO_TIME_ARGS="--time_based --runtime=180 --ramp_time=20"
-            echo "  [$(date +'%H:%M:%S')] Direct I/O detected. Starting time-bound FIO (180s + 20s ramp-up)...!!!..."
-        else
-            echo "  [$(date +'%H:%M:%S')] Starting FIO execution...!!!..."
-        fi
 
         # Run FIO wrapped in an OS-level timeout (25 minutes / 1500s) to prevent infinite hanging
         OUTPUT_FILE="${TEST_DIR}/fio_output_${i}.json"
         FIO_EXIT_CODE=0
-        timeout -k 30 1500 fio "$FIO_JOB" $FIO_TIME_ARGS --alloc-size=$((2 * 1024 * 1024)) --output-format=json --output="$OUTPUT_FILE" || FIO_EXIT_CODE=$?
+        timeout -k 30 1500 fio "$FIO_JOB" --alloc-size=$((2 * 1024 * 1024)) --output-format=json --output="$OUTPUT_FILE" || FIO_EXIT_CODE=$?
         
         if [ $FIO_EXIT_CODE -ne 0 ]; then
             echo "WARNING: FIO failed or OS TIMEOUT REACHED (Exit Code $FIO_EXIT_CODE). Ignoring to continue the orchestrator..." >&2
