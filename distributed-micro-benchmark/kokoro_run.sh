@@ -26,8 +26,8 @@ WRITE_TEST_CSV="${SCRIPT_DIR}/test_suites/kokoro/kokoro_write_test_cases.csv"
 
 ITERATIONS=3
 SEPARATE_CONFIGS=false # Set to true to generate separate CSV per config
-POLL_INTERVAL=120
-TIMEOUT=14400 # 4 hours
+POLL_INTERVAL=180
+TIMEOUT=21600 # 6 hours
 GCSFUSE_COMMIT=master 
 RUN_READ=false
 RUN_WRITE=false
@@ -238,17 +238,8 @@ if [ "$RUN_READ" = true ]; then
 fi
 
 if [ "$RUN_WRITE" = true ]; then
-    # Run write benchmark in a loop to ensure new directories are used for each iteration
     START_WRITE=$(date +%s)
-    (
-        original_benchmark_id="$BENCHMARK_ID"
-        total_iterations=$ITERATIONS
-        for ((i=1; i<=total_iterations; i++)); do
-            BENCHMARK_ID="${original_benchmark_id}-iter${i}"
-            ITERATIONS=1
-            run_benchmark "write" "$WRITE_FIO_JOB_FILE" "$WRITE_TEST_CSV" "$WRITE_CONFIGS_CSV"
-        done
-    )
+    run_benchmark "write" "$WRITE_FIO_JOB_FILE" "$WRITE_TEST_CSV" "$WRITE_CONFIGS_CSV"
     END_WRITE=$(date +%s)
     echo ">>> WRITE Benchmark (Total for all iterations) Duration: $((END_WRITE - START_WRITE)) seconds"
 fi

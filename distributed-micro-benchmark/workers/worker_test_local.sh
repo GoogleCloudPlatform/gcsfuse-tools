@@ -40,14 +40,14 @@ cleanup() {
 
 # --- 2. Preparing Configuration Files ---
 cat <<EOF > test-cases.csv
-io_type,num_jobs,file_size,block_size,io_depth,nr_files
-read,1,10m,1m,1,1
+io_type,num_jobs,file_size,block_size,io_depth,nr_files,direct
+read,1,10m,1m,1,1,0
 EOF
 
 cat <<EOF > jobfile.fio
 [global]
 ioengine=libaio
-direct=0
+direct=\$DIRECT
 verify=0
 bs=\$BS
 iodepth=\$IO_DEPTH
