@@ -202,12 +202,6 @@ def run_benchmark(args):
             print(f"Skipping {vm_name}: No tests assigned")
             continue
         active_vms.append(vm_name)
-        
-        # Derive regional HNS bucket from VM suffix
-        vm_suffix = vm_name[-8:]
-        vm_bucket = f"kokoro-perf-{vm_suffix}"
-        print(f"  Assigned regional HNS bucket {vm_bucket} to {vm_name}")
-
         for entry in test_entries:
             if isinstance(entry, dict) and 'matrix_id' in entry and num_test_cases > 0:
                 # Map global ID back to [1, num_test_cases]
@@ -217,7 +211,7 @@ def run_benchmark(args):
             vm_name=vm_name,
             benchmark_id=args.benchmark_id,
             test_entries=test_entries,
-            bucket=vm_bucket, # Use the derived regional bucket
+            bucket=args.test_data_bucket,
             artifacts_bucket=args.artifacts_bucket,
             iterations=args.iterations,
         )

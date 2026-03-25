@@ -45,7 +45,7 @@ run_test_iterations() {
         LOG_FORMAT="text"
         LOG_SEVERITY="info"
         
-        if [[ "$VM_NAME" == *"8lrp"* ]]; then
+        if [[ "$VM_NAME" == *"kokoro"* ]]; then
             GCSFUSE_LOG_FILE="$TEST_DIR/gcsfuse_mount_${i}.json"
             LOG_FORMAT="json"
             LOG_SEVERITY="trace"
@@ -155,7 +155,7 @@ execute_test() {
     
     # Generate FIO Job
     FIO_JOB="$TEST_DIR/job.fio"
-    TEST_DATA_DIR="$MOUNT_DIR/${FILE_SIZE}"
+    TEST_DATA_DIR="$MOUNT_DIR/${VM_NAME}/${FILE_SIZE}"
     export BS FILE_SIZE IO_DEPTH IO_TYPE THREADS NRFILES DIRECT TEST_DATA_DIR
     envsubst '$BS $FILE_SIZE $IO_DEPTH $IO_TYPE $THREADS $NRFILES $DIRECT $TEST_DATA_DIR' < jobfile.fio > "$FIO_JOB"
     
