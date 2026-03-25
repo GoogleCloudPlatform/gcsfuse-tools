@@ -54,7 +54,7 @@ def generate_report(metrics, output_file, separate_configs=False):
 def generate_combined_report(metrics, output_file):
     """Generate a combined report with optional config columns"""
 
-    headers = ["Matrix ID", "Test ID", "Config", "Commit","IOType|Jobs|FSize|BS|IOD|NrFiles", "Read BW (MB/s)", "Write BW (MB/s)", 
+    headers = ["Matrix ID", "Test ID", "Config", "Commit","IOType|Jobs|FSize|BS|IOD|NrFiles|Direct", "Read BW (MB/s)", "Write BW (MB/s)", 
                     "Read Min (ms)", "Read Max (ms)", "Read Avg (ms)", "Read StdDev (ms)", 
                     "Read P50 (ms)", "Read P90 (ms)", "Read P99 (ms)", 
                     "Avg CPU (%)", "Peak CPU (%)", "Avg Mem (MB)", "Peak Mem (MB)", 
@@ -121,7 +121,7 @@ def generate_separate_reports(metrics, base_output_file):
     base_dir = os.path.dirname(base_output_file)
     base_name = os.path.splitext(os.path.basename(base_output_file))[0]
     
-    headers = ["Test ID", "IOType|Jobs|FSize|BS|IOD|NrFiles", "Read BW (MB/s)", "Write BW (MB/s)",
+    headers = ["Test ID", "IOType|Jobs|FSize|BS|IOD|NrFiles|Direct", "Read BW (MB/s)", "Write BW (MB/s)",
                "Read P50 (ms)", "Read P90 (ms)", "Read P99 (ms)", "Read Max (ms)", 
                "Avg CPU (%)", "Peak CPU (%)", "Avg Mem (MB)", "Peak Mem (MB)", 
                "Avg PgCache (GB)", "Peak PgCache (GB)", "Avg Sys CPU (%)", "Peak Sys CPU (%)", 
@@ -172,7 +172,7 @@ def format_params(params):
     # Extract common FIO parameters (excluding resource metrics and config info)
     # Order: io_type, threads, file_size, block_size, io_depth, nr_files
     parts = []
-    for key in ['io_type', 'threads', 'file_size', 'bs', 'io_depth', 'nrfiles']:
+    for key in ['io_type', 'threads', 'file_size', 'bs', 'io_depth', 'nrfiles', 'direct']:
         if key in params:
             parts.append(f"{params[key]}")
     

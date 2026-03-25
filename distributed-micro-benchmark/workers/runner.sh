@@ -97,10 +97,10 @@ run_test_iterations() {
         # --- TIME START ---
         START_TIME=$(date +%s)
 
-        # Run FIO wrapped in an OS-level timeout (25 minutes / 1500s) to prevent infinite hanging
+        # Run FIO wrapped in an OS-level timeout (30 minutes / 1800s) to prevent infinite hanging
         OUTPUT_FILE="${TEST_DIR}/fio_output_${i}.json"
         FIO_EXIT_CODE=0
-        timeout -k 30 1500 fio "$FIO_JOB" --alloc-size=$((2 * 1024 * 1024)) --output-format=json --output="$OUTPUT_FILE" || FIO_EXIT_CODE=$?
+        timeout -k 30 1800 fio "$FIO_JOB" --alloc-size=$((2 * 1024 * 1024)) --output-format=json --output="$OUTPUT_FILE" || FIO_EXIT_CODE=$?
         
         if [ $FIO_EXIT_CODE -ne 0 ]; then
             echo "WARNING: FIO failed or OS TIMEOUT REACHED (Exit Code $FIO_EXIT_CODE). Ignoring to continue the orchestrator..." >&2
@@ -181,7 +181,7 @@ execute_test() {
         gcloud storage cp "$WORKSPACE/fio_durations.csv" "${RESULT_BASE}/fio_durations.csv" 2>/dev/null || true
     fi
 
-    TEST_PARAMS="{\"test_id\":\"$TEST_ID\",\"bs\":\"$BS\",\"file_size\":\"$FILE_SIZE\",\"io_depth\":\"$IO_DEPTH\",\"io_type\":\"$IO_TYPE\",\"threads\":\"$THREADS\",\"nrfiles\":\"$NRFILES\",\"config_id\":\"$CONFIG_ID\",\"config_label\":\"$CONFIG_LABEL\",\"commit\":\"$COMMIT\",\"mount_args\":\"$MOUNT_ARGS\",\"avg_cpu\":\"$AVG_CPU\",\"peak_cpu\":\"$MAX_CPU\",\"avg_mem_mb\":\"$AVG_MEM_RSS\",\"peak_mem_mb\":\"$MAX_MEM_RSS\",\"avg_page_cache_gb\":\"$AVG_PAGE_CACHE\",\"peak_page_cache_gb\":\"$MAX_PAGE_CACHE\",\"avg_sys_cpu\":\"$AVG_SYS_CPU\",\"peak_sys_cpu\":\"$MAX_SYS_CPU\",\"avg_net_rx_mbps\":\"$AVG_NET_RX\",\"peak_net_rx_mbps\":\"$MAX_NET_RX\",\"avg_net_tx_mbps\":\"$AVG_NET_TX\",\"peak_net_tx_mbps\":\"$MAX_NET_TX\"}"
+    TEST_PARAMS="{\"test_id\":\"$TEST_ID\",\"bs\":\"$BS\",\"file_size\":\"$FILE_SIZE\",\"io_depth\":\"$IO_DEPTH\",\"io_type\":\"$IO_TYPE\",\"threads\":\"$THREADS\",\"nrfiles\":\"$NRFILES\",\"direct\":\"$DIRECT\",\"config_id\":\"$CONFIG_ID\",\"config_label\":\"$CONFIG_LABEL\",\"commit\":\"$COMMIT\",\"mount_args\":\"$MOUNT_ARGS\",\"avg_cpu\":\"$AVG_CPU\",\"peak_cpu\":\"$MAX_CPU\",\"avg_mem_mb\":\"$AVG_MEM_RSS\",\"peak_mem_mb\":\"$MAX_MEM_RSS\",\"avg_page_cache_gb\":\"$AVG_PAGE_CACHE\",\"peak_page_cache_gb\":\"$MAX_PAGE_CACHE\",\"avg_sys_cpu\":\"$AVG_SYS_CPU\",\"peak_sys_cpu\":\"$MAX_SYS_CPU\",\"avg_net_rx_mbps\":\"$AVG_NET_RX\",\"peak_net_rx_mbps\":\"$MAX_NET_RX\",\"avg_net_tx_mbps\":\"$AVG_NET_TX\",\"peak_net_tx_mbps\":\"$MAX_NET_TX\"}"
     
     jq ".tests += [{\"matrix_id\":$MATRIX_ID,\"test_id\":$TEST_ID,\"config_id\":$CONFIG_ID,\"status\":\"success\",\"params\":$TEST_PARAMS}]" manifest.json > manifest_tmp.json
     mv manifest_tmp.json manifest.json

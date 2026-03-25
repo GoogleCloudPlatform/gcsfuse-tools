@@ -36,7 +36,7 @@ BQ_SCHEMA_FIELDS = [
     # Parsed IO Params
     ("io_type", "STRING"), ("num_jobs", "INTEGER"), ("file_size", "STRING"),
     ("block_size", "STRING"), ("io_depth", "INTEGER"), ("num_files", "INTEGER"),
-
+    ("direct", "INTEGER"),
     # Metrics
     ("read_bw_mbs", "FLOAT"), ("write_bw_mbs", "FLOAT"), ("read_min_ms", "FLOAT"),
     ("read_max_ms", "FLOAT"), ("read_avg_ms", "FLOAT"), ("read_stddev_ms", "FLOAT"),
@@ -63,14 +63,15 @@ def normalize_header(header):
     return header.strip('_').lower()
 
 def parse_io_params(io_params_str):
-    """Parses 'IOType|Jobs|FSize|BS|IOD|NrFiles' into a dict."""
+    """Parses 'IOType|Jobs|FSize|BS|IOD|NrFiles|Direct' into a dict."""
     try:
         parts = io_params_str.split('|')
-        if len(parts) >= 6:
+        if len(parts) >= 7:
             return {
                 "io_type": parts[0], "num_jobs": int(parts[1]),
                 "file_size": parts[2], "block_size": parts[3],
-                "io_depth": int(parts[4]), "num_files": int(parts[5])
+                "io_depth": int(parts[4]), "num_files": int(parts[5]),
+                "direct": int(parts[6])
             }
     except (ValueError, IndexError) as e:
         logging.warning(f"Failed to parse IO params: {e}")
