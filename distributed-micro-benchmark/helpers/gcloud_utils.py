@@ -129,7 +129,7 @@ def gcloud_compute_instance_group_list(instance_group, zone, project, filter_sta
                 
                 vms.append({'name': instance_name, 'template': template_name})
             else:
-                vms.append({'name': instance_name, 'template': 'unknown'})
+                vms.append(instance_name)
                 
         return vms
 
