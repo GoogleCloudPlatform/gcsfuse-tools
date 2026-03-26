@@ -14,9 +14,6 @@ def unmount(mount_number):
     cmd = ["fusermount", "-uz", mount_path]
     
     try:
-        if os.path.islink(log_file):
-            raise RuntimeError(f"Refusing to open symlink as log file: {log_file}")
-
         fd = os.open(log_file, os.O_WRONLY | os.O_CREAT | os.O_APPEND | os.O_NOFOLLOW, 0o600)
         with os.fdopen(fd, "a") as log:
             subprocess.run(cmd, stdout=log, stderr=log, check=False)
