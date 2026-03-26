@@ -37,9 +37,7 @@ def mount(mount_number):
     # Ensure mount path exists
     os.makedirs(mount_path, exist_ok=True)
     
-    # Create log file if not exists
-    if not os.path.exists(log_file):
-        with open(log_file, "w"): pass
+    # Log file check will be handled safely during open
 
     # Read dynamic config
     scenario_cfg = read_scenario_config()
@@ -80,7 +78,11 @@ def mount(mount_number):
     cmd_str = f"[{timestamp}] [{hostname}] $ {' '.join(cmd)}"
     logger.info(cmd_str)
 
-    with open(log_file, "a") as log:
+    if os.path.islink(log_file):
+        raise RuntimeError(f"Refusing to open symlink as log file: {log_file}")
+
+    fd = os.open(log_file, os.O_WRONLY | os.O_CREAT | os.O_APPEND | os.O_NOFOLLOW, 0o600)
+    with os.fdopen(fd, "a") as log:
         try:
             subprocess.run(cmd, stdout=log, stderr=log, check=True)
         except subprocess.CalledProcessError as e:
