@@ -35,9 +35,7 @@ def mount(mount_number):
     # Ensure mount path exists
     os.makedirs(mount_path, exist_ok=True)
     
-    # Create log file if not exists
-    if not os.path.exists(log_file):
-        with open(log_file, "w"): pass
+    # Log file check will be handled safely during open
 
     # Read dynamic config
     scenario_cfg = read_scenario_config()
@@ -95,7 +93,8 @@ def mount(mount_number):
         except Exception as e:
             logger.warning(f"Failed to log mount command to scenario log: {e}")
 
-    with open(log_file, "a") as log:
+    fd = os.open(log_file, os.O_WRONLY | os.O_CREAT | os.O_APPEND | os.O_NOFOLLOW, 0o600)
+    with os.fdopen(fd, "a") as log:
         try:
             subprocess.run(cmd, stdout=log, stderr=log, check=True)
         except subprocess.CalledProcessError as e:

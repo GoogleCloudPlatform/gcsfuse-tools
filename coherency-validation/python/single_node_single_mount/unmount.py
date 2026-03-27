@@ -14,10 +14,11 @@ def unmount(mount_number=None):
     cmd = ["fusermount", "-uz", mount_path]
     
     try:
-        with open(log_file, "a") as log:
+        fd = os.open(log_file, os.O_WRONLY | os.O_CREAT | os.O_APPEND | os.O_NOFOLLOW, 0o600)
+        with os.fdopen(fd, "a") as log:
             subprocess.run(cmd, stdout=log, stderr=log, check=False)
     except Exception as e:
-        logger.warning(f"Unmount failed (might not be mounted): {e}")
+        logger.warning(f"Unmount failed (might not be mounted) or log open error: {e}")
 
 if __name__ == "__main__":
     unmount()
