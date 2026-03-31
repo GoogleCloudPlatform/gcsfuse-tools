@@ -186,6 +186,9 @@ END_TIME=$(date -u +"%Y-%m-%dT%H:%M:%S%z")
 jq ".status = \"$STATUS\" | .end_time = \"$END_TIME\" | .total_tests = $TOTAL_TESTS | .completed_tests = $TESTS_COMPLETED" manifest.json > manifest.final.json
 mv manifest.final.json manifest.json
 gcloud storage cp manifest.json "${RESULT_BASE}/manifest.json"
+if [ -n "$LOG_BASE" ] && [ -f "$LOG_FILE" ]; then
+    gcloud storage cp "$LOG_FILE" "${LOG_BASE}/worker.log" 2>/dev/null || true
+fi
 
 # Disable error trap before final cleanup
 trap - ERR EXIT

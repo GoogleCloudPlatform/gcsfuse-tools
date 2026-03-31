@@ -10,7 +10,7 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 cd "$SCRIPT_DIR"
 
 BENCHMARK_ID="benchmark-$(date +%s)"
-REGIONAL_TEST_DATA_BUCKET="kokoro-regional-test-data-bucket"
+REGIONAL_TEST_DATA_BUCKET="kokoro-regional-test-data-hns-bucket"
 ARTIFACTS_BUCKET="kokoro-perf-artifacts-bucket"
 PROJECT="gcs-fuse-test-ml"
 INSTANCE_GROUP_NAME="kokoro-perf-c4-standard-192-mig"
@@ -230,18 +230,18 @@ update_commit_hashes
 upload_scripts
 setup_permissions
 
-if [ "$RUN_READ" = true ]; then
-    START_READ=$(date +%s)
-    run_benchmark "read" "$READ_FIO_JOB_FILE" "$READ_TEST_CSV" "$READ_CONFIGS_CSV"
-    END_READ=$(date +%s)
-    echo ">>> READ Benchmark Duration: $((END_READ - START_READ)) seconds"
-fi
-
 if [ "$RUN_WRITE" = true ]; then
     START_WRITE=$(date +%s)
     run_benchmark "write" "$WRITE_FIO_JOB_FILE" "$WRITE_TEST_CSV" "$WRITE_CONFIGS_CSV"
     END_WRITE=$(date +%s)
     echo ">>> WRITE Benchmark (Total for all iterations) Duration: $((END_WRITE - START_WRITE)) seconds"
+fi
+
+if [ "$RUN_READ" = true ]; then
+    START_READ=$(date +%s)
+    run_benchmark "read" "$READ_FIO_JOB_FILE" "$READ_TEST_CSV" "$READ_CONFIGS_CSV"
+    END_READ=$(date +%s)
+    echo ">>> READ Benchmark Duration: $((END_READ - START_READ)) seconds"
 fi
 
 echo "Benchmark Complete!"
