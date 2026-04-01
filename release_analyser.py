@@ -217,7 +217,7 @@ def analyze_test_level_logs(parent_dir):
             # Edge Case: If the package log was dumped in the 'failed' directory but no specific 
             # '--- FAIL:' lines were printed, the test binary panicked, failed to compile, or timed out.
             if log_type == 'failed_package_logs' and not has_failures:
-                dummy_name = "<PACKAGE_CRASH_OR_TIMEOUT>"
+                dummy_name = "[PACKAGE_CRASH_OR_TIMEOUT]"
                 if dummy_name not in results[package_name][bucket_type]:
                     results[package_name][bucket_type][dummy_name] = {'passed': 0, 'failed': 0, 'skipped': 0}
                 results[package_name][bucket_type][dummy_name]['failed'] += 1
