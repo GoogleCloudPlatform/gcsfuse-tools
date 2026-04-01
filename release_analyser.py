@@ -37,7 +37,6 @@ def sync_logs(bucket_name, release_version, vm_name_prefix, output_dir):
     
     print(f"Using output directory: {output_dir}")
 
-
     print(f"Syncing folders from gs://{bucket_name}/{prefix}* to {output_dir}...")
     
     # Use gcloud storage cp with the recursive flag and wildcard
