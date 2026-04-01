@@ -17,7 +17,6 @@ import sys
 import re
 import argparse
 import subprocess
-import shutil
 import tempfile
 
 from pathlib import Path
@@ -36,10 +35,7 @@ def sync_logs(bucket_name, release_version, vm_name_prefix, output_dir):
     """Syncs logs from GCS using gcloud storage cp."""
     prefix = f"{release_version}/{vm_name_prefix}"
     
-    # Cleaning step: Remove the folder if it exists, then recreate it
     print(f"Using output directory: {output_dir}")
-    # Using a unique temp directory created outside, so no manual cleanup or creation needed.
-
 
     print(f"Syncing folders from gs://{bucket_name}/{prefix}* to {output_dir}...")
     
