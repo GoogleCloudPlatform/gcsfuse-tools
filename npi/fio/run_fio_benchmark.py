@@ -17,6 +17,7 @@
 
 import argparse
 import logging
+import os
 
 import fio_benchmark_runner
 
@@ -50,6 +51,8 @@ def main():
     if not args.bucket_name and not args.mount_path:
         parser.error("Either --bucket-name or --mount-path must be provided.")
 
+    mount_path = os.path.abspath(args.mount_path) if args.mount_path else None
+
     fio_benchmark_runner.run_benchmark(
         gcsfuse_flags=args.gcsfuse_flags,
         bucket_name=args.bucket_name,
@@ -63,7 +66,7 @@ def main():
         project_id=args.project_id,
         bq_dataset_id=args.bq_dataset_id,
         bq_table_id=args.bq_table_id,
-        mount_path=args.mount_path,
+        mount_path=mount_path,
     )
 
 

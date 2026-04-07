@@ -108,6 +108,8 @@ def main():
   if not args.bucket_name and not args.mount_path:
     parser.error("Either --bucket-name or --mount-path must be provided.")
 
+  mount_path = os.path.abspath(args.mount_path) if args.mount_path else None
+
   try:
     with open(args.matrix_config, "r", newline="") as f:
       reader = csv.DictReader(f)
@@ -156,7 +158,7 @@ def main():
           project_id=args.project_id,
           bq_dataset_id=args.bq_dataset_id,
           bq_table_id=args.bq_table_id,
-          mount_path=args.mount_path)
+          mount_path=mount_path)
     except Exception as e:
       logging.error("Benchmark run failed for configuration %s: %s", config, e)
       # Continue to the next configuration

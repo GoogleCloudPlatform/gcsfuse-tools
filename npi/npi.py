@@ -23,6 +23,7 @@ Example:
 import argparse
 import json
 import functools
+import os
 import shlex
 import logging
 import subprocess
@@ -345,6 +346,8 @@ def main():
     if not args.bucket_name and not args.mount_path:
         parser.error("Either --bucket-name or --mount-path must be provided.")
 
+    mount_path = os.path.abspath(args.mount_path) if args.mount_path else None
+
     factory = BenchmarkFactory(
         bucket_name=args.bucket_name,
         project_id=args.project_id,
@@ -352,7 +355,7 @@ def main():
         gcsfuse_version=args.gcsfuse_version,
         iterations=args.iterations,
         temp_dir=args.temp_dir,
-        mount_path=args.mount_path
+        mount_path=mount_path
     )
 
     available_benchmarks = factory.get_available_benchmarks()
