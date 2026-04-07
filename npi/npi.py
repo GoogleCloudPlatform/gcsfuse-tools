@@ -9,14 +9,14 @@ The script supports different configurations for benchmarks, such as running wit
 HTTP/1.1 or gRPC, and pinning to specific NUMA nodes.
 
 Usage:
-  python3 npi.py --benchmarks <benchmark_names> --bucket-name <bucket> \
+  python3 npi.py --benchmarks <benchmark_names> --bucket-name <bucket> \\
     --project-id <project> --bq-dataset-id <dataset> --gcsfuse-version <version>
 
-  python3 npi.py --benchmarks <benchmark_names> --mount-path <path> \
+  python3 npi.py --benchmarks <benchmark_names> --mount-path <path> \\
     --project-id <project> --bq-dataset-id <dataset> --gcsfuse-version <version>
 
 Example:
-  python3 npi.py --benchmarks read_http1 write_grpc --bucket-name my-bucket \
+  python3 npi.py --benchmarks read_http1 write_grpc --bucket-name my-bucket \\
     --project-id my-project --bq-dataset-id my_bq_dataset --gcsfuse-version v1.2.0
 """
 
