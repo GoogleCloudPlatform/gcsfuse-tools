@@ -264,14 +264,17 @@ def upload_results_to_bq(
 
 def run_benchmark(
     gcsfuse_flags, bucket_name, iterations, fio_config, work_dir, output_dir, project_id, 
-    fio_env=None, summary_file=None, cpu_limit_list=None, bind_fio=False, bq_dataset_id=None, bq_table_id=None
+    fio_env=None, summary_file=None, cpu_limit_list=None, bind_fio=False, bq_dataset_id=None, bq_table_id=None, mount_path=None
 ):
     """Runs the full FIO benchmark suite."""
     os.makedirs(work_dir, exist_ok=True)
     os.makedirs(output_dir, exist_ok=True)
 
     gcsfuse_bin = "/gcsfuse/gcsfuse"
-    mount_point = os.path.join(work_dir, "mount_point")
+    if mount_path:
+        mount_point = mount_path
+    else:
+        mount_point = os.path.join(work_dir, "mount_point")
 
     if bind_fio and not cpu_limit_list:
         logging.error("--bind-fio is set to true, but --cpu-limit-list is not provided.")
@@ -294,7 +297,8 @@ def run_benchmark(
             logging.info("Clearing page cache...")
             run_command(["sh", "-c", "echo 3 > /proc/sys/vm/drop_caches"])
 
-            mount_gcsfuse(gcsfuse_bin, gcsfuse_flags, bucket_name, mount_point, cpu_limit_list=cpu_limit_list)
+            if not mount_path:
+                mount_gcsfuse(gcsfuse_bin, gcsfuse_flags, bucket_name, mount_point, cpu_limit_list=cpu_limit_list)
 
             fio_cpu_list = cpu_limit_list if bind_fio else None
 
@@ -315,7 +319,7 @@ def run_benchmark(
                     fio_env=fio_run_env,
                     cpu_limit_list=cpu_limit_list)
         finally:
-            if os.path.ismount(mount_point):
+            if not mount_path and os.path.ismount(mount_point):
                 unmount_gcsfuse(mount_point)
         logging.info(f"--- Finished Iteration {i}/{iterations} ---")
 
