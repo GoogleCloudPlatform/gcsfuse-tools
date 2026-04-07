@@ -130,7 +130,7 @@ class BenchmarkFactory:
             volume_mount = f"-v <temp_dir_path>:{container_temp_dir}"
 
         if mount_path:
-            volume_mount += f" -v {mount_path}:{mount_path}"
+            volume_mount += f" -v {shlex.quote(mount_path)}:{shlex.quote(mount_path)}"
 
         default_gcsfuse_flags = f"--temp-dir={container_temp_dir} -o allow_other"
 
@@ -152,7 +152,7 @@ class BenchmarkFactory:
         if bucket_name:
             base_cmd += f" --bucket-name={bucket_name}"
         if mount_path:
-            base_cmd += f" --mount-path={mount_path}"
+            base_cmd += f" --mount-path={shlex.quote(mount_path)}"
         if gcsfuse_flags:
             base_cmd += f" --gcsfuse-flags='{gcsfuse_flags}'"
         if cpu_list:
