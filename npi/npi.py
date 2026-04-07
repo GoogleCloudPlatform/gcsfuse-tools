@@ -9,11 +9,14 @@ The script supports different configurations for benchmarks, such as running wit
 HTTP/1.1 or gRPC, and pinning to specific NUMA nodes.
 
 Usage:
-  python3 npi.py --benchmarks <benchmark_names> --bucket-name <bucket> \\
+  python3 npi.py --benchmarks <benchmark_names> --bucket-name <bucket> \
+    --project-id <project> --bq-dataset-id <dataset> --gcsfuse-version <version>
+
+  python3 npi.py --benchmarks <benchmark_names> --mount-path <path> \
     --project-id <project> --bq-dataset-id <dataset> --gcsfuse-version <version>
 
 Example:
-  python3 npi.py --benchmarks read_http1 write_grpc --bucket-name my-bucket \\
+  python3 npi.py --benchmarks read_http1 write_grpc --bucket-name my-bucket \
     --project-id my-project --bq-dataset-id my_bq_dataset --gcsfuse-version v1.2.0
 """
 
@@ -45,7 +48,7 @@ class BenchmarkFactory:
             'boot-disk').
     """
 
-    def __init__(self, bucket_name, project_id, bq_dataset_id, gcsfuse_version, iterations, temp_dir):
+    def __init__(self, bucket_name, project_id, bq_dataset_id, gcsfuse_version, iterations, temp_dir, mount_path=None):
         """Initializes the BenchmarkFactory.
 
         Args:
@@ -55,6 +58,7 @@ class BenchmarkFactory:
             gcsfuse_version (str): The GCSfuse version.
             iterations (int): The number of benchmark iterations.
             temp_dir (str): The temporary directory type.
+            mount_path (str): The path to an already mounted GCS bucket.
         """
         self.bucket_name = bucket_name
         self.project_id = project_id
@@ -62,6 +66,7 @@ class BenchmarkFactory:
         self.gcsfuse_version = gcsfuse_version
         self.iterations = iterations
         self.temp_dir = temp_dir
+        self.mount_path = mount_path
         self._benchmark_definitions = self._get_benchmark_definitions()
 
     def get_benchmark_command(self, name):
@@ -83,7 +88,8 @@ class BenchmarkFactory:
         return command_func(
             bucket_name=self.bucket_name,
             project_id=self.project_id,
-            bq_dataset_id=self.bq_dataset_id
+            bq_dataset_id=self.bq_dataset_id,
+            mount_path=self.mount_path
         )
 
     def get_available_benchmarks(self):
@@ -96,7 +102,7 @@ class BenchmarkFactory:
 
     def _create_docker_command(self, benchmark_image_suffix, bq_table_id,
                                bucket_name, project_id, bq_dataset_id,
-                               gcsfuse_flags=None, cpu_list=None, bind_fio=None):
+                               gcsfuse_flags=None, cpu_list=None, bind_fio=None, mount_path=None):
         """Helper to construct the full docker run command.
 
         This method assembles the final `docker run` command string with all
@@ -111,6 +117,7 @@ class BenchmarkFactory:
             gcsfuse_flags (str, optional): Additional flags for GCSfuse.
             cpu_list (str, optional): The list of CPUs to pin the container to.
             bind_fio (bool, optional): Whether to bind FIO to the same CPUs.
+            mount_path (str, optional): The path to an already mounted GCS bucket.
 
         Returns:
             str: The complete Docker command.
@@ -121,6 +128,9 @@ class BenchmarkFactory:
             volume_mount = f"--mount type=tmpfs,destination={container_temp_dir}"
         elif self.temp_dir == "boot-disk":
             volume_mount = f"-v <temp_dir_path>:{container_temp_dir}"
+
+        if mount_path:
+            volume_mount += f" -v {mount_path}:{mount_path}"
 
         default_gcsfuse_flags = f"--temp-dir={container_temp_dir} -o allow_other"
 
@@ -135,11 +145,14 @@ class BenchmarkFactory:
             f"{volume_mount} "
             f"us-docker.pkg.dev/{project_id}/gcsfuse-benchmarks/{benchmark_image_suffix}-{self.gcsfuse_version}:latest "
             f"--iterations={self.iterations} "
-            f"--bucket-name={bucket_name} "
             f"--project-id={project_id} "
             f"--bq-dataset-id={bq_dataset_id} "
             f"--bq-table-id={bq_table_id}"
         )
+        if bucket_name:
+            base_cmd += f" --bucket-name={bucket_name}"
+        if mount_path:
+            base_cmd += f" --mount-path={mount_path}"
         if gcsfuse_flags:
             base_cmd += f" --gcsfuse-flags='{gcsfuse_flags}'"
         if cpu_list:
@@ -304,7 +317,8 @@ def main():
         default=["all"],
         help="Space-separated list of benchmarks to run. Use 'all' to run all available benchmarks."
     )
-    parser.add_argument("--bucket-name", required=True, help="Name of the GCS bucket to use.")
+    parser.add_argument("--bucket-name", default=None, help="Name of the GCS bucket to use.")
+    parser.add_argument("--mount-path", default=None, help="Path to an already mounted GCS bucket. If provided, --bucket-name is ignored and GCSFuse is not mounted.")
     parser.add_argument("--project-id", required=True, help="Project ID for results.")
     parser.add_argument("--bq-dataset-id", required=True, help="BigQuery dataset ID for results.")
     parser.add_argument("--gcsfuse-version", required=True, help="GCSFuse version to use for benchmark images (e.g., 'master', 'v1.2.0').")
@@ -328,13 +342,17 @@ def main():
 
     args = parser.parse_args()
 
+    if not args.bucket_name and not args.mount_path:
+        parser.error("Either --bucket-name or --mount-path must be provided.")
+
     factory = BenchmarkFactory(
         bucket_name=args.bucket_name,
         project_id=args.project_id,
         bq_dataset_id=args.bq_dataset_id,
         gcsfuse_version=args.gcsfuse_version,
         iterations=args.iterations,
-        temp_dir=args.temp_dir
+        temp_dir=args.temp_dir,
+        mount_path=args.mount_path
     )
 
     available_benchmarks = factory.get_available_benchmarks()

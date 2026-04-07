@@ -29,7 +29,8 @@ logging.basicConfig(
 def main():
     parser = argparse.ArgumentParser(description="Run GCSFuse FIO benchmarks.")
     parser.add_argument("--gcsfuse-flags", default="", help="Flags for GCSFuse, as a single quoted string.")
-    parser.add_argument("--bucket-name", required=True, help="Name of the GCS bucket.")
+    parser.add_argument("--bucket-name", default=None, help="Name of the GCS bucket.")
+    parser.add_argument("--mount-path", default=None, help="Path to an already mounted GCS bucket. If provided, --bucket-name is ignored and GCSFuse is not mounted.")
     parser.add_argument("--iterations", type=int, default=1, help="Number of FIO test iterations.")
     parser.add_argument("--fio-config", required=True, help="Path to the FIO config file.")
     parser.add_argument("--work-dir", default="/tmp/gcsfuse_benchmark", help="Working directory for clones and builds.")
@@ -46,6 +47,9 @@ def main():
     parser.add_argument("--bq-table-id", default=None, help="BigQuery table ID.")
     args = parser.parse_args()
 
+    if not args.bucket_name and not args.mount_path:
+        parser.error("Either --bucket-name or --mount-path must be provided.")
+
     fio_benchmark_runner.run_benchmark(
         gcsfuse_flags=args.gcsfuse_flags,
         bucket_name=args.bucket_name,
@@ -59,6 +63,7 @@ def main():
         project_id=args.project_id,
         bq_dataset_id=args.bq_dataset_id,
         bq_table_id=args.bq_table_id,
+        mount_path=args.mount_path,
     )
 
 

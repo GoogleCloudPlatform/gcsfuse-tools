@@ -152,7 +152,8 @@ python3 npi.py [OPTIONS]
 ### Arguments
 
 *   -b, --benchmarks: (Optional) A space-separated list of benchmark names to run. Use 'all' to run all available benchmarks. Defaults to 'all'.
-*   `--bucket-name`: (Required) The name of the GCS bucket to use for the benchmarks.
+*   `--bucket-name`: The name of the GCS bucket to use for the benchmarks.
+*   `--mount-path`: Path to an already mounted GCS bucket. If provided, `--bucket-name` is ignored and GCSFuse is not mounted. Either `--bucket-name` or `--mount-path` must be provided.
 *   `--project-id`: (Required) The Google Cloud Project ID where the BigQuery dataset resides.
 *   `--bq-dataset-id`: (Required) The BigQuery dataset ID to store the benchmark results.
 *   `--gcsfuse-version`: (Required) The GCSfuse version to test (e.g., `'v3.4.0'`). This version is used to pull the corresponding benchmark Docker images.
