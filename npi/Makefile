@@ -12,11 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-GCSFUSE_VERSION ?= v3.5.6
+GCSFUSE_VERSION ?= v3.7.1
 GO_VERSION=1.24.11
 UBUNTU_VERSION=24.04
 REGISTRY=us-docker.pkg.dev
-PROJECT=gcs-fuse-test
+PROJECT=tpu-prod-env-one-vm
 
 
 .DEFAULT_GOAL := build
@@ -24,4 +24,7 @@ PROJECT=gcs-fuse-test
 .PHONY: build
 
 build:
-	gcloud builds submit --project $(PROJECT) --config cloudbuild.yaml . --substitutions=_GCSFUSE_VERSION=$(GCSFUSE_VERSION),_GO_VERSION=$(GO_VERSION),_UBUNTU_VERSION=$(UBUNTU_VERSION),_REGISTRY=$(REGISTRY),_PROJECT=$(PROJECT)
+	gcloud builds submit --project $(PROJECT) --config cloudbuild.yaml . \
+        --async \
+        --substitutions=_GCSFUSE_VERSION=$(GCSFUSE_VERSION),_GO_VERSION=$(GO_VERSION),_UBUNTU_VERSION=$(UBUNTU_VERSION),_REGISTRY=$(REGISTRY),_PROJECT=$(PROJECT)
+
