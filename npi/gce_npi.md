@@ -9,9 +9,13 @@ This guide explains how to build the required Docker images and run the NPI (Net
     *   `https://www.googleapis.com/auth/bigquery`
     *   `https://www.googleapis.com/auth/devstorage.read_write`
     *   `https://www.googleapis.com/auth/cloud-platform` (or granular scopes)
-3.  **Authentication**: If not using a VM service account, you must authenticate using `gcloud auth login` and `gcloud auth application-default login`.
-4.  **BigQuery Dataset**: Create a BigQuery dataset to store the benchmark results.
-5.  **Artifact Registry**: You must have an Artifact Registry repository to host the Docker images.
+3.  **System Utilities**: The `npi.py` script requires `python3`. Additionally, the `lscpu` command-line utility is required for NUMA-aware benchmarks. These are usually pre-installed, but you can ensure they are present by installing the `util-linux` and `python3` packages:
+    ```bash
+    sudo apt-get update && sudo apt-get install -y util-linux python3
+    ```
+4.  **Authentication**: If not using a VM service account, you must authenticate using `gcloud auth login` and `gcloud auth application-default login`.
+5.  **BigQuery Dataset**: Create a BigQuery dataset to store the benchmark results.
+6.  **Artifact Registry**: You must have an Artifact Registry repository to host the Docker images.
     ```bash
     gcloud services enable artifactregistry.googleapis.com --project=YOUR_PROJECT_ID
     gcloud artifacts repositories create gcsfuse-benchmarks \
