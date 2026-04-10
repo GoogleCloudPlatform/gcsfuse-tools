@@ -42,13 +42,14 @@ This creates images such as `us-docker.pkg.dev/YOUR_PROJECT_ID/gcsfuse-benchmark
 
 ## Step 2: GKE Cluster Setup
 
-Before running the benchmarks, you must ensure that your GKE cluster is correctly provisioned for the test:
+Before running the benchmarks, you must ensure that your GKE cluster is correctly provisioned for the test. The cluster MUST have the following features enabled:
 
-1. **GCS Fuse CSI Driver**: Ensure that the [GCS Fuse CSI driver is enabled](https://cloud.google.com/kubernetes-engine/docs/how-to/persistent-volumes/cloud-storage-fuse-csi-driver) on your cluster. 
-2. **Node Pools**: For accurate benchmarking, it's recommended that your cluster has at least two node-pools:
+1. **Workload Identity**: Your cluster must have [Workload Identity enabled](https://cloud.google.com/kubernetes-engine/docs/how-to/workload-identity). This is required so that the benchmark pods can securely authenticate to GCP services (GCS, BigQuery) without using exported service account keys.
+2. **GCS Fuse CSI Driver**: Ensure that the [Cloud Storage FUSE CSI driver is enabled](https://cloud.google.com/kubernetes-engine/docs/how-to/persistent-volumes/cloud-storage-fuse-csi-driver) on your cluster. 
+3. **Node Pools**: For accurate benchmarking, it's recommended that your cluster has at least two node-pools:
    * A **default node-pool** to run standard Kubernetes system components (kube-dns, etc.).
    * A **dedicated node-pool** corresponding to the specific machine-type you want to test (e.g., specific TPU slices, high-CPU machines, or specific GPU families).
-3. **Node Selectors**: You must modify the `nodeSelector` in the provided Job configurations (`gke_pod_specs/*.yaml`) to match the labels of the node-pool where you intend to run the benchmarks.
+4. **Node Selectors**: You must modify the `nodeSelector` in the provided Job configurations (`gke_pod_specs/*.yaml`) to match the labels of the node-pool where you intend to run the benchmarks.
 
 ## Step 3: Configure Workload Identity (Permissions)
 
