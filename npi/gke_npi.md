@@ -89,9 +89,9 @@ To make it easier, we have provided a set of ready-to-run YAML pod specification
 
 Before applying these, you must edit the file you wish to run and replace the placeholders (`YOUR_PROJECT_ID`, `YOUR_GCSFUSE_VERSION`, `YOUR_BQ_DATASET_ID`, `YOUR_BUCKET_NAME`) with your actual values.
 
-### Executing the Benchmark
+### Executing Individual Benchmarks
 
-Apply your modified YAML to your cluster to start the benchmark:
+Apply your modified YAML to your cluster to start a single benchmark:
 
 ```bash
 kubectl apply -f gke_pod_specs/fio-read-http1.yaml
@@ -101,4 +101,16 @@ Monitor the logs to ensure the benchmark finishes and metrics are published to B
 
 ```bash
 kubectl logs -f fio-bench-read-http1
+```
+
+### Executing All Benchmarks Sequentially
+
+To avoid resource contention and interference, it is recommended to run the benchmarks one at a time. We have provided a helper script that iterates through all YAML files in the `gke_pod_specs/` directory, waits for each to finish, and cleans up the pod before moving to the next.
+
+```bash
+# Ensure the script is executable
+chmod +x run_gke_benchmarks.sh
+
+# Run all templates sequentially
+./run_gke_benchmarks.sh
 ```
