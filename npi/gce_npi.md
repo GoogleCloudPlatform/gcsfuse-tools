@@ -101,3 +101,9 @@ python3 npi.py \
     --gcsfuse-version YOUR_GCSFUSE_VERSION \
     --dry-run
 ```
+
+## Step 3: Analyze Results
+
+Once the benchmarks complete, the results are populated automatically into your BigQuery dataset (each benchmark gets its own table). 
+
+To extract useful performance characteristics such as throughput (MiB/s) and latency (ms) from the raw FIO JSON in BigQuery, refer to the [BigQuery Performance Analysis Queries](bq_queries.md) guide.

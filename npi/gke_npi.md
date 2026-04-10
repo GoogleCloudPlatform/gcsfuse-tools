@@ -114,3 +114,9 @@ chmod +x run_gke_benchmarks.sh
 # Run all templates sequentially
 ./run_gke_benchmarks.sh
 ```
+
+## Step 4: Analyze Results
+
+After your benchmarks have completed successfully, the FIO JSON output metrics will be populated in your BigQuery tables. 
+
+To learn how to extract useful performance characteristics such as throughput (MiB/s) and latency (ms) from the raw FIO JSON in BigQuery, refer to the [BigQuery Performance Analysis Queries](bq_queries.md) guide.
