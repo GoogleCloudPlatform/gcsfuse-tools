@@ -103,8 +103,6 @@ spec:
     - "--project-id=YOUR_PROJECT_ID"
     - "--bq-dataset-id=YOUR_BQ_DATASET_ID"
     - "--bq-table-id=fio_read_http1"
-    securityContext:
-      privileged: true
     volumeMounts:
     - name: data-vol
       mountPath: /data
