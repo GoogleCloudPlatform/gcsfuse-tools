@@ -2,6 +2,16 @@
 
 This guide explains how to build the required Docker images and run the NPI (Network Performance Improvement) benchmarks on a Google Compute Engine (GCE) VM.
 
+> **Note to Operators / Vendors:** Please ensure you have completed the prerequisite steps and gathered all required variables before executing the scripts.
+
+## Variables Glossary
+
+Before starting, gather the following information. You will need to substitute these placeholders in the commands throughout this guide:
+*   `YOUR_PROJECT_ID`: The GCP project ID where your resources (Artifact Registry, GCS, BigQuery) reside.
+*   `YOUR_GCS_BUCKET`: The GCS bucket name used for reading/writing test data (e.g., `my-benchmark-bucket` — omit the `gs://` prefix).
+*   `YOUR_BQ_DATASET_ID`: The BigQuery dataset where the benchmark results will be inserted (e.g., `npi_results`).
+*   `YOUR_GCSFUSE_VERSION`: The GCSFuse version tag to test (e.g., `v3.5.6`).
+
 ## Prerequisites
 
 1.  **Google Cloud Project**: You need a GCP project to host your Artifact Registry, Cloud Storage bucket, and BigQuery dataset.
@@ -44,6 +54,11 @@ make build
 ```
 
 This will trigger a Cloud Build job (`cloudbuild.yaml`) that builds the `fio-read-benchmark`, `fio-write-benchmark`, and `orbax-emulated-benchmark` images and pushes them to `us-docker.pkg.dev/YOUR_PROJECT_ID/gcsfuse-benchmarks/`.
+
+> **Verification:** Once the `make build` command finishes, verify the images exist in your Artifact Registry before proceeding to the next step:
+> ```bash
+> gcloud artifacts docker images list us-docker.pkg.dev/YOUR_PROJECT_ID/gcsfuse-benchmarks
+> ```
 
 ## Step 2: Run the Benchmarks
 
@@ -101,6 +116,8 @@ python3 npi.py \
     --gcsfuse-version YOUR_GCSFUSE_VERSION \
     --dry-run
 ```
+
+> **Troubleshooting Tip:** If `npi.py` throws permissions errors, ensure you have run `gcloud auth application-default login` or that your VM Service Account has the required scopes (`cloud-platform` and `bigquery`).
 
 ## Step 3: Analyze Results
 

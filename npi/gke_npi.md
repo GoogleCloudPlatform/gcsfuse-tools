@@ -2,6 +2,16 @@
 
 This guide explains how to build and run the NPI (Network Performance Improvement) benchmarks on Google Kubernetes Engine (GKE). Unlike GCE where `npi.py` automatically orchestrates Docker runs, in GKE we manually define and deploy Jobs that use the benchmark images, leveraging the GKE GCS Fuse CSI driver.
 
+> **Note to Operators / Vendors:** Please ensure you have gathered all required variables before executing the scripts. The cluster MUST be prepared with the correct CSI driver and Node Pools.
+
+## Variables Glossary
+
+Before starting, gather the following information. You will replace the placeholders below in the commands and YAML files throughout this guide:
+*   `YOUR_PROJECT_ID`: The GCP project ID where your resources (GKE, Artifact Registry, GCS, BigQuery) reside.
+*   `YOUR_BUCKET_NAME`: The GCS bucket name to be used for reading/writing test data (e.g., `my-benchmark-bucket` — omit the `gs://` prefix).
+*   `YOUR_BQ_DATASET_ID`: The BigQuery dataset where the benchmark results will be uploaded (e.g., `npi_results`).
+*   `YOUR_GCSFUSE_VERSION`: The GCSFuse version tag to test (e.g., `v3.5.6`).
+
 ## Step 1: Build the Benchmark Images
 
 The process for building the Docker images is identical to GCE. We use Cloud Build via the provided `Makefile`.
@@ -24,6 +34,11 @@ The process for building the Docker images is identical to GCE. We use Cloud Bui
     # make build PROJECT=my-project GCSFUSE_VERSION=v3.5.6
     ```
 This creates images such as `us-docker.pkg.dev/YOUR_PROJECT_ID/gcsfuse-benchmarks/fio-read-benchmark-YOUR_GCSFUSE_VERSION:latest`.
+
+> **Verification:** Confirm the images exist in your Artifact Registry before proceeding:
+> ```bash
+> gcloud artifacts docker images list us-docker.pkg.dev/YOUR_PROJECT_ID/gcsfuse-benchmarks
+> ```
 
 ## Step 2: GKE Cluster Setup
 
@@ -124,6 +139,8 @@ chmod +x run_gke_benchmarks.sh
 # Run all templates sequentially
 ./run_gke_benchmarks.sh
 ```
+
+> **Troubleshooting Tip:** If a Job fails or gets stuck in `ContainerCreating` or `Pending`, use `kubectl describe pod -l job-name=<job_name>` to view Kubernetes events. A common issue is a mismatched `nodeSelector` or insufficient IAM permissions.
 
 ## Step 5: Analyze Results
 
