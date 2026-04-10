@@ -1,6 +1,6 @@
 # Running NPI Benchmarks on GKE
 
-This guide explains how to build and run the NPI (Network Performance Improvement) benchmarks on Google Kubernetes Engine (GKE). Unlike GCE where `npi.py` automatically orchestrates Docker runs, in GKE we manually define and deploy Pods that use the benchmark images, leveraging the GKE GCS Fuse CSI driver.
+This guide explains how to build and run the NPI (Network Performance Improvement) benchmarks on Google Kubernetes Engine (GKE). Unlike GCE where `npi.py` automatically orchestrates Docker runs, in GKE we manually define and deploy Jobs that use the benchmark images, leveraging the GKE GCS Fuse CSI driver.
 
 ## Step 1: Build the Benchmark Images
 
@@ -27,7 +27,7 @@ This creates images such as `us-docker.pkg.dev/YOUR_PROJECT_ID/gcsfuse-benchmark
 
 ## Step 2: Configure Workload Identity (Permissions)
 
-To allow your GKE Pods to access the GCS bucket and write metrics to BigQuery, you should use **Workload Identity**. This links a Kubernetes Service Account (KSA) to a Google Cloud Service Account (GSA).
+To allow your GKE Jobs to access the GCS bucket and write metrics to BigQuery, you should use **Workload Identity**. This links a Kubernetes Service Account (KSA) to a Google Cloud Service Account (GSA).
 
 1.  **Create a Google Cloud Service Account (GSA):**
     ```bash
@@ -69,19 +69,19 @@ To allow your GKE Pods to access the GCS bucket and write metrics to BigQuery, y
         iam.gke.io/gcp-service-account=benchmark-gsa@YOUR_PROJECT_ID.iam.gserviceaccount.com
     ```
 
-## Step 3: Run the Benchmarks as Pods
+## Step 3: Run the Benchmarks as Jobs
 
-In GKE, we don't use `npi.py`. Instead, we deploy Kubernetes Pods. The GCSFuse mounting is handled directly by the **GKE GCS Fuse CSI driver**, and we pass the mount path to the benchmark container.
+In GKE, we don't use `npi.py`. Instead, we deploy Kubernetes Jobs. The GCSFuse mounting is handled directly by the **GKE GCS Fuse CSI driver**, and we pass the mount path to the benchmark container.
 
 ### Important Considerations for GKE
 
 *   **NUMA Binding**: NUMA binding does not currently make sense in GKE. Exclude any NUMA-bound benchmarks (e.g., skip anything with `numa0` or `numa1` in the name).
-*   **gRPC Benchmarks**: When running gRPC benchmarks, you **must** change the `mountOptions` in the Pod's volume definition to include `"client-protocol=grpc"`.
+*   **gRPC Benchmarks**: When running gRPC benchmarks, you **must** change the `mountOptions` in the Job's volume definition to include `"client-protocol=grpc"`.
 *   **BigQuery Parameters**: The container needs `args` specifying where to send the metrics since it no longer inherits them from `npi.py`.
 
-### Pod Specifications
+### Job Specifications
 
-To make it easier, we have provided a set of ready-to-run YAML pod specifications for common benchmarks in the `gke_pod_specs/` directory:
+To make it easier, we have provided a set of ready-to-run YAML Job specifications for common benchmarks in the `gke_pod_specs/` directory:
 
 *   **`gke_pod_specs/fio-read-http1.yaml`**: Standard FIO read test using HTTP/1.1 protocol.
 *   **`gke_pod_specs/fio-write-grpc.yaml`**: Standard FIO write test using gRPC protocol. Note that `mountOptions` is set to `"client-protocol=grpc"`.
@@ -100,12 +100,12 @@ kubectl apply -f gke_pod_specs/fio-read-http1.yaml
 Monitor the logs to ensure the benchmark finishes and metrics are published to BigQuery:
 
 ```bash
-kubectl logs -f fio-bench-read-http1
+kubectl logs -f job/fio-bench-read-http1
 ```
 
 ### Executing All Benchmarks Sequentially
 
-To avoid resource contention and interference, it is recommended to run the benchmarks one at a time. We have provided a helper script that iterates through all YAML files in the `gke_pod_specs/` directory, waits for each to finish, and cleans up the pod before moving to the next.
+To avoid resource contention and interference, it is recommended to run the benchmarks one at a time. We have provided a helper script that iterates through all YAML files in the `gke_pod_specs/` directory, waits for each to finish, and cleans up the Job before moving to the next.
 
 ```bash
 # Ensure the script is executable
