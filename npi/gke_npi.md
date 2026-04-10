@@ -40,10 +40,10 @@ To allow your GKE Pods to access the GCS bucket and write metrics to BigQuery, y
         --member "serviceAccount:benchmark-gsa@YOUR_PROJECT_ID.iam.gserviceaccount.com" \
         --role "roles/bigquery.dataEditor"
 
-    # Grant Storage Object Admin (or a more restricted role) on your bucket
+    # Grant Storage Object User on your bucket
     gcloud storage buckets add-iam-policy-binding gs://YOUR_BUCKET_NAME \
         --member "serviceAccount:benchmark-gsa@YOUR_PROJECT_ID.iam.gserviceaccount.com" \
-        --role "roles/storage.objectAdmin"
+        --role "roles/storage.objectUser"
     ```
 
 3.  **Create a Kubernetes Service Account (KSA):**
