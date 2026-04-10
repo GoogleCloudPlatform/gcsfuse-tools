@@ -18,9 +18,12 @@ The process for building the Docker images is identical to GCE. We use Cloud Bui
 2. Build and push the images:
     ```bash
     cd gcsfuse-tools/npi
-    make build PROJECT=YOUR_PROJECT_ID GCSFUSE_VERSION=v3.5.6
+    make build PROJECT=YOUR_PROJECT_ID GCSFUSE_VERSION=YOUR_GCSFUSE_VERSION
+
+    # Example:
+    # make build PROJECT=my-project GCSFUSE_VERSION=v3.5.6
     ```
-This creates images such as `us-docker.pkg.dev/YOUR_PROJECT_ID/gcsfuse-benchmarks/fio-read-benchmark-v3.5.6:latest`.
+This creates images such as `us-docker.pkg.dev/YOUR_PROJECT_ID/gcsfuse-benchmarks/fio-read-benchmark-YOUR_GCSFUSE_VERSION:latest`.
 
 ## Step 2: Configure Workload Identity (Permissions)
 
@@ -96,7 +99,7 @@ spec:
   serviceAccountName: benchmark-ksa  # KSA configured with Workload Identity
   containers:
   - name: fio
-    image: us-docker.pkg.dev/YOUR_PROJECT_ID/gcsfuse-benchmarks/fio-read-benchmark-v3.5.6:latest
+    image: us-docker.pkg.dev/YOUR_PROJECT_ID/gcsfuse-benchmarks/fio-read-benchmark-YOUR_GCSFUSE_VERSION:latest
     args: 
     - "--mount-path=/data"
     - "--iterations=5"
@@ -123,7 +126,7 @@ To run a gRPC benchmark (e.g., `read_grpc`), update the `args` to emit to the co
 # ... metadata and spec ...
   containers:
   - name: fio
-    image: us-docker.pkg.dev/YOUR_PROJECT_ID/gcsfuse-benchmarks/fio-read-benchmark-v3.5.6:latest
+    image: us-docker.pkg.dev/YOUR_PROJECT_ID/gcsfuse-benchmarks/fio-read-benchmark-YOUR_GCSFUSE_VERSION:latest
     args: 
     - "--mount-path=/data"
     - "--iterations=5"

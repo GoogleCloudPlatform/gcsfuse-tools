@@ -34,7 +34,10 @@ By default, the `Makefile` builds for project `gcs-fuse-test`. You should either
 cd gcsfuse-tools/npi
 
 # Option 1: Override project and version in the make command
-make build PROJECT=YOUR_PROJECT_ID GCSFUSE_VERSION=v3.5.6
+make build PROJECT=YOUR_PROJECT_ID GCSFUSE_VERSION=YOUR_GCSFUSE_VERSION
+
+# Example:
+# make build PROJECT=my-project GCSFUSE_VERSION=v3.5.6
 
 # Option 2: Edit Makefile directly to change the PROJECT variable, then run:
 make build
@@ -56,7 +59,10 @@ python3 npi.py \
     --bucket-name YOUR_GCS_BUCKET \
     --project-id YOUR_PROJECT_ID \
     --bq-dataset-id YOUR_BQ_DATASET_ID \
-    --gcsfuse-version v3.5.6
+    --gcsfuse-version YOUR_GCSFUSE_VERSION
+
+# Example:
+# python3 npi.py --benchmarks 'all' --bucket-name my-bucket --project-id my-project --bq-dataset-id my_dataset --gcsfuse-version v3.5.6
 ```
 
 ### Specifying Benchmarks
@@ -69,7 +75,7 @@ python3 npi.py \
     --bucket-name YOUR_GCS_BUCKET \
     --project-id YOUR_PROJECT_ID \
     --bq-dataset-id YOUR_BQ_DATASET_ID \
-    --gcsfuse-version v3.5.6
+    --gcsfuse-version YOUR_GCSFUSE_VERSION
 ```
 
 ### Understanding the Parameters
@@ -92,6 +98,6 @@ python3 npi.py \
     --bucket-name YOUR_GCS_BUCKET \
     --project-id YOUR_PROJECT_ID \
     --bq-dataset-id YOUR_BQ_DATASET_ID \
-    --gcsfuse-version v3.5.6 \
+    --gcsfuse-version YOUR_GCSFUSE_VERSION \
     --dry-run
 ```
