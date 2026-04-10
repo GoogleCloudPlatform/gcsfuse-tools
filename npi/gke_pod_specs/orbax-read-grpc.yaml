@@ -1,0 +1,32 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: fio-bench-orbax-read-grpc
+  namespace: default
+  annotations:
+    gke-gcsfuse/volumes: "true"
+spec:
+  nodeSelector:
+    cloud.google.com/gke-tpu-topology: 2x2
+    cloud.google.com/gke-tpu-accelerator: tpu-v6e-slice
+  restartPolicy: Never
+  serviceAccountName: benchmark-ksa
+  containers:
+  - name: fio
+    image: us-docker.pkg.dev/YOUR_PROJECT_ID/gcsfuse-benchmarks/orbax-emulated-benchmark-YOUR_GCSFUSE_VERSION:latest
+    args: 
+    - "--mount-path=/data"
+    - "--iterations=5"
+    - "--project-id=YOUR_PROJECT_ID"
+    - "--bq-dataset-id=YOUR_BQ_DATASET_ID"
+    - "--bq-table-id=orbax_read_grpc"
+    volumeMounts:
+    - name: data-vol
+      mountPath: /data
+  volumes:
+  - name: data-vol
+    csi:
+      driver: gcsfuse.csi.storage.gke.io
+      volumeAttributes:
+        bucketName: "YOUR_BUCKET_NAME"
+        mountOptions: "client-protocol=grpc"

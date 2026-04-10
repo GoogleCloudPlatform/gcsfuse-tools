@@ -79,76 +79,22 @@ In GKE, we don't use `npi.py`. Instead, we deploy Kubernetes Pods. The GCSFuse m
 *   **gRPC Benchmarks**: When running gRPC benchmarks, you **must** change the `mountOptions` in the Pod's volume definition to include `"client-protocol=grpc"`.
 *   **BigQuery Parameters**: The container needs `args` specifying where to send the metrics since it no longer inherits them from `npi.py`.
 
-### Sample Pod Specification
+### Pod Specifications
 
-Here is a sample `pod.yaml` for running the `read_http1` benchmark on a TPU node:
+To make it easier, we have provided a set of ready-to-run YAML pod specifications for common benchmarks in the `gke_pod_specs/` directory:
 
-```yaml
-apiVersion: v1
-kind: Pod
-metadata:
-  name: fio-bench-read-http1
-  namespace: default
-  annotations:
-    gke-gcsfuse/volumes: "true"
-spec:
-  nodeSelector:
-    cloud.google.com/gke-tpu-topology: 2x2
-    cloud.google.com/gke-tpu-accelerator: tpu-v6e-slice
-  restartPolicy: Never
-  serviceAccountName: benchmark-ksa  # KSA configured with Workload Identity
-  containers:
-  - name: fio
-    image: us-docker.pkg.dev/YOUR_PROJECT_ID/gcsfuse-benchmarks/fio-read-benchmark-YOUR_GCSFUSE_VERSION:latest
-    args: 
-    - "--mount-path=/data"
-    - "--iterations=5"
-    - "--project-id=YOUR_PROJECT_ID"
-    - "--bq-dataset-id=YOUR_BQ_DATASET_ID"
-    - "--bq-table-id=fio_read_http1"
-    volumeMounts:
-    - name: data-vol
-      mountPath: /data
-  volumes:
-  - name: data-vol
-    csi:
-      driver: gcsfuse.csi.storage.gke.io
-      volumeAttributes:
-        bucketName: "YOUR_BUCKET_NAME"
-        mountOptions: "client-protocol=http1"
-```
+*   **`gke_pod_specs/fio-read-http1.yaml`**: Standard FIO read test using HTTP/1.1 protocol.
+*   **`gke_pod_specs/fio-write-grpc.yaml`**: Standard FIO write test using gRPC protocol. Note that `mountOptions` is set to `"client-protocol=grpc"`.
+*   **`gke_pod_specs/orbax-read-grpc.yaml`**: Orbax-emulated read test using gRPC protocol.
 
-### Running a gRPC Benchmark
-
-To run a gRPC benchmark (e.g., `read_grpc`), update the `args` to emit to the correct table, and critically, update the `mountOptions`:
-
-```yaml
-# ... metadata and spec ...
-  containers:
-  - name: fio
-    image: us-docker.pkg.dev/YOUR_PROJECT_ID/gcsfuse-benchmarks/fio-read-benchmark-YOUR_GCSFUSE_VERSION:latest
-    args: 
-    - "--mount-path=/data"
-    - "--iterations=5"
-    - "--project-id=YOUR_PROJECT_ID"
-    - "--bq-dataset-id=YOUR_BQ_DATASET_ID"
-    - "--bq-table-id=fio_read_grpc"
-# ... volumeMounts ...
-  volumes:
-  - name: data-vol
-    csi:
-      driver: gcsfuse.csi.storage.gke.io
-      volumeAttributes:
-        bucketName: "YOUR_BUCKET_NAME"
-        mountOptions: "client-protocol=grpc"
-```
+Before applying these, you must edit the file you wish to run and replace the placeholders (`YOUR_PROJECT_ID`, `YOUR_GCSFUSE_VERSION`, `YOUR_BQ_DATASET_ID`, `YOUR_BUCKET_NAME`) with your actual values.
 
 ### Executing the Benchmark
 
-Apply the YAML to your cluster to start the benchmark:
+Apply your modified YAML to your cluster to start the benchmark:
 
 ```bash
-kubectl apply -f pod.yaml
+kubectl apply -f gke_pod_specs/fio-read-http1.yaml
 ```
 
 Monitor the logs to ensure the benchmark finishes and metrics are published to BigQuery:
