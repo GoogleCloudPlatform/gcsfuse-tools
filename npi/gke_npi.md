@@ -25,7 +25,17 @@ The process for building the Docker images is identical to GCE. We use Cloud Bui
     ```
 This creates images such as `us-docker.pkg.dev/YOUR_PROJECT_ID/gcsfuse-benchmarks/fio-read-benchmark-YOUR_GCSFUSE_VERSION:latest`.
 
-## Step 2: Configure Workload Identity (Permissions)
+## Step 2: GKE Cluster Setup
+
+Before running the benchmarks, you must ensure that your GKE cluster is correctly provisioned for the test:
+
+1. **GCS Fuse CSI Driver**: Ensure that the [GCS Fuse CSI driver is enabled](https://cloud.google.com/kubernetes-engine/docs/how-to/persistent-volumes/cloud-storage-fuse-csi-driver) on your cluster. 
+2. **Node Pools**: For accurate benchmarking, it's recommended that your cluster has at least two node-pools:
+   * A **default node-pool** to run standard Kubernetes system components (kube-dns, etc.).
+   * A **dedicated node-pool** corresponding to the specific machine-type you want to test (e.g., specific TPU slices, high-CPU machines, or specific GPU families).
+3. **Node Selectors**: You must modify the `nodeSelector` in the provided Job configurations (`gke_pod_specs/*.yaml`) to match the labels of the node-pool where you intend to run the benchmarks.
+
+## Step 3: Configure Workload Identity (Permissions)
 
 To allow your GKE Jobs to access the GCS bucket and write metrics to BigQuery, you should use **Workload Identity**. This links a Kubernetes Service Account (KSA) to a Google Cloud Service Account (GSA).
 
@@ -69,7 +79,7 @@ To allow your GKE Jobs to access the GCS bucket and write metrics to BigQuery, y
         iam.gke.io/gcp-service-account=benchmark-gsa@YOUR_PROJECT_ID.iam.gserviceaccount.com
     ```
 
-## Step 3: Run the Benchmarks as Jobs
+## Step 4: Run the Benchmarks as Jobs
 
 In GKE, we don't use `npi.py`. Instead, we deploy Kubernetes Jobs. The GCSFuse mounting is handled directly by the **GKE GCS Fuse CSI driver**, and we pass the mount path to the benchmark container.
 
@@ -115,7 +125,7 @@ chmod +x run_gke_benchmarks.sh
 ./run_gke_benchmarks.sh
 ```
 
-## Step 4: Analyze Results
+## Step 5: Analyze Results
 
 After your benchmarks have completed successfully, the FIO JSON output metrics will be populated in your BigQuery tables. 
 
