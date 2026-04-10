@@ -11,6 +11,8 @@ Before starting, gather the following information. You will replace the placehol
 *   `YOUR_BUCKET_NAME`: The GCS bucket name to be used for reading/writing test data (e.g., `my-benchmark-bucket` — omit the `gs://` prefix).
 *   `YOUR_BQ_DATASET_ID`: The BigQuery dataset where the benchmark results will be uploaded (e.g., `npi_results`).
 *   `YOUR_GCSFUSE_VERSION`: The GCSFuse version tag to test (e.g., `v3.5.6`).
+*   `YOUR_CLUSTER_NAME`: The name of your GKE cluster.
+*   `YOUR_CLUSTER_LOCATION`: The compute zone or region of your GKE cluster (e.g., `us-central1-c` or `us-central1`).
 
 ## Step 1: Build the Benchmark Images
 
@@ -51,7 +53,19 @@ Before running the benchmarks, you must ensure that your GKE cluster is correctl
    * A **dedicated node-pool** corresponding to the specific machine-type you want to test (e.g., specific TPU slices, high-CPU machines, or specific GPU families).
 4. **Node Selectors**: You must modify the `nodeSelector` in the provided Job configurations (`gke_pod_specs/*.yaml`) to match the labels of the node-pool where you intend to run the benchmarks.
 
-## Step 3: Configure Workload Identity (Permissions)
+## Step 3: Connect to the Cluster
+
+Before creating Kubernetes resources like Service Accounts or Jobs, configure `kubectl` to communicate with your GKE cluster:
+
+```bash
+gcloud container clusters get-credentials YOUR_CLUSTER_NAME \
+    --location=YOUR_CLUSTER_LOCATION \
+    --project=YOUR_PROJECT_ID
+```
+
+> **Verification:** Confirm that you are connected to the right cluster by running `kubectl config current-context` or `kubectl get nodes`.
+
+## Step 4: Configure Workload Identity (Permissions)
 
 To allow your GKE Jobs to access the GCS bucket and write metrics to BigQuery, you should use **Workload Identity**. This links a Kubernetes Service Account (KSA) to a Google Cloud Service Account (GSA).
 
@@ -95,7 +109,7 @@ To allow your GKE Jobs to access the GCS bucket and write metrics to BigQuery, y
         iam.gke.io/gcp-service-account=benchmark-gsa@YOUR_PROJECT_ID.iam.gserviceaccount.com
     ```
 
-## Step 4: Run the Benchmarks as Jobs
+## Step 5: Run the Benchmarks as Jobs
 
 In GKE, we don't use `npi.py`. Instead, we deploy Kubernetes Jobs. The GCSFuse mounting is handled directly by the **GKE GCS Fuse CSI driver**, and we pass the mount path to the benchmark container.
 
@@ -143,7 +157,7 @@ chmod +x run_gke_benchmarks.sh
 
 > **Troubleshooting Tip:** If a Job fails or gets stuck in `ContainerCreating` or `Pending`, use `kubectl describe pod -l job-name=<job_name>` to view Kubernetes events. A common issue is a mismatched `nodeSelector` or insufficient IAM permissions.
 
-## Step 5: Analyze Results
+## Step 6: Analyze Results
 
 After your benchmarks have completed successfully, the FIO JSON output metrics will be populated in your BigQuery tables. 
 
