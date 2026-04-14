@@ -13,7 +13,8 @@ BENCHMARK_ID="benchmark-$(date +%s)"
 REGIONAL_TEST_DATA_BUCKET="kokoro-regional-test-data-hns-bucket"
 ARTIFACTS_BUCKET="kokoro-perf-artifacts-bucket"
 PROJECT="gcs-fuse-test-ml"
-INSTANCE_GROUP_NAME="kokoro-perf-c4-standard-192-mig"
+INSTANCE_GROUP_NAME_READ="kokoro-perf-c4-standard-192-mig"
+INSTANCE_GROUP_NAME_WRITE="kokoro-perf-c4-standard-192-mig-write" 
 ZONE="us-central1-c"
 
 READ_CONFIGS_CSV="${SCRIPT_DIR}/test_suites/kokoro/kokoro_read_mount_configs.csv"
@@ -57,7 +58,8 @@ echo "=========================================="
 echo "Distributed Benchmark Configuration"
 echo "=========================================="
 echo "Benchmark ID: $BENCHMARK_ID"
-echo "Instance Group: $INSTANCE_GROUP_NAME"
+echo "Read Instance Group: $INSTANCE_GROUP_NAME_READ"
+echo "Write Instance Group: $INSTANCE_GROUP_NAME_WRITE"
 echo "Test Data Bucket: $REGIONAL_TEST_DATA_BUCKET"
 echo "Artifacts Bucket: $ARTIFACTS_BUCKET"
 echo "Zone: $ZONE"
@@ -153,76 +155,85 @@ setup_permissions() {
 }
 
 run_benchmark() {
-    local TYPE=$1
-    local FIO_JOB_FILE=$2
-    local TEST_CSV=$3
-    local CONFIGS_CSV=$4
-    local CURRENT_BENCHMARK_ID="${BENCHMARK_ID}-${TYPE}"
-    local REPORT_NAME="${TYPE}_combined_report.csv"
+  local TYPE=$1
+  local FIO_JOB_FILE=$2
+  local TEST_CSV=$3
+  local CONFIGS_CSV=$4
+  local CURRENT_BENCHMARK_ID="${BENCHMARK_ID}-${TYPE}"
+  local REPORT_NAME="${TYPE}_combined_report.csv"
 
-    echo "=========================================="
-    echo "Running $TYPE Benchmark"
-    echo "Benchmark ID: $CURRENT_BENCHMARK_ID"
-    echo "FIO Job File: $FIO_JOB_FILE"
-    echo "Test CSV: $TEST_CSV"
-    echo "Configs CSV: $CONFIGS_CSV"
-    echo "=========================================="
+  # Decide which MIG to use based on the benchmark type
+  local TARGET_MIG=""
+  if [ "$TYPE" == "write" ]; then
+      TARGET_MIG=$INSTANCE_GROUP_NAME_WRITE
+  else
+      TARGET_MIG=$INSTANCE_GROUP_NAME_READ
+  fi
 
-    # --- STEP 5: Run Orchestrator ---
-    mkdir -p results
-    ORCHESTRATOR_CMD="python3 -u orchestrator.py \
-     --benchmark-id $CURRENT_BENCHMARK_ID \
-     --executor-vm $INSTANCE_GROUP_NAME \
-     --zone $ZONE \
-     --project $PROJECT \
-     --artifacts-bucket $ARTIFACTS_BUCKET \
-     --test-csv $TEST_CSV \
-     --fio-job-file $FIO_JOB_FILE \
-     --test-data-bucket $REGIONAL_TEST_DATA_BUCKET \
-     --iterations $ITERATIONS \
-     --poll-interval $POLL_INTERVAL \
-     --timeout $TIMEOUT \
-     --report-name $REPORT_NAME \
-     --single-thread-vm-type='$SINGLE_THREAD_VM_TYPE' \
-     --multi-thread-vm-type='$MULTI_THREAD_VM_TYPE'"
+  echo "=========================================="
+  echo "Running $TYPE Benchmark"
+  echo "Benchmark ID: $CURRENT_BENCHMARK_ID"
+  echo "Target MIG: $TARGET_MIG"
+  echo "FIO Job File: $FIO_JOB_FILE"
+  echo "Test CSV: $TEST_CSV"
+  echo "Configs CSV: $CONFIGS_CSV"
+  echo "=========================================="
 
-    if [ -n "$CONFIGS_CSV" ] && [ -f "$CONFIGS_CSV" ]; then
-     ORCHESTRATOR_CMD="$ORCHESTRATOR_CMD --configs-csv $CONFIGS_CSV"
-    fi
+  # --- STEP 5: Run Orchestrator ---
+  mkdir -p results
+  ORCHESTRATOR_CMD="python3 -u orchestrator.py \
+  --benchmark-id $CURRENT_BENCHMARK_ID \
+  --executor-vm $TARGET_MIG \
+  --zone $ZONE \
+  --project $PROJECT \
+  --artifacts-bucket $ARTIFACTS_BUCKET \
+  --test-csv $TEST_CSV \
+  --fio-job-file $FIO_JOB_FILE \
+  --test-data-bucket $REGIONAL_TEST_DATA_BUCKET \
+  --iterations $ITERATIONS \
+  --poll-interval $POLL_INTERVAL \
+  --timeout $TIMEOUT \
+  --report-name $REPORT_NAME \
+  --single-thread-vm-type='$SINGLE_THREAD_VM_TYPE' \
+  --multi-thread-vm-type='$MULTI_THREAD_VM_TYPE'"
 
-    echo "Starting Orchestrator..."
-    echo "$ORCHESTRATOR_CMD"
-    eval $ORCHESTRATOR_CMD
-    
+  if [ -n "$CONFIGS_CSV" ] && [ -f "$CONFIGS_CSV" ]; then
+    ORCHESTRATOR_CMD="$ORCHESTRATOR_CMD --configs-csv $CONFIGS_CSV"
+  fi
+
+  echo "Starting Orchestrator..."
+  echo "$ORCHESTRATOR_CMD"
+  eval $ORCHESTRATOR_CMD
+
+  echo ""
+  echo "=========================================="
+  echo "Benchmark $TYPE Complete!"
+  echo "Results: results/${CURRENT_BENCHMARK_ID}/${REPORT_NAME}"
+  echo "=========================================="
+
+  # --- STEP 6: Upload to BigQuery ---
+  BQ_SCRIPT="$SCRIPT_DIR/helpers/upload_to_bq.py"
+  RESULTS_DIR="results/${CURRENT_BENCHMARK_ID}"
+
+  # Check if BQ script exists and results were generated
+  if [ -f "$BQ_SCRIPT" ] && [ -d "$RESULTS_DIR" ]; then
     echo ""
     echo "=========================================="
-    echo "Benchmark $TYPE Complete!"
-    echo "Results: results/${CURRENT_BENCHMARK_ID}/${REPORT_NAME}"
-    echo "=========================================="
+    echo "Uploading results to BigQuery..."
 
-    # --- STEP 6: Upload to BigQuery ---
-    BQ_SCRIPT="$SCRIPT_DIR/helpers/upload_to_bq.py"
-    RESULTS_DIR="results/${CURRENT_BENCHMARK_ID}"
-
-    # Check if BQ script exists and results were generated
-    if [ -f "$BQ_SCRIPT" ] && [ -d "$RESULTS_DIR" ]; then
-        echo ""
-        echo "=========================================="
-        echo "Uploading results to BigQuery..."
-
-        # Check if running in Kokoro (env var usually set in CI)
-        IS_KOKORO_FLAG=""
-        if [ "${KOKORO_BUILD_ID:-}" != "" ]; then
-            IS_KOKORO_FLAG="--is-kokoro"
-        fi
-
-        # Execute upload
-        python3 "$BQ_SCRIPT" \
-        --results-dir "$RESULTS_DIR" \
-        --project-id "$PROJECT" \
-        --report-name "$REPORT_NAME" || echo "WARNING: BigQuery upload failed. Continuing..." \
-        $IS_KOKORO_FLAG
+    # Check if running in Kokoro (env var usually set in CI)
+    IS_KOKORO_FLAG=""
+    if [ "${KOKORO_BUILD_ID:-}" != "" ]; then
+      IS_KOKORO_FLAG="--is-kokoro"
     fi
+
+    # Execute upload
+    python3 "$BQ_SCRIPT" \
+      --results-dir "$RESULTS_DIR" \
+      --project-id "$PROJECT" \
+      --report-name "$REPORT_NAME" || echo "WARNING: BigQuery upload failed. Continuing..." \
+      $IS_KOKORO_FLAG
+  fi
 }
 
 setup_environment
