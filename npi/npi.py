@@ -160,7 +160,7 @@ class BenchmarkFactory:
             base_cmd += f" --cpu-limit-list={cpu_list}"
         if bind_fio:
             base_cmd += " --bind-fio"
-        return base_cmd
+        return base_cmd, bq_table_id
 
     def _get_cpu_list_for_numa_node(self, node_id):
         """Gets the CPU list for a given NUMA node by parsing `lscpu --json`.
@@ -251,7 +251,7 @@ class BenchmarkFactory:
         return definitions
 
 
-def run_benchmark(benchmark_name, command_str, temp_dir_type):
+def run_benchmark(benchmark_name, command_str, temp_dir_type, project_id, dataset_id, table_id):
     """Runs a single benchmark command locally.
 
     This function executes a benchmark command using `subprocess.run`. It handles
@@ -277,6 +277,21 @@ def run_benchmark(benchmark_name, command_str, temp_dir_type):
 
     command = shlex.split(command_str)
     print(f"Command: {' '.join(command)}")
+
+    # Erase existing data in the BQ table
+    if project_id and dataset_id and table_id:
+        print(f"--- Erasing data in BigQuery table: {project_id}.{dataset_id}.{table_id} ---")
+        bq_cmd = [
+            "bq", "query", "--use_legacy_sql=false",
+            f"TRUNCATE TABLE `{project_id}.{dataset_id}.{table_id}`"
+        ]
+        try:
+            # We don't check=True because the table might not exist yet, which is fine.
+            res = subprocess.run(bq_cmd, capture_output=True, text=True)
+            if res.returncode != 0 and "Not found:" not in res.stderr:
+                print(f"Warning: Failed to truncate BQ table. {res.stderr}")
+        except Exception as e:
+            print(f"Warning: Failed to execute bq command: {e}")
 
     try:
         subprocess.run(command, check=True)
@@ -370,13 +385,14 @@ def main():
     failed_benchmarks = []
     for benchmark_name in benchmarks_to_run:
         # For boot-disk, we pass a placeholder that will be replaced in run_benchmark
-        command_str = factory.get_benchmark_command(benchmark_name)
+        command_str, bq_table_id = factory.get_benchmark_command(benchmark_name)
 
         if args.dry_run:
             print(f"--- [DRY RUN] Benchmark: {benchmark_name} ---")
+            print(f"Table: {bq_table_id}")
             print(f"Command: {command_str}\n")
         else:
-            success = run_benchmark(benchmark_name, command_str, args.temp_dir)
+            success = run_benchmark(benchmark_name, command_str, args.temp_dir, args.project_id, args.bq_dataset_id, bq_table_id)
             if not success:
                 failed_benchmarks.append(benchmark_name)
 
