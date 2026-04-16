@@ -206,13 +206,8 @@ class BenchmarkFactory:
         # Define benchmark configurations
         # Each benchmark has an image suffix and an optional BQ table name override.
         benchmarks = {
-            "orbax_read": {
-                "image_suffix": "orbax-emulated-benchmark",
-                "bq_table_id_override": "orbax_read_{config_name}"
-            },
             "read": {"image_suffix": "fio-read-benchmark"},
             "write": {"image_suffix": "fio-write-benchmark"},
-            #"full_sweep": {"image_suffix": "fio-fullsweep-benchmark"}, # Comment out full_sweep for now since it takes a long long time.
         }
 
         # Define test configurations (protocol, cpu pinning, etc.)
