@@ -37,7 +37,7 @@ class TestBenchmarkFactory(unittest.TestCase):
             temp_dir="memory"
         )
         
-        cmd = factory.get_benchmark_command("read_http1")
+        cmd, table_id = factory.get_benchmark_command("read_http1")
         self.assertIn("--mount type=tmpfs,destination=/gcsfuse-temp", cmd)
         self.assertIn("us-docker.pkg.dev/test-project/gcsfuse-benchmarks/fio-read-benchmark-v1.0:latest", cmd)
         self.assertIn("--bucket-name=test-bucket", cmd)
@@ -56,7 +56,7 @@ class TestBenchmarkFactory(unittest.TestCase):
             temp_dir="boot-disk"
         )
         
-        cmd = factory.get_benchmark_command("write_grpc")
+        cmd, table_id = factory.get_benchmark_command("write_grpc")
         self.assertIn("-v <temp_dir_path>:/gcsfuse-temp", cmd)
         self.assertIn("--client-protocol=grpc", cmd)
 
@@ -74,7 +74,7 @@ class TestBenchmarkFactory(unittest.TestCase):
             mount_path="/mnt/gcs"
         )
         
-        cmd = factory.get_benchmark_command("read_http1")
+        cmd, table_id = factory.get_benchmark_command("read_http1")
         self.assertIn("-v /mnt/gcs:/mnt/gcs", cmd)
         self.assertIn("--mount-path=/mnt/gcs", cmd)
         self.assertNotIn("--bucket-name", cmd)
@@ -117,9 +117,10 @@ class TestRunBenchmark(unittest.TestCase):
 
     @patch('subprocess.run')
     def test_run_benchmark_success_memory(self, mock_run):
-        success = npi.run_benchmark("test_bench", "echo hello", "memory")
+        success = npi.run_benchmark("test_bench", "echo hello", "memory", "test-project", "test-dataset", "test-table")
         self.assertTrue(success)
-        mock_run.assert_called_once()
+        # We now have two subprocess.run calls (one for bq query, one for the bench)
+        self.assertEqual(mock_run.call_count, 2)
 
     @patch('subprocess.run')
     @patch('tempfile.mkdtemp')
@@ -127,21 +128,22 @@ class TestRunBenchmark(unittest.TestCase):
     def test_run_benchmark_success_boot_disk(self, mock_rmtree, mock_mkdtemp, mock_run):
         mock_mkdtemp.return_value = "/tmp/fake-dir"
         
-        success = npi.run_benchmark("test_bench", "echo <temp_dir_path>", "boot-disk")
+        success = npi.run_benchmark("test_bench", "echo <temp_dir_path>", "boot-disk", "test-project", "test-dataset", "test-table")
         
         self.assertTrue(success)
         mock_mkdtemp.assert_called_once()
-        mock_run.assert_called_once()
-        # Check if <temp_dir_path> was replaced
-        args, kwargs = mock_run.call_args
+        self.assertEqual(mock_run.call_count, 2)
+        # Check if <temp_dir_path> was replaced in the second call
+        args, kwargs = mock_run.call_args_list[1]
         self.assertIn("/tmp/fake-dir", args[0])
         mock_rmtree.assert_called_once_with("/tmp/fake-dir")
 
     @patch('subprocess.run')
     def test_run_benchmark_failure(self, mock_run):
-        mock_run.side_effect = subprocess.CalledProcessError(1, "cmd")
+        # First call is bq (we simulate success), second is docker (which fails)
+        mock_run.side_effect = [MagicMock(), subprocess.CalledProcessError(1, "cmd")]
         
-        success = npi.run_benchmark("test_bench", "echo hello", "memory")
+        success = npi.run_benchmark("test_bench", "echo hello", "memory", "test-project", "test-dataset", "test-table")
         self.assertFalse(success)
 
 class TestMain(unittest.TestCase):
@@ -163,13 +165,13 @@ class TestMain(unittest.TestCase):
 
         mock_factory_instance = MagicMock()
         mock_factory_instance.get_available_benchmarks.return_value = ["read_http1", "write_grpc"]
-        mock_factory_instance.get_benchmark_command.return_value = "docker run ..."
+        mock_factory_instance.get_benchmark_command.return_value = ("docker run ...", "test-table")
         mock_factory_class.return_value = mock_factory_instance
 
         with patch('npi.run_benchmark', return_value=True) as mock_run_benchmark:
             npi.main()
             mock_factory_class.assert_called_once()
-            mock_run_benchmark.assert_called_once_with("read_http1", "docker run ...", "memory")
+            mock_run_benchmark.assert_called_once_with("read_http1", "docker run ...", "memory", "test-project", "test-dataset", "test-table")
 
     @patch('argparse.ArgumentParser.parse_args')
     @patch('npi.BenchmarkFactory')
@@ -188,7 +190,7 @@ class TestMain(unittest.TestCase):
 
         mock_factory_instance = MagicMock()
         mock_factory_instance.get_available_benchmarks.return_value = ["read_http1", "write_grpc"]
-        mock_factory_instance.get_benchmark_command.return_value = "docker run ..."
+        mock_factory_instance.get_benchmark_command.return_value = ("docker run ...", "test-table")
         mock_factory_class.return_value = mock_factory_instance
 
         with patch('npi.run_benchmark', return_value=False) as mock_run_benchmark:
