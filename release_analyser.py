@@ -64,7 +64,7 @@ def sync_logs(bucket_name, release_version, vm_name_prefix, output_dir):
 
 def analyze_runtime_stats(parent_dir):
     """Parses package_runtime_stats.txt files to extract test results."""
-    results = defaultdict(lambda: defaultdict(lambda: {'passed': 0, 'failed': 0}))
+    results = defaultdict(lambda: defaultdict(lambda: {'passed': 0, 'failed': 0, 'flaky': 0}))
     files_processed = 0
 
     # Find all package_runtime_stats.txt files in the given directory and subdirectories
@@ -273,7 +273,7 @@ def generate_test_level_report(results, files_processed):
                 failed = counts['failed']
                 skipped = counts['skipped']
                 
-                total_exec = passed + failed
+                total_exec = passed + failed + skipped
                 
                 if failed > 0 and passed == 0:
                     status_val = 1
