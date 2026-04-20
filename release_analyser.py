@@ -273,19 +273,19 @@ def generate_test_level_report(results, files_processed):
                 
                 total_exec = len(attempts)
                 
-                # Construct status string by sorting attempts
-                sorted_atts = [attempts[k] for k in sorted(attempts.keys())]
-                status_label = "".join(sorted_atts)
-                
-                # For sorting by status severity
+                # Determine status label
                 if failed > 0 and passed == 0:
                     status_val = 1
+                    status_label = "FAILED ❌"
                 elif failed > 0 and passed > 0:
                     status_val = 2
+                    status_label = "FLAKY ⚠️"
                 elif passed > 0:
                     status_val = 3
+                    status_label = "PASSED ✅"
                 else:
                     status_val = 4
+                    status_label = "SKIPPED"
                     
                 stats.append({
                     'test': test_name,
