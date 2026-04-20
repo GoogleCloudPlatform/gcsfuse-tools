@@ -64,7 +64,7 @@ def sync_logs(bucket_name, release_version, vm_name_prefix, output_dir):
 
 def analyze_runtime_stats(parent_dir):
     """Parses package_runtime_stats.txt files to extract test results."""
-    results = defaultdict(lambda: defaultdict(lambda: {'passed': 0, 'failed': 0}))
+    results = defaultdict(lambda: defaultdict(lambda: {'passed': 0, 'failed': 0, 'flaky': 0}))
     files_processed = 0
 
     # Find all package_runtime_stats.txt files in the given directory and subdirectories
@@ -85,8 +85,12 @@ def analyze_runtime_stats(parent_dir):
                         status_code = parts[2]
                         
                             
+                        attempt = int(parts[5]) if len(parts) > 5 else 0
                         if status_code == '0':
-                            results[btype][pkg]['passed'] += 1
+                            if attempt > 0:
+                                results[btype][pkg]['flaky'] += 1
+                            else:
+                                results[btype][pkg]['passed'] += 1
                         else:
                             results[btype][pkg]['failed'] += 1
         except Exception as e:
@@ -116,36 +120,42 @@ def generate_runtime_report(results, files_processed):
         for pkg, counts in packages.items():
             passed = counts['passed']
             failed = counts['failed']
-            total = passed + failed
-            fail_rate = (failed / total * 100) if total > 0 else 0
+            flaky = counts.get('flaky', 0)
+            total = passed + failed + flaky
+            
+            # Categorize status enum
+            if failed > 0:
+                status_enum = 1
+                status = "FAILED ❌"
+            elif flaky > 0:
+                status_enum = 2
+                status = "FLAKY ⚠️"
+            else:
+                status_enum = 3
+                status = "PASSED ✅"
+                
             stats.append({
                 'pkg': pkg,
                 'total': total,
                 'passed': passed,
                 'failed': failed,
-                'fail_rate': fail_rate
+                'flaky': flaky,
+                'status_enum': status_enum,
+                'status': status
             })
             
-        # Sort by Failure Rate (Highest to Lowest), then by Total Failed
-        stats.sort(key=lambda x: (x['fail_rate'], x['failed']), reverse=True)
+        # Sort by status enum (FAILED -> FLAKY -> PASSED), then by fails descending
+        stats.sort(key=lambda x: (x['status_enum'], -x['failed'], -x['flaky']))
         
         # Print Table Header
-        header = f"| {'Package Name':<30} | {'Total Runs':<10} | {'Passed':<8} | {'Failed':<8} | {'Failure %':<10} |"
+        header = f"| {'Package Name':<30} | {'Total':<7} | {'Passed':<6} | {'Flaky':<6} | {'Failed':<8} | {'Status':<12} |"
         print("-" * len(header))
         print(header)
         print("-" * len(header))
         
         # Print Table Rows
         for s in stats:
-            fail_pct_str = f"{s['fail_rate']:.1f}%"
-            # Highlight failures for better readability
-            if s['failed'] > 0:
-                fail_str = f"{s['failed']} ❌"
-                fail_pct_str = f"{fail_pct_str} ⚠️"
-            else:
-                fail_str = str(s['failed'])
-                
-            row = f"| {s['pkg']:<30} | {s['total']:<10} | {s['passed']:<8} | {fail_str:<8} | {fail_pct_str:<10} |"
+            row = f"| {s['pkg']:<30} | {s['total']:<7} | {s['passed']:<6} | {s['flaky']:<6} | {s['failed']:<8} | {s['status']:<12} |"
             print(row)
             
         print("-" * len(header))
@@ -263,8 +273,20 @@ def generate_test_level_report(results, files_processed):
                 failed = counts['failed']
                 skipped = counts['skipped']
                 
-                total_exec = passed + failed
-                fail_rate = (failed / total_exec * 100) if total_exec > 0 else 0
+                total_exec = passed + failed + skipped
+                
+                if failed > 0 and passed == 0:
+                    status_val = 1
+                    status_label = "FAILED ❌"
+                elif failed > 0 and passed > 0:
+                    status_val = 2
+                    status_label = "FLAKY ⚠️"
+                elif passed > 0:
+                    status_val = 3
+                    status_label = "PASSED ✅"
+                else:
+                    status_val = 4
+                    status_label = "SKIPPED"
                 
                 stats.append({
                     'test': test_name,
@@ -272,28 +294,22 @@ def generate_test_level_report(results, files_processed):
                     'passed': passed,
                     'failed': failed,
                     'skipped': skipped,
-                    'fail_rate': fail_rate
+                    'status_val': status_val,
+                    'status_label': status_label
                 })
             
-            stats.sort(key=lambda x: (x['fail_rate'], x['failed']), reverse=True)
+            # Sort by Status (FAILED -> FLAKY -> PASSED -> SKIPPED), then by total failed descending
+            stats.sort(key=lambda x: (x['status_val'], -x['failed']))
             
             # Dynamically calculate column width for test names
             max_name_len = max([len(s['test']) for s in stats] + [18])
-            header = f"| {'Specific Test Name':<{max_name_len}} | {'Total':<7} | {'Passed':<6} | {'Failed':<8} | {'Skipped':<7} | {'Fail %':<8} |"
+            header = f"| {'Specific Test Name':<{max_name_len}} | {'Total':<7} | {'Passed':<6} | {'Failed':<8} | {'Skipped':<7} | {'Status':<12} |"
             print("-" * len(header))
             print(header)
             print("-" * len(header))
             
             for s in stats:
-                fail_pct_str = f"{s['fail_rate']:.1f}%"
-                
-                if s['failed'] > 0:
-                    fail_str = f"{s['failed']} ❌"
-                    fail_pct_str = f"{fail_pct_str} ⚠️"
-                else:
-                    fail_str = str(s['failed'])
-                    
-                row = f"| {s['test']:<{max_name_len}} | {s['total_exec']:<7} | {s['passed']:<6} | {fail_str:<8} | {s['skipped']:<7} | {fail_pct_str:<8} |"
+                row = f"| {s['test']:<{max_name_len}} | {s['total_exec']:<7} | {s['passed']:<6} | {s['failed']:<8} | {s['skipped']:<7} | {s['status_label']:<12} |"
                 print(row)
                 
             print("-" * len(header))
