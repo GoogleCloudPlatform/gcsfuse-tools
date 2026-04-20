@@ -13,7 +13,6 @@ class TestBenchmarkFactory(unittest.TestCase):
             bucket_name="test-bucket",
             project_id="test-project",
             bq_dataset_id="test-dataset",
-            gcsfuse_version="v1.0",
             iterations=5,
             temp_dir="memory"
         )
@@ -32,14 +31,13 @@ class TestBenchmarkFactory(unittest.TestCase):
             bucket_name="test-bucket",
             project_id="test-project",
             bq_dataset_id="test-dataset",
-            gcsfuse_version="v1.0",
             iterations=5,
             temp_dir="memory"
         )
         
         cmd, table_id = factory.get_benchmark_command("read_http1")
         self.assertIn("--mount type=tmpfs,destination=/gcsfuse-temp", cmd)
-        self.assertIn("us-docker.pkg.dev/test-project/gcsfuse-benchmarks/fio-read-benchmark-v1.0:latest", cmd)
+        self.assertIn("us-docker.pkg.dev/test-project/gcsfuse-benchmarks/fio-read-benchmark:latest", cmd)
         self.assertIn("--bucket-name=test-bucket", cmd)
         self.assertIn("--temp-dir=/gcsfuse-temp -o allow_other", cmd)
 
@@ -51,7 +49,6 @@ class TestBenchmarkFactory(unittest.TestCase):
             bucket_name="test-bucket",
             project_id="test-project",
             bq_dataset_id="test-dataset",
-            gcsfuse_version="v1.0",
             iterations=5,
             temp_dir="boot-disk"
         )
@@ -68,7 +65,6 @@ class TestBenchmarkFactory(unittest.TestCase):
             bucket_name=None,
             project_id="test-project",
             bq_dataset_id="test-dataset",
-            gcsfuse_version="v1.0",
             iterations=5,
             temp_dir="memory",
             mount_path="/mnt/gcs"
@@ -89,7 +85,6 @@ class TestBenchmarkFactory(unittest.TestCase):
             bucket_name="test-bucket",
             project_id="test-project",
             bq_dataset_id="test-dataset",
-            gcsfuse_version="v1.0",
             iterations=5,
             temp_dir="memory"
         )
@@ -105,7 +100,6 @@ class TestBenchmarkFactory(unittest.TestCase):
             bucket_name="test-bucket",
             project_id="test-project",
             bq_dataset_id="test-dataset",
-            gcsfuse_version="v1.0",
             iterations=5,
             temp_dir="memory"
         )
@@ -157,7 +151,6 @@ class TestMain(unittest.TestCase):
         mock_args.mount_path = None
         mock_args.project_id = "test-project"
         mock_args.bq_dataset_id = "test-dataset"
-        mock_args.gcsfuse_version = "v1.0"
         mock_args.iterations = 5
         mock_args.dry_run = False
         mock_args.temp_dir = "memory"
@@ -182,7 +175,6 @@ class TestMain(unittest.TestCase):
         mock_args.mount_path = None
         mock_args.project_id = "test-project"
         mock_args.bq_dataset_id = "test-dataset"
-        mock_args.gcsfuse_version = "v1.0"
         mock_args.iterations = 5
         mock_args.dry_run = False
         mock_args.temp_dir = "memory"

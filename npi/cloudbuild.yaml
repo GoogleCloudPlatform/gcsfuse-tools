@@ -51,7 +51,7 @@ steps:
       - '--build-arg'
       - 'UBUNTU_VERSION=${_UBUNTU_VERSION}'
       - '-t'
-      - '${_REGISTRY}/${_PROJECT}/gcsfuse-benchmarks/gcsfuse-${_GCSFUSE_VERSION}-perf-base:latest'
+      - '${_REGISTRY}/${_PROJECT}/gcsfuse-benchmarks/gcsfuse-perf-base:latest'
       - '.'
 
   # Build and push the read-benchmark image.
@@ -77,7 +77,7 @@ steps:
       - '--build-arg'
       - 'PROJECT=${_PROJECT}'
       - '-t'
-      - '${_REGISTRY}/${_PROJECT}/gcsfuse-benchmarks/fio-read-benchmark-${_GCSFUSE_VERSION}:latest'
+      - '${_REGISTRY}/${_PROJECT}/gcsfuse-benchmarks/fio-read-benchmark:latest'
       - 'fio'
 
   # Build and push the write-benchmark image.
@@ -103,7 +103,7 @@ steps:
       - '--build-arg'
       - 'PROJECT=${_PROJECT}'
       - '-t'
-      - '${_REGISTRY}/${_PROJECT}/gcsfuse-benchmarks/fio-write-benchmark-${_GCSFUSE_VERSION}:latest'
+      - '${_REGISTRY}/${_PROJECT}/gcsfuse-benchmarks/fio-write-benchmark:latest'
       - 'fio'
 
   # Build and push the fullsweep-benchmark image.
@@ -129,7 +129,7 @@ steps:
       - '--build-arg'
       - 'PROJECT=${_PROJECT}'
       - '-t'
-      - '${_REGISTRY}/${_PROJECT}/gcsfuse-benchmarks/fio-fullsweep-benchmark-${_GCSFUSE_VERSION}:latest'
+      - '${_REGISTRY}/${_PROJECT}/gcsfuse-benchmarks/fio-fullsweep-benchmark:latest'
       - 'fio'
 
   # Build and push the orbax-benchmark image.
@@ -155,7 +155,7 @@ steps:
       - '--build-arg'
       - 'PROJECT=${_PROJECT}'
       - '-t'
-      - '${_REGISTRY}/${_PROJECT}/gcsfuse-benchmarks/orbax-emulated-benchmark-${_GCSFUSE_VERSION}:latest'
+      - '${_REGISTRY}/${_PROJECT}/gcsfuse-benchmarks/orbax-emulated-benchmark:latest'
       - 'fio'
 
   # Build and push the routing init-container image.
@@ -171,7 +171,7 @@ steps:
       - '--platform'
       - 'linux/amd64,linux/arm64'
       - '-t'
-      - '${_REGISTRY}/${_PROJECT}/gcsfuse-benchmarks/multinic-routing-${_GCSFUSE_VERSION}:latest'
+      - '${_REGISTRY}/${_PROJECT}/gcsfuse-benchmarks/multinic-routing:latest'
       - 'multinic'
 
 options:
