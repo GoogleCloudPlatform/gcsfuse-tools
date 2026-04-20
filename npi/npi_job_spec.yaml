@@ -1,0 +1,27 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: gcsfuse-npi-benchmark-template
+  labels:
+    app: gcsfuse-npi-benchmark
+spec:
+  backoffLimit: 0
+  template:
+    metadata:
+      labels:
+        app: gcsfuse-npi-benchmark
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: benchmark
+          image: "image-placeholder"
+          args: []
+          securityContext:
+            privileged: true
+          volumeMounts:
+            - name: gcsfuse-temp
+              mountPath: /gcsfuse-temp
+      volumes:
+        - name: gcsfuse-temp
+          emptyDir:
+            medium: Memory
