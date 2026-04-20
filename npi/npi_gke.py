@@ -7,7 +7,7 @@ BigQuery table before each benchmark, and waits for completion.
 
 Usage:
   python3 npi_gke.py --bucket-name <bucket> --project-id <project> \\
-    --bq-dataset-id <dataset> --gcsfuse-version <version>
+    --bq-dataset-id <dataset> 
 """
 
 import argparse
@@ -15,7 +15,6 @@ import subprocess
 import sys
 import time
 import yaml
-import tempfile
 import os
 
 def truncate_bq_table(project_id, dataset_id, table_id):
@@ -50,35 +49,35 @@ def create_job_spec(job_name, image, args):
     
     return job_spec
 
-def run_benchmark_job(job_name, image, args_list, project_id, dataset_id, table_id):
+def run_benchmark_job(job_name, image, args_list, project_id, dataset_id, table_id, timeout="1h"):
     """Runs a benchmark job on GKE and waits for its completion."""
     # 1. Truncate BQ Table
     truncate_bq_table(project_id, dataset_id, table_id)
 
     # 2. Cleanup any existing job with the same name
-    subprocess.run(["kubectl", "delete", "job", job_name, "--ignore-not-found=true"], capture_output=True)
+    subprocess.run(["kubectl", "delete", "job", job_name, "--ignore-not-found=true", "--wait=true"], capture_output=True)
 
     # 3. Create Job Spec and Apply
     job_spec = create_job_spec(job_name, image, args_list)
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
-        yaml.dump(job_spec, f)
-        temp_yaml = f.name
+    yaml_data = yaml.dump(job_spec)
 
     print(f"--- Submitting Kubernetes Job: {job_name} ---")
-    res = subprocess.run(["kubectl", "apply", "-f", temp_yaml], capture_output=True, text=True)
+    res = subprocess.run(
+        ["kubectl", "apply", "-f", "-"],
+        input=yaml_data,
+        capture_output=True,
+        text=True
+    )
     if res.returncode != 0:
         print(f"Failed to apply job {job_name}:\n{res.stderr}", file=sys.stderr)
-        os.remove(temp_yaml)
         return False
-
-    os.remove(temp_yaml)
 
     # 4. Wait for Job to Complete
     print(f"Waiting for Job {job_name} to complete...")
     # Wait until it's either complete or failed
     try:
         subprocess.run(
-            ["kubectl", "wait", f"job/{job_name}", "--for=condition=complete", "--timeout=1h"],
+            ["kubectl", "wait", f"job/{job_name}", "--for=condition=complete", f"--timeout={timeout}"],
             check=True, text=True, capture_output=True
         )
         print(f"--- Job {job_name} finished successfully ---")
@@ -88,13 +87,7 @@ def run_benchmark_job(job_name, image, args_list, project_id, dataset_id, table_
         print(f"--- Job {job_name} FAILED or TIMED OUT ---", file=sys.stderr)
         # Try to get the logs
         print("Fetching logs...", file=sys.stderr)
-        pod_res = subprocess.run(
-            ["kubectl", "get", "pods", "-l", f"job-name={job_name}", "-o", "jsonpath={.items[0].metadata.name}"],
-            capture_output=True, text=True
-        )
-        if pod_res.returncode == 0 and pod_res.stdout.strip():
-            pod_name = pod_res.stdout.strip()
-            subprocess.run(["kubectl", "logs", pod_name])
+        subprocess.run(["kubectl", "logs", "-l", f"job-name={job_name}"])
         return False
 
 def main():
@@ -102,26 +95,58 @@ def main():
     parser.add_argument("--bucket-name", required=True, help="Name of the GCS bucket to use.")
     parser.add_argument("--project-id", required=True, help="Project ID for results.")
     parser.add_argument("--bq-dataset-id", required=True, help="BigQuery dataset ID for results.")
-    parser.add_argument("--gcsfuse-version", required=True, help="GCSFuse version to use for benchmark images (e.g., 'master', 'v1.2.0').")
     parser.add_argument("--iterations", type=int, default=5, help="Number of FIO test iterations per benchmark. Default: 5.")
+    parser.add_argument("--timeout", default="1h", help="Timeout for waiting on a benchmark job to complete (e.g., '1h', '30m', '2h'). Default is 1h.")
+    parser.add_argument("--cluster-name", help="GKE cluster name. If provided with --location, the script will fetch cluster credentials.")
+    parser.add_argument("--location", help="GCP location (region or zone) of the GKE cluster.")
+    parser.add_argument(
+        "-b", "--benchmarks",
+        nargs="+",
+        default=["all"],
+        help="Space-separated list of benchmarks to run (e.g., read_http1 write_grpc). Use 'all' to run all 4."
+    )
     
     args = parser.parse_args()
 
-    benchmarks = [
+    if args.cluster_name and args.location:
+        print(f"--- Fetching credentials for GKE cluster: {args.cluster_name} in {args.location} ---")
+        res = subprocess.run([
+            "gcloud", "container", "clusters", "get-credentials", args.cluster_name,
+            "--location", args.location, "--project", args.project_id
+        ], capture_output=True, text=True)
+        if res.returncode != 0:
+            print(f"Failed to fetch cluster credentials:\n{res.stderr}", file=sys.stderr)
+            sys.exit(1)
+        print("Successfully fetched cluster credentials.")
+    elif args.cluster_name or args.location:
+        parser.error("Both --cluster-name and --location must be provided together to fetch cluster credentials.")
+
+    all_benchmarks = [
         ("read", "http1", "fio-read-benchmark", ""),
         ("read", "grpc", "fio-read-benchmark", "--client-protocol=grpc"),
         ("write", "http1", "fio-write-benchmark", ""),
         ("write", "grpc", "fio-write-benchmark", "--client-protocol=grpc"),
     ]
 
+    benchmarks_to_run = []
+    if "all" in args.benchmarks:
+        benchmarks_to_run = all_benchmarks
+    else:
+        available_names = {f"{b[0]}_{b[1]}" for b in all_benchmarks}
+        for b in args.benchmarks:
+            if b not in available_names:
+                print(f"Error: Benchmark '{b}' not found. Available benchmarks are: {', '.join(available_names)}", file=sys.stderr)
+                sys.exit(1)
+        benchmarks_to_run = [b for b in all_benchmarks if f"{b[0]}_{b[1]}" in args.benchmarks]
+
     failed_benchmarks = []
 
-    for bench_type, config_name, image_suffix, extra_flag in benchmarks:
+    for bench_type, config_name, image_suffix, extra_flag in benchmarks_to_run:
         full_bench_name = f"{bench_type}_{config_name}"
         job_name = f"gcsfuse-npi-{full_bench_name}".replace("_", "-")
         bq_table_id = f"fio_{full_bench_name}"
         
-        image = f"us-docker.pkg.dev/{args.project_id}/gcsfuse-benchmarks/{image_suffix}-{args.gcsfuse_version}:latest"
+        image = f"us-docker.pkg.dev/{args.project_id}/gcsfuse-benchmarks/{image_suffix}:latest"
         
         gcsfuse_flags = "--temp-dir=/gcsfuse-temp -o allow_other"
         if extra_flag:
@@ -142,7 +167,8 @@ def main():
             args_list=cmd_args,
             project_id=args.project_id,
             dataset_id=args.bq_dataset_id,
-            table_id=bq_table_id
+            table_id=bq_table_id,
+            timeout=args.timeout
         )
 
         if not success:
@@ -151,7 +177,7 @@ def main():
             break
 
         # Delete job after successful completion to clean up the cluster
-        subprocess.run(["kubectl", "delete", "job", job_name, "--ignore-not-found=true"], capture_output=True)
+        subprocess.run(["kubectl", "delete", "job", job_name, "--ignore-not-found=true", "--wait=true"], capture_output=True)
 
     if failed_benchmarks:
         print(f"\n--- Some benchmarks failed: {', '.join(failed_benchmarks)} ---", file=sys.stderr)
