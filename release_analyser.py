@@ -206,7 +206,7 @@ def analyze_test_level_logs(parent_dir):
                         elif status == 'FAIL':
                             results[package_name][bucket_type][test_name][attempt] = '❌'
                             has_failures = True
-                            failures.append({'vm': vm_name, 'pkg': package_name, 'bucket': bucket_type, 'test': test_name, 'e2e_run_folder': e2e_run_folder})
+                            failures.append({'vm': vm_name, 'pkg': filepath.stem, 'bucket': bucket_type, 'test': test_name, 'e2e_run_folder': e2e_run_folder})
                         elif status == 'SKIP':
                             results[package_name][bucket_type][test_name][attempt] = '⚪'
                         continue
@@ -220,7 +220,7 @@ def analyze_test_level_logs(parent_dir):
                         elif log_type == 'failed_package_logs':
                             results[package_name][bucket_type][test_name][attempt] = '❌'
                             has_failures = True
-                            failures.append({'vm': vm_name, 'pkg': package_name, 'bucket': bucket_type, 'test': test_name, 'e2e_run_folder': e2e_run_folder})
+                            failures.append({'vm': vm_name, 'pkg': filepath.stem, 'bucket': bucket_type, 'test': test_name, 'e2e_run_folder': e2e_run_folder})
 
                             
             # Edge Case: If the package log was dumped in the 'failed' directory but no specific 
@@ -228,7 +228,7 @@ def analyze_test_level_logs(parent_dir):
             if log_type == 'failed_package_logs' and not has_failures:
                 dummy_name = "[PACKAGE_CRASH_OR_TIMEOUT]"
                 results[package_name][bucket_type][dummy_name][attempt] = '❌'
-                failures.append({'vm': vm_name, 'pkg': package_name, 'bucket': bucket_type, 'test': dummy_name, 'e2e_run_folder': e2e_run_folder})
+                failures.append({'vm': vm_name, 'pkg': filepath.stem, 'bucket': bucket_type, 'test': dummy_name, 'e2e_run_folder': e2e_run_folder})
 
         except Exception as e:
             print(f"Error reading {filepath}: {e}")
