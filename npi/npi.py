@@ -47,6 +47,7 @@ class BenchmarkFactory:
         iterations (int): The number of iterations for each benchmark.
         temp_dir (str): The type of temporary directory to use ('memory' or
             'boot-disk').
+        mount_path (str): The path to an already mounted GCS bucket.
     """
 
     def __init__(self, bucket_name, project_id, bq_dataset_id, gcsfuse_version, iterations, temp_dir, mount_path=None):
@@ -77,7 +78,7 @@ class BenchmarkFactory:
             name (str): The name of the benchmark to generate the command for.
 
         Returns:
-            str: The full Docker command to run the benchmark.
+            tuple[str, str]: A tuple containing the full Docker command and the BigQuery table ID.
 
         Raises:
             ValueError: If the benchmark name is not defined.
@@ -121,7 +122,7 @@ class BenchmarkFactory:
             mount_path (str, optional): The path to an already mounted GCS bucket.
 
         Returns:
-            str: The complete Docker command.
+            tuple[str, str]: A tuple containing the complete Docker command and the BigQuery table ID.
         """
         container_temp_dir = "/gcsfuse-temp"
         volume_mount = ""
@@ -263,6 +264,9 @@ def run_benchmark(benchmark_name, command_str, temp_dir_type, project_id, datase
         command_str (str): The Docker command string to execute.
         temp_dir_type (str): The type of temporary directory ('memory' or
             'boot-disk').
+        project_id (str): The BigQuery project ID.
+        dataset_id (str): The BigQuery dataset ID.
+        table_id (str): The BigQuery table ID.
 
     Returns:
         bool: True if the benchmark ran successfully, False otherwise.
