@@ -394,19 +394,28 @@ def generate_matrix_report(results, vm_name_prefix):
         # Calculate width for shortened VM name
         max_vm_len = max([get_display_width(vm) for vm in display_vms] + [15])
         
-        # Truncate package names to 10 chars for column headers
-        pkg_headers = [pkg[:10] for pkg in all_packages]
+        # Limit package names to 15 chars for vertical display
+        limit = 15
+        pkg_headers = [pkg[:limit] for pkg in all_packages]
+        pkg_headers_padded = [f"{pkg:<{limit}}" for pkg in pkg_headers]
         
-        # Build header line
-        header_parts = [pad_string('VM Name', max_vm_len)]
-        for pkg in pkg_headers:
-            header_parts.append(pad_string(pkg, 10))
-        
-        header = "| " + " | ".join(header_parts) + " |"
-        header_display_width = get_display_width(header)
+        # Build vertical headers
+        header_lines = []
+        for row_idx in range(limit):
+            if row_idx == limit - 1:
+                parts = [f"{'VM Name':<{max_vm_len}}"]
+            else:
+                parts = [f"{' ':<{max_vm_len}}"]
+                
+            for pkg in pkg_headers_padded:
+                parts.append(f"{pkg[row_idx]:^6}")
+            header_lines.append("| " + " | ".join(parts) + " |")
+            
+        header_display_width = get_display_width(header_lines[0])
         
         print("-" * header_display_width)
-        print(header)
+        for line in header_lines:
+            print(line)
         print("-" * header_display_width)
         
         for i, vm in enumerate(all_vms):
@@ -424,7 +433,7 @@ def generate_matrix_report(results, vm_name_prefix):
                     last_attempts = sorted_attempts[-3:]
                     status_str = "".join(last_attempts)
                     
-                row_parts.append(pad_string(status_str, 10))
+                row_parts.append(pad_string(status_str, 6))
                 
             row = "| " + " | ".join(row_parts) + " |"
             print(row)
@@ -465,6 +474,8 @@ def generate_consolidated_failures_table(failures, bucket_name, release_version,
             'test': test_name,
             'link': link
         })
+        
+    formatted_failures.sort(key=lambda x: (x['vm'], x['pkg'], x['test']))
         
     w_bucket = max([len(f['bucket']) for f in formatted_failures] + [6])
     w_vm = max([len(f['vm']) for f in formatted_failures] + [15])
