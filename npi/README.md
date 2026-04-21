@@ -156,7 +156,6 @@ python3 npi.py [OPTIONS]
 *   `--mount-path`: Path to an already mounted GCS bucket. If provided, `--bucket-name` is ignored and GCSFuse is not mounted. Either `--bucket-name` or `--mount-path` must be provided.
 *   `--project-id`: (Required) The Google Cloud Project ID where the BigQuery dataset resides.
 *   `--bq-dataset-id`: (Required) The BigQuery dataset ID to store the benchmark results.
-*   `--gcsfuse-version`: (Required) The GCSfuse version to test (e.g., `'v3.4.0'`). This version is used to pull the corresponding benchmark Docker images.
 *   `--iterations`: (Optional) The number of times to run each FIO test within a benchmark. Defaults to `5`.
 *   `--temp-dir`: (Optional) The type of temporary directory to use for GCSfuse.
     *   `'boot-disk'` (default): Uses a temporary directory on the host's boot disk.
@@ -164,6 +163,29 @@ python3 npi.py [OPTIONS]
 *   `--dry-run`: (Optional) If set, the script will print the Docker commands it would run without actually executing them.
 
 To see a list of all available benchmarks, you can execute the script with a `--dry-run` flag.
+
+
+## GKE Benchmarks (`npi_gke.py`)
+
+In addition to `npi.py`, this directory provides `npi_gke.py` to orchestrate benchmarks seamlessly on a Google Kubernetes Engine (GKE) cluster.
+
+`npi_gke.py` schedules benchmarks as Kubernetes Jobs (`npi_job_spec.yaml`) instead of local Docker containers. It ensures benchmarks run sequentially, waits for completion, and automatically fetches logs if a job fails.
+
+### Additional Arguments for `npi_gke.py`
+*   `--cluster-name`: (Optional) The GKE cluster name. If provided with `--location`, the script fetches cluster credentials before running.
+*   `--location`: (Optional) The GCP location (region/zone) of the GKE cluster.
+*   `--timeout`: (Optional) Timeout for waiting on a benchmark job to complete. Defaults to `1h` (e.g., `30m`, `2h`).
+
+Example:
+```sh
+python3 npi_gke.py \
+    --benchmarks read_http1 write_grpc \
+    --bucket-name my-gcs-bucket \
+    --project-id my-gcp-project \
+    --bq-dataset-id my_benchmark_dataset \
+    --cluster-name my-cluster \
+    --location us-central1-c
+```
 
 ## Benchmark Glossary
 
@@ -237,8 +259,7 @@ python3 npi.py \
     --benchmarks read_http1 \
     --bucket-name my-gcs-bucket \
     --project-id my-gcp-project \
-    --bq-dataset-id my_benchmark_dataset \
-    --gcsfuse-version 'master'
+    --bq-dataset-id my_benchmark_dataset
 ```
 
 ### Run multiple benchmarks
@@ -250,8 +271,7 @@ python3 npi.py \
     --benchmarks write_http1 write_grpc \
     --bucket-name my-gcs-bucket \
     --project-id my-gcp-project \
-    --bq-dataset-id my_benchmark_dataset \
-    --gcsfuse-version 'v1.3.0'
+    --bq-dataset-id my_benchmark_dataset
 ```
 
 ### Run all benchmarks
@@ -264,7 +284,6 @@ python3 npi.py \
     --bucket-name my-gcs-bucket \
     --project-id my-gcp-project \
     --bq-dataset-id my_benchmark_dataset \
-    --gcsfuse-version 'master' \
     --temp-dir 'memory'
 ```
 
@@ -278,6 +297,5 @@ python3 npi.py \
     --bucket-name my-gcs-bucket \
     --project-id my-gcp-project \
     --bq-dataset-id my_benchmark_dataset \
-    --gcsfuse-version 'master' \
     --dry-run
 ```

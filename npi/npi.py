@@ -10,14 +10,14 @@ HTTP/1.1 or gRPC, and pinning to specific NUMA nodes.
 
 Usage:
   python3 npi.py --benchmarks <benchmark_names> --bucket-name <bucket> \\
-    --project-id <project> --bq-dataset-id <dataset> --gcsfuse-version <version>
+    --project-id <project> --bq-dataset-id <dataset>
 
   python3 npi.py --benchmarks <benchmark_names> --mount-path <path> \\
-    --project-id <project> --bq-dataset-id <dataset> --gcsfuse-version <version>
+    --project-id <project> --bq-dataset-id <dataset>
 
 Example:
   python3 npi.py --benchmarks read_http1 write_grpc --bucket-name my-bucket \\
-    --project-id my-project --bq-dataset-id my_bq_dataset --gcsfuse-version v1.2.0
+    --project-id my-project --bq-dataset-id my_bq_dataset
 """
 
 import argparse
@@ -43,21 +43,19 @@ class BenchmarkFactory:
         bucket_name (str): The GCS bucket to use for the benchmarks.
         project_id (str): The BigQuery project ID for storing results.
         bq_dataset_id (str): The BigQuery dataset ID for storing results.
-        gcsfuse_version (str): The GCSfuse version to use.
         iterations (int): The number of iterations for each benchmark.
         temp_dir (str): The type of temporary directory to use ('memory' or
             'boot-disk').
         mount_path (str): The path to an already mounted GCS bucket.
     """
 
-    def __init__(self, bucket_name, project_id, bq_dataset_id, gcsfuse_version, iterations, temp_dir, mount_path=None):
+    def __init__(self, bucket_name, project_id, bq_dataset_id, iterations, temp_dir, mount_path=None):
         """Initializes the BenchmarkFactory.
 
         Args:
             bucket_name (str): The GCS bucket name.
             project_id (str): The BigQuery project ID.
             bq_dataset_id (str): The BigQuery dataset ID.
-            gcsfuse_version (str): The GCSfuse version.
             iterations (int): The number of benchmark iterations.
             temp_dir (str): The temporary directory type.
             mount_path (str): The path to an already mounted GCS bucket.
@@ -65,7 +63,6 @@ class BenchmarkFactory:
         self.bucket_name = bucket_name
         self.project_id = project_id
         self.bq_dataset_id = bq_dataset_id
-        self.gcsfuse_version = gcsfuse_version
         self.iterations = iterations
         self.temp_dir = temp_dir
         self.mount_path = mount_path
@@ -145,7 +142,7 @@ class BenchmarkFactory:
         base_cmd = (
             "docker run --pull=always --network=host --privileged --rm "
             f"{volume_mount} "
-            f"us-docker.pkg.dev/{project_id}/gcsfuse-benchmarks/{benchmark_image_suffix}-{self.gcsfuse_version}:latest "
+            f"us-docker.pkg.dev/{project_id}/gcsfuse-benchmarks/{benchmark_image_suffix}:latest "
             f"--iterations={self.iterations} "
             f"--project-id={project_id} "
             f"--bq-dataset-id={bq_dataset_id} "
@@ -336,7 +333,6 @@ def main():
     parser.add_argument("--mount-path", default=None, help="Path to an already mounted GCS bucket. If provided, --bucket-name is ignored and GCSFuse is not mounted.")
     parser.add_argument("--project-id", required=True, help="Project ID for results.")
     parser.add_argument("--bq-dataset-id", required=True, help="BigQuery dataset ID for results.")
-    parser.add_argument("--gcsfuse-version", required=True, help="GCSFuse version to use for benchmark images (e.g., 'master', 'v1.2.0').")
     parser.add_argument(
         "--iterations",
         type=int,
@@ -366,7 +362,6 @@ def main():
         bucket_name=args.bucket_name,
         project_id=args.project_id,
         bq_dataset_id=args.bq_dataset_id,
-        gcsfuse_version=args.gcsfuse_version,
         iterations=args.iterations,
         temp_dir=args.temp_dir,
         mount_path=mount_path
