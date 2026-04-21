@@ -33,7 +33,7 @@ def truncate_bq_table(project_id, dataset_id, table_id):
     except Exception as e:
         print(f"Warning: Failed to execute bq command: {e}")
 
-def create_job_spec(job_name, image, args, bucket_name, service_account):
+def create_job_spec(job_name, image, args, bucket_name, service_account, extra_flag=None):
     """Creates a Kubernetes Job spec dictionary from the template yaml."""
     script_dir = os.path.dirname(os.path.realpath(__file__))
     template_path = os.path.join(script_dir, "npi_job_spec.yaml")
@@ -54,6 +54,10 @@ def create_job_spec(job_name, image, args, bucket_name, service_account):
             if "volumeAttributes" not in vol["csi"] or not vol["csi"]["volumeAttributes"]:
                 vol["csi"]["volumeAttributes"] = {}
             vol["csi"]["volumeAttributes"]["bucketName"] = bucket_name
+            if extra_flag:
+                # Strip leading dashes for CSI mountOptions e.g. '--client-protocol=grpc' -> 'client-protocol=grpc'
+                flag_str = extra_flag.strip().lstrip('-')
+                vol["csi"]["volumeAttributes"]["mountOptions"] = flag_str
 
     container = pod_spec["containers"][0]
     container["image"] = image
@@ -61,7 +65,7 @@ def create_job_spec(job_name, image, args, bucket_name, service_account):
     
     return job_spec
 
-def run_benchmark_job(job_name, image, args_list, project_id, dataset_id, table_id, bucket_name, service_account, timeout="1h"):
+def run_benchmark_job(job_name, image, args_list, project_id, dataset_id, table_id, bucket_name, service_account, timeout="1h", extra_flag=None):
     """Runs a benchmark job on GKE and waits for its completion."""
     # 1. Truncate BQ Table
     truncate_bq_table(project_id, dataset_id, table_id)
@@ -70,7 +74,7 @@ def run_benchmark_job(job_name, image, args_list, project_id, dataset_id, table_
     subprocess.run(["kubectl", "delete", "job", job_name, "--ignore-not-found=true", "--wait=true"], capture_output=True)
 
     # 3. Create Job Spec and Apply
-    job_spec = create_job_spec(job_name, image, args_list, bucket_name, service_account)
+    job_spec = create_job_spec(job_name, image, args_list, bucket_name, service_account, extra_flag)
     yaml_data = yaml.dump(job_spec)
 
     print(f"--- Submitting Kubernetes Job: {job_name} ---")
@@ -168,18 +172,12 @@ def main():
         bq_table_id = f"fio_{full_bench_name}"
         
         image = f"us-docker.pkg.dev/{args.project_id}/gcsfuse-benchmarks/{image_suffix}:latest"
-        
-        gcsfuse_flags = "--temp-dir=/gcsfuse-temp -o allow_other"
-        if extra_flag:
-            gcsfuse_flags += f" {extra_flag}"
-
         cmd_args = [
             f"--iterations={args.iterations}",
             f"--project-id={args.project_id}",
             f"--bq-dataset-id={args.bq_dataset_id}",
             f"--bq-table-id={bq_table_id}",
-            f"--bucket-name={args.bucket_name}",
-            f"--gcsfuse-flags={gcsfuse_flags}"
+            "--mount-path=/data"
         ]
 
         success = run_benchmark_job(
@@ -191,7 +189,8 @@ def main():
             table_id=bq_table_id,
             bucket_name=args.bucket_name,
             service_account=args.kubernetes_service_account,
-            timeout=args.timeout
+            timeout=args.timeout,
+            extra_flag=extra_flag
         )
 
         if not success:
