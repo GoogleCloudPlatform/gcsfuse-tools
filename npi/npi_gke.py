@@ -33,7 +33,7 @@ def truncate_bq_table(project_id, dataset_id, table_id):
     except Exception as e:
         print(f"Warning: Failed to execute bq command: {e}")
 
-def create_job_spec(job_name, image, args):
+def create_job_spec(job_name, image, args, bucket_name, service_account):
     """Creates a Kubernetes Job spec dictionary from the template yaml."""
     script_dir = os.path.dirname(os.path.realpath(__file__))
     template_path = os.path.join(script_dir, "npi_job_spec.yaml")
@@ -43,13 +43,25 @@ def create_job_spec(job_name, image, args):
         
     job_spec["metadata"]["name"] = job_name
     
-    container = job_spec["spec"]["template"]["spec"]["containers"][0]
+    pod_spec = job_spec["spec"]["template"]["spec"]
+    
+    # Replace service account
+    pod_spec["serviceAccountName"] = service_account
+    
+    # Replace bucket name in CSI volume
+    for vol in pod_spec.get("volumes", []):
+        if "csi" in vol and vol["csi"].get("driver") == "gcsfuse.csi.storage.gke.io":
+            if "volumeAttributes" not in vol["csi"] or not vol["csi"]["volumeAttributes"]:
+                vol["csi"]["volumeAttributes"] = {}
+            vol["csi"]["volumeAttributes"]["bucketName"] = bucket_name
+
+    container = pod_spec["containers"][0]
     container["image"] = image
     container["args"] = args
     
     return job_spec
 
-def run_benchmark_job(job_name, image, args_list, project_id, dataset_id, table_id, timeout="1h"):
+def run_benchmark_job(job_name, image, args_list, project_id, dataset_id, table_id, bucket_name, service_account, timeout="1h"):
     """Runs a benchmark job on GKE and waits for its completion."""
     # 1. Truncate BQ Table
     truncate_bq_table(project_id, dataset_id, table_id)
@@ -58,7 +70,7 @@ def run_benchmark_job(job_name, image, args_list, project_id, dataset_id, table_
     subprocess.run(["kubectl", "delete", "job", job_name, "--ignore-not-found=true", "--wait=true"], capture_output=True)
 
     # 3. Create Job Spec and Apply
-    job_spec = create_job_spec(job_name, image, args_list)
+    job_spec = create_job_spec(job_name, image, args_list, bucket_name, service_account)
     yaml_data = yaml.dump(job_spec)
 
     print(f"--- Submitting Kubernetes Job: {job_name} ---")
@@ -93,6 +105,8 @@ def run_benchmark_job(job_name, image, args_list, project_id, dataset_id, table_
 def main():
     parser = argparse.ArgumentParser(description="GKE benchmark runner for GCSFuse NPI.")
     parser.add_argument("--bucket-name", required=True, help="Name of the GCS bucket to use.")
+    parser.add_argument("--kubernetes-service-account", default="default", help="Kubernetes Service Account name to run the job with. Default: default.")
+    parser.add_argument("--dry-run", action="store_true", help="List down all the benchmarks that would be executed without actually running them.")
     parser.add_argument("--project-id", required=True, help="Project ID for results.")
     parser.add_argument("--bq-dataset-id", required=True, help="BigQuery dataset ID for results.")
     parser.add_argument("--iterations", type=int, default=5, help="Number of FIO test iterations per benchmark. Default: 5.")
@@ -139,6 +153,13 @@ def main():
                 sys.exit(1)
         benchmarks_to_run = [b for b in all_benchmarks if f"{b[0]}_{b[1]}" in args.benchmarks]
 
+
+    if args.dry_run:
+        print("--- [DRY RUN] Benchmarks to be executed ---")
+        for bench_type, config_name, _, _ in benchmarks_to_run:
+            print(f" - {bench_type}_{config_name}")
+        return
+
     failed_benchmarks = []
 
     for bench_type, config_name, image_suffix, extra_flag in benchmarks_to_run:
@@ -168,6 +189,8 @@ def main():
             project_id=args.project_id,
             dataset_id=args.bq_dataset_id,
             table_id=bq_table_id,
+            bucket_name=args.bucket_name,
+            service_account=args.kubernetes_service_account,
             timeout=args.timeout
         )
 

@@ -10,18 +10,23 @@ spec:
     metadata:
       labels:
         app: gcsfuse-npi-benchmark
+      annotations:
+        gke-gcsfuse/volumes: "true"
     spec:
       restartPolicy: Never
       containers:
         - name: benchmark
           image: "image-placeholder"
-          args: []
+          args: ["--mount-path=/data"]
           securityContext:
             privileged: true
           volumeMounts:
-            - name: gcsfuse-temp
-              mountPath: /gcsfuse-temp
+            - name: gcsfuse-csi
+              mountPath: /data
+      serviceAccountName: "ksa-placeholder"
       volumes:
-        - name: gcsfuse-temp
-          emptyDir:
-            medium: Memory
+        - name: gcsfuse-csi
+          csi:
+            driver: gcsfuse.csi.storage.gke.io
+            volumeAttributes:
+              bucketName: test-bucket
