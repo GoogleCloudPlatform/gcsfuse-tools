@@ -279,21 +279,6 @@ def run_benchmark(benchmark_name, command_str, temp_dir_type, project_id, datase
     command = shlex.split(command_str)
     print(f"Command: {' '.join(command)}")
 
-    # Erase existing data in the BQ table
-    if project_id and dataset_id and table_id:
-        print(f"--- Erasing data in BigQuery table: {project_id}.{dataset_id}.{table_id} ---")
-        bq_cmd = [
-            "bq", "query", "--use_legacy_sql=false",
-            f"TRUNCATE TABLE `{project_id}.{dataset_id}.{table_id}`"
-        ]
-        try:
-            # We don't check=True because the table might not exist yet, which is fine.
-            res = subprocess.run(bq_cmd, capture_output=True, text=True)
-            if res.returncode != 0 and "Not found:" not in res.stderr:
-                print(f"Warning: Failed to truncate BQ table. {res.stderr}")
-        except Exception as e:
-            print(f"Warning: Failed to execute bq command: {e}")
-
     try:
         subprocess.run(command, check=True)
         print(f"--- Benchmark {benchmark_name} on localhost finished successfully ---")
