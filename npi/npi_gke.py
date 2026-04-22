@@ -17,26 +17,6 @@ import time
 import yaml
 import os
 
-def truncate_bq_table(project_id, dataset_id, table_id):
-    """Erases existing data in the specified BigQuery table."""
-    if not (project_id and dataset_id and table_id):
-        return
-    print(f"--- Erasing data in BigQuery table: {project_id}.{dataset_id}.{table_id} ---")
-    bq_cmd = [
-        "bq", "query", "--use_legacy_sql=false",
-        f"TRUNCATE TABLE `{project_id}.{dataset_id}.{table_id}`"
-    ]
-    try:
-        res = subprocess.run(bq_cmd, capture_output=True, text=True)
-        if res.returncode != 0 and "Not found:" not in res.stderr and "Not found:" not in res.stdout:
-            print(f"Warning: Failed to truncate BQ table. Return code: {res.returncode}")
-            if res.stdout.strip():
-                print(f"Stdout:\n{res.stdout.strip()}")
-            if res.stderr.strip():
-                print(f"Stderr:\n{res.stderr.strip()}")
-    except Exception as e:
-        print(f"Warning: Failed to execute bq command: {e}")
-
 def create_job_spec(job_name, image, args, bucket_name, service_account, extra_flag=None):
     """Creates a Kubernetes Job spec dictionary from the template yaml."""
     script_dir = os.path.dirname(os.path.realpath(__file__))
@@ -71,13 +51,10 @@ def create_job_spec(job_name, image, args, bucket_name, service_account, extra_f
 
 def run_benchmark_job(job_name, image, args_list, project_id, dataset_id, table_id, bucket_name, service_account, timeout="1h", extra_flag=None):
     """Runs a benchmark job on GKE and waits for its completion."""
-    # 1. Truncate BQ Table
-    truncate_bq_table(project_id, dataset_id, table_id)
-
-    # 2. Cleanup any existing job with the same name
+    # 1. Cleanup any existing job with the same name
     subprocess.run(["kubectl", "delete", "job", job_name, "--ignore-not-found=true", "--wait=true"], capture_output=True)
 
-    # 3. Create Job Spec and Apply
+    # 2. Create Job Spec and Apply
     job_spec = create_job_spec(job_name, image, args_list, bucket_name, service_account, extra_flag)
     yaml_data = yaml.dump(job_spec)
 
