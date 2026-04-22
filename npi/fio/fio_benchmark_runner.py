@@ -294,7 +294,6 @@ def run_benchmark(
             logging.error(error_msg)
             raise RuntimeError(error_msg)
         bq_client = bigquery.Client(project=project_id)
-        truncate_bq_table(bq_client, project_id, bq_dataset_id, bq_table_id)
 
     gcsfuse_bin = "/gcsfuse/gcsfuse"
     if mount_path:

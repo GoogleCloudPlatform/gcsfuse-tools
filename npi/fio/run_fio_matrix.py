@@ -126,7 +126,11 @@ def main():
   )
 
   if args.project_id and args.bq_dataset_id and args.bq_table_id:
-    fio_benchmark_runner.truncate_bq_table(args.project_id, args.bq_dataset_id, args.bq_table_id)
+    if not fio_benchmark_runner._BQ_SUPPORTED:
+      logging.error("BigQuery operations requested, but 'google-cloud-bigquery' is not installed.")
+      sys.exit(1)
+    bq_client = fio_benchmark_runner.bigquery.Client(project=args.project_id)
+    fio_benchmark_runner.truncate_bq_table(bq_client, args.project_id, args.bq_dataset_id, args.bq_table_id)
 
   for i, config in enumerate(configs):
     # Create a string representation of the configuration for logging.
