@@ -28,8 +28,12 @@ def truncate_bq_table(project_id, dataset_id, table_id):
     ]
     try:
         res = subprocess.run(bq_cmd, capture_output=True, text=True)
-        if res.returncode != 0 and "Not found:" not in res.stderr:
-            print(f"Warning: Failed to truncate BQ table. {res.stderr}")
+        if res.returncode != 0 and "Not found:" not in res.stderr and "Not found:" not in res.stdout:
+            print(f"Warning: Failed to truncate BQ table. Return code: {res.returncode}")
+            if res.stdout.strip():
+                print(f"Stdout:\n{res.stdout.strip()}")
+            if res.stderr.strip():
+                print(f"Stderr:\n{res.stderr.strip()}")
     except Exception as e:
         print(f"Warning: Failed to execute bq command: {e}")
 
