@@ -125,6 +125,9 @@ def main():
       "Found %d configurations to run from %s", len(configs), args.matrix_config
   )
 
+  if args.project_id and args.bq_dataset_id and args.bq_table_id:
+    fio_benchmark_runner.truncate_bq_table(args.project_id, args.bq_dataset_id, args.bq_table_id)
+
   for i, config in enumerate(configs):
     # Create a string representation of the configuration for logging.
     config_str = ", ".join([f"{k}={v}" for k, v in sorted(config.items())])

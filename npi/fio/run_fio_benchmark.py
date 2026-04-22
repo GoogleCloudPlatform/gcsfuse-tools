@@ -53,6 +53,9 @@ def main():
 
     mount_path = os.path.abspath(args.mount_path) if args.mount_path else None
 
+    if args.project_id and args.bq_dataset_id and args.bq_table_id:
+        fio_benchmark_runner.truncate_bq_table(args.project_id, args.bq_dataset_id, args.bq_table_id)
+
     fio_benchmark_runner.run_benchmark(
         gcsfuse_flags=args.gcsfuse_flags,
         bucket_name=args.bucket_name,
