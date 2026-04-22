@@ -190,17 +190,9 @@ def print_summary(all_results, summary_file=None):
             logging.error(f"Failed to write summary to {summary_file}: {e}")
 
 
-def truncate_bq_table(project_id, dataset_id, table_id):
+def truncate_bq_table(client, project_id, dataset_id, table_id):
     """Erases existing data in the specified BigQuery table."""
-    if not _BQ_SUPPORTED:
-        logging.error(
-            "BigQuery truncation requested, but 'google-cloud-bigquery' is not "
-            "installed. Please run 'pip3 install google-cloud-bigquery'."
-        )
-        return
-
     try:
-        client = bigquery.Client(project=project_id)
         full_table_id = f"{project_id}.{dataset_id}.{table_id}"
         
         # Check if table exists before truncating
@@ -217,20 +209,14 @@ def truncate_bq_table(project_id, dataset_id, table_id):
         logging.info(f"Successfully truncated table {full_table_id}")
     except Exception as e:
         logging.error(f"Failed to truncate BigQuery table: {e}")
+        raise
 
 
 def upload_results_to_bq(
-    project_id, dataset_id, table_id, fio_json_path, iteration,
+    client, project_id, dataset_id, table_id, fio_json_path, iteration,
     gcsfuse_flags, fio_env, cpu_limit_list
 ):
     """Uploads the full FIO JSON output to a BigQuery table."""
-    if not _BQ_SUPPORTED:
-        logging.error(
-            "BigQuery upload requested, but 'google-cloud-bigquery' is not "
-            "installed. Please run 'pip3 install google-cloud-bigquery'."
-        )
-        return
-
     try:
         with open(fio_json_path, "r") as f:
             fio_json_content = f.read()
@@ -239,7 +225,6 @@ def upload_results_to_bq(
         return
 
     try:
-        client = bigquery.Client(project=project_id)
         full_table_id = f"{project_id}.{dataset_id}.{table_id}"
         dataset_ref = client.dataset(dataset_id)
         table_ref = dataset_ref.table(table_id)
@@ -299,8 +284,17 @@ def run_benchmark(
     os.makedirs(work_dir, exist_ok=True)
     os.makedirs(output_dir, exist_ok=True)
 
+    bq_client = None
     if project_id and bq_dataset_id and bq_table_id:
-        truncate_bq_table(project_id, bq_dataset_id, bq_table_id)
+        if not _BQ_SUPPORTED:
+            error_msg = (
+                "BigQuery operations requested, but 'google-cloud-bigquery' is not "
+                "installed. Please run 'pip3 install google-cloud-bigquery'."
+            )
+            logging.error(error_msg)
+            raise RuntimeError(error_msg)
+        bq_client = bigquery.Client(project=project_id)
+        truncate_bq_table(bq_client, project_id, bq_dataset_id, bq_table_id)
 
     gcsfuse_bin = "/gcsfuse/gcsfuse"
     if mount_path:
@@ -340,8 +334,9 @@ def run_benchmark(
             iteration_results = parse_fio_output(output_filename)
             all_results.append(iteration_results)
 
-            if project_id and bq_dataset_id and bq_table_id:
+            if bq_client:
                 upload_results_to_bq(
+                    client=bq_client,
                     project_id=project_id,
                     dataset_id=bq_dataset_id,
                     table_id=bq_table_id,
