@@ -190,6 +190,35 @@ def print_summary(all_results, summary_file=None):
             logging.error(f"Failed to write summary to {summary_file}: {e}")
 
 
+def truncate_bq_table(project_id, dataset_id, table_id):
+    """Erases existing data in the specified BigQuery table."""
+    if not _BQ_SUPPORTED:
+        logging.error(
+            "BigQuery truncation requested, but 'google-cloud-bigquery' is not "
+            "installed. Please run 'pip3 install google-cloud-bigquery'."
+        )
+        return
+
+    try:
+        client = bigquery.Client(project=project_id)
+        full_table_id = f"{project_id}.{dataset_id}.{table_id}"
+        
+        # Check if table exists before truncating
+        try:
+            client.get_table(full_table_id)
+        except exceptions.NotFound:
+            logging.info(f"Table {full_table_id} not found, skipping truncation.")
+            return
+
+        logging.info(f"--- Erasing data in BigQuery table: {full_table_id} ---")
+        query = f"TRUNCATE TABLE `{full_table_id}`"
+        query_job = client.query(query)
+        query_job.result()  # Wait for the job to complete
+        logging.info(f"Successfully truncated table {full_table_id}")
+    except Exception as e:
+        logging.error(f"Failed to truncate BigQuery table: {e}")
+
+
 def upload_results_to_bq(
     project_id, dataset_id, table_id, fio_json_path, iteration,
     gcsfuse_flags, fio_env, cpu_limit_list
@@ -269,6 +298,9 @@ def run_benchmark(
     """Runs the full FIO benchmark suite."""
     os.makedirs(work_dir, exist_ok=True)
     os.makedirs(output_dir, exist_ok=True)
+
+    if project_id and bq_dataset_id and bq_table_id:
+        truncate_bq_table(project_id, bq_dataset_id, bq_table_id)
 
     gcsfuse_bin = "/gcsfuse/gcsfuse"
     if mount_path:
