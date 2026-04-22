@@ -174,7 +174,6 @@ In addition to `npi.py`, this directory provides `npi_gke.py` to orchestrate ben
 ### Additional Arguments for `npi_gke.py`
 *   `--cluster-name`: (Optional) The GKE cluster name. If provided with `--location`, the script fetches cluster credentials before running.
 *   `--location`: (Optional) The GCP location (region/zone) of the GKE cluster.
-*   `--timeout`: (Optional) Timeout for waiting on a benchmark job to complete. Defaults to `1h` (e.g., `30m`, `2h`).
 
 Example:
 ```sh
