@@ -16,6 +16,7 @@ import sys
 import time
 import yaml
 import os
+import datetime
 
 def create_job_spec(job_name, image, args, bucket_name, service_account, extra_flag=None):
     """Creates a Kubernetes Job spec dictionary from the template yaml."""
@@ -144,6 +145,9 @@ def main():
             print(f" - {bench_type}_{config_name}")
         return
 
+    start_time = datetime.datetime.now()
+    print(f"--- Entire run started at: {start_time.strftime('%Y-%m-%d %H:%M:%S')} ---")
+
     failed_benchmarks = []
 
     for bench_type, config_name, image_suffix, extra_flag in benchmarks_to_run:
@@ -185,6 +189,10 @@ def main():
         sys.exit(1)
     else:
         print("\n--- All benchmarks completed successfully! ---")
+
+    end_time = datetime.datetime.now()
+    print(f"--- Entire run ended at: {end_time.strftime('%Y-%m-%d %H:%M:%S')} ---")
+    print(f"--- Total duration: {end_time - start_time} ---")
 
 if __name__ == "__main__":
     main()

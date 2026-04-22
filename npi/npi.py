@@ -30,6 +30,7 @@ import subprocess
 import sys
 import tempfile
 import shutil
+import datetime
 
 class BenchmarkFactory:
     """A factory for creating benchmark commands.
@@ -365,6 +366,9 @@ def main():
     print(f"Benchmarks to run: {', '.join(benchmarks_to_run)}")
     print(f"BigQuery Target: {args.project_id}.{args.bq_dataset_id}")
 
+    start_time = datetime.datetime.now()
+    print(f"--- Entire run started at: {start_time.strftime('%Y-%m-%d %H:%M:%S')} ---")
+
     # Run benchmarks sequentially on the local machine.
     failed_benchmarks = []
     for benchmark_name in benchmarks_to_run:
@@ -383,6 +387,10 @@ def main():
     if failed_benchmarks:
         print(f"\n--- Some benchmarks failed: {', '.join(failed_benchmarks)} ---", file=sys.stderr)
         sys.exit(1)
+
+    end_time = datetime.datetime.now()
+    print(f"--- Entire run ended at: {end_time.strftime('%Y-%m-%d %H:%M:%S')} ---")
+    print(f"--- Total duration: {end_time - start_time} ---")
 
 if __name__ == "__main__":
     main()
