@@ -49,7 +49,7 @@ def create_job_spec(job_name, image, args, bucket_name, service_account, extra_f
     
     return job_spec
 
-def run_benchmark_job(job_name, image, args_list, project_id, dataset_id, table_id, bucket_name, service_account, timeout="1h", extra_flag=None):
+def run_benchmark_job(job_name, image, args_list, project_id, dataset_id, table_id, bucket_name, service_account, extra_flag=None):
     """Runs a benchmark job on GKE and waits for its completion."""
     # 1. Cleanup any existing job with the same name
     subprocess.run(["kubectl", "delete", "job", job_name, "--ignore-not-found=true", "--wait=true"], capture_output=True)
@@ -74,7 +74,7 @@ def run_benchmark_job(job_name, image, args_list, project_id, dataset_id, table_
     # Wait until it's either complete or failed
     try:
         subprocess.run(
-            ["kubectl", "wait", f"job/{job_name}", "--for=condition=complete", f"--timeout={timeout}"],
+            ["kubectl", "wait", f"job/{job_name}", "--for=condition=complete", "--timeout=-1s"],
             check=True, text=True, capture_output=True
         )
         print(f"--- Job {job_name} finished successfully ---")
@@ -95,7 +95,6 @@ def main():
     parser.add_argument("--project-id", required=True, help="Project ID for results.")
     parser.add_argument("--bq-dataset-id", required=True, help="BigQuery dataset ID for results.")
     parser.add_argument("--iterations", type=int, default=5, help="Number of FIO test iterations per benchmark. Default: 5.")
-    parser.add_argument("--timeout", default="1h", help="Timeout for waiting on a benchmark job to complete (e.g., '1h', '30m', '2h'). Default is 1h.")
     parser.add_argument("--cluster-name", help="GKE cluster name. If provided with --location, the script will fetch cluster credentials.")
     parser.add_argument("--location", help="GCP location (region or zone) of the GKE cluster.")
     parser.add_argument(
@@ -170,7 +169,6 @@ def main():
             table_id=bq_table_id,
             bucket_name=args.bucket_name,
             service_account=args.kubernetes_service_account,
-            timeout=args.timeout,
             extra_flag=extra_flag
         )
 
