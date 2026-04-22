@@ -74,7 +74,7 @@ def run_benchmark_job(job_name, image, args_list, project_id, dataset_id, table_
     # Wait until it's either complete or failed
     try:
         subprocess.run(
-            ["kubectl", "wait", f"job/{job_name}", "--for=condition=complete"],
+            ["kubectl", "wait", f"job/{job_name}", "--for=condition=complete", "--timeout=-1s"],
             check=True, text=True, capture_output=True
         )
         print(f"--- Job {job_name} finished successfully ---")
