@@ -220,9 +220,6 @@ def main():
             print(f"Skipping further benchmarks because {full_bench_name} failed.")
             break
 
-        # Delete job after successful completion to clean up the cluster
-        subprocess.run(["kubectl", "delete", "job", job_name, "--ignore-not-found=true", "--wait=true"], capture_output=True)
-
     if failed_benchmarks:
         print(f"\n--- Some benchmarks failed: {', '.join(failed_benchmarks)} ---", file=sys.stderr)
         sys.exit(1)
