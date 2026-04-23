@@ -50,13 +50,13 @@ def create_job_spec(job_name, image, args, bucket_name, service_account, extra_f
     
     return job_spec
 
-def wait_for_job_completion(job_name, timeout_seconds=3600):
+def wait_for_job_completion(job_name, timeout_seconds=None):
     """Waits for a Kubernetes Job to complete or fail."""
     print(f"Waiting for Job {job_name} to complete...")
     start_time = time.time()
     
     while True:
-        if time.time() - start_time > timeout_seconds:
+        if timeout_seconds is not None and time.time() - start_time > timeout_seconds:
             print(f"--- Job {job_name} TIMED OUT (Script timeout reached) ---", file=sys.stderr)
             print("Fetching logs...", file=sys.stderr)
             subprocess.run(["kubectl", "logs", "-l", f"job-name={job_name}"])
