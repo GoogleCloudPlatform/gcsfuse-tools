@@ -1,0 +1,36 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: fio-bench-write-grpc
+  namespace: default
+spec:
+  backoffLimit: 0
+  template:
+    metadata:
+      annotations:
+        gke-gcsfuse/volumes: 'true'
+    spec:
+      nodeSelector:
+        cloud.google.com/gke-tpu-topology: 2x2
+        cloud.google.com/gke-tpu-accelerator: tpu-v6e-slice
+      restartPolicy: Never
+      serviceAccountName: benchmark-ksa
+      containers:
+      - name: fio
+        image: us-docker.pkg.dev/YOUR_PROJECT_ID/gcsfuse-benchmarks/fio-write-benchmark-YOUR_GCSFUSE_VERSION:latest
+        args:
+        - --mount-path=/data
+        - --iterations=5
+        - --project-id=YOUR_PROJECT_ID
+        - --bq-dataset-id=YOUR_BQ_DATASET_ID
+        - --bq-table-id=fio_write_grpc
+        volumeMounts:
+        - name: data-vol
+          mountPath: /data
+      volumes:
+      - name: data-vol
+        csi:
+          driver: gcsfuse.csi.storage.gke.io
+          volumeAttributes:
+            bucketName: YOUR_BUCKET_NAME
+            mountOptions: client-protocol=grpc
