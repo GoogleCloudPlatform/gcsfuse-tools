@@ -18,6 +18,7 @@ substitutions:
   _UBUNTU_VERSION: '24.04'
   _REGISTRY: 'us-docker.pkg.dev'
   _PROJECT: 'gcs-fuse-test'
+  _IMAGE_VERSION: 'latest'
 
 steps:
   # Set up buildx to use the docker-container driver, which is necessary for multi-platform builds.
@@ -51,7 +52,7 @@ steps:
       - '--build-arg'
       - 'UBUNTU_VERSION=${_UBUNTU_VERSION}'
       - '-t'
-      - '${_REGISTRY}/${_PROJECT}/gcsfuse-benchmarks/gcsfuse-perf-base:latest'
+      - '${_REGISTRY}/${_PROJECT}/gcsfuse-benchmarks/gcsfuse-perf-base:${_IMAGE_VERSION}'
       - '.'
 
   # Build and push the read-benchmark image.
@@ -76,8 +77,10 @@ steps:
       - 'REGISTRY=${_REGISTRY}'
       - '--build-arg'
       - 'PROJECT=${_PROJECT}'
+      - '--build-arg'
+      - 'IMAGE_VERSION=${_IMAGE_VERSION}'
       - '-t'
-      - '${_REGISTRY}/${_PROJECT}/gcsfuse-benchmarks/fio-read-benchmark:latest'
+      - '${_REGISTRY}/${_PROJECT}/gcsfuse-benchmarks/fio-read-benchmark:${_IMAGE_VERSION}'
       - 'fio'
 
   # Build and push the write-benchmark image.
@@ -102,8 +105,10 @@ steps:
       - 'REGISTRY=${_REGISTRY}'
       - '--build-arg'
       - 'PROJECT=${_PROJECT}'
+      - '--build-arg'
+      - 'IMAGE_VERSION=${_IMAGE_VERSION}'
       - '-t'
-      - '${_REGISTRY}/${_PROJECT}/gcsfuse-benchmarks/fio-write-benchmark:latest'
+      - '${_REGISTRY}/${_PROJECT}/gcsfuse-benchmarks/fio-write-benchmark:${_IMAGE_VERSION}'
       - 'fio'
 
   # Build and push the fullsweep-benchmark image.
@@ -128,8 +133,10 @@ steps:
       - 'REGISTRY=${_REGISTRY}'
       - '--build-arg'
       - 'PROJECT=${_PROJECT}'
+      - '--build-arg'
+      - 'IMAGE_VERSION=${_IMAGE_VERSION}'
       - '-t'
-      - '${_REGISTRY}/${_PROJECT}/gcsfuse-benchmarks/fio-fullsweep-benchmark:latest'
+      - '${_REGISTRY}/${_PROJECT}/gcsfuse-benchmarks/fio-fullsweep-benchmark:${_IMAGE_VERSION}'
       - 'fio'
 
   # Build and push the orbax-benchmark image.
@@ -154,8 +161,10 @@ steps:
       - 'REGISTRY=${_REGISTRY}'
       - '--build-arg'
       - 'PROJECT=${_PROJECT}'
+      - '--build-arg'
+      - 'IMAGE_VERSION=${_IMAGE_VERSION}'
       - '-t'
-      - '${_REGISTRY}/${_PROJECT}/gcsfuse-benchmarks/orbax-emulated-benchmark:latest'
+      - '${_REGISTRY}/${_PROJECT}/gcsfuse-benchmarks/orbax-emulated-benchmark:${_IMAGE_VERSION}'
       - 'fio'
 
   # Build and push the routing init-container image.
@@ -171,7 +180,7 @@ steps:
       - '--platform'
       - 'linux/amd64,linux/arm64'
       - '-t'
-      - '${_REGISTRY}/${_PROJECT}/gcsfuse-benchmarks/multinic-routing:latest'
+      - '${_REGISTRY}/${_PROJECT}/gcsfuse-benchmarks/multinic-routing:${_IMAGE_VERSION}'
       - 'multinic'
 
 options:
