@@ -217,8 +217,7 @@ def main():
 
         if not success:
             failed_benchmarks.append(full_bench_name)
-            print(f"Skipping further benchmarks because {full_bench_name} failed.")
-            break
+            print(f"Benchmark {full_bench_name} failed, but continuing with others.")
 
     if failed_benchmarks:
         print(f"\n--- Some benchmarks failed: {', '.join(failed_benchmarks)} ---", file=sys.stderr)
