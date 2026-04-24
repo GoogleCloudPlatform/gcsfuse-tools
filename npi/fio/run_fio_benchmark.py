@@ -18,6 +18,7 @@
 import argparse
 import logging
 import os
+import sys
 
 import fio_benchmark_runner
 
@@ -52,6 +53,13 @@ def main():
         parser.error("Either --bucket-name or --mount-path must be provided.")
 
     mount_path = os.path.abspath(args.mount_path) if args.mount_path else None
+
+    if args.project_id and args.bq_dataset_id and args.bq_table_id:
+        if not fio_benchmark_runner._BQ_SUPPORTED:
+            logging.error("BigQuery operations requested, but 'google-cloud-bigquery' is not installed.")
+            sys.exit(1)
+        bq_client = fio_benchmark_runner.bigquery.Client(project=args.project_id)
+        fio_benchmark_runner.truncate_bq_table(bq_client, args.project_id, args.bq_dataset_id, args.bq_table_id)
 
     fio_benchmark_runner.run_benchmark(
         gcsfuse_flags=args.gcsfuse_flags,

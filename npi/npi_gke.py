@@ -16,6 +16,7 @@ import sys
 import time
 import yaml
 import os
+import datetime
 
 def create_job_spec(job_name, image, args, bucket_name, service_account, extra_flag=None):
     """Creates a Kubernetes Job spec dictionary from the template yaml."""
@@ -49,6 +50,60 @@ def create_job_spec(job_name, image, args, bucket_name, service_account, extra_f
     
     return job_spec
 
+def wait_for_job_completion(job_name, timeout_seconds=None):
+    """Waits for a Kubernetes Job to complete or fail."""
+    print(f"Waiting for Job {job_name} to complete...")
+    start_time = time.time()
+    
+    while True:
+        if timeout_seconds is not None and time.time() - start_time > timeout_seconds:
+            print(f"--- Job {job_name} TIMED OUT (Script timeout reached) ---", file=sys.stderr)
+            print("Fetching logs...", file=sys.stderr)
+            subprocess.run(["kubectl", "logs", "-l", f"job-name={job_name}"])
+            return False
+            
+        try:
+            subprocess.run(
+                ["kubectl", "wait", f"job/{job_name}", "--for=condition=complete", "--timeout=10s"],
+                check=True, text=True, capture_output=True
+            )
+            print(f"--- Job {job_name} finished successfully ---")
+            return True
+        except subprocess.CalledProcessError as e:
+            if e.stderr and "not found" in e.stderr.lower():
+                print(f"--- Job {job_name} NOT FOUND ---", file=sys.stderr)
+                return False
+                
+            # Check if the job has failed
+            res_failed = subprocess.run(
+                ["kubectl", "get", f"job/{job_name}", "-o", "jsonpath={.status.conditions[?(@.type=='Failed')].status}"],
+                capture_output=True, text=True
+            )
+            if res_failed.stdout.strip() == "True":
+                print(f"--- Job {job_name} FAILED ---", file=sys.stderr)
+                
+                # Get the failure reason
+                res_reason = subprocess.run(
+                    ["kubectl", "get", f"job/{job_name}", "-o", "jsonpath={.status.conditions[?(@.type=='Failed')].reason}"],
+                    capture_output=True, text=True
+                )
+                reason = res_reason.stdout.strip()
+                
+                res_message = subprocess.run(
+                    ["kubectl", "get", f"job/{job_name}", "-o", "jsonpath={.status.conditions[?(@.type=='Failed')].message}"],
+                    capture_output=True, text=True
+                )
+                message = res_message.stdout.strip()
+                
+                if reason == "DeadlineExceeded":
+                    print(f"Job timed out: {message}", file=sys.stderr)
+                elif reason or message:
+                    print(f"Reason: {reason} - {message}", file=sys.stderr)
+                
+                print("Fetching logs...", file=sys.stderr)
+                subprocess.run(["kubectl", "logs", "-l", f"job-name={job_name}"])
+                return False
+
 def run_benchmark_job(job_name, image, args_list, project_id, dataset_id, table_id, bucket_name, service_account, extra_flag=None):
     """Runs a benchmark job on GKE and waits for its completion."""
     # 1. Cleanup any existing job with the same name
@@ -70,22 +125,7 @@ def run_benchmark_job(job_name, image, args_list, project_id, dataset_id, table_
         return False
 
     # 4. Wait for Job to Complete
-    print(f"Waiting for Job {job_name} to complete...")
-    # Wait until it's either complete or failed
-    try:
-        subprocess.run(
-            ["kubectl", "wait", f"job/{job_name}", "--for=condition=complete", "--timeout=-1s"],
-            check=True, text=True, capture_output=True
-        )
-        print(f"--- Job {job_name} finished successfully ---")
-        return True
-    except subprocess.CalledProcessError as e:
-        # It could have failed or timed out
-        print(f"--- Job {job_name} FAILED or TIMED OUT ---", file=sys.stderr)
-        # Try to get the logs
-        print("Fetching logs...", file=sys.stderr)
-        subprocess.run(["kubectl", "logs", "-l", f"job-name={job_name}"])
-        return False
+    return wait_for_job_completion(job_name)
 
 def main():
     parser = argparse.ArgumentParser(description="GKE benchmark runner for GCSFuse NPI.")
@@ -144,6 +184,9 @@ def main():
             print(f" - {bench_type}_{config_name}")
         return
 
+    start_time = datetime.datetime.now()
+    print(f"--- Entire run started at: {start_time.strftime('%Y-%m-%d %H:%M:%S')} ---")
+
     failed_benchmarks = []
 
     for bench_type, config_name, image_suffix, extra_flag in benchmarks_to_run:
@@ -174,17 +217,17 @@ def main():
 
         if not success:
             failed_benchmarks.append(full_bench_name)
-            print(f"Skipping further benchmarks because {full_bench_name} failed.")
-            break
-
-        # Delete job after successful completion to clean up the cluster
-        subprocess.run(["kubectl", "delete", "job", job_name, "--ignore-not-found=true", "--wait=true"], capture_output=True)
+            print(f"Benchmark {full_bench_name} failed, but continuing with others.")
 
     if failed_benchmarks:
         print(f"\n--- Some benchmarks failed: {', '.join(failed_benchmarks)} ---", file=sys.stderr)
         sys.exit(1)
     else:
         print("\n--- All benchmarks completed successfully! ---")
+
+    end_time = datetime.datetime.now()
+    print(f"--- Entire run ended at: {end_time.strftime('%Y-%m-%d %H:%M:%S')} ---")
+    print(f"--- Total duration: {end_time - start_time} ---")
 
 if __name__ == "__main__":
     main()

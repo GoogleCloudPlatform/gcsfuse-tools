@@ -113,8 +113,7 @@ class TestRunBenchmark(unittest.TestCase):
     def test_run_benchmark_success_memory(self, mock_run):
         success = npi.run_benchmark("test_bench", "echo hello", "memory", "test-project", "test-dataset", "test-table")
         self.assertTrue(success)
-        # We now have two subprocess.run calls (one for bq query, one for the bench)
-        self.assertEqual(mock_run.call_count, 2)
+        self.assertEqual(mock_run.call_count, 1)
 
     @patch('subprocess.run')
     @patch('tempfile.mkdtemp')
@@ -126,16 +125,15 @@ class TestRunBenchmark(unittest.TestCase):
         
         self.assertTrue(success)
         mock_mkdtemp.assert_called_once()
-        self.assertEqual(mock_run.call_count, 2)
-        # Check if <temp_dir_path> was replaced in the second call
-        args, kwargs = mock_run.call_args_list[1]
+        self.assertEqual(mock_run.call_count, 1)
+        # Check if <temp_dir_path> was replaced in the call
+        args, kwargs = mock_run.call_args_list[0]
         self.assertIn("/tmp/fake-dir", args[0])
         mock_rmtree.assert_called_once_with("/tmp/fake-dir")
 
     @patch('subprocess.run')
     def test_run_benchmark_failure(self, mock_run):
-        # First call is bq (we simulate success), second is docker (which fails)
-        mock_run.side_effect = [MagicMock(), subprocess.CalledProcessError(1, "cmd")]
+        mock_run.side_effect = subprocess.CalledProcessError(1, "cmd")
         
         success = npi.run_benchmark("test_bench", "echo hello", "memory", "test-project", "test-dataset", "test-table")
         self.assertFalse(success)

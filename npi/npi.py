@@ -30,6 +30,7 @@ import subprocess
 import sys
 import tempfile
 import shutil
+import datetime
 
 class BenchmarkFactory:
     """A factory for creating benchmark commands.
@@ -279,21 +280,6 @@ def run_benchmark(benchmark_name, command_str, temp_dir_type, project_id, datase
     command = shlex.split(command_str)
     print(f"Command: {' '.join(command)}")
 
-    # Erase existing data in the BQ table
-    if project_id and dataset_id and table_id:
-        print(f"--- Erasing data in BigQuery table: {project_id}.{dataset_id}.{table_id} ---")
-        bq_cmd = [
-            "bq", "query", "--use_legacy_sql=false",
-            f"TRUNCATE TABLE `{project_id}.{dataset_id}.{table_id}`"
-        ]
-        try:
-            # We don't check=True because the table might not exist yet, which is fine.
-            res = subprocess.run(bq_cmd, capture_output=True, text=True)
-            if res.returncode != 0 and "Not found:" not in res.stderr:
-                print(f"Warning: Failed to truncate BQ table. {res.stderr}")
-        except Exception as e:
-            print(f"Warning: Failed to execute bq command: {e}")
-
     try:
         subprocess.run(command, check=True)
         print(f"--- Benchmark {benchmark_name} on localhost finished successfully ---")
@@ -380,6 +366,9 @@ def main():
     print(f"Benchmarks to run: {', '.join(benchmarks_to_run)}")
     print(f"BigQuery Target: {args.project_id}.{args.bq_dataset_id}")
 
+    start_time = datetime.datetime.now()
+    print(f"--- Entire run started at: {start_time.strftime('%Y-%m-%d %H:%M:%S')} ---")
+
     # Run benchmarks sequentially on the local machine.
     failed_benchmarks = []
     for benchmark_name in benchmarks_to_run:
@@ -398,6 +387,10 @@ def main():
     if failed_benchmarks:
         print(f"\n--- Some benchmarks failed: {', '.join(failed_benchmarks)} ---", file=sys.stderr)
         sys.exit(1)
+
+    end_time = datetime.datetime.now()
+    print(f"--- Entire run ended at: {end_time.strftime('%Y-%m-%d %H:%M:%S')} ---")
+    print(f"--- Total duration: {end_time - start_time} ---")
 
 if __name__ == "__main__":
     main()
