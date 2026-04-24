@@ -50,7 +50,7 @@ class BenchmarkFactory:
         mount_path (str): The path to an already mounted GCS bucket.
     """
 
-    def __init__(self, bucket_name, project_id, bq_dataset_id, iterations, temp_dir, mount_path=None):
+    def __init__(self, bucket_name, project_id, bq_dataset_id, iterations, temp_dir, mount_path=None, image_version="latest"):
         """Initializes the BenchmarkFactory.
 
         Args:
@@ -60,6 +60,7 @@ class BenchmarkFactory:
             iterations (int): The number of benchmark iterations.
             temp_dir (str): The temporary directory type.
             mount_path (str): The path to an already mounted GCS bucket.
+            image_version (str): The version of the benchmark Docker images.
         """
         self.bucket_name = bucket_name
         self.project_id = project_id
@@ -67,6 +68,7 @@ class BenchmarkFactory:
         self.iterations = iterations
         self.temp_dir = temp_dir
         self.mount_path = mount_path
+        self.image_version = image_version
         self._benchmark_definitions = self._get_benchmark_definitions()
 
     def get_benchmark_command(self, name):
@@ -143,7 +145,7 @@ class BenchmarkFactory:
         base_cmd = (
             "docker run --pull=always --network=host --privileged --rm "
             f"{volume_mount} "
-            f"us-docker.pkg.dev/{project_id}/gcsfuse-benchmarks/{benchmark_image_suffix}:latest "
+            f"us-docker.pkg.dev/{project_id}/gcsfuse-benchmarks/{benchmark_image_suffix}:{self.image_version} "
             f"--iterations={self.iterations} "
             f"--project-id={project_id} "
             f"--bq-dataset-id={bq_dataset_id} "
@@ -336,6 +338,11 @@ def main():
         default="boot-disk",
         help="The temporary directory type to use for benchmark artifacts. 'memory' uses a tmpfs mount, 'boot-disk' uses the host's disk. Default: boot-disk."
     )
+    parser.add_argument(
+        "--image-version",
+        default="latest",
+        help="The version (tag) of the benchmark Docker images to use. Default: latest."
+    )
 
     args = parser.parse_args()
 
@@ -350,7 +357,8 @@ def main():
         bq_dataset_id=args.bq_dataset_id,
         iterations=args.iterations,
         temp_dir=args.temp_dir,
-        mount_path=mount_path
+        mount_path=mount_path,
+        image_version=args.image_version
     )
 
     available_benchmarks = factory.get_available_benchmarks()

@@ -135,6 +135,7 @@ def main():
     parser.add_argument("--project-id", required=True, help="Project ID for results.")
     parser.add_argument("--bq-dataset-id", required=True, help="BigQuery dataset ID for results.")
     parser.add_argument("--iterations", type=int, default=5, help="Number of FIO test iterations per benchmark. Default: 5.")
+    parser.add_argument("--image-version", default="latest", help="The version (tag) of the benchmark Docker images to use. Default: latest.")
     parser.add_argument("--cluster-name", help="GKE cluster name. If provided with --location, the script will fetch cluster credentials.")
     parser.add_argument("--location", help="GCP location (region or zone) of the GKE cluster.")
     parser.add_argument(
@@ -194,7 +195,7 @@ def main():
         job_name = f"gcsfuse-npi-{full_bench_name}".replace("_", "-")
         bq_table_id = f"fio_{full_bench_name}"
         
-        image = f"us-docker.pkg.dev/{args.project_id}/gcsfuse-benchmarks/{image_suffix}:latest"
+        image = f"us-docker.pkg.dev/{args.project_id}/gcsfuse-benchmarks/{image_suffix}:{args.image_version}"
         cmd_args = [
             f"--iterations={args.iterations}",
             f"--project-id={args.project_id}",
