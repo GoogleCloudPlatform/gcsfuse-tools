@@ -223,8 +223,8 @@ class BenchmarkFactory:
             if cpu_list:
                 numa_name = f"numa{node_id}"
                 # For NUMA nodes, create 4 configs: http1/grpc with and without binding fio
-                configs[f"http1_{numa_name}_fio_notbound"] = {"cpu_list": cpu_list, "bind_fio": False}
-                configs[f"http1_{numa_name}_fio_bound"] = {"cpu_list": cpu_list, "bind_fio": True}
+                configs[f"http1_{numa_name}_fio_notbound"] = {"cpu_list": cpu_list, "bind_fio": False, "--client-protocol=http1"}
+                configs[f"http1_{numa_name}_fio_bound"] = {"cpu_list": cpu_list, "bind_fio": True, "--client-protocol=http1"}
                 configs[f"grpc_{numa_name}_fio_notbound"] = {"cpu_list": cpu_list, "gcsfuse_flags": "--client-protocol=grpc", "bind_fio": False}
                 configs[f"grpc_{numa_name}_fio_bound"] = {"cpu_list": cpu_list, "gcsfuse_flags": "--client-protocol=grpc", "bind_fio": True}
 
