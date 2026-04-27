@@ -213,7 +213,7 @@ class BenchmarkFactory:
 
         # Define test configurations (protocol, cpu pinning, etc.)
         configs = {
-            "http1": {},
+            "http1": {"gcsfuse_flags": "--client-protocol=http1"},
             "grpc": {"gcsfuse_flags": "--client-protocol=grpc"},
         }
 
