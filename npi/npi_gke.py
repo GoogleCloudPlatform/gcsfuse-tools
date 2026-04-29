@@ -165,8 +165,8 @@ def main():
         ("read", "grpc", "fio-read-benchmark", "--client-protocol=grpc", None, None),
         ("write", "http1", "fio-write-benchmark", "", None, None),
         ("write", "grpc", "fio-write-benchmark", "--client-protocol=grpc", None, None),
-        ("read_file_cache", "http1", "fio-read-benchmark", "client-protocol=http1,file-cache:max-size-mb:-1", 10, "--keep-mount"),
-        ("read_file_cache", "grpc", "fio-read-benchmark", "client-protocol=grpc,file-cache:max-size-mb:-1", 10, "--keep-mount"),
+        ("read_file_cache", "http1", "fio-read-benchmark", "client-protocol=http1,file-cache:max-size-mb:800000", 10, "--keep-mount"),
+        ("read_file_cache", "grpc", "fio-read-benchmark", "client-protocol=grpc,file-cache:max-size-mb:800000", 10, "--keep-mount"),
     ]
 
     benchmarks_to_run = []
