@@ -17,6 +17,7 @@ spec:
       containers:
         - name: benchmark
           image: "image-placeholder"
+          imagePullPolicy: Always
           args: ["--mount-path=/data"]
           securityContext:
             privileged: true
