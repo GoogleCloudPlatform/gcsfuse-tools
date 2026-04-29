@@ -50,7 +50,7 @@ class BenchmarkFactory:
         mount_path (str): The path to an already mounted GCS bucket.
     """
 
-    def __init__(self, bucket_name, project_id, bq_dataset_id, iterations, temp_dir, mount_path=None, image_version="latest"):
+    def __init__(self, bucket_name, project_id, bq_dataset_id, iterations, temp_dir, mount_path=None, image_version="latest", file_cache_dir=None):
         """Initializes the BenchmarkFactory.
 
         Args:
@@ -69,6 +69,7 @@ class BenchmarkFactory:
         self.temp_dir = temp_dir
         self.mount_path = mount_path
         self.image_version = image_version
+        self.file_cache_dir = file_cache_dir
         self._benchmark_definitions = self._get_benchmark_definitions()
 
     def get_benchmark_command(self, name):
@@ -217,16 +218,19 @@ class BenchmarkFactory:
         """
         # Define benchmark configurations
         # Each benchmark has an image suffix and an optional BQ table name override.
+        read_file_cache_config = {
+            "image_suffix": "fio-read-benchmark",
+            "docker_args": "", # Removed FIO_ITERATIONS
+            "iterations_override": 10,
+            "runner_args": "--keep-mount"
+        }
+        if self.file_cache_dir:
+            read_file_cache_config["gcsfuse_flags_extra"] = f"--file-cache-max-size-mb=-1 --file-cache-dir={self.file_cache_dir}"
+
         benchmarks = {
             "read": {"image_suffix": "fio-read-benchmark"},
             "write": {"image_suffix": "fio-write-benchmark"},
-            "read_file_cache": {
-                "image_suffix": "fio-read-benchmark",
-                "gcsfuse_flags_extra": "--file-cache-max-size-mb=-1",
-                "docker_args": "", # Removed FIO_ITERATIONS
-                "iterations_override": 10,
-                "runner_args": "--keep-mount"
-            },
+            "read_file_cache": read_file_cache_config,
         }
 
         # Define test configurations (protocol, cpu pinning, etc.)
@@ -376,6 +380,11 @@ def main():
         default="latest",
         help="The version (tag) of the benchmark Docker images to use. Default: latest."
     )
+    parser.add_argument(
+        "--file-cache-dir",
+        default=None,
+        help="The directory to use for the GCSFuse file cache. Required if running file-cache benchmarks."
+    )
 
     args = parser.parse_args()
 
@@ -391,7 +400,8 @@ def main():
         iterations=args.iterations,
         temp_dir=args.temp_dir,
         mount_path=mount_path,
-        image_version=args.image_version
+        image_version=args.image_version,
+        file_cache_dir=args.file_cache_dir
     )
 
     available_benchmarks = factory.get_available_benchmarks()
@@ -402,6 +412,11 @@ def main():
         if b not in available_benchmarks:
             print(f"Error: Benchmark '{b}' not found.", file=sys.stderr)
             sys.exit(1)
+            
+    # Validate file-cache specific requirements
+    has_file_cache_benchmarks = any("read_file_cache" in b for b in benchmarks_to_run)
+    if has_file_cache_benchmarks and not args.file_cache_dir:
+        parser.error("--file-cache-dir is required when running file-cache benchmarks.")
 
     print(f"Starting benchmark orchestration...")
     print(f"Benchmarks to run: {', '.join(benchmarks_to_run)}")
