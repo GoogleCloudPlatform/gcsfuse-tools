@@ -161,10 +161,12 @@ def main():
         parser.error("Both --cluster-name and --location must be provided together to fetch cluster credentials.")
 
     all_benchmarks = [
-        ("read", "http1", "fio-read-benchmark", ""),
-        ("read", "grpc", "fio-read-benchmark", "--client-protocol=grpc"),
-        ("write", "http1", "fio-write-benchmark", ""),
-        ("write", "grpc", "fio-write-benchmark", "--client-protocol=grpc"),
+        ("read", "http1", "fio-read-benchmark", "", None, None),
+        ("read", "grpc", "fio-read-benchmark", "--client-protocol=grpc", None, None),
+        ("write", "http1", "fio-write-benchmark", "", None, None),
+        ("write", "grpc", "fio-write-benchmark", "--client-protocol=grpc", None, None),
+        ("read_file_cache", "http1", "fio-read-benchmark", "file-cache-max-size-mb=-1", 10, "--keep-mount"),
+        ("read_file_cache", "grpc", "fio-read-benchmark", "client-protocol=grpc,file-cache-max-size-mb=-1", 10, "--keep-mount"),
     ]
 
     benchmarks_to_run = []
@@ -181,7 +183,7 @@ def main():
 
     if args.dry_run:
         print("--- [DRY RUN] Benchmarks to be executed ---")
-        for bench_type, config_name, _, _ in benchmarks_to_run:
+        for bench_type, config_name, _, _, _, _ in benchmarks_to_run:
             print(f" - {bench_type}_{config_name}")
         return
 
@@ -190,19 +192,22 @@ def main():
 
     failed_benchmarks = []
 
-    for bench_type, config_name, image_suffix, extra_flag in benchmarks_to_run:
+    for bench_type, config_name, image_suffix, extra_flag, iter_override, runner_args in benchmarks_to_run:
         full_bench_name = f"{bench_type}_{config_name}"
         job_name = f"gcsfuse-npi-{full_bench_name}".replace("_", "-")
         bq_table_id = f"fio_{full_bench_name}"
         
+        target_iterations = iter_override if iter_override is not None else args.iterations
         image = f"us-docker.pkg.dev/{args.project_id}/gcsfuse-benchmarks/{image_suffix}:{args.image_version}"
         cmd_args = [
-            f"--iterations={args.iterations}",
+            f"--iterations={target_iterations}",
             f"--project-id={args.project_id}",
             f"--bq-dataset-id={args.bq_dataset_id}",
             f"--bq-table-id={bq_table_id}",
             "--mount-path=/data"
         ]
+        if runner_args:
+            cmd_args.append(runner_args)
 
         success = run_benchmark_job(
             job_name=job_name,
