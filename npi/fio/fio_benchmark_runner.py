@@ -278,7 +278,8 @@ def upload_results_to_bq(
 
 def run_benchmark(
     gcsfuse_flags, bucket_name, iterations, fio_config, work_dir, output_dir, project_id, 
-    fio_env=None, summary_file=None, cpu_limit_list=None, bind_fio=False, bq_dataset_id=None, bq_table_id=None, mount_path=None
+    fio_env=None, summary_file=None, cpu_limit_list=None, bind_fio=False, bq_dataset_id=None, bq_table_id=None, mount_path=None,
+    keep_mount=False
 ):
     """Runs the full FIO benchmark suite."""
     os.makedirs(work_dir, exist_ok=True)
@@ -312,41 +313,59 @@ def run_benchmark(
 
     all_results = []
 
-    for i in range(1, iterations + 1):
-        logging.info(f"--- Starting Iteration {i}/{iterations} ---")
-        output_filename = os.path.join(output_dir,
-                                       f"fio_results_iter_{i}.json")
-        if os.path.exists(output_filename):
-            os.remove(output_filename)
-        try:
-            logging.info("Clearing page cache...")
-            run_command(["sh", "-c", "echo 3 > /proc/sys/vm/drop_caches"])
+    # Keep track of local mount state
+    is_mounted_locally = False
 
-            if not mount_path:
-                mount_gcsfuse(gcsfuse_bin, gcsfuse_flags, bucket_name, mount_point, cpu_limit_list=cpu_limit_list)
+    try:
+        # If keep_mount is True, mount GCSFuse once before the iterations loop.
+        # This allows the GCSFuse file-cache to persist across iterations.
+        if keep_mount and not mount_path:
+            mount_gcsfuse(gcsfuse_bin, gcsfuse_flags, bucket_name, mount_point, cpu_limit_list=cpu_limit_list)
+            is_mounted_locally = True
 
-            fio_cpu_list = cpu_limit_list if bind_fio else None
+        for i in range(1, iterations + 1):
+            logging.info(f"--- Starting Iteration {i}/{iterations} ---")
+            output_filename = os.path.join(output_dir,
+                                           f"fio_results_iter_{i}.json")
+            if os.path.exists(output_filename):
+                os.remove(output_filename)
+            try:
+                logging.info("Clearing page cache...")
+                run_command(["sh", "-c", "echo 3 > /proc/sys/vm/drop_caches"])
 
-            run_fio_test(fio_config, mount_point, i, output_dir,
-                         fio_env=fio_run_env, cpu_limit_list=fio_cpu_list)
+                if not mount_path and not keep_mount:
+                    mount_gcsfuse(gcsfuse_bin, gcsfuse_flags, bucket_name, mount_point, cpu_limit_list=cpu_limit_list)
+                    is_mounted_locally = True
 
-            iteration_results = parse_fio_output(output_filename)
-            all_results.append(iteration_results)
+                fio_cpu_list = cpu_limit_list if bind_fio else None
 
-            if bq_client:
-                upload_results_to_bq(
-                    client=bq_client,
-                    project_id=project_id,
-                    dataset_id=bq_dataset_id,
-                    table_id=bq_table_id,
-                    fio_json_path=output_filename,
-                    iteration=i,
-                    gcsfuse_flags=gcsfuse_flags,
-                    fio_env=fio_run_env,
-                    cpu_limit_list=cpu_limit_list)
-        finally:
-            if not mount_path and os.path.ismount(mount_point):
-                unmount_gcsfuse(mount_point)
-        logging.info(f"--- Finished Iteration {i}/{iterations} ---")
+                run_fio_test(fio_config, mount_point, i, output_dir,
+                             fio_env=fio_run_env, cpu_limit_list=fio_cpu_list)
+
+                iteration_results = parse_fio_output(output_filename)
+                all_results.append(iteration_results)
+
+                if bq_client:
+                    upload_results_to_bq(
+                        client=bq_client,
+                        project_id=project_id,
+                        dataset_id=bq_dataset_id,
+                        table_id=bq_table_id,
+                        fio_json_path=output_filename,
+                        iteration=i,
+                        gcsfuse_flags=gcsfuse_flags,
+                        fio_env=fio_run_env,
+                        cpu_limit_list=cpu_limit_list)
+            finally:
+                if not mount_path and not keep_mount and is_mounted_locally:
+                    unmount_gcsfuse(mount_point)
+                    is_mounted_locally = False
+            logging.info(f"--- Finished Iteration {i}/{iterations} ---")
+
+    finally:
+        # Ensure unmount at the very end if keep_mount was used
+        if not mount_path and keep_mount and is_mounted_locally:
+            unmount_gcsfuse(mount_point)
+            is_mounted_locally = False
 
     print_summary(all_results, summary_file=summary_file)

@@ -104,7 +104,8 @@ class BenchmarkFactory:
 
     def _create_docker_command(self, benchmark_image_suffix, bq_table_id,
                                bucket_name, project_id, bq_dataset_id,
-                               gcsfuse_flags=None, cpu_list=None, bind_fio=None, mount_path=None):
+                               gcsfuse_flags=None, cpu_list=None, bind_fio=None, mount_path=None,
+                               docker_args=None, iterations_override=None, runner_args=None):
         """Helper to construct the full docker run command.
 
         This method assembles the final `docker run` command string with all
@@ -145,12 +146,22 @@ class BenchmarkFactory:
         base_cmd = (
             "docker run --pull=always --network=host --privileged --rm "
             f"{volume_mount} "
+        )
+        if docker_args:
+            base_cmd += f"{docker_args} "
+
+        target_iterations = iterations_override if iterations_override is not None else self.iterations
+
+        base_cmd += (
             f"us-docker.pkg.dev/{project_id}/gcsfuse-benchmarks/{benchmark_image_suffix}:{self.image_version} "
-            f"--iterations={self.iterations} "
+            f"--iterations={target_iterations} "
             f"--project-id={project_id} "
             f"--bq-dataset-id={bq_dataset_id} "
             f"--bq-table-id={bq_table_id}"
         )
+        
+        if runner_args:
+            base_cmd += f" {runner_args}"
         if bucket_name:
             base_cmd += f" --bucket-name={bucket_name}"
         if mount_path:
@@ -209,6 +220,13 @@ class BenchmarkFactory:
         benchmarks = {
             "read": {"image_suffix": "fio-read-benchmark"},
             "write": {"image_suffix": "fio-write-benchmark"},
+            "read_file_cache": {
+                "image_suffix": "fio-read-benchmark",
+                "gcsfuse_flags_extra": "--file-cache-max-size-mb=-1",
+                "docker_args": "", # Removed FIO_ITERATIONS
+                "iterations_override": 10,
+                "runner_args": "--keep-mount"
+            },
         }
 
         # Define test configurations (protocol, cpu pinning, etc.)
@@ -242,12 +260,27 @@ class BenchmarkFactory:
                 else:
                     bq_table_id = f"fio_{full_bench_name}"
 
+                combined_gcsfuse_flags = config_params.get("gcsfuse_flags", "")
+                if "gcsfuse_flags_extra" in bench_config:
+                    combined_gcsfuse_flags = f"{combined_gcsfuse_flags} {bench_config['gcsfuse_flags_extra']}".strip()
+                
+                cpu_list = config_params.get("cpu_list")
+                bind_fio = config_params.get("bind_fio")
+                docker_args = bench_config.get("docker_args")
+                iterations_override = bench_config.get("iterations_override")
+                runner_args = bench_config.get("runner_args")
+
                 # Use functools.partial to create a command function with pre-filled arguments
                 definitions[full_bench_name] = functools.partial(
                     self._create_docker_command,
                     benchmark_image_suffix=bench_config["image_suffix"],
                     bq_table_id=bq_table_id,
-                    **config_params
+                    gcsfuse_flags=combined_gcsfuse_flags if combined_gcsfuse_flags else None,
+                    cpu_list=cpu_list,
+                    bind_fio=bind_fio,
+                    docker_args=docker_args,
+                    iterations_override=iterations_override,
+                    runner_args=runner_args
                 )
         return definitions
 
