@@ -418,6 +418,7 @@ def main():
             benchmarks_to_run = available_benchmarks
         else:
             # Exclude file cache tests from 'all' when the flag is not passed.
+            print("Warning: File-cache tests are not being run because --file-cache-dir was not provided.", file=sys.stderr)
             benchmarks_to_run = [b for b in available_benchmarks if "file_cache" not in b]
     else:
         # Validate benchmark names
