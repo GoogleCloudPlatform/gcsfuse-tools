@@ -50,7 +50,7 @@ class BenchmarkFactory:
         mount_path (str): The path to an already mounted GCS bucket.
     """
 
-    def __init__(self, bucket_name, project_id, bq_dataset_id, iterations, temp_dir, mount_path=None, image_version="latest", file_cache_dir=None):
+    def __init__(self, bucket_name, project_id, bq_dataset_id, iterations, temp_dir, mount_path=None, image_version="latest", file_cache_dir=None, file_cache_size_mb=2097152):
         """Initializes the BenchmarkFactory.
 
         Args:
@@ -70,6 +70,7 @@ class BenchmarkFactory:
         self.mount_path = mount_path
         self.image_version = image_version
         self.file_cache_dir = file_cache_dir
+        self.file_cache_size_mb = file_cache_size_mb
         self._benchmark_definitions = self._get_benchmark_definitions()
 
     def get_benchmark_command(self, name):
@@ -225,7 +226,7 @@ class BenchmarkFactory:
             "runner_args": "--keep-mount"
         }
         if self.file_cache_dir:
-            read_file_cache_config["gcsfuse_flags_extra"] = f"--file-cache-max-size-mb=-1 --file-cache-dir={self.file_cache_dir}"
+            read_file_cache_config["gcsfuse_flags_extra"] = f"--file-cache-max-size-mb={self.file_cache_size_mb} --file-cache-dir={self.file_cache_dir}"
 
         benchmarks = {
             "read": {"image_suffix": "fio-read-benchmark"},
@@ -385,6 +386,12 @@ def main():
         default=None,
         help="The directory to use for the GCSFuse file cache. Required if running file-cache benchmarks."
     )
+    parser.add_argument(
+        "--file-cache-size-mb",
+        type=int,
+        default=2097152,
+        help="The size of the file cache in MB. Default: 2097152."
+    )
 
     args = parser.parse_args()
 
@@ -401,17 +408,24 @@ def main():
         temp_dir=args.temp_dir,
         mount_path=mount_path,
         image_version=args.image_version,
-        file_cache_dir=args.file_cache_dir
+        file_cache_dir=args.file_cache_dir,
+        file_cache_size_mb=args.file_cache_size_mb
     )
 
     available_benchmarks = factory.get_available_benchmarks()
-    benchmarks_to_run = available_benchmarks if "all" in args.benchmarks else args.benchmarks
-
-    # Validate benchmark names
-    for b in benchmarks_to_run:
-        if b not in available_benchmarks:
-            print(f"Error: Benchmark '{b}' not found.", file=sys.stderr)
-            sys.exit(1)
+    if "all" in args.benchmarks:
+        if args.file_cache_dir:
+            benchmarks_to_run = available_benchmarks
+        else:
+            # Exclude file cache tests from 'all' when the flag is not passed.
+            benchmarks_to_run = [b for b in available_benchmarks if "file_cache" not in b]
+    else:
+        # Validate benchmark names
+        for b in args.benchmarks:
+            if b not in available_benchmarks:
+                print(f"Error: Benchmark '{b}' not found.", file=sys.stderr)
+                sys.exit(1)
+        benchmarks_to_run = args.benchmarks
             
     # Validate file-cache specific requirements
     has_file_cache_benchmarks = any("read_file_cache" in b for b in benchmarks_to_run)
