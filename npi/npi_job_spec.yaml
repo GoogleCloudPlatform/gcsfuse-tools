@@ -16,6 +16,7 @@ spec:
       restartPolicy: Never
       containers:
         - name: benchmark
+          imagePullPolicy: Always
           image: "image-placeholder"
           args: ["--mount-path=/data"]
           securityContext:
