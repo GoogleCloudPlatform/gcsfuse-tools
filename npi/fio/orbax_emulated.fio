@@ -1,4 +1,5 @@
 [global]
+exitall=1
 allrandrepeat=0
 create_serialize=0
 direct=1
