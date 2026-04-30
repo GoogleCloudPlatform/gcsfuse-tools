@@ -50,7 +50,7 @@ class BenchmarkFactory:
         mount_path (str): The path to an already mounted GCS bucket.
     """
 
-    def __init__(self, bucket_name, project_id, bq_dataset_id, iterations, temp_dir, mount_path=None, image_version="latest"):
+    def __init__(self, bucket_name, project_id, bq_dataset_id, iterations, temp_dir, mount_path=None, image_version="latest", file_cache_dir=None, file_cache_size_mb=2097152):
         """Initializes the BenchmarkFactory.
 
         Args:
@@ -69,6 +69,8 @@ class BenchmarkFactory:
         self.temp_dir = temp_dir
         self.mount_path = mount_path
         self.image_version = image_version
+        self.file_cache_dir = file_cache_dir
+        self.file_cache_size_mb = file_cache_size_mb
         self._benchmark_definitions = self._get_benchmark_definitions()
 
     def get_benchmark_command(self, name):
@@ -104,7 +106,8 @@ class BenchmarkFactory:
 
     def _create_docker_command(self, benchmark_image_suffix, bq_table_id,
                                bucket_name, project_id, bq_dataset_id,
-                               gcsfuse_flags=None, cpu_list=None, bind_fio=None, mount_path=None):
+                               gcsfuse_flags=None, cpu_list=None, bind_fio=None, mount_path=None,
+                               docker_args=None, iterations_override=None, runner_args=None):
         """Helper to construct the full docker run command.
 
         This method assembles the final `docker run` command string with all
@@ -145,12 +148,22 @@ class BenchmarkFactory:
         base_cmd = (
             "docker run --pull=always --network=host --privileged --rm "
             f"{volume_mount} "
+        )
+        if docker_args:
+            base_cmd += f"{docker_args} "
+
+        target_iterations = iterations_override if iterations_override is not None else self.iterations
+
+        base_cmd += (
             f"us-docker.pkg.dev/{project_id}/gcsfuse-benchmarks/{benchmark_image_suffix}:{self.image_version} "
-            f"--iterations={self.iterations} "
+            f"--iterations={target_iterations} "
             f"--project-id={project_id} "
             f"--bq-dataset-id={bq_dataset_id} "
             f"--bq-table-id={bq_table_id}"
         )
+        
+        if runner_args:
+            base_cmd += f" {runner_args}"
         if bucket_name:
             base_cmd += f" --bucket-name={bucket_name}"
         if mount_path:
@@ -206,9 +219,19 @@ class BenchmarkFactory:
         """
         # Define benchmark configurations
         # Each benchmark has an image suffix and an optional BQ table name override.
+        read_file_cache_config = {
+            "image_suffix": "fio-read-benchmark",
+            "docker_args": "", # Removed FIO_ITERATIONS
+            "iterations_override": 10,
+            "runner_args": "--keep-mount"
+        }
+        if self.file_cache_dir:
+            read_file_cache_config["gcsfuse_flags_extra"] = f"--file-cache-max-size-mb={self.file_cache_size_mb} --file-cache-dir={self.file_cache_dir}"
+
         benchmarks = {
             "read": {"image_suffix": "fio-read-benchmark"},
             "write": {"image_suffix": "fio-write-benchmark"},
+            "read_file_cache": read_file_cache_config,
         }
 
         # Define test configurations (protocol, cpu pinning, etc.)
@@ -242,12 +265,27 @@ class BenchmarkFactory:
                 else:
                     bq_table_id = f"fio_{full_bench_name}"
 
+                combined_gcsfuse_flags = config_params.get("gcsfuse_flags", "")
+                if "gcsfuse_flags_extra" in bench_config:
+                    combined_gcsfuse_flags = f"{combined_gcsfuse_flags} {bench_config['gcsfuse_flags_extra']}".strip()
+                
+                cpu_list = config_params.get("cpu_list")
+                bind_fio = config_params.get("bind_fio")
+                docker_args = bench_config.get("docker_args")
+                iterations_override = bench_config.get("iterations_override")
+                runner_args = bench_config.get("runner_args")
+
                 # Use functools.partial to create a command function with pre-filled arguments
                 definitions[full_bench_name] = functools.partial(
                     self._create_docker_command,
                     benchmark_image_suffix=bench_config["image_suffix"],
                     bq_table_id=bq_table_id,
-                    **config_params
+                    gcsfuse_flags=combined_gcsfuse_flags if combined_gcsfuse_flags else None,
+                    cpu_list=cpu_list,
+                    bind_fio=bind_fio,
+                    docker_args=docker_args,
+                    iterations_override=iterations_override,
+                    runner_args=runner_args
                 )
         return definitions
 
@@ -343,6 +381,17 @@ def main():
         default="latest",
         help="The version (tag) of the benchmark Docker images to use. Default: latest."
     )
+    parser.add_argument(
+        "--file-cache-dir",
+        default=None,
+        help="The directory to use for the GCSFuse file cache. Required if running file-cache benchmarks."
+    )
+    parser.add_argument(
+        "--file-cache-size-mb",
+        type=int,
+        default=2097152,
+        help="The size of the file cache in MB. Default: 2097152."
+    )
 
     args = parser.parse_args()
 
@@ -358,17 +407,31 @@ def main():
         iterations=args.iterations,
         temp_dir=args.temp_dir,
         mount_path=mount_path,
-        image_version=args.image_version
+        image_version=args.image_version,
+        file_cache_dir=args.file_cache_dir,
+        file_cache_size_mb=args.file_cache_size_mb
     )
 
     available_benchmarks = factory.get_available_benchmarks()
-    benchmarks_to_run = available_benchmarks if "all" in args.benchmarks else args.benchmarks
-
-    # Validate benchmark names
-    for b in benchmarks_to_run:
-        if b not in available_benchmarks:
-            print(f"Error: Benchmark '{b}' not found.", file=sys.stderr)
-            sys.exit(1)
+    if "all" in args.benchmarks:
+        if args.file_cache_dir:
+            benchmarks_to_run = available_benchmarks
+        else:
+            # Exclude file cache tests from 'all' when the flag is not passed.
+            print("Warning: File-cache tests are not being run because --file-cache-dir was not provided.", file=sys.stderr)
+            benchmarks_to_run = [b for b in available_benchmarks if "file_cache" not in b]
+    else:
+        # Validate benchmark names
+        for b in args.benchmarks:
+            if b not in available_benchmarks:
+                print(f"Error: Benchmark '{b}' not found.", file=sys.stderr)
+                sys.exit(1)
+        benchmarks_to_run = args.benchmarks
+            
+    # Validate file-cache specific requirements
+    has_file_cache_benchmarks = any("read_file_cache" in b for b in benchmarks_to_run)
+    if has_file_cache_benchmarks and not args.file_cache_dir:
+        parser.error("--file-cache-dir is required when running file-cache benchmarks.")
 
     print(f"Starting benchmark orchestration...")
     print(f"Benchmarks to run: {', '.join(benchmarks_to_run)}")
