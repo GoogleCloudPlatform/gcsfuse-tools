@@ -1,4 +1,5 @@
 [global]
+exitall_on_terminate=1
 allrandrepeat=1
 # By default fio creates all files first and then starts writing to them. This option is to disable that behavior. 
 create_on_open=1
