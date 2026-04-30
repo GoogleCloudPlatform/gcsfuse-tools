@@ -144,6 +144,17 @@ def main():
         default=["all"],
         help="Space-separated list of benchmarks to run (e.g., read_http1 write_grpc). Use 'all' to run all 4."
     )
+    parser.add_argument(
+        "--run-file-cache-test",
+        action="store_true",
+        help="Run the file-cache benchmark in GKE. If not specified, file-cache tests are excluded."
+    )
+    parser.add_argument(
+        "--file-cache-size-mb",
+        type=int,
+        default=2097152,
+        help="The size of the file cache in MB. Default: 2097152."
+    )
     
     args = parser.parse_args()
 
@@ -165,13 +176,23 @@ def main():
         ("read", "grpc", "fio-read-benchmark", "--client-protocol=grpc", None, None),
         ("write", "http1", "fio-write-benchmark", "", None, None),
         ("write", "grpc", "fio-write-benchmark", "--client-protocol=grpc", None, None),
-        ("read_file_cache", "http1", "fio-read-benchmark", "client-protocol=http1,file-cache:max-size-mb:800000", 10, "--keep-mount"),
-        ("read_file_cache", "grpc", "fio-read-benchmark", "client-protocol=grpc,file-cache:max-size-mb:800000", 10, "--keep-mount"),
+        ("read_file_cache", "http1", "fio-read-benchmark", f"client-protocol=http1,file-cache:max-size-mb:{args.file_cache_size_mb}", 10, "--keep-mount"),
+        ("read_file_cache", "grpc", "fio-read-benchmark", f"client-protocol=grpc,file-cache:max-size-mb:{args.file_cache_size_mb}", 10, "--keep-mount"),
     ]
+
+    # If not explicitly told to run file cache benchmarks, validate and filter them out.
+    if not args.run_file_cache_test:
+        for b in args.benchmarks:
+            if "file_cache" in b:
+                parser.error(f"Benchmark '{b}' requires --run-file-cache-test flag.")
 
     benchmarks_to_run = []
     if "all" in args.benchmarks:
-        benchmarks_to_run = all_benchmarks
+        if args.run_file_cache_test:
+            benchmarks_to_run = all_benchmarks
+        else:
+            # Exclude file cache tests from 'all' when the flag is not passed.
+            benchmarks_to_run = [b for b in all_benchmarks if "file_cache" not in b[0]]
     else:
         available_names = {f"{b[0]}_{b[1]}" for b in all_benchmarks}
         for b in args.benchmarks:
