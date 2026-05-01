@@ -176,8 +176,8 @@ def main():
         ("read", "grpc", "fio-read-benchmark", "--client-protocol=grpc", None, None),
         ("write", "http1", "fio-write-benchmark", "", None, None),
         ("write", "grpc", "fio-write-benchmark", "--client-protocol=grpc", None, None),
-        ("read_file_cache", "http1", "fio-read-benchmark", f"client-protocol=http1,file-cache:max-size-mb:{args.file_cache_size_mb}", 10, "--keep-mount"),
-        ("read_file_cache", "grpc", "fio-read-benchmark", f"client-protocol=grpc,file-cache:max-size-mb:{args.file_cache_size_mb}", 10, "--keep-mount"),
+        ("read_file_cache", "http1", "fio-read-benchmark", f"client-protocol=http1,file-cache:max-size-mb:{args.file_cache_size_mb},file-cache-cache-file-for-range-read", 5, "--keep-mount"),
+        ("read_file_cache", "grpc", "fio-read-benchmark", f"client-protocol=grpc,file-cache:max-size-mb:{args.file_cache_size_mb},file-cache-cache-file-for-range-read", 5, "--keep-mount"),
     ]
 
     # If not explicitly told to run file cache benchmarks, validate and filter them out.
