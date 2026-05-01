@@ -108,7 +108,19 @@ def main():
       default=None,
       help="BigQuery table ID.",
   )
+  parser.add_argument(
+      "--row-index",
+      type=int,
+      default=None,
+      help="Index of the specific row in the matrix CSV to run.",
+  )
+  parser.add_argument(
+      "--no-truncate",
+      action="store_true",
+      help="Do not truncate the BigQuery table before running.",
+  )
   args = parser.parse_args()
+
 
   if not args.bucket_name and not args.mount_path:
     parser.error("Either --bucket-name or --mount-path must be provided.")
@@ -130,7 +142,7 @@ def main():
       "Found %d configurations to run from %s", len(configs), args.matrix_config
   )
 
-  if args.project_id and args.bq_dataset_id and args.bq_table_id:
+  if args.project_id and args.bq_dataset_id and args.bq_table_id and not args.no_truncate:
     if not fio_benchmark_runner._BQ_SUPPORTED:
       logging.error("BigQuery operations requested, but 'google-cloud-bigquery' is not installed.")
       sys.exit(1)
@@ -138,6 +150,9 @@ def main():
     fio_benchmark_runner.truncate_bq_table(bq_client, args.project_id, args.bq_dataset_id, args.bq_table_id)
 
   for i, config in enumerate(configs):
+    if args.row_index is not None and i != args.row_index:
+      continue
+
     # Create a string representation of the configuration for logging.
     config_str = ", ".join([f"{k}={v}" for k, v in sorted(config.items())])
 

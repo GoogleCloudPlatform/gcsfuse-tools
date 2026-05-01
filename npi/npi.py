@@ -31,6 +31,7 @@ import sys
 import tempfile
 import shutil
 import datetime
+import csv
 
 class BenchmarkFactory:
     """A factory for creating benchmark commands.
@@ -103,6 +104,20 @@ class BenchmarkFactory:
             list[str]: A list of all defined benchmark names.
         """
         return list(self._benchmark_definitions.keys())
+
+    def get_benchmark_csv(self, name):
+        """Returns the relative CSV file path for a given benchmark name.
+
+        Args:
+            name (str): The name of the benchmark.
+
+        Returns:
+            str: The relative path to the CSV file.
+        """
+        if name not in self._csv_mappings:
+            raise ValueError(f"Benchmark '{name}' not defined.")
+        return self._csv_mappings[name]
+
 
     def _create_docker_command(self, benchmark_image_suffix, bq_table_id,
                                bucket_name, project_id, bq_dataset_id,
@@ -229,9 +244,9 @@ class BenchmarkFactory:
             read_file_cache_config["gcsfuse_flags_extra"] = f"--file-cache-max-size-mb={self.file_cache_size_mb} --file-cache-dir={self.file_cache_dir}"
 
         benchmarks = {
-            "read": {"image_suffix": "fio-read-benchmark"},
-            "write": {"image_suffix": "fio-write-benchmark"},
-            "read_file_cache": read_file_cache_config,
+            "read": {"image_suffix": "fio-read-benchmark", "csv_file": "fio/read_matrix.csv"},
+            "write": {"image_suffix": "fio-write-benchmark", "csv_file": "fio/write_matrix.csv"},
+            "read_file_cache": {**read_file_cache_config, "csv_file": "fio/read_matrix.csv"},
         }
 
         # Define test configurations (protocol, cpu pinning, etc.)
@@ -251,14 +266,13 @@ class BenchmarkFactory:
                 configs[f"grpc_{numa_name}_fio_notbound"] = {"cpu_list": cpu_list, "gcsfuse_flags": "--client-protocol=grpc", "bind_fio": False}
                 configs[f"grpc_{numa_name}_fio_bound"] = {"cpu_list": cpu_list, "gcsfuse_flags": "--client-protocol=grpc", "bind_fio": True}
 
-
-
-
+        self._csv_mappings = {}
         definitions = {}
         for bench_name, bench_config in benchmarks.items():
             for config_name, config_params in configs.items():
                 # Construct the full benchmark name and BQ table ID
                 full_bench_name = f"{bench_name}_{config_name}"
+                self._csv_mappings[full_bench_name] = bench_config.get("csv_file", "fio/read_matrix.csv")
 
                 if "bq_table_id_override" in bench_config:
                     bq_table_id = bench_config["bq_table_id_override"].format(config_name=config_name)
@@ -445,15 +459,32 @@ def main():
     for benchmark_name in benchmarks_to_run:
         # For boot-disk, we pass a placeholder that will be replaced in run_benchmark
         command_str, bq_table_id = factory.get_benchmark_command(benchmark_name)
+        csv_file = factory.get_benchmark_csv(benchmark_name)
 
-        if args.dry_run:
-            print(f"--- [DRY RUN] Benchmark: {benchmark_name} ---")
-            print(f"Table: {bq_table_id}")
-            print(f"Command: {command_str}\n")
-        else:
-            success = run_benchmark(benchmark_name, command_str, args.temp_dir, args.project_id, args.bq_dataset_id, bq_table_id)
-            if not success:
-                failed_benchmarks.append(benchmark_name)
+        script_dir = os.path.dirname(os.path.realpath(__file__))
+        csv_path = os.path.join(script_dir, csv_file)
+        try:
+            with open(csv_path, "r", newline="") as f:
+                reader = csv.DictReader(f)
+                configs = list(reader)
+        except Exception as e:
+            print(f"Error reading matrix config file {csv_path}: {e}", file=sys.stderr)
+            failed_benchmarks.append(benchmark_name)
+            continue
+
+        for row_idx in range(len(configs)):
+            row_cmd = f"{command_str} --row-index={row_idx}"
+            if row_idx > 0:
+                row_cmd += " --no-truncate"
+
+            if args.dry_run:
+                print(f"--- [DRY RUN] Benchmark: {benchmark_name} row {row_idx} ---")
+                print(f"Table: {bq_table_id}")
+                print(f"Command: {row_cmd}\n")
+            else:
+                success = run_benchmark(f"{benchmark_name}_row_{row_idx}", row_cmd, args.temp_dir, args.project_id, args.bq_dataset_id, bq_table_id)
+                if not success:
+                    failed_benchmarks.append(f"{benchmark_name}_row_{row_idx}")
 
     if failed_benchmarks:
         print(f"\n--- Some benchmarks failed: {', '.join(failed_benchmarks)} ---", file=sys.stderr)

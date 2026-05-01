@@ -17,6 +17,7 @@ import time
 import yaml
 import os
 import datetime
+import csv
 
 def create_job_spec(job_name, image, args, bucket_name, service_account, extra_flag=None):
     """Creates a Kubernetes Job spec dictionary from the template yaml."""
@@ -172,12 +173,12 @@ def main():
         parser.error("Both --cluster-name and --location must be provided together to fetch cluster credentials.")
 
     all_benchmarks = [
-        ("read", "http1", "fio-read-benchmark", "", None, None),
-        ("read", "grpc", "fio-read-benchmark", "--client-protocol=grpc", None, None),
-        ("write", "http1", "fio-write-benchmark", "", None, None),
-        ("write", "grpc", "fio-write-benchmark", "--client-protocol=grpc", None, None),
-        ("read_file_cache", "http1", "fio-read-benchmark", f"client-protocol=http1,file-cache:max-size-mb:{args.file_cache_size_mb},file-cache-cache-file-for-range-read", 5, "--keep-mount"),
-        ("read_file_cache", "grpc", "fio-read-benchmark", f"client-protocol=grpc,file-cache:max-size-mb:{args.file_cache_size_mb},file-cache-cache-file-for-range-read", 5, "--keep-mount"),
+        ("read", "http1", "fio-read-benchmark", "", None, None, "fio/read_matrix.csv"),
+        ("read", "grpc", "fio-read-benchmark", "--client-protocol=grpc", None, None, "fio/read_matrix.csv"),
+        ("write", "http1", "fio-write-benchmark", "", None, None, "fio/write_matrix.csv"),
+        ("write", "grpc", "fio-write-benchmark", "--client-protocol=grpc", None, None, "fio/write_matrix.csv"),
+        ("read_file_cache", "http1", "fio-read-benchmark", f"client-protocol=http1,file-cache:max-size-mb:{args.file_cache_size_mb},file-cache-cache-file-for-range-read", 5, "--keep-mount", "fio/read_matrix.csv"),
+        ("read_file_cache", "grpc", "fio-read-benchmark", f"client-protocol=grpc,file-cache:max-size-mb:{args.file_cache_size_mb},file-cache-cache-file-for-range-read", 5, "--keep-mount", "fio/read_matrix.csv"),
     ]
 
     # If not explicitly told to run file cache benchmarks, validate and filter them out.
@@ -205,8 +206,8 @@ def main():
 
     if args.dry_run:
         print("--- [DRY RUN] Benchmarks to be executed ---")
-        for bench_type, config_name, _, _, _, _ in benchmarks_to_run:
-            print(f" - {bench_type}_{config_name}")
+        for b in benchmarks_to_run:
+            print(f" - {b[0]}_{b[1]}")
         return
 
     start_time = datetime.datetime.now()
@@ -214,38 +215,56 @@ def main():
 
     failed_benchmarks = []
 
-    for bench_type, config_name, image_suffix, extra_flag, iter_override, runner_args in benchmarks_to_run:
+    for b in benchmarks_to_run:
+        bench_type, config_name, image_suffix, extra_flag, iter_override, runner_args, csv_file = b
         full_bench_name = f"{bench_type}_{config_name}"
-        job_name = f"gcsfuse-npi-{full_bench_name}".replace("_", "-")
-        bq_table_id = f"fio_{full_bench_name}"
-        
-        target_iterations = iter_override if iter_override is not None else args.iterations
-        image = f"us-docker.pkg.dev/{args.project_id}/gcsfuse-benchmarks/{image_suffix}:{args.image_version}"
-        cmd_args = [
-            f"--iterations={target_iterations}",
-            f"--project-id={args.project_id}",
-            f"--bq-dataset-id={args.bq_dataset_id}",
-            f"--bq-table-id={bq_table_id}",
-            "--mount-path=/data"
-        ]
-        if runner_args:
-            cmd_args.append(runner_args)
 
-        success = run_benchmark_job(
-            job_name=job_name,
-            image=image,
-            args_list=cmd_args,
-            project_id=args.project_id,
-            dataset_id=args.bq_dataset_id,
-            table_id=bq_table_id,
-            bucket_name=args.bucket_name,
-            service_account=args.kubernetes_service_account,
-            extra_flag=extra_flag
-        )
-
-        if not success:
+        # Load the local CSV to find the number of rows
+        script_dir = os.path.dirname(os.path.realpath(__file__))
+        csv_path = os.path.join(script_dir, csv_file)
+        try:
+            with open(csv_path, "r", newline="") as f:
+                reader = csv.DictReader(f)
+                configs = list(reader)
+        except Exception as e:
+            print(f"Error reading matrix config file {csv_path}: {e}", file=sys.stderr)
             failed_benchmarks.append(full_bench_name)
-            print(f"Benchmark {full_bench_name} failed, but continuing with others.")
+            continue
+
+        for row_idx in range(len(configs)):
+            job_name = f"gcsfuse-npi-{full_bench_name}-row-{row_idx}".replace("_", "-")
+            bq_table_id = f"fio_{full_bench_name}"
+            
+            target_iterations = iter_override if iter_override is not None else args.iterations
+            image = f"us-docker.pkg.dev/{args.project_id}/gcsfuse-benchmarks/{image_suffix}:{args.image_version}"
+            cmd_args = [
+                f"--iterations={target_iterations}",
+                f"--project-id={args.project_id}",
+                f"--bq-dataset-id={args.bq_dataset_id}",
+                f"--bq-table-id={bq_table_id}",
+                "--mount-path=/data",
+                f"--row-index={row_idx}"
+            ]
+            if row_idx > 0:
+                cmd_args.append("--no-truncate")
+            if runner_args:
+                cmd_args.append(runner_args)
+
+            success = run_benchmark_job(
+                job_name=job_name,
+                image=image,
+                args_list=cmd_args,
+                project_id=args.project_id,
+                dataset_id=args.bq_dataset_id,
+                table_id=bq_table_id,
+                bucket_name=args.bucket_name,
+                service_account=args.kubernetes_service_account,
+                extra_flag=extra_flag
+            )
+
+            if not success:
+                failed_benchmarks.append(f"{full_bench_name}_row_{row_idx}")
+                print(f"Benchmark {full_bench_name} row {row_idx} failed, but continuing with others.")
 
     if failed_benchmarks:
         print(f"\n--- Some benchmarks failed: {', '.join(failed_benchmarks)} ---", file=sys.stderr)
