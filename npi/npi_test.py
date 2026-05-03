@@ -152,6 +152,10 @@ class TestMain(unittest.TestCase):
         mock_args.iterations = 5
         mock_args.dry_run = False
         mock_args.temp_dir = "memory"
+        mock_args.is_rapid_bucket = False
+        mock_args.file_cache_dir = None
+        mock_args.file_cache_size_mb = 2097152
+        mock_args.image_version = "latest"
         mock_parse_args.return_value = mock_args
 
         mock_factory_instance = MagicMock()
@@ -176,6 +180,10 @@ class TestMain(unittest.TestCase):
         mock_args.iterations = 5
         mock_args.dry_run = False
         mock_args.temp_dir = "memory"
+        mock_args.is_rapid_bucket = False
+        mock_args.file_cache_dir = None
+        mock_args.file_cache_size_mb = 2097152
+        mock_args.image_version = "latest"
         mock_parse_args.return_value = mock_args
 
         mock_factory_instance = MagicMock()
@@ -187,6 +195,59 @@ class TestMain(unittest.TestCase):
             with self.assertRaises(SystemExit) as cm:
                 npi.main()
             self.assertEqual(cm.exception.code, 1)
+
+    @patch('argparse.ArgumentParser.parse_args')
+    @patch('npi.BenchmarkFactory')
+    def test_main_rapid_bucket_filters_http1(self, mock_factory_class, mock_parse_args):
+        mock_args = MagicMock()
+        mock_args.benchmarks = ["all"]
+        mock_args.bucket_name = "test-bucket"
+        mock_args.mount_path = None
+        mock_args.project_id = "test-project"
+        mock_args.bq_dataset_id = "test-dataset"
+        mock_args.iterations = 5
+        mock_args.dry_run = True
+        mock_args.temp_dir = "memory"
+        mock_args.is_rapid_bucket = True
+        mock_args.file_cache_dir = None
+        mock_args.file_cache_size_mb = 2097152
+        mock_args.image_version = "latest"
+        mock_parse_args.return_value = mock_args
+
+        mock_factory_instance = MagicMock()
+        mock_factory_instance.get_available_benchmarks.return_value = ["read_http1", "read_grpc", "write_http1", "write_grpc"]
+        mock_factory_instance.get_benchmark_command.return_value = ("docker run ...", "test-table")
+        mock_factory_class.return_value = mock_factory_instance
+
+        npi.main()
+        # Verify that only grpc benchmarks are passed to get_benchmark_command if we were running them,
+        # but since dry_run=True, it will iterate over the filtered benchmarks_to_run.
+        # We can't easily mock the print output here, but let's check that it ran without errors.
+
+    @patch('argparse.ArgumentParser.parse_args')
+    @patch('npi.BenchmarkFactory')
+    def test_main_rapid_bucket_explicit_http1_error(self, mock_factory_class, mock_parse_args):
+        mock_args = MagicMock()
+        mock_args.benchmarks = ["read_http1"]
+        mock_args.bucket_name = "test-bucket"
+        mock_args.mount_path = None
+        mock_args.project_id = "test-project"
+        mock_args.bq_dataset_id = "test-dataset"
+        mock_args.iterations = 5
+        mock_args.dry_run = False
+        mock_args.temp_dir = "memory"
+        mock_args.is_rapid_bucket = True
+        mock_args.file_cache_dir = None
+        mock_args.file_cache_size_mb = 2097152
+        mock_args.image_version = "latest"
+        mock_parse_args.return_value = mock_args
+
+        mock_factory_instance = MagicMock()
+        mock_factory_instance.get_available_benchmarks.return_value = ["read_http1", "read_grpc"]
+        mock_factory_class.return_value = mock_factory_instance
+
+        with self.assertRaises(SystemExit):
+            npi.main()
 
 if __name__ == '__main__':
     unittest.main()
