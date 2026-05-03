@@ -144,6 +144,22 @@ def main():
         default=["all"],
         help="Space-separated list of benchmarks to run (e.g., read_http1 write_grpc). Use 'all' to run all 4."
     )
+    parser.add_argument(
+        "--run-file-cache-test",
+        action="store_true",
+        help="Run the file-cache benchmark in GKE. If not specified, file-cache tests are excluded."
+    )
+    parser.add_argument(
+        "--file-cache-size-mb",
+        type=int,
+        default=2097152,
+        help="The size of the file cache in MB. Default: 2097152."
+    )
+    parser.add_argument(
+        "--is-rapid-bucket",
+        action="store_true",
+        help="If set, indicates that the bucket is a RAPID bucket. Only gRPC benchmarks will be run."
+    )
     
     args = parser.parse_args()
 
@@ -161,15 +177,28 @@ def main():
         parser.error("Both --cluster-name and --location must be provided together to fetch cluster credentials.")
 
     all_benchmarks = [
-        ("read", "http1", "fio-read-benchmark", ""),
-        ("read", "grpc", "fio-read-benchmark", "--client-protocol=grpc"),
-        ("write", "http1", "fio-write-benchmark", ""),
-        ("write", "grpc", "fio-write-benchmark", "--client-protocol=grpc"),
+        ("read", "http1", "fio-read-benchmark", "", None, None),
+        ("read", "grpc", "fio-read-benchmark", "--client-protocol=grpc", None, None),
+        ("write", "http1", "fio-write-benchmark", "", None, None),
+        ("write", "grpc", "fio-write-benchmark", "--client-protocol=grpc", None, None),
+        ("read_file_cache", "http1", "fio-read-benchmark", f"client-protocol=http1,metadata-cache-ttl-secs=-1,file-cache:max-size-mb:{args.file_cache_size_mb},file-cache-cache-file-for-range-read", 5, "--keep-mount"),
+        ("read_file_cache", "grpc", "fio-read-benchmark", f"client-protocol=grpc,file-cache:max-size-mb:{args.file_cache_size_mb},file-cache-cache-file-for-range-read", 5, "--keep-mount"),
     ]
+
+    # If not explicitly told to run file cache benchmarks, validate and filter them out.
+    if not args.run_file_cache_test:
+        for b in args.benchmarks:
+            if "file_cache" in b:
+                parser.error(f"Benchmark '{b}' requires --run-file-cache-test flag.")
 
     benchmarks_to_run = []
     if "all" in args.benchmarks:
-        benchmarks_to_run = all_benchmarks
+        if args.run_file_cache_test:
+            benchmarks_to_run = all_benchmarks
+        else:
+            # Exclude file cache tests from 'all' when the flag is not passed.
+            print("Warning: File-cache tests are not being run because --run-file-cache-test was not provided.", file=sys.stderr)
+            benchmarks_to_run = [b for b in all_benchmarks if "file_cache" not in b[0]]
     else:
         available_names = {f"{b[0]}_{b[1]}" for b in all_benchmarks}
         for b in args.benchmarks:
@@ -178,10 +207,17 @@ def main():
                 sys.exit(1)
         benchmarks_to_run = [b for b in all_benchmarks if f"{b[0]}_{b[1]}" in args.benchmarks]
 
+    if args.is_rapid_bucket:
+        if "all" not in args.benchmarks:
+            for b in args.benchmarks:
+                if "http1" in b:
+                    parser.error(f"Benchmark '{b}' is not supported for RAPID buckets (only gRPC benchmarks are allowed).")
+        benchmarks_to_run = [b for b in benchmarks_to_run if "http1" not in b[1]]
+
 
     if args.dry_run:
         print("--- [DRY RUN] Benchmarks to be executed ---")
-        for bench_type, config_name, _, _ in benchmarks_to_run:
+        for bench_type, config_name, _, _, _, _ in benchmarks_to_run:
             print(f" - {bench_type}_{config_name}")
         return
 
@@ -190,19 +226,22 @@ def main():
 
     failed_benchmarks = []
 
-    for bench_type, config_name, image_suffix, extra_flag in benchmarks_to_run:
+    for bench_type, config_name, image_suffix, extra_flag, iter_override, runner_args in benchmarks_to_run:
         full_bench_name = f"{bench_type}_{config_name}"
         job_name = f"gcsfuse-npi-{full_bench_name}".replace("_", "-")
         bq_table_id = f"fio_{full_bench_name}"
         
+        target_iterations = iter_override if iter_override is not None else args.iterations
         image = f"us-docker.pkg.dev/{args.project_id}/gcsfuse-benchmarks/{image_suffix}:{args.image_version}"
         cmd_args = [
-            f"--iterations={args.iterations}",
+            f"--iterations={target_iterations}",
             f"--project-id={args.project_id}",
             f"--bq-dataset-id={args.bq_dataset_id}",
             f"--bq-table-id={bq_table_id}",
             "--mount-path=/data"
         ]
+        if runner_args:
+            cmd_args.append(runner_args)
 
         success = run_benchmark_job(
             job_name=job_name,

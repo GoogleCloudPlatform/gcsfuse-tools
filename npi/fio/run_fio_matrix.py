@@ -52,6 +52,11 @@ def main():
       " This is applied to all runs in the matrix.",
   )
   parser.add_argument(
+      "--keep-mount",
+      action="store_true",
+      help="If set, mount GCSFuse once before iterations and keep it mounted. Used for file-cache tests.",
+  )
+  parser.add_argument(
       "--bucket-name", default=None, help="Name of the GCS bucket."
   )
   parser.add_argument(
@@ -165,7 +170,8 @@ def main():
           project_id=args.project_id,
           bq_dataset_id=args.bq_dataset_id,
           bq_table_id=args.bq_table_id,
-          mount_path=mount_path)
+          mount_path=mount_path,
+          keep_mount=args.keep_mount)
     except Exception as e:
       logging.error("Benchmark run failed for configuration %s: %s", config, e)
       # Continue to the next configuration
