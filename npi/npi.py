@@ -392,6 +392,11 @@ def main():
         default=2097152,
         help="The size of the file cache in MB. Default: 2097152."
     )
+    parser.add_argument(
+        "--is-rapid-bucket",
+        action="store_true",
+        help="If set, indicates that the bucket is a RAPID bucket. Only gRPC benchmarks will be run."
+    )
 
     args = parser.parse_args()
 
@@ -427,6 +432,13 @@ def main():
                 print(f"Error: Benchmark '{b}' not found.", file=sys.stderr)
                 sys.exit(1)
         benchmarks_to_run = args.benchmarks
+            
+    if args.is_rapid_bucket:
+        if "all" not in args.benchmarks:
+            for b in args.benchmarks:
+                if "http1" in b:
+                    parser.error(f"Benchmark '{b}' is not supported for RAPID buckets (only gRPC benchmarks are allowed).")
+        benchmarks_to_run = [b for b in benchmarks_to_run if "http1" not in b]
             
     # Validate file-cache specific requirements
     has_file_cache_benchmarks = any("read_file_cache" in b for b in benchmarks_to_run)
