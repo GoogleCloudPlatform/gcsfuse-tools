@@ -196,5 +196,46 @@ class TestMain(unittest.TestCase):
         with self.assertRaises(SystemExit):
             npi.main()
 
+    @patch('shutil.rmtree')
+    @patch('os.unlink')
+    @patch('os.listdir')
+    @patch('os.path.exists')
+    @patch('os.makedirs')
+    @patch('argparse.ArgumentParser.parse_args')
+    @patch('npi.BenchmarkFactory')
+    def test_main_clears_buffer_mount_path_when_not_empty(self, mock_factory_class, mock_parse_args, mock_makedirs, mock_exists, mock_listdir, mock_unlink, mock_rmtree):
+        mock_args = MagicMock()
+        mock_args.benchmarks = ["read_http1"]
+        mock_args.bucket_name = "test-bucket"
+        mock_args.mount_path = None
+        mock_args.project_id = "test-project"
+        mock_args.bq_dataset_id = "test-dataset"
+        mock_args.iterations = 5
+        mock_args.dry_run = False
+        mock_args.is_rapid_bucket = False
+        mock_args.buffer_mount_path = "/mnt/buffer"
+        mock_args.file_cache_size_mb = 2097152
+        mock_args.image_version = "latest"
+        mock_parse_args.return_value = mock_args
+
+        mock_exists.return_value = True
+        mock_listdir.return_value = ["file1.txt", "dir1"]
+        
+        with patch('os.path.isfile', side_effect=lambda p: "file1.txt" in p), \
+             patch('os.path.islink', return_value=False), \
+             patch('os.path.isdir', side_effect=lambda p: "dir1" in p):
+            
+            mock_factory_instance = MagicMock()
+            mock_factory_instance.get_available_benchmarks.return_value = ["read_http1"]
+            mock_factory_instance.get_benchmark_command.return_value = ("docker run ...", "test-table")
+            mock_factory_class.return_value = mock_factory_instance
+            
+            with patch('npi.run_benchmark', return_value=True):
+                npi.main()
+                
+                mock_unlink.assert_called_once_with("/mnt/buffer/file1.txt")
+                mock_rmtree.assert_called_once_with("/mnt/buffer/dir1")
+
+
 if __name__ == '__main__':
     unittest.main()
