@@ -50,7 +50,7 @@ class BenchmarkFactory:
         mount_path (str): The path to an already mounted GCS bucket.
     """
 
-    def __init__(self, bucket_name, project_id, bq_dataset_id, iterations, temp_dir, mount_path=None, image_version="latest", file_cache_dir=None, file_cache_size_mb=2097152):
+    def __init__(self, bucket_name, project_id, bq_dataset_id, iterations, mount_path=None, image_version="latest", buffer_mount_path=None, file_cache_size_mb=2097152):
         """Initializes the BenchmarkFactory.
 
         Args:
@@ -58,7 +58,6 @@ class BenchmarkFactory:
             project_id (str): The BigQuery project ID.
             bq_dataset_id (str): The BigQuery dataset ID.
             iterations (int): The number of benchmark iterations.
-            temp_dir (str): The temporary directory type.
             mount_path (str): The path to an already mounted GCS bucket.
             image_version (str): The version of the benchmark Docker images.
         """
@@ -66,10 +65,9 @@ class BenchmarkFactory:
         self.project_id = project_id
         self.bq_dataset_id = bq_dataset_id
         self.iterations = iterations
-        self.temp_dir = temp_dir
         self.mount_path = mount_path
         self.image_version = image_version
-        self.file_cache_dir = file_cache_dir
+        self.buffer_mount_path = buffer_mount_path
         self.file_cache_size_mb = file_cache_size_mb
         self._benchmark_definitions = self._get_benchmark_definitions()
 
@@ -127,12 +125,8 @@ class BenchmarkFactory:
         Returns:
             tuple[str, str]: A tuple containing the complete Docker command and the BigQuery table ID.
         """
-        container_temp_dir = "/gcsfuse-temp"
-        volume_mount = ""
-        if self.temp_dir == "memory":
-            volume_mount = f"--mount type=tmpfs,destination={container_temp_dir}"
-        elif self.temp_dir == "boot-disk":
-            volume_mount = f"-v <temp_dir_path>:{container_temp_dir}"
+        container_temp_dir = "/gcsfuse-buffer/write"
+        volume_mount = f"-v {shlex.quote(self.buffer_mount_path)}:/gcsfuse-buffer"
 
         if mount_path:
             volume_mount += f" -v {shlex.quote(mount_path)}:{shlex.quote(mount_path)}"
@@ -225,8 +219,7 @@ class BenchmarkFactory:
             "iterations_override": 10,
             "runner_args": "--keep-mount"
         }
-        if self.file_cache_dir:
-            read_file_cache_config["gcsfuse_flags_extra"] = f"--metadata-cache-ttl-secs=-1,--file-cache-max-size-mb={self.file_cache_size_mb} --file-cache-dir={self.file_cache_dir}"
+        read_file_cache_config["gcsfuse_flags_extra"] = f"--metadata-cache-ttl-secs=-1,--file-cache-max-size-mb={self.file_cache_size_mb} --file-cache-dir=/gcsfuse-buffer/file-cache"
 
         benchmarks = {
             "read": {"image_suffix": "fio-read-benchmark"},
@@ -290,18 +283,14 @@ class BenchmarkFactory:
         return definitions
 
 
-def run_benchmark(benchmark_name, command_str, temp_dir_type, project_id, dataset_id, table_id):
+def run_benchmark(benchmark_name, command_str, project_id, dataset_id, table_id):
     """Runs a single benchmark command locally.
 
-    This function executes a benchmark command using `subprocess.run`. It handles
-    the creation and cleanup of a temporary directory on the host if the
-    'boot-disk' temp_dir_type is used.
+    This function executes a benchmark command using `subprocess.run`.
 
     Args:
         benchmark_name (str): The name of the benchmark being run.
         command_str (str): The Docker command string to execute.
-        temp_dir_type (str): The type of temporary directory ('memory' or
-            'boot-disk').
         project_id (str): The BigQuery project ID.
         dataset_id (str): The BigQuery dataset ID.
         table_id (str): The BigQuery table ID.
@@ -310,12 +299,6 @@ def run_benchmark(benchmark_name, command_str, temp_dir_type, project_id, datase
         bool: True if the benchmark ran successfully, False otherwise.
     """
     print(f"--- Running benchmark: {benchmark_name} on localhost ---")
-
-    host_temp_dir = None
-    if temp_dir_type == "boot-disk":
-        host_temp_dir = tempfile.mkdtemp(prefix="gcsfuse-npi-")
-        print(f"Created temporary directory on host: {host_temp_dir}")
-        command_str = command_str.replace("<temp_dir_path>", host_temp_dir)
 
     command = shlex.split(command_str)
     print(f"Command: {' '.join(command)}")
@@ -331,10 +314,6 @@ def run_benchmark(benchmark_name, command_str, temp_dir_type, project_id, datase
         print(f"--- Benchmark {benchmark_name} on localhost FAILED ---", file=sys.stderr)
         print(f"Return code: {e.returncode}", file=sys.stderr)
         success = False
-    finally:
-        if host_temp_dir:
-            print(f"Cleaning up temporary directory: {host_temp_dir}")
-            shutil.rmtree(host_temp_dir)
 
     return success
 
@@ -371,20 +350,14 @@ def main():
         help="Print the benchmark commands that would be executed without running them."
     )
     parser.add_argument(
-        "--temp-dir",
-        choices=["memory", "boot-disk"],
-        default="boot-disk",
-        help="The temporary directory type to use for benchmark artifacts. 'memory' uses a tmpfs mount, 'boot-disk' uses the host's disk. Default: boot-disk."
+        "--buffer-mount-path",
+        required=True,
+        help="The host directory to mount as the storage buffer inside the container (used for both writes and file-cache)."
     )
     parser.add_argument(
         "--image-version",
         default="latest",
         help="The version (tag) of the benchmark Docker images to use. Default: latest."
-    )
-    parser.add_argument(
-        "--file-cache-dir",
-        default=None,
-        help="The directory to use for the GCSFuse file cache. Required if running file-cache benchmarks."
     )
     parser.add_argument(
         "--file-cache-size-mb",
@@ -410,21 +383,15 @@ def main():
         project_id=args.project_id,
         bq_dataset_id=args.bq_dataset_id,
         iterations=args.iterations,
-        temp_dir=args.temp_dir,
         mount_path=mount_path,
         image_version=args.image_version,
-        file_cache_dir=args.file_cache_dir,
+        buffer_mount_path=args.buffer_mount_path,
         file_cache_size_mb=args.file_cache_size_mb
     )
 
     available_benchmarks = factory.get_available_benchmarks()
     if "all" in args.benchmarks:
-        if args.file_cache_dir:
-            benchmarks_to_run = available_benchmarks
-        else:
-            # Exclude file cache tests from 'all' when the flag is not passed.
-            print("Warning: File-cache tests are not being run because --file-cache-dir was not provided.", file=sys.stderr)
-            benchmarks_to_run = [b for b in available_benchmarks if "file_cache" not in b]
+        benchmarks_to_run = available_benchmarks
     else:
         # Validate benchmark names
         for b in args.benchmarks:
@@ -440,10 +407,7 @@ def main():
                     parser.error(f"Benchmark '{b}' is not supported for RAPID buckets (only gRPC benchmarks are allowed).")
         benchmarks_to_run = [b for b in benchmarks_to_run if "http1" not in b]
             
-    # Validate file-cache specific requirements
-    has_file_cache_benchmarks = any("read_file_cache" in b for b in benchmarks_to_run)
-    if has_file_cache_benchmarks and not args.file_cache_dir:
-        parser.error("--file-cache-dir is required when running file-cache benchmarks.")
+    # Validations for missing file-cache requirements are now obsolete.
 
     print(f"Starting benchmark orchestration...")
     print(f"Benchmarks to run: {', '.join(benchmarks_to_run)}")
@@ -463,7 +427,7 @@ def main():
             print(f"Table: {bq_table_id}")
             print(f"Command: {command_str}\n")
         else:
-            success = run_benchmark(benchmark_name, command_str, args.temp_dir, args.project_id, args.bq_dataset_id, bq_table_id)
+            success = run_benchmark(benchmark_name, command_str, args.project_id, args.bq_dataset_id, bq_table_id)
             if not success:
                 failed_benchmarks.append(benchmark_name)
 
