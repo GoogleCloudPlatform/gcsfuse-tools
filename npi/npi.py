@@ -378,6 +378,10 @@ def main():
 
     mount_path = os.path.abspath(args.mount_path) if args.mount_path else None
 
+    # Ensure subdirectories exist in the buffer mount path to prevent permission issues.
+    os.makedirs(os.path.join(args.buffer_mount_path, "write"), exist_ok=True)
+    os.makedirs(os.path.join(args.buffer_mount_path, "file-cache"), exist_ok=True)
+
     factory = BenchmarkFactory(
         bucket_name=args.bucket_name,
         project_id=args.project_id,

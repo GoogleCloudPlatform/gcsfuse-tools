@@ -90,9 +90,10 @@ class TestRunBenchmark(unittest.TestCase):
 
 class TestMain(unittest.TestCase):
 
+    @patch('os.makedirs')
     @patch('argparse.ArgumentParser.parse_args')
     @patch('npi.BenchmarkFactory')
-    def test_main_success(self, mock_factory_class, mock_parse_args):
+    def test_main_success(self, mock_factory_class, mock_parse_args, mock_makedirs):
         mock_args = MagicMock()
         mock_args.benchmarks = ["read_http1"]
         mock_args.bucket_name = "test-bucket"
@@ -117,9 +118,10 @@ class TestMain(unittest.TestCase):
             mock_factory_class.assert_called_once()
             mock_run_benchmark.assert_called_once_with("read_http1", "docker run ...", "test-project", "test-dataset", "test-table")
 
+    @patch('os.makedirs')
     @patch('argparse.ArgumentParser.parse_args')
     @patch('npi.BenchmarkFactory')
-    def test_main_failure(self, mock_factory_class, mock_parse_args):
+    def test_main_failure(self, mock_factory_class, mock_parse_args, mock_makedirs):
         mock_args = MagicMock()
         mock_args.benchmarks = ["read_http1"]
         mock_args.bucket_name = "test-bucket"
@@ -144,9 +146,10 @@ class TestMain(unittest.TestCase):
                 npi.main()
             self.assertEqual(cm.exception.code, 1)
 
+    @patch('os.makedirs')
     @patch('argparse.ArgumentParser.parse_args')
     @patch('npi.BenchmarkFactory')
-    def test_main_rapid_bucket_filters_http1(self, mock_factory_class, mock_parse_args):
+    def test_main_rapid_bucket_filters_http1(self, mock_factory_class, mock_parse_args, mock_makedirs):
         mock_args = MagicMock()
         mock_args.benchmarks = ["all"]
         mock_args.bucket_name = "test-bucket"
@@ -168,9 +171,10 @@ class TestMain(unittest.TestCase):
 
         npi.main()
 
+    @patch('os.makedirs')
     @patch('argparse.ArgumentParser.parse_args')
     @patch('npi.BenchmarkFactory')
-    def test_main_rapid_bucket_explicit_http1_error(self, mock_factory_class, mock_parse_args):
+    def test_main_rapid_bucket_explicit_http1_error(self, mock_factory_class, mock_parse_args, mock_makedirs):
         mock_args = MagicMock()
         mock_args.benchmarks = ["read_http1"]
         mock_args.bucket_name = "test-bucket"
