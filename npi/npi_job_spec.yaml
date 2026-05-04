@@ -18,7 +18,6 @@ spec:
         - name: benchmark
           imagePullPolicy: Always
           image: "image-placeholder"
-          imagePullPolicy: Always
           args: ["--mount-path=/data"]
           securityContext:
             privileged: true
