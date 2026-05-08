@@ -23,7 +23,7 @@ fi
 echo "Found $NUM_DEVICES local SSDs. Creating RAID 0 array..."
 
 # Create the RAID 0 array using all discovered devices.
-sudo mdadm --create /dev/md0 --level=0 --raid-devices=$NUM_DEVICES "${DEVICES[@]}"
+yes | sudo mdadm --create /dev/md0 --level=0 --raid-devices=$NUM_DEVICES "${DEVICES[@]}"
 
 echo "Formatting the RAID array..."
 
