@@ -241,19 +241,10 @@ def main():
 
     if args.dry_run:
         print("--- [DRY RUN] Benchmarks to be executed ---")
-        for bench_type, config_name, image_suffix, extra_flag, iter_override, runner_args in benchmarks_to_run:
-            full_bench_name = f"{bench_type}_{config_name}"
-            job_name = f"gcsfuse-npi-{full_bench_name}".replace("_", "-")
-            image = f"us-docker.pkg.dev/{args.project_id}/gcsfuse-benchmarks/{image_suffix}:{args.image_version}"
-            cmd_args = []
-            
-            job_spec = create_job_spec(job_name, image, cmd_args, args.bucket_name, args.kubernetes_service_account, extra_flag, args.use_memory_volumes)
-            print(f" - {full_bench_name}")
-            print(f"   Volumes: {[v['name'] for v in job_spec['spec']['template']['spec'].get('volumes', [])]}")
-        return
 
     start_time = datetime.datetime.now()
-    print(f"--- Entire run started at: {start_time.strftime('%Y-%m-%d %H:%M:%S')} ---")
+    if not args.dry_run:
+        print(f"--- Entire run started at: {start_time.strftime('%Y-%m-%d %H:%M:%S')} ---")
 
     failed_benchmarks = []
 
@@ -274,22 +265,33 @@ def main():
         if runner_args:
             cmd_args.append(runner_args)
 
-        success = run_benchmark_job(
-            job_name=job_name,
-            image=image,
-            args_list=cmd_args,
-            project_id=args.project_id,
-            dataset_id=args.bq_dataset_id,
-            table_id=bq_table_id,
-            bucket_name=args.bucket_name,
-            service_account=args.kubernetes_service_account,
-            extra_flag=extra_flag,
-            use_memory_volumes=args.use_memory_volumes
-        )
+        if args.dry_run:
+            job_spec = create_job_spec(job_name, image, cmd_args, args.bucket_name, args.kubernetes_service_account, extra_flag, args.use_memory_volumes)
+            print(f" - {full_bench_name}")
+            print(f"   Job Name: {job_name}")
+            print(f"   Image: {image}")
+            print(f"   Args: {cmd_args}")
+            print(f"   Volumes: {[v['name'] for v in job_spec['spec']['template']['spec'].get('volumes', [])]}")
+        else:
+            success = run_benchmark_job(
+                job_name=job_name,
+                image=image,
+                args_list=cmd_args,
+                project_id=args.project_id,
+                dataset_id=args.bq_dataset_id,
+                table_id=bq_table_id,
+                bucket_name=args.bucket_name,
+                service_account=args.kubernetes_service_account,
+                extra_flag=extra_flag,
+                use_memory_volumes=args.use_memory_volumes
+            )
 
-        if not success:
-            failed_benchmarks.append(full_bench_name)
-            print(f"Benchmark {full_bench_name} failed, but continuing with others.")
+            if not success:
+                failed_benchmarks.append(full_bench_name)
+                print(f"Benchmark {full_bench_name} failed, but continuing with others.")
+
+    if args.dry_run:
+        return
 
     if failed_benchmarks:
         print(f"\n--- Some benchmarks failed: {', '.join(failed_benchmarks)} ---", file=sys.stderr)
