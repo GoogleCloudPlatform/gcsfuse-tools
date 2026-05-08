@@ -19,6 +19,7 @@ import json
 import logging
 import os
 import shlex
+import shutil
 import subprocess
 import sys
 import time
@@ -58,6 +59,7 @@ def run_command(command, check=True, cwd=None, extra_env=None):
 
 def mount_gcsfuse(gcsfuse_bin, flags, bucket_name, mount_point, cpu_limit_list=None):
     """Mounts the GCS bucket using GCSFuse."""
+    clear_cache_dir(flags)
     os.makedirs(mount_point, exist_ok=True)
     logging.info(f"Mounting gs://{bucket_name} to {mount_point}")
     cmd = [gcsfuse_bin] + shlex.split(flags) + [bucket_name, mount_point]
@@ -274,6 +276,33 @@ def upload_results_to_bq(
     except Exception as e:
         logging.error(f"Failed to upload results to BigQuery: {e}")
         logging.error("Please ensure you have run 'gcloud auth application-default login' and have the correct permissions.")
+
+
+def clear_cache_dir(gcsfuse_flags):
+    """Clears the cache directory if passed in flags."""
+    if "--cache-dir=" not in gcsfuse_flags:
+        return
+
+    parts = shlex.split(gcsfuse_flags)
+    cache_dir = None
+    for part in parts:
+        if part.startswith("--cache-dir="):
+            cache_dir = part.split("=")[1]
+            break
+
+    if not cache_dir:
+        return
+
+    logging.info(f"Clearing cache directory: {cache_dir}")
+    
+    if not os.path.exists(cache_dir):
+        logging.info(f"Cache directory {cache_dir} does not exist, skipping clearing.")
+        return
+
+    try:
+        shutil.rmtree(cache_dir)
+    except Exception as e:
+        logging.error(f"Failed to clear cache directory {cache_dir}: {e}")
 
 
 def run_benchmark(
