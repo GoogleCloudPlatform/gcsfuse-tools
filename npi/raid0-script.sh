@@ -1,8 +1,8 @@
 #!/bin/bash -e
 
 # Update the package list and install mdadm if it's not already installed.
-sudo apt update
-sudo apt install mdadm --no-install-recommends
+sudo apt-get update
+sudo apt-get install -y mdadm --no-install-recommends
 
 # Find all local SSD devices and store their paths in an array.
 # This command looks for all devices that match the pattern 'google-local-nvme-ssd-*'.
