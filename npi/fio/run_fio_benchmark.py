@@ -44,6 +44,11 @@ def main():
         action="store_true",
         help="If set, bind the FIO process to the CPUs specified in --cpu-limit-list."
     )
+    parser.add_argument(
+        "--keep-mount",
+        action="store_true",
+        help="If set, mount GCSFuse once before iterations and keep it mounted. Used for file-cache tests."
+    )
     parser.add_argument("--project-id", required=True, default=None, help="Project ID to upload results.")
     parser.add_argument("--bq-dataset-id", default=None, help="BigQuery dataset ID.")
     parser.add_argument("--bq-table-id", default=None, help="BigQuery table ID.")
@@ -75,6 +80,7 @@ def main():
         bq_dataset_id=args.bq_dataset_id,
         bq_table_id=args.bq_table_id,
         mount_path=mount_path,
+        keep_mount=args.keep_mount,
     )
 
 
