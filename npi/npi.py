@@ -105,7 +105,7 @@ class BenchmarkFactory:
     def _create_docker_command(self, benchmark_image_suffix, bq_table_id,
                                bucket_name, project_id, bq_dataset_id,
                                gcsfuse_flags=None, cpu_list=None, bind_fio=None, mount_path=None,
-                               docker_args=None, iterations_override=None, runner_args=None):
+                               iterations_override=None, runner_args=None):
         """Helper to construct the full docker run command.
 
         This method assembles the final `docker run` command string with all
@@ -143,8 +143,7 @@ class BenchmarkFactory:
             "docker run --pull=always --network=host --privileged --rm "
             f"{volume_mount} "
         )
-        if docker_args:
-            base_cmd += f"{docker_args} "
+
 
         target_iterations = iterations_override if iterations_override is not None else self.iterations
 
@@ -215,7 +214,6 @@ class BenchmarkFactory:
         # Each benchmark has an image suffix and an optional BQ table name override.
         read_file_cache_config = {
             "image_suffix": "fio-read-benchmark",
-            "docker_args": "", # Removed FIO_ITERATIONS
             "iterations_override": 10,
             "runner_args": "--keep-mount"
         }
@@ -264,7 +262,6 @@ class BenchmarkFactory:
                 
                 cpu_list = config_params.get("cpu_list")
                 bind_fio = config_params.get("bind_fio")
-                docker_args = bench_config.get("docker_args")
                 iterations_override = bench_config.get("iterations_override")
                 runner_args = bench_config.get("runner_args")
 
@@ -276,7 +273,6 @@ class BenchmarkFactory:
                     gcsfuse_flags=combined_gcsfuse_flags if combined_gcsfuse_flags else None,
                     cpu_list=cpu_list,
                     bind_fio=bind_fio,
-                    docker_args=docker_args,
                     iterations_override=iterations_override,
                     runner_args=runner_args
                 )
