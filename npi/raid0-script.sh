@@ -7,6 +7,7 @@ sudo apt install mdadm --no-install-recommends
 # Find all local SSD devices and store their paths in an array.
 # This command looks for all devices that match the pattern 'google-local-nvme-ssd-*'.
 # If your SSDs have a different naming pattern, you can adjust it here.
+shopt -s nullglob
 DEVICES=(/dev/disk/by-id/google-local-nvme-ssd-*)
 
 # Get the total number of SSDs found.
