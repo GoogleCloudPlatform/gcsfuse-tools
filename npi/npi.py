@@ -217,7 +217,7 @@ class BenchmarkFactory:
             "iterations_override": 10,
             "runner_args": "--keep-mount"
         }
-        read_file_cache_config["gcsfuse_flags_extra"] = f"--metadata-cache-ttl-secs=-1 --file-cache-max-size-mb={self.file_cache_size_mb} --file-cache-dir=/gcsfuse-buffer/file-cache"
+        read_file_cache_config["gcsfuse_flags_extra"] = f"--metadata-cache-ttl-secs=-1 --file-cache-max-size-mb={self.file_cache_size_mb} --cache-dir=/gcsfuse-buffer/file-cache"
 
         benchmarks = {
             "read": {"image_suffix": "fio-read-benchmark"},

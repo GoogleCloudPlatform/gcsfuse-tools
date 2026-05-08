@@ -54,7 +54,7 @@ class TestBenchmarkFactory(unittest.TestCase):
         cmd, table_id = factory.get_benchmark_command("read_file_cache_grpc")
         self.assertIn("-v /mnt/buffer:/gcsfuse-buffer", cmd)
         self.assertIn("--temp-dir=/gcsfuse-buffer/write", cmd)
-        self.assertIn("--file-cache-dir=/gcsfuse-buffer/file-cache", cmd)
+        self.assertIn("--cache-dir=/gcsfuse-buffer/file-cache", cmd)
         self.assertIn("--file-cache-max-size-mb=1024", cmd)
 
     @patch('subprocess.run')
