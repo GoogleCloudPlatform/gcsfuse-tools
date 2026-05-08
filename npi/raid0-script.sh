@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash -e
 
 # Update the package list and install mdadm if it's not already installed.
 sudo apt update
