@@ -1,0 +1,342 @@
+# PIPELINE DEFINITION
+# Name: gcsfuse-npi-pipeline
+# Description: Pipeline for running GCSFuse NPI benchmarks and analysis
+# Inputs:
+#    bq_dataset_id: str
+#    bucket_name: str
+#    buffer_mount_path: str [Default: '/tmp/buffer']
+#    cluster_name: str [Default: '']
+#    execution_mode: str [Default: 'GKE']
+#    file_cache_size_mb: int [Default: 2097152.0]
+#    image_version: str [Default: 'latest']
+#    is_rapid_bucket: bool [Default: False]
+#    iterations: int [Default: 5.0]
+#    location: str [Default: '']
+#    project_id: str
+#    run_file_cache_test: bool [Default: False]
+#    vm_name: str [Default: '']
+#    zone: str [Default: '']
+components:
+  comp-analyze-results-op:
+    executorLabel: exec-analyze-results-op
+    inputDefinitions:
+      parameters:
+        bq_dataset_id:
+          parameterType: STRING
+        project_id:
+          parameterType: STRING
+    outputDefinitions:
+      artifacts:
+        report:
+          artifactType:
+            schemaTitle: system.Artifact
+            schemaVersion: 0.0.1
+  comp-run-benchmark-op:
+    executorLabel: exec-run-benchmark-op
+    inputDefinitions:
+      parameters:
+        bq_dataset_id:
+          parameterType: STRING
+        bucket_name:
+          parameterType: STRING
+        buffer_mount_path:
+          defaultValue: /tmp/buffer
+          isOptional: true
+          parameterType: STRING
+        cluster_name:
+          defaultValue: ''
+          isOptional: true
+          parameterType: STRING
+        execution_mode:
+          parameterType: STRING
+        file_cache_size_mb:
+          defaultValue: 2097152.0
+          isOptional: true
+          parameterType: NUMBER_INTEGER
+        image_version:
+          defaultValue: latest
+          isOptional: true
+          parameterType: STRING
+        is_rapid_bucket:
+          defaultValue: false
+          isOptional: true
+          parameterType: BOOLEAN
+        iterations:
+          defaultValue: 5.0
+          isOptional: true
+          parameterType: NUMBER_INTEGER
+        location:
+          defaultValue: ''
+          isOptional: true
+          parameterType: STRING
+        project_id:
+          parameterType: STRING
+        run_file_cache_test:
+          defaultValue: false
+          isOptional: true
+          parameterType: BOOLEAN
+        vm_name:
+          defaultValue: ''
+          isOptional: true
+          parameterType: STRING
+        zone:
+          defaultValue: ''
+          isOptional: true
+          parameterType: STRING
+deploymentSpec:
+  executors:
+    exec-analyze-results-op:
+      container:
+        args:
+        - --executor_input
+        - '{{$}}'
+        - --function_to_execute
+        - analyze_results_op
+        command:
+        - sh
+        - -c
+        - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
+          \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
+          \ python3 -m pip install --quiet --no-warn-script-location 'kfp==2.16.1'\
+          \ '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"' && \"\
+          $0\" \"$@\"\n"
+        - sh
+        - -ec
+        - 'program_path=$(mktemp -d)
+
+
+          printf "%s" "$0" > "$program_path/ephemeral_component.py"
+
+          _KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+
+          '
+        - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
+          \ *\n\ndef analyze_results_op(\n    project_id: str,\n    bq_dataset_id:\
+          \ str,\n    report: Output[Artifact]\n):\n    from google.cloud import bigquery\n\
+          \    import json\n\n    client = bigquery.Client(project=project_id)\n\n\
+          \    # List tables in the dataset\n    tables_query = f\"SELECT table_id\
+          \ FROM `{project_id}.{bq_dataset_id}.__TABLES__` WHERE table_id LIKE 'fio_%'\"\
+          \n    tables_job = client.query(tables_query)\n    tables = [row.table_id\
+          \ for row in tables_job.result()]\n\n    report_content = \"# Benchmark\
+          \ Analysis Report\\n\\n\"\n\n    if not tables:\n        report_content\
+          \ += \"No benchmark result tables found (starting with 'fio_').\\n\"\n \
+          \   else:\n        for table_id in tables:\n            report_content +=\
+          \ f\"## Table: {table_id}\\n\\n\"\n\n            # Query to extract key\
+          \ metrics from JSON\n            # Assuming standard FIO JSON structure\
+          \ where jobs[0] contains the main stats.\n            query = f\"\"\"\n\
+          \                SELECT\n                  run_timestamp,\n            \
+          \      iteration,\n                  JSON_VALUE(fio_json_output, '$.jobs[0].jobname')\
+          \ as job_name,\n                  JSON_VALUE(fio_json_output, '$.jobs[0].read.bw')\
+          \ as read_bw_kib,\n                  JSON_VALUE(fio_json_output, '$.jobs[0].write.bw')\
+          \ as write_bw_kib,\n                  JSON_VALUE(fio_json_output, '$.jobs[0].read.iops')\
+          \ as read_iops,\n                  JSON_VALUE(fio_json_output, '$.jobs[0].write.iops')\
+          \ as write_iops\n                FROM\n                  `{project_id}.{bq_dataset_id}.{table_id}`\n\
+          \                ORDER BY\n                  run_timestamp DESC, iteration\
+          \ ASC\n                LIMIT 5\n            \"\"\"\n\n            try:\n\
+          \                query_job = client.query(query)\n                results\
+          \ = query_job.result()\n\n                report_content += \"| Timestamp\
+          \ | Iter | Job Name | Read BW (MiB/s) | Write BW (MiB/s) | Read IOPS | Write\
+          \ IOPS |\\n\"\n                report_content += \"|---|---|---|---|---|---|---|\\\
+          n\"\n\n                for row in results:\n                    read_bw_mib\
+          \ = float(row.read_bw_kib) / 1024.0 if row.read_bw_kib else 0.0\n      \
+          \              write_bw_mib = float(row.write_bw_kib) / 1024.0 if row.write_bw_kib\
+          \ else 0.0\n\n                    report_content += (\n                \
+          \        f\"| {row.run_timestamp} | {row.iteration} | {row.job_name} | \"\
+          \n                        f\"{read_bw_mib:.2f} | {write_bw_mib:.2f} | \"\
+          \n                        f\"{row.read_iops or 0} | {row.write_iops or 0}\
+          \ |\\n\"\n                    )\n                report_content += \"\\\
+          n\"\n            except Exception as e:\n                report_content\
+          \ += f\"Failed to query table {table_id}: {e}\\n\\n\"\n\n    with open(report.path,\
+          \ \"w\") as f:\n        f.write(report_content)\n\n"
+        image: python:3.9
+    exec-run-benchmark-op:
+      container:
+        args:
+        - --executor_input
+        - '{{$}}'
+        - --function_to_execute
+        - run_benchmark_op
+        command:
+        - sh
+        - -c
+        - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
+          \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
+          \ python3 -m pip install --quiet --no-warn-script-location 'kfp==2.16.1'\
+          \ '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"' && \"\
+          $0\" \"$@\"\n"
+        - sh
+        - -ec
+        - 'program_path=$(mktemp -d)
+
+
+          printf "%s" "$0" > "$program_path/ephemeral_component.py"
+
+          _KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+
+          '
+        - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
+          \ *\n\ndef run_benchmark_op(\n    execution_mode: str,\n    bucket_name:\
+          \ str,\n    project_id: str,\n    bq_dataset_id: str,\n    cluster_name:\
+          \ str = \"\",\n    location: str = \"\",\n    vm_name: str = \"\",\n   \
+          \ zone: str = \"\",\n    buffer_mount_path: str = \"/tmp/buffer\",\n   \
+          \ iterations: int = 5,\n    image_version: str = \"latest\",\n    is_rapid_bucket:\
+          \ bool = False,\n    run_file_cache_test: bool = False,\n    file_cache_size_mb:\
+          \ int = 2097152,\n):\n    import subprocess\n    import sys\n    import\
+          \ os\n\n    if execution_mode == \"GKE\":\n        print(\"Running in GKE\
+          \ mode...\")\n        # Clone the repo to get the script\n        print(\"\
+          Cloning gcsfuse-tools repo...\")\n        res = subprocess.run([\"git\"\
+          , \"clone\", \"https://github.com/GoogleCloudPlatform/gcsfuse-tools.git\"\
+          ], capture_output=True, text=True)\n        if res.returncode != 0:\n  \
+          \          print(f\"Failed to clone repo:\\n{res.stderr}\", file=sys.stderr)\n\
+          \            sys.exit(1)\n\n        os.chdir(\"gcsfuse-tools/npi\")\n\n\
+          \        # Fetch credentials for GKE cluster\n        print(f\"Fetching\
+          \ credentials for GKE cluster: {cluster_name} in {location}\")\n       \
+          \ res = subprocess.run([\n            \"gcloud\", \"container\", \"clusters\"\
+          , \"get-credentials\", cluster_name,\n            \"--location\", location,\
+          \ \"--project\", project_id\n        ], capture_output=True, text=True)\n\
+          \        if res.returncode != 0:\n            print(f\"Failed to fetch cluster\
+          \ credentials:\\n{res.stderr}\", file=sys.stderr)\n            sys.exit(1)\n\
+          \n        print(\"Running benchmark script...\")\n        cmd = [\n    \
+          \        \"python3\", \"npi_gke.py\",\n            \"--bucket-name\", bucket_name,\n\
+          \            \"--project-id\", project_id,\n            \"--bq-dataset-id\"\
+          , bq_dataset_id,\n            \"--iterations\", str(iterations),\n     \
+          \       \"--image-version\", image_version,\n            \"--cluster-name\"\
+          , cluster_name,\n            \"--location\", location\n        ]\n\n   \
+          \     if is_rapid_bucket:\n            cmd.append(\"--is-rapid-bucket\"\
+          )\n        if run_file_cache_test:\n            cmd.append(\"--run-file-cache-test\"\
+          )\n            cmd.extend([\"--file-cache-size-mb\", str(file_cache_size_mb)])\n\
+          \n        res = subprocess.run(cmd, capture_output=True, text=True)\n  \
+          \      print(res.stdout)\n        if res.returncode != 0:\n            print(f\"\
+          Benchmark failed:\\n{res.stderr}\", file=sys.stderr)\n            sys.exit(1)\n\
+          \n    elif execution_mode == \"GCE\":\n        print(f\"Running in GCE mode\
+          \ on VM: {vm_name} in {zone}...\")\n\n        # Command to run on the VM\n\
+          \        remote_cmd = (\n            f\"if [ ! -d 'gcsfuse-tools' ]; then\
+          \ git clone https://github.com/GoogleCloudPlatform/gcsfuse-tools.git; fi\
+          \ && \"\n            f\"cd gcsfuse-tools/npi && \"\n            f\"python3\
+          \ npi.py --bucket-name {bucket_name} --project-id {project_id} \"\n    \
+          \        f\"--bq-dataset-id {bq_dataset_id} --buffer-mount-path {buffer_mount_path}\
+          \ \"\n            f\"--iterations {iterations} --image-version {image_version}\"\
+          \n        )\n\n        if is_rapid_bucket:\n            remote_cmd += \"\
+          \ --is-rapid-bucket\"\n        if run_file_cache_test:\n            remote_cmd\
+          \ += f\" --file-cache-size-mb {file_cache_size_mb}\"\n\n        cmd = [\n\
+          \            \"gcloud\", \"compute\", \"ssh\", vm_name,\n            \"\
+          --zone\", zone,\n            \"--project\", project_id,\n            \"\
+          --command\", remote_cmd\n        ]\n\n        res = subprocess.run(cmd,\
+          \ capture_output=True, text=True)\n        print(res.stdout)\n        if\
+          \ res.returncode != 0:\n            print(f\"GCE Benchmark failed:\\n{res.stderr}\"\
+          , file=sys.stderr)\n            sys.exit(1)\n    else:\n        print(f\"\
+          Unknown execution mode: {execution_mode}\", file=sys.stderr)\n        sys.exit(1)\n\
+          \n"
+        image: google/cloud-sdk:latest
+pipelineInfo:
+  description: Pipeline for running GCSFuse NPI benchmarks and analysis
+  name: gcsfuse-npi-pipeline
+root:
+  dag:
+    tasks:
+      analyze-results-op:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-analyze-results-op
+        dependentTasks:
+        - run-benchmark-op
+        inputs:
+          parameters:
+            bq_dataset_id:
+              componentInputParameter: bq_dataset_id
+            project_id:
+              componentInputParameter: project_id
+        taskInfo:
+          name: analyze-results-op
+      run-benchmark-op:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-run-benchmark-op
+        inputs:
+          parameters:
+            bq_dataset_id:
+              componentInputParameter: bq_dataset_id
+            bucket_name:
+              componentInputParameter: bucket_name
+            buffer_mount_path:
+              componentInputParameter: buffer_mount_path
+            cluster_name:
+              componentInputParameter: cluster_name
+            execution_mode:
+              componentInputParameter: execution_mode
+            file_cache_size_mb:
+              componentInputParameter: file_cache_size_mb
+            image_version:
+              componentInputParameter: image_version
+            is_rapid_bucket:
+              componentInputParameter: is_rapid_bucket
+            iterations:
+              componentInputParameter: iterations
+            location:
+              componentInputParameter: location
+            project_id:
+              componentInputParameter: project_id
+            run_file_cache_test:
+              componentInputParameter: run_file_cache_test
+            vm_name:
+              componentInputParameter: vm_name
+            zone:
+              componentInputParameter: zone
+        taskInfo:
+          name: run-benchmark-op
+  inputDefinitions:
+    parameters:
+      bq_dataset_id:
+        parameterType: STRING
+      bucket_name:
+        parameterType: STRING
+      buffer_mount_path:
+        defaultValue: /tmp/buffer
+        isOptional: true
+        parameterType: STRING
+      cluster_name:
+        defaultValue: ''
+        isOptional: true
+        parameterType: STRING
+      execution_mode:
+        defaultValue: GKE
+        isOptional: true
+        parameterType: STRING
+      file_cache_size_mb:
+        defaultValue: 2097152.0
+        isOptional: true
+        parameterType: NUMBER_INTEGER
+      image_version:
+        defaultValue: latest
+        isOptional: true
+        parameterType: STRING
+      is_rapid_bucket:
+        defaultValue: false
+        isOptional: true
+        parameterType: BOOLEAN
+      iterations:
+        defaultValue: 5.0
+        isOptional: true
+        parameterType: NUMBER_INTEGER
+      location:
+        defaultValue: ''
+        isOptional: true
+        parameterType: STRING
+      project_id:
+        parameterType: STRING
+      run_file_cache_test:
+        defaultValue: false
+        isOptional: true
+        parameterType: BOOLEAN
+      vm_name:
+        defaultValue: ''
+        isOptional: true
+        parameterType: STRING
+      zone:
+        defaultValue: ''
+        isOptional: true
+        parameterType: STRING
+schemaVersion: 2.1.0
+sdkVersion: kfp-2.16.1
