@@ -18,6 +18,7 @@ def run_benchmark_op(
     is_rapid_bucket: bool = False,
     run_file_cache_test: bool = False,
     file_cache_size_mb: int = 2097152,
+    branch_name: str = "main",
 ):
     import subprocess
     import sys
@@ -32,7 +33,13 @@ def run_benchmark_op(
             print(f"Failed to clone repo:\n{res.stderr}", file=sys.stderr)
             sys.exit(1)
             
-        os.chdir("gcsfuse-tools/npi")
+        os.chdir("gcsfuse-tools")
+        print(f"Checking out branch: {branch_name}")
+        res = subprocess.run(["git", "checkout", branch_name], capture_output=True, text=True)
+        if res.returncode != 0:
+            print(f"Failed to checkout branch {branch_name}:\n{res.stderr}", file=sys.stderr)
+            sys.exit(1)
+        os.chdir("npi")
         
         # Fetch credentials for GKE cluster
         print(f"Fetching credentials for GKE cluster: {cluster_name} in {location}")
@@ -74,7 +81,7 @@ def run_benchmark_op(
         # Command to run on the VM
         remote_cmd = (
             f"if [ ! -d 'gcsfuse-tools' ]; then git clone https://github.com/GoogleCloudPlatform/gcsfuse-tools.git; fi && "
-            f"cd gcsfuse-tools/npi && "
+            f"cd gcsfuse-tools && git checkout {branch_name} && cd npi && "
             f"python3 npi.py --bucket-name {bucket_name} --project-id {project_id} "
             f"--bq-dataset-id {bq_dataset_id} --buffer-mount-path {buffer_mount_path} "
             f"--iterations {iterations} --image-version {image_version}"
@@ -184,7 +191,8 @@ def gcsfuse_npi_pipeline(
     image_version: str = "latest",
     is_rapid_bucket: bool = False,
     run_file_cache_test: bool = False,
-    file_cache_size_mb: int = 2097152
+    file_cache_size_mb: int = 2097152,
+    branch_name: str = "main"
 ):
     run_bench = run_benchmark_op(
         execution_mode=execution_mode,
@@ -200,7 +208,8 @@ def gcsfuse_npi_pipeline(
         image_version=image_version,
         is_rapid_bucket=is_rapid_bucket,
         run_file_cache_test=run_file_cache_test,
-        file_cache_size_mb=file_cache_size_mb
+        file_cache_size_mb=file_cache_size_mb,
+        branch_name=branch_name
     )
     
     analyze = analyze_results_op(

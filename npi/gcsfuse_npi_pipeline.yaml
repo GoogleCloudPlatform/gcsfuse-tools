@@ -3,6 +3,7 @@
 # Description: Pipeline for running GCSFuse NPI benchmarks and analysis
 # Inputs:
 #    bq_dataset_id: str
+#    branch_name: str [Default: 'main']
 #    bucket_name: str
 #    buffer_mount_path: str [Default: '/tmp/buffer']
 #    cluster_name: str [Default: '']
@@ -36,6 +37,10 @@ components:
     inputDefinitions:
       parameters:
         bq_dataset_id:
+          parameterType: STRING
+        branch_name:
+          defaultValue: main
+          isOptional: true
           parameterType: STRING
         bucket_name:
           parameterType: STRING
@@ -181,52 +186,56 @@ deploymentSpec:
           \ zone: str = \"\",\n    buffer_mount_path: str = \"/tmp/buffer\",\n   \
           \ iterations: int = 5,\n    image_version: str = \"latest\",\n    is_rapid_bucket:\
           \ bool = False,\n    run_file_cache_test: bool = False,\n    file_cache_size_mb:\
-          \ int = 2097152,\n):\n    import subprocess\n    import sys\n    import\
-          \ os\n\n    if execution_mode == \"GKE\":\n        print(\"Running in GKE\
-          \ mode...\")\n        # Clone the repo to get the script\n        print(\"\
-          Cloning gcsfuse-tools repo...\")\n        res = subprocess.run([\"git\"\
-          , \"clone\", \"https://github.com/GoogleCloudPlatform/gcsfuse-tools.git\"\
+          \ int = 2097152,\n    branch_name: str = \"main\",\n):\n    import subprocess\n\
+          \    import sys\n    import os\n\n    if execution_mode == \"GKE\":\n  \
+          \      print(\"Running in GKE mode...\")\n        # Clone the repo to get\
+          \ the script\n        print(\"Cloning gcsfuse-tools repo...\")\n       \
+          \ res = subprocess.run([\"git\", \"clone\", \"https://github.com/GoogleCloudPlatform/gcsfuse-tools.git\"\
           ], capture_output=True, text=True)\n        if res.returncode != 0:\n  \
           \          print(f\"Failed to clone repo:\\n{res.stderr}\", file=sys.stderr)\n\
-          \            sys.exit(1)\n\n        os.chdir(\"gcsfuse-tools/npi\")\n\n\
-          \        # Fetch credentials for GKE cluster\n        print(f\"Fetching\
-          \ credentials for GKE cluster: {cluster_name} in {location}\")\n       \
-          \ res = subprocess.run([\n            \"gcloud\", \"container\", \"clusters\"\
-          , \"get-credentials\", cluster_name,\n            \"--location\", location,\
-          \ \"--project\", project_id\n        ], capture_output=True, text=True)\n\
-          \        if res.returncode != 0:\n            print(f\"Failed to fetch cluster\
-          \ credentials:\\n{res.stderr}\", file=sys.stderr)\n            sys.exit(1)\n\
-          \n        print(\"Running benchmark script...\")\n        cmd = [\n    \
-          \        \"python3\", \"npi_gke.py\",\n            \"--bucket-name\", bucket_name,\n\
-          \            \"--project-id\", project_id,\n            \"--bq-dataset-id\"\
-          , bq_dataset_id,\n            \"--iterations\", str(iterations),\n     \
-          \       \"--image-version\", image_version,\n            \"--cluster-name\"\
-          , cluster_name,\n            \"--location\", location\n        ]\n\n   \
-          \     if is_rapid_bucket:\n            cmd.append(\"--is-rapid-bucket\"\
-          )\n        if run_file_cache_test:\n            cmd.append(\"--run-file-cache-test\"\
-          )\n            cmd.extend([\"--file-cache-size-mb\", str(file_cache_size_mb)])\n\
-          \n        res = subprocess.run(cmd, capture_output=True, text=True)\n  \
-          \      print(res.stdout)\n        if res.returncode != 0:\n            print(f\"\
-          Benchmark failed:\\n{res.stderr}\", file=sys.stderr)\n            sys.exit(1)\n\
-          \n    elif execution_mode == \"GCE\":\n        print(f\"Running in GCE mode\
-          \ on VM: {vm_name} in {zone}...\")\n\n        # Command to run on the VM\n\
-          \        remote_cmd = (\n            f\"if [ ! -d 'gcsfuse-tools' ]; then\
-          \ git clone https://github.com/GoogleCloudPlatform/gcsfuse-tools.git; fi\
-          \ && \"\n            f\"cd gcsfuse-tools/npi && \"\n            f\"python3\
-          \ npi.py --bucket-name {bucket_name} --project-id {project_id} \"\n    \
-          \        f\"--bq-dataset-id {bq_dataset_id} --buffer-mount-path {buffer_mount_path}\
-          \ \"\n            f\"--iterations {iterations} --image-version {image_version}\"\
-          \n        )\n\n        if is_rapid_bucket:\n            remote_cmd += \"\
-          \ --is-rapid-bucket\"\n        if run_file_cache_test:\n            remote_cmd\
-          \ += f\" --file-cache-size-mb {file_cache_size_mb}\"\n\n        cmd = [\n\
-          \            \"gcloud\", \"compute\", \"ssh\", vm_name,\n            \"\
-          --zone\", zone,\n            \"--project\", project_id,\n            \"\
-          --command\", remote_cmd\n        ]\n\n        res = subprocess.run(cmd,\
+          \            sys.exit(1)\n\n        os.chdir(\"gcsfuse-tools\")\n      \
+          \  print(f\"Checking out branch: {branch_name}\")\n        res = subprocess.run([\"\
+          git\", \"checkout\", branch_name], capture_output=True, text=True)\n   \
+          \     if res.returncode != 0:\n            print(f\"Failed to checkout branch\
+          \ {branch_name}:\\n{res.stderr}\", file=sys.stderr)\n            sys.exit(1)\n\
+          \        os.chdir(\"npi\")\n\n        # Fetch credentials for GKE cluster\n\
+          \        print(f\"Fetching credentials for GKE cluster: {cluster_name} in\
+          \ {location}\")\n        res = subprocess.run([\n            \"gcloud\"\
+          , \"container\", \"clusters\", \"get-credentials\", cluster_name,\n    \
+          \        \"--location\", location, \"--project\", project_id\n        ],\
+          \ capture_output=True, text=True)\n        if res.returncode != 0:\n   \
+          \         print(f\"Failed to fetch cluster credentials:\\n{res.stderr}\"\
+          , file=sys.stderr)\n            sys.exit(1)\n\n        print(\"Running benchmark\
+          \ script...\")\n        cmd = [\n            \"python3\", \"npi_gke.py\"\
+          ,\n            \"--bucket-name\", bucket_name,\n            \"--project-id\"\
+          , project_id,\n            \"--bq-dataset-id\", bq_dataset_id,\n       \
+          \     \"--iterations\", str(iterations),\n            \"--image-version\"\
+          , image_version,\n            \"--cluster-name\", cluster_name,\n      \
+          \      \"--location\", location\n        ]\n\n        if is_rapid_bucket:\n\
+          \            cmd.append(\"--is-rapid-bucket\")\n        if run_file_cache_test:\n\
+          \            cmd.append(\"--run-file-cache-test\")\n            cmd.extend([\"\
+          --file-cache-size-mb\", str(file_cache_size_mb)])\n\n        res = subprocess.run(cmd,\
           \ capture_output=True, text=True)\n        print(res.stdout)\n        if\
-          \ res.returncode != 0:\n            print(f\"GCE Benchmark failed:\\n{res.stderr}\"\
-          , file=sys.stderr)\n            sys.exit(1)\n    else:\n        print(f\"\
-          Unknown execution mode: {execution_mode}\", file=sys.stderr)\n        sys.exit(1)\n\
-          \n"
+          \ res.returncode != 0:\n            print(f\"Benchmark failed:\\n{res.stderr}\"\
+          , file=sys.stderr)\n            sys.exit(1)\n\n    elif execution_mode ==\
+          \ \"GCE\":\n        print(f\"Running in GCE mode on VM: {vm_name} in {zone}...\"\
+          )\n\n        # Command to run on the VM\n        remote_cmd = (\n      \
+          \      f\"if [ ! -d 'gcsfuse-tools' ]; then git clone https://github.com/GoogleCloudPlatform/gcsfuse-tools.git;\
+          \ fi && \"\n            f\"cd gcsfuse-tools && git checkout {branch_name}\
+          \ && cd npi && \"\n            f\"python3 npi.py --bucket-name {bucket_name}\
+          \ --project-id {project_id} \"\n            f\"--bq-dataset-id {bq_dataset_id}\
+          \ --buffer-mount-path {buffer_mount_path} \"\n            f\"--iterations\
+          \ {iterations} --image-version {image_version}\"\n        )\n\n        if\
+          \ is_rapid_bucket:\n            remote_cmd += \" --is-rapid-bucket\"\n \
+          \       if run_file_cache_test:\n            remote_cmd += f\" --file-cache-size-mb\
+          \ {file_cache_size_mb}\"\n\n        cmd = [\n            \"gcloud\", \"\
+          compute\", \"ssh\", vm_name,\n            \"--zone\", zone,\n          \
+          \  \"--project\", project_id,\n            \"--command\", remote_cmd\n \
+          \       ]\n\n        res = subprocess.run(cmd, capture_output=True, text=True)\n\
+          \        print(res.stdout)\n        if res.returncode != 0:\n          \
+          \  print(f\"GCE Benchmark failed:\\n{res.stderr}\", file=sys.stderr)\n \
+          \           sys.exit(1)\n    else:\n        print(f\"Unknown execution mode:\
+          \ {execution_mode}\", file=sys.stderr)\n        sys.exit(1)\n\n"
         image: google/cloud-sdk:latest
 pipelineInfo:
   description: Pipeline for running GCSFuse NPI benchmarks and analysis
@@ -258,6 +267,8 @@ root:
           parameters:
             bq_dataset_id:
               componentInputParameter: bq_dataset_id
+            branch_name:
+              componentInputParameter: branch_name
             bucket_name:
               componentInputParameter: bucket_name
             buffer_mount_path:
@@ -289,6 +300,10 @@ root:
   inputDefinitions:
     parameters:
       bq_dataset_id:
+        parameterType: STRING
+      branch_name:
+        defaultValue: main
+        isOptional: true
         parameterType: STRING
       bucket_name:
         parameterType: STRING
