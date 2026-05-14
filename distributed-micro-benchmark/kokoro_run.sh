@@ -10,12 +10,14 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 cd "$SCRIPT_DIR"
 
 BENCHMARK_ID="benchmark-$(date +%s)"
-REGIONAL_TEST_DATA_BUCKET="kokoro-regional-test-data-hns-bucket"
+TEST_DATA_BUCKET_READ="kokoro-regional-test-data-hns-bucket"
+TEST_DATA_BUCKET_WRITE="kokoro-regional-test-data-hns-bucket-south"
 ARTIFACTS_BUCKET="kokoro-perf-artifacts-bucket"
 PROJECT="gcs-fuse-test-ml"
 INSTANCE_GROUP_NAME_READ="kokoro-perf-c4-standard-192-mig"
+ZONE_READ="us-central1-c"
 INSTANCE_GROUP_NAME_WRITE="kokoro-perf-c4-standard-192-mig-write" 
-ZONE="us-central1-c"
+ZONE_WRITE="us-south1-a"
 
 READ_CONFIGS_CSV="${SCRIPT_DIR}/test_suites/kokoro/kokoro_read_mount_configs.csv"
 READ_FIO_JOB_FILE="${SCRIPT_DIR}/test_suites/kokoro/kokoro_read_fio_job.fio"
@@ -33,19 +35,21 @@ GCSFUSE_COMMIT=master
 RUN_READ=false
 RUN_WRITE=false
 
-SINGLE_THREAD_VM_TYPE="kokoro-perf-instance-template-n2-standard-32-single-threaded"
-MULTI_THREAD_VM_TYPE="kokoro-perf-instance-template"
+SINGLE_THREAD_VM_TYPE_READ="kokoro-perf-instance-template-n2-standard-32-single-threaded"
+MULTI_THREAD_VM_TYPE_READ="kokoro-perf-instance-template"
+
+SINGLE_THREAD_VM_TYPE_WRITE="kokoro-perf-instance-template-n2-standard-32-single-thread-sout"
+MULTI_THREAD_VM_TYPE_WRITE="kokoro-perf-instance-template-south"
 
 
 # Parse command line arguments
 while [[ "$#" -gt 0 ]]; do
     case $1 in
-        --commit) GCSFUSE_COMMIT="$2"; shift ;;
-        --read) RUN_READ=true ;;
-        --write) RUN_WRITE=true ;;
-        *) ;; # Ignore other arguments or handle them as needed
+        --commit) GCSFUSE_COMMIT="$2"; shift 2 ;;
+        --read) RUN_READ=true; shift ;;
+        --write) RUN_WRITE=true; shift ;;
+        *) echo "Unknown argument: $1"; exit 1 ;;
     esac
-    shift
 done
 
 # If neither read nor write is specified, run both (default behavior)
@@ -60,9 +64,11 @@ echo "=========================================="
 echo "Benchmark ID: $BENCHMARK_ID"
 echo "Read Instance Group: $INSTANCE_GROUP_NAME_READ"
 echo "Write Instance Group: $INSTANCE_GROUP_NAME_WRITE"
-echo "Test Data Bucket: $REGIONAL_TEST_DATA_BUCKET"
+echo "Read Test Data Bucket: $TEST_DATA_BUCKET_READ"
+echo "Write Test Data Bucket: $TEST_DATA_BUCKET_WRITE"
 echo "Artifacts Bucket: $ARTIFACTS_BUCKET"
-echo "Zone: $ZONE"
+echo "Read Zone: $ZONE_READ"
+echo "Write Zone: $ZONE_WRITE"
 echo "Project: $PROJECT"
 echo "Iterations: $ITERATIONS"
 echo "Read Configs CSV: $READ_CONFIGS_CSV"
@@ -150,7 +156,6 @@ setup_permissions() {
     fi
 
     # 4. Force gcloud to respect these keys
-    gcloud config set compute/zone $ZONE
     gcloud config set project $PROJECT
 }
 
@@ -164,11 +169,26 @@ run_benchmark() {
 
   # Decide which MIG to use based on the benchmark type
   local TARGET_MIG=""
+  local TARGET_ZONE=""
+  local TARGET_BUCKET=""
+  local TARGET_SINGLE_THREAD_VM_TYPE=""
+  local TARGET_MULTI_THREAD_VM_TYPE=""
   if [ "$TYPE" == "write" ]; then
       TARGET_MIG=$INSTANCE_GROUP_NAME_WRITE
+      TARGET_ZONE=$ZONE_WRITE
+      TARGET_BUCKET=$TEST_DATA_BUCKET_WRITE
+      TARGET_SINGLE_THREAD_VM_TYPE=$SINGLE_THREAD_VM_TYPE_WRITE
+      TARGET_MULTI_THREAD_VM_TYPE=$MULTI_THREAD_VM_TYPE_WRITE
   else
       TARGET_MIG=$INSTANCE_GROUP_NAME_READ
+      TARGET_ZONE=$ZONE_READ
+      TARGET_BUCKET=$TEST_DATA_BUCKET_READ
+      TARGET_SINGLE_THREAD_VM_TYPE=$SINGLE_THREAD_VM_TYPE_READ
+      TARGET_MULTI_THREAD_VM_TYPE=$MULTI_THREAD_VM_TYPE_READ
   fi
+
+  # Ensure gcloud uses the correct zone for this specific benchmark run
+  gcloud config set compute/zone $TARGET_ZONE
 
   echo "=========================================="
   echo "Running $TYPE Benchmark"
@@ -184,18 +204,18 @@ run_benchmark() {
   ORCHESTRATOR_CMD="python3 -u orchestrator.py \
   --benchmark-id $CURRENT_BENCHMARK_ID \
   --executor-vm $TARGET_MIG \
-  --zone $ZONE \
+  --zone $TARGET_ZONE \
   --project $PROJECT \
   --artifacts-bucket $ARTIFACTS_BUCKET \
   --test-csv $TEST_CSV \
   --fio-job-file $FIO_JOB_FILE \
-  --test-data-bucket $REGIONAL_TEST_DATA_BUCKET \
+  --test-data-bucket $TARGET_BUCKET \
   --iterations $ITERATIONS \
   --poll-interval $POLL_INTERVAL \
   --timeout $TIMEOUT \
   --report-name $REPORT_NAME \
-  --single-thread-vm-type='$SINGLE_THREAD_VM_TYPE' \
-  --multi-thread-vm-type='$MULTI_THREAD_VM_TYPE'"
+  --single-thread-vm-type=\"$TARGET_SINGLE_THREAD_VM_TYPE\" \
+  --multi-thread-vm-type=\"$TARGET_MULTI_THREAD_VM_TYPE\""
 
   if [ -n "$CONFIGS_CSV" ] && [ -f "$CONFIGS_CSV" ]; then
     ORCHESTRATOR_CMD="$ORCHESTRATOR_CMD --configs-csv $CONFIGS_CSV"
@@ -231,8 +251,8 @@ run_benchmark() {
     python3 "$BQ_SCRIPT" \
       --results-dir "$RESULTS_DIR" \
       --project-id "$PROJECT" \
-      --report-name "$REPORT_NAME" || echo "WARNING: BigQuery upload failed. Continuing..." \
-      $IS_KOKORO_FLAG
+      --report-name "$REPORT_NAME" \
+      $IS_KOKORO_FLAG || echo "WARNING: BigQuery upload failed. Continuing..."
   fi
 }
 
