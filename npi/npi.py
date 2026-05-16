@@ -252,6 +252,9 @@ class BenchmarkFactory:
 
         for bench_name, bench_config in benchmarks.items():
             for config_name, config_params in configs.items():
+                if bench_name == "read_file_cache" and "http1" in config_name:
+                    continue
+
                 # Construct the full benchmark name and BQ table ID
                 full_bench_name = f"{bench_name}_{config_name}"
 
