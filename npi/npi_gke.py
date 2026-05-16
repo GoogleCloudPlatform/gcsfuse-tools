@@ -201,6 +201,7 @@ def main():
         parser.error("Both --cluster-name and --location must be provided together to fetch cluster credentials.")
 
     all_benchmarks = [
+        ("host_info", "", "host-info-collector", "", 1, None),
         ("read", "http1", "fio-read-benchmark", "", None, None),
         ("read", "grpc", "fio-read-benchmark", "--client-protocol=grpc", None, None),
         ("write", "http1", "fio-write-benchmark", "", None, None),
@@ -224,12 +225,12 @@ def main():
             print("Warning: File-cache tests are not being run because --run-file-cache-test was not provided.", file=sys.stderr)
             benchmarks_to_run = [b for b in all_benchmarks if "file_cache" not in b[0]]
     else:
-        available_names = {f"{b[0]}_{b[1]}" for b in all_benchmarks}
+        available_names = {f"{b[0]}_{b[1]}" if b[1] else b[0] for b in all_benchmarks}
         for b in args.benchmarks:
             if b not in available_names:
                 print(f"Error: Benchmark '{b}' not found. Available benchmarks are: {', '.join(available_names)}", file=sys.stderr)
                 sys.exit(1)
-        benchmarks_to_run = [b for b in all_benchmarks if f"{b[0]}_{b[1]}" in args.benchmarks]
+        benchmarks_to_run = [b for b in all_benchmarks if (f"{b[0]}_{b[1]}" if b[1] else b[0]) in args.benchmarks]
 
     if args.is_rapid_bucket:
         if "all" not in args.benchmarks:
@@ -249,9 +250,13 @@ def main():
     failed_benchmarks = []
 
     for bench_type, config_name, image_suffix, extra_flag, iter_override, runner_args in benchmarks_to_run:
-        full_bench_name = f"{bench_type}_{config_name}"
+        full_bench_name = f"{bench_type}_{config_name}" if config_name else bench_type
         job_name = f"gcsfuse-npi-{full_bench_name}".replace("_", "-")
-        bq_table_id = f"fio_{full_bench_name}"
+        
+        if bench_type == "host_info":
+            bq_table_id = "host_info"
+        else:
+            bq_table_id = f"fio_{full_bench_name}"
         
         target_iterations = iter_override if iter_override is not None else args.iterations
         image = f"us-docker.pkg.dev/{args.project_id}/gcsfuse-benchmarks/{image_suffix}:{args.image_version}"

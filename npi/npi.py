@@ -243,6 +243,13 @@ class BenchmarkFactory:
 
 
         definitions = {}
+        # Add host info collector benchmark first
+        definitions["host_info"] = functools.partial(
+            self._create_docker_command,
+            benchmark_image_suffix="host-info-collector",
+            bq_table_id="host_info",
+        )
+
         for bench_name, bench_config in benchmarks.items():
             for config_name, config_params in configs.items():
                 # Construct the full benchmark name and BQ table ID
