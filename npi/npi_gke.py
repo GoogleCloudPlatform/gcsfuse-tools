@@ -254,6 +254,8 @@ def main():
         
         if bench_type == "host_info":
             bq_table_id = "host_info"
+        elif bench_type == "read_file_cache":
+            bq_table_id = "fio_read_file_cache"
         else:
             bq_table_id = f"fio_{full_bench_name}"
         
