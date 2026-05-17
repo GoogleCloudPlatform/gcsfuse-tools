@@ -20,6 +20,8 @@ class TestBenchmarkFactory(unittest.TestCase):
         benchmarks = factory.get_available_benchmarks()
         self.assertIn("read_http1", benchmarks)
         self.assertIn("write_grpc", benchmarks)
+        self.assertIn("go_client_http", benchmarks)
+        self.assertIn("go_client_grpc", benchmarks)
 
     @patch('npi.BenchmarkFactory._get_cpu_list_for_numa_node')
     def test_get_benchmark_command_standard(self, mock_get_cpu):
@@ -57,6 +59,27 @@ class TestBenchmarkFactory(unittest.TestCase):
         self.assertIn("--temp-dir=/gcsfuse-buffer/write", cmd)
         self.assertIn("--cache-dir=/gcsfuse-buffer/file-cache", cmd)
         self.assertIn("--file-cache-max-size-mb=1024", cmd)
+
+    @patch('npi.BenchmarkFactory._get_cpu_list_for_numa_node')
+    def test_get_benchmark_command_go_client(self, mock_get_cpu):
+        mock_get_cpu.return_value = None
+        
+        factory = npi.BenchmarkFactory(
+            bucket_name="test-bucket",
+            project_id="test-project",
+            bq_dataset_id="test-dataset",
+            iterations=5,
+            buffer_mount_path="/mnt/buffer"
+        )
+        
+        cmd, table_id = factory.get_benchmark_command("go_client_http")
+        self.assertEqual(table_id, "go_client_benchmark")
+        self.assertNotIn("-v /mnt/buffer:/gcsfuse-buffer", cmd)
+        self.assertNotIn("--temp-dir", cmd)
+        self.assertIn("us-docker.pkg.dev/test-project/gcsfuse-benchmarks/go-client-benchmark:latest", cmd)
+        self.assertIn("--client-protocol=http", cmd)
+        self.assertIn("--iterations=5", cmd)
+        self.assertIn("--bucket-name=test-bucket", cmd)
 
     @patch('subprocess.run')
     def test_get_cpu_list_for_numa_node_success(self, mock_run):

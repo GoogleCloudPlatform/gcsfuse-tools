@@ -207,6 +207,8 @@ def main():
         ("write", "http1", "fio-write-benchmark", "", None, None),
         ("write", "grpc", "fio-write-benchmark", "--client-protocol=grpc", None, None),
         ("read_file_cache", "grpc", "fio-read-benchmark", f"client-protocol=grpc,metadata-cache-ttl-secs=-1,file-cache:max-size-mb:{args.file_cache_size_mb},file-cache-cache-file-for-range-read", 5, "--keep-mount"),
+        ("go_client", "http", "go-client-benchmark", "", None, None),
+        ("go_client", "grpc", "go-client-benchmark", "", None, None),
     ]
 
     # If not explicitly told to run file cache benchmarks, validate and filter them out.
@@ -256,18 +258,31 @@ def main():
             bq_table_id = "host_info"
         elif bench_type == "read_file_cache":
             bq_table_id = "fio_read_file_cache"
+        elif bench_type == "go_client":
+            bq_table_id = "go_client_benchmark"
         else:
             bq_table_id = f"fio_{full_bench_name}"
         
         target_iterations = iter_override if iter_override is not None else args.iterations
         image = f"us-docker.pkg.dev/{args.project_id}/gcsfuse-benchmarks/{image_suffix}:{args.image_version}"
-        cmd_args = [
-            f"--iterations={target_iterations}",
-            f"--project-id={args.project_id}",
-            f"--bq-dataset-id={args.bq_dataset_id}",
-            f"--bq-table-id={bq_table_id}",
-            "--mount-path=/data"
-        ]
+        
+        if bench_type == "go_client":
+            cmd_args = [
+                f"--iterations={target_iterations}",
+                f"--project-id={args.project_id}",
+                f"--bq-dataset-id={args.bq_dataset_id}",
+                f"--bq-table-id={bq_table_id}",
+                f"--bucket-name={args.bucket_name}",
+                f"--client-protocol={config_name}"
+            ]
+        else:
+            cmd_args = [
+                f"--iterations={target_iterations}",
+                f"--project-id={args.project_id}",
+                f"--bq-dataset-id={args.bq_dataset_id}",
+                f"--bq-table-id={bq_table_id}",
+                "--mount-path=/data"
+            ]
         if runner_args:
             cmd_args.append(runner_args)
 

@@ -211,6 +211,24 @@ steps:
       - '${_REGISTRY}/${_PROJECT}/gcsfuse-benchmarks/multinic-routing:${_IMAGE_VERSION}'
       - 'multinic'
 
+  # Build and push the custom-go-client-benchmark image.
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'go-client-benchmark'
+    waitFor: ['buildx-setup']
+    args:
+      - 'buildx'
+      - 'build'
+      - '--push'
+      - '-f'
+      - 'go_client/go_client.dockerfile'
+      - '--platform'
+      - 'linux/amd64,linux/arm64'
+      - '--build-arg'
+      - 'GO_VERSION=${_GO_VERSION}'
+      - '-t'
+      - '${_REGISTRY}/${_PROJECT}/gcsfuse-benchmarks/go-client-benchmark:${_IMAGE_VERSION}'
+      - 'go_client'
+
 options:
   # Using a more powerful machine is recommended for multi-platform builds.
   machineType: 'E2_HIGHCPU_32'

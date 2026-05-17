@@ -167,6 +167,25 @@ class BenchmarkFactory:
             base_cmd += " --bind-fio"
         return base_cmd, bq_table_id
 
+    def _create_go_client_docker_command(self, client_protocol, bq_table_id,
+                                         bucket_name, project_id, bq_dataset_id,
+                                         mount_path=None):
+        """Constructs the docker run command for the custom Go storage client benchmark."""
+        base_cmd = (
+            "docker run --pull=always --network=host --privileged --rm "
+        )
+        base_cmd += (
+            f"us-docker.pkg.dev/{project_id}/gcsfuse-benchmarks/go-client-benchmark:{self.image_version} "
+            f"--iterations={self.iterations} "
+            f"--project-id={project_id} "
+            f"--bq-dataset-id={bq_dataset_id} "
+            f"--bq-table-id={bq_table_id} "
+            f"--client-protocol={client_protocol}"
+        )
+        if bucket_name:
+            base_cmd += f" --bucket-name={bucket_name}"
+        return base_cmd, bq_table_id
+
     def _get_cpu_list_for_numa_node(self, node_id):
         """Gets the CPU list for a given NUMA node by parsing `lscpu --json`.
 
@@ -248,6 +267,18 @@ class BenchmarkFactory:
             self._create_docker_command,
             benchmark_image_suffix="host-info-collector",
             bq_table_id="host_info",
+        )
+
+        # Add custom Go client benchmarks
+        definitions["go_client_http"] = functools.partial(
+            self._create_go_client_docker_command,
+            client_protocol="http",
+            bq_table_id="go_client_benchmark",
+        )
+        definitions["go_client_grpc"] = functools.partial(
+            self._create_go_client_docker_command,
+            client_protocol="grpc",
+            bq_table_id="go_client_benchmark",
         )
 
         for bench_name, bench_config in benchmarks.items():
