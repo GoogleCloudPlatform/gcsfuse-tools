@@ -18,7 +18,8 @@ def get_cpu_arch():
     return platform.machine()
 
 def get_num_cpus():
-    return os.cpu_count()
+    count = os.cpu_count()
+    return count if count is not None else 1
 
 def get_num_numa_nodes():
     try:
@@ -118,7 +119,7 @@ def upload_to_bq(info, project_id, dataset_id, table_id):
         client.create_table(table)
 
     row_to_insert = {
-        "run_timestamp": datetime.datetime.utcnow().isoformat(),
+        "run_timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         "cpu_arch": info["cpu_arch"],
         "num_cpus": info["num_cpus"],
         "num_numa_nodes": info["num_numa_nodes"],
@@ -141,7 +142,7 @@ def main():
     parser.add_argument("--bq-dataset-id", help="BigQuery dataset ID.")
     parser.add_argument("--bq-table-id", default="host_info", help="BigQuery table ID.")
     
-    args, _ = parser.parse_known_args()
+    args = parser.parse_args()
 
     info = collect_info()
     print("Collected Host Info:")
