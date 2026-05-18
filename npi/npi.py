@@ -243,13 +243,29 @@ class BenchmarkFactory:
 
 
         definitions = {}
+        # Add host info collector benchmark first
+        definitions["host_info"] = functools.partial(
+            self._create_docker_command,
+            benchmark_image_suffix="host-info-collector",
+            bq_table_id="host_info",
+        )
+
         for bench_name, bench_config in benchmarks.items():
             for config_name, config_params in configs.items():
+                if bench_name == "read_file_cache" and "http1" in config_name:
+                    continue
+
                 # Construct the full benchmark name and BQ table ID
                 full_bench_name = f"{bench_name}_{config_name}"
 
                 if "bq_table_id_override" in bench_config:
                     bq_table_id = bench_config["bq_table_id_override"].format(config_name=config_name)
+                elif bench_name == "read_file_cache":
+                    suffix = config_name.replace("grpc", "").replace("http1", "").strip("_")
+                    if suffix:
+                        bq_table_id = f"fio_{bench_name}_{suffix}"
+                    else:
+                        bq_table_id = f"fio_{bench_name}"
                 else:
                     bq_table_id = f"fio_{full_bench_name}"
 
