@@ -148,3 +148,24 @@ stop_monitoring() {
     kill $MONITOR_PID 2>/dev/null || true
     wait $MONITOR_PID 2>/dev/null || true
 }
+
+# Starts a background check to poll GCS for a cancellation flag
+start_cancellation_monitor() {
+    local BENCHMARK_ID=$1
+    local ARTIFACTS_BUCKET=$2
+    local PARENT_PID=$3
+    local CANCEL_FLAG="gs://${ARTIFACTS_BUCKET}/${BENCHMARK_ID}/cancel"
+
+    {
+        while true; do
+            sleep 30
+            if gcloud storage ls "$CANCEL_FLAG" &> /dev/null; then
+                echo "[Cancellation Monitor] Cancellation flag detected! Terminating worker execution..." >&2
+                kill -s TERM "$PARENT_PID" 2>/dev/null || kill "$PARENT_PID" 2>/dev/null || exit 1
+                exit 0
+            fi
+        done
+    } &
+    CANCEL_CHECK_PID=$!
+}
+

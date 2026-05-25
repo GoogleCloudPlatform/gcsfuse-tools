@@ -27,6 +27,18 @@ WRITE_CONFIGS_CSV="${SCRIPT_DIR}/test_suites/kokoro/kokoro_write_mount_configs.c
 WRITE_FIO_JOB_FILE="${SCRIPT_DIR}/test_suites/kokoro/kokoro_write_fio_job.fio"
 WRITE_TEST_CSV="${SCRIPT_DIR}/test_suites/kokoro/kokoro_write_test_cases.csv"
 
+# Zonal Specific Configuration
+TEST_DATA_BUCKET_ZONAL="kokoro-zonal-test-data-bucket"
+INSTANCE_GROUP_NAME_ZONAL="kokoro-perf-mig-zonal"
+ZONE_ZONAL="us-west4-a"
+
+# Final Zonal Templates
+SINGLE_THREAD_VM_TYPE_ZONAL="kokoro-perf-instance-template-c4-standard-48-single-thread-west"
+MULTI_THREAD_VM_TYPE_ZONAL="kokoro-perf-instance-template-west4"
+
+READ_CONFIGS_CSV_ZONAL="${SCRIPT_DIR}/test_suites/kokoro/kokoro_read_mount_configs_zonal.csv"
+WRITE_CONFIGS_CSV_ZONAL="${SCRIPT_DIR}/test_suites/kokoro/kokoro_write_mount_configs_zonal.csv"
+
 ITERATIONS=3
 SEPARATE_CONFIGS=false # Set to true to generate separate CSV per config
 POLL_INTERVAL=180
@@ -34,6 +46,7 @@ TIMEOUT=21600 # 6 hours
 GCSFUSE_COMMIT=master 
 RUN_READ=false
 RUN_WRITE=false
+RUN_ZONAL=false
 
 SINGLE_THREAD_VM_TYPE_READ="kokoro-perf-instance-template-n2-standard-32-single-threaded"
 MULTI_THREAD_VM_TYPE_READ="kokoro-perf-instance-template"
@@ -48,6 +61,7 @@ while [[ "$#" -gt 0 ]]; do
         --commit) GCSFUSE_COMMIT="$2"; shift 2 ;;
         --read) RUN_READ=true; shift ;;
         --write) RUN_WRITE=true; shift ;;
+        --zonal) RUN_ZONAL=true; shift ;;
         *) echo "Unknown argument: $1"; exit 1 ;;
     esac
 done
@@ -62,17 +76,32 @@ echo "=========================================="
 echo "Distributed Benchmark Configuration"
 echo "=========================================="
 echo "Benchmark ID: $BENCHMARK_ID"
-echo "Read Instance Group: $INSTANCE_GROUP_NAME_READ"
-echo "Write Instance Group: $INSTANCE_GROUP_NAME_WRITE"
-echo "Read Test Data Bucket: $TEST_DATA_BUCKET_READ"
-echo "Write Test Data Bucket: $TEST_DATA_BUCKET_WRITE"
+if [ "$RUN_ZONAL" = true ]; then
+    echo "Mode: ZONAL"
+    echo "Zonal Instance Group: $INSTANCE_GROUP_NAME_ZONAL"
+    echo "Zonal Test Data Bucket: $TEST_DATA_BUCKET_ZONAL"
+    echo "Zonal Zone: $ZONE_ZONAL"
+    echo "Zonal Single-Thread VM Type: $SINGLE_THREAD_VM_TYPE_ZONAL"
+    echo "Zonal Multi-Thread VM Type: $MULTI_THREAD_VM_TYPE_ZONAL"
+else
+    echo "Mode: REGIONAL"
+    echo "Read Instance Group: $INSTANCE_GROUP_NAME_READ"
+    echo "Write Instance Group: $INSTANCE_GROUP_NAME_WRITE"
+    echo "Read Test Data Bucket: $TEST_DATA_BUCKET_READ"
+    echo "Write Test Data Bucket: $TEST_DATA_BUCKET_WRITE"
+    echo "Read Zone: $ZONE_READ"
+    echo "Write Zone: $ZONE_WRITE"
+fi
 echo "Artifacts Bucket: $ARTIFACTS_BUCKET"
-echo "Read Zone: $ZONE_READ"
-echo "Write Zone: $ZONE_WRITE"
 echo "Project: $PROJECT"
 echo "Iterations: $ITERATIONS"
-echo "Read Configs CSV: $READ_CONFIGS_CSV"
-echo "Write Configs CSV: $WRITE_CONFIGS_CSV"
+if [ "$RUN_ZONAL" = true ]; then
+    echo "Read Configs CSV: $READ_CONFIGS_CSV_ZONAL"
+    echo "Write Configs CSV: $WRITE_CONFIGS_CSV_ZONAL"
+else
+    echo "Read Configs CSV: $READ_CONFIGS_CSV"
+    echo "Write Configs CSV: $WRITE_CONFIGS_CSV"
+fi
 echo "Read FIO Job File: $READ_FIO_JOB_FILE"
 echo "Write FIO Job File: $WRITE_FIO_JOB_FILE"
 echo "Read Test CSV: $READ_TEST_CSV"
@@ -123,7 +152,7 @@ setup_environment() {
 update_commit_hashes() {
     # If GCSFUSE_COMMIT is set, update the configs CSVs to use that commit
     echo "--- STEP 2: Update Commit Hashes---"
-    for CSV in "$READ_CONFIGS_CSV" "$WRITE_CONFIGS_CSV"; do
+    for CSV in "$READ_CONFIGS_CSV" "$WRITE_CONFIGS_CSV" "$READ_CONFIGS_CSV_ZONAL" "$WRITE_CONFIGS_CSV_ZONAL"; do
       if [ -n "$GCSFUSE_COMMIT" ] && [ -f "$CSV" ]; then
         echo "Updating $CSV with commit $GCSFUSE_COMMIT..."
         sed -i "2,\$s|^[^,]*|$GCSFUSE_COMMIT|" "$CSV"
@@ -173,7 +202,18 @@ run_benchmark() {
   local TARGET_BUCKET=""
   local TARGET_SINGLE_THREAD_VM_TYPE=""
   local TARGET_MULTI_THREAD_VM_TYPE=""
-  if [ "$TYPE" == "write" ]; then
+  if [ "$RUN_ZONAL" = true ]; then
+      TARGET_MIG=$INSTANCE_GROUP_NAME_ZONAL
+      TARGET_ZONE=$ZONE_ZONAL
+      TARGET_BUCKET=$TEST_DATA_BUCKET_ZONAL
+      TARGET_SINGLE_THREAD_VM_TYPE=$SINGLE_THREAD_VM_TYPE_ZONAL
+      TARGET_MULTI_THREAD_VM_TYPE=$MULTI_THREAD_VM_TYPE_ZONAL
+      if [ "$TYPE" == "write" ]; then
+          CONFIGS_CSV=$WRITE_CONFIGS_CSV_ZONAL
+      else
+          CONFIGS_CSV=$READ_CONFIGS_CSV_ZONAL
+      fi
+  elif [ "$TYPE" == "write" ]; then
       TARGET_MIG=$INSTANCE_GROUP_NAME_WRITE
       TARGET_ZONE=$ZONE_WRITE
       TARGET_BUCKET=$TEST_DATA_BUCKET_WRITE

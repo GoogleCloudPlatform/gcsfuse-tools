@@ -75,7 +75,7 @@ def run_worker_script(vm_name, zone, project, script_path, benchmark_id, artifac
     # Convert to absolute path
     script_path = os.path.abspath(script_path)
     
-    # Upload worker scripts first to ensure they exist in /tmp
+    # Upload worker scripts first to ensure they exist in the home directory (~/)
     script_dir = os.path.dirname(script_path)
     workers = ['setup.sh', 'monitor.sh', 'build.sh', 'runner.sh', 'worker.sh']
     for worker in workers:
@@ -123,7 +123,7 @@ def run_worker_script(vm_name, zone, project, script_path, benchmark_id, artifac
 
 def fetch_worker_logs(vm_name, benchmark_id, artifacts_bucket, lines=50):
     """Fetch and display worker logs from GCS"""
-    log_path = f"gs://{artifacts_bucket}/{benchmark_id}/logs/{vm_name}/worker.log"
+    log_path = f"gs://{artifacts_bucket}/{benchmark_id}/results/{vm_name}/worker.log"
     
     try:
         result = gcloud_utils.run_gcloud_command(['gcloud', 'storage', 'cat', log_path], capture_output=True, text=True, timeout=10, check=False)

@@ -25,7 +25,7 @@ def create_cancel_flag(benchmark_id, artifacts_bucket):
     print(f"Creating cancellation flag: {cancel_path}")
     
     # Create empty file as cancel flag
-    cmd = ['gsutil', 'cp', '-', cancel_path]
+    cmd = ['gcloud', 'storage', 'cp', '-', cancel_path]
     process = subprocess.run(cmd, input=b'', capture_output=True)
     
     if process.returncode == 0:
