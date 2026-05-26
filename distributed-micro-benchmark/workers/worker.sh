@@ -187,7 +187,7 @@ while IFS= read -r ENTRY; do
 
     # Upload current progress log to GCS
     if [ -n "${LOG_BASE:-}" ] && [ -f "${LOG_FILE:-}" ]; then
-        gcloud storage cp "$LOG_FILE" "${LOG_BASE}/worker.log" 2>/dev/null || true
+        gcloud storage cp "$LOG_FILE" "${LOG_BASE}/worker.log" &>/dev/null &
     fi
 done < <(echo "$TEST_ENTRIES")
 
