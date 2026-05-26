@@ -111,7 +111,9 @@ handle_error() {
     fi
 }
 # Register trap for error, exit, and termination signals
-trap 'handle_error $?' ERR EXIT TERM INT
+trap 'handle_error $?' ERR EXIT
+trap 'exit 143' TERM
+trap 'exit 130' INT
 
 # --- Main Flow ---
 
