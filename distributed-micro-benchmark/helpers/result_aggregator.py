@@ -36,21 +36,21 @@ def _avg(values):
     return sum(values) / len(values) if values else 0
 
 
-def _extract_latency_metrics(job):
-    """Extract read latency metrics from FIO job data"""
-    if 'read' not in job or not job['read'].get('bw'):
+def _extract_latency_metrics(job, action='read'):
+    """Extract latency metrics from FIO job data for the specified action ('read' or 'write')"""
+    if action not in job or not job[action].get('bw'):
         return None
     
-    lat_metrics = {'bw': job['read']['bw']}
+    lat_metrics = {'bw': job[action]['bw']}
     
     # clat_ns stores values in MICROSECONDS (despite the name)
     # lat_ns stores values in NANOSECONDS
     # We prefer clat_ns (completion latency) over lat_ns (total latency)
-    if 'clat_ns' in job['read']:
-        lat_data = job['read']['clat_ns']
+    if 'clat_ns' in job[action]:
+        lat_data = job[action]['clat_ns']
         divisor = 1000.0  # µs to ms
-    elif 'lat_ns' in job['read']:
-        lat_data = job['read']['lat_ns']
+    elif 'lat_ns' in job[action]:
+        lat_data = job[action]['lat_ns']
         divisor = 1000000.0  # ns to ms
     else:
         return lat_metrics
@@ -139,7 +139,8 @@ def parse_test_results(test_dir, test_info):
     
     read_bws = []
     write_bws = []
-    lat_lists = {key: [] for key in ['min', 'max', 'mean', 'stddev', 'p50', 'p90', 'p99']}
+    read_lat_lists = {key: [] for key in ['min', 'max', 'mean', 'stddev', 'p50', 'p90', 'p99']}
+    write_lat_lists = {key: [] for key in ['min', 'max', 'mean', 'stddev', 'p50', 'p90', 'p99']}
     
     for fio_file in fio_files:
         if os.path.getsize(fio_file) == 0:
@@ -159,16 +160,20 @@ def parse_test_results(test_dir, test_info):
 
             for job in data.get('jobs', []):
                 # Extract read metrics
-                lat_metrics = _extract_latency_metrics(job)
-                if lat_metrics:
-                    read_bws.append(lat_metrics['bw'])
-                    for key in lat_lists:
-                        if key in lat_metrics:
-                            lat_lists[key].append(lat_metrics[key])
+                read_lat_metrics = _extract_latency_metrics(job, 'read')
+                if read_lat_metrics:
+                    read_bws.append(read_lat_metrics['bw'])
+                    for key in read_lat_lists:
+                        if key in read_lat_metrics:
+                            read_lat_lists[key].append(read_lat_metrics[key])
                 
                 # Extract write metrics
-                if 'write' in job and job['write'].get('bw'):
-                    write_bws.append(job['write']['bw'])
+                write_lat_metrics = _extract_latency_metrics(job, 'write')
+                if write_lat_metrics:
+                    write_bws.append(write_lat_metrics['bw'])
+                    for key in write_lat_lists:
+                        if key in write_lat_metrics:
+                            write_lat_lists[key].append(write_lat_metrics[key])
         except (json.JSONDecodeError, Exception) as e:
             print(f"Warning: Failed to parse {fio_file}: {e}")
             continue
@@ -178,13 +183,23 @@ def parse_test_results(test_dir, test_info):
         'test_params': test_info.get('params', {}),
         'read_bw_mbps': _avg(read_bws) / 1000.0,
         'write_bw_mbps': _avg(write_bws) / 1000.0,
-        'read_lat_min_ms': _avg(lat_lists['min']),
-        'read_lat_max_ms': _avg(lat_lists['max']),
-        'read_lat_avg_ms': _avg(lat_lists['mean']),
-        'read_lat_stddev_ms': _avg(lat_lists['stddev']),
-        'read_lat_p50_ms': _avg(lat_lists['p50']),
-        'read_lat_p90_ms': _avg(lat_lists['p90']),
-        'read_lat_p99_ms': _avg(lat_lists['p99']),
+        
+        'read_lat_min_ms': _avg(read_lat_lists['min']),
+        'read_lat_max_ms': _avg(read_lat_lists['max']),
+        'read_lat_avg_ms': _avg(read_lat_lists['mean']),
+        'read_lat_stddev_ms': _avg(read_lat_lists['stddev']),
+        'read_lat_p50_ms': _avg(read_lat_lists['p50']),
+        'read_lat_p90_ms': _avg(read_lat_lists['p90']),
+        'read_lat_p99_ms': _avg(read_lat_lists['p99']),
+        
+        'write_lat_min_ms': _avg(write_lat_lists['min']),
+        'write_lat_max_ms': _avg(write_lat_lists['max']),
+        'write_lat_avg_ms': _avg(write_lat_lists['mean']),
+        'write_lat_stddev_ms': _avg(write_lat_lists['stddev']),
+        'write_lat_p50_ms': _avg(write_lat_lists['p50']),
+        'write_lat_p90_ms': _avg(write_lat_lists['p90']),
+        'write_lat_p99_ms': _avg(write_lat_lists['p99']),
+        
         'iterations': len(fio_files),
         'matrix_id': test_info.get('matrix_id')
     }

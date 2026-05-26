@@ -13,7 +13,7 @@ fi
 
 VM_NAME=$(curl -H "Metadata-Flavor: Google" http://metadata.google.internal/computeMetadata/v1/instance/name)
 RESULT_BASE="gs://${ARTIFACTS_BUCKET}/${BENCHMARK_ID}/results/${VM_NAME}"
-LOG_BASE="gs://${ARTIFACTS_BUCKET}/${BENCHMARK_ID}/logs/${VM_NAME}"
+LOG_BASE="${RESULT_BASE}"
 
 echo "VM: $VM_NAME"
 echo "Benchmark ID: $BENCHMARK_ID"
@@ -24,6 +24,8 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 LOG_FILE="${SCRIPT_DIR}/worker_${BENCHMARK_ID}.log"
 
 echo "VM: $VM_NAME"
+
+CANCEL_CHECK_PID=""
 
 # --- Import Modules using the absolute path ---
 source "$SCRIPT_DIR/setup.sh"
@@ -108,9 +110,15 @@ handle_error() {
         fi
     fi
 }
+# Register trap for error, exit, and termination signals
 trap 'handle_error $?' ERR EXIT
+trap 'exit 143' TERM
+trap 'exit 130' INT
 
 # --- Main Flow ---
+
+# Start the background cancellation monitor
+start_cancellation_monitor "$BENCHMARK_ID" "$ARTIFACTS_BUCKET" "$$"
 
 # 0. Pre-flight cleanup of any existing orphaned processes from previous runs
 cleanup_gcsfuse
@@ -176,6 +184,11 @@ while IFS= read -r ENTRY; do
     if execute_test "$TEST_ID" "$MATRIX_ID" "$GCSFUSE_BIN" "$MOUNT_ARGS" "$MATRIX_ID" "$CONFIG_ID" "$CONFIG_LABEL" "$COMMIT"; then
         TESTS_COMPLETED=$((TESTS_COMPLETED + 1))
     fi
+
+    # Upload current progress log to GCS
+    if [ -n "${LOG_BASE:-}" ] && [ -f "${LOG_FILE:-}" ]; then
+        gcloud storage cp "$LOG_FILE" "${LOG_BASE}/worker.log" &>/dev/null &
+    fi
 done < <(echo "$TEST_ENTRIES")
 
 # 6. Finalize
@@ -190,8 +203,12 @@ if [ -n "$LOG_BASE" ] && [ -f "$LOG_FILE" ]; then
     gcloud storage cp "$LOG_FILE" "${LOG_BASE}/worker.log" 2>/dev/null || true
 fi
 
-# Disable error trap before final cleanup
-trap - ERR EXIT
+# Disable traps and stop the background cancellation monitor before final cleanup
+trap - ERR EXIT TERM INT
+if [ -n "${CANCEL_CHECK_PID:-}" ]; then
+    kill "$CANCEL_CHECK_PID" 2>/dev/null || true
+    wait "$CANCEL_CHECK_PID" 2>/dev/null || true
+fi
 
 # 7. Cleanup: Delete the remote workspace directory if the script succeeded
 echo "Cleaning up workspace: $WORKSPACE"

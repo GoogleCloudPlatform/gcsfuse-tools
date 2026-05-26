@@ -38,9 +38,11 @@ BQ_SCHEMA_FIELDS = [
     ("block_size", "STRING"), ("io_depth", "INTEGER"), ("num_files", "INTEGER"),
     ("direct", "INTEGER"),
     # Metrics
-    ("read_bw_mbs", "FLOAT"), ("write_bw_mbs", "FLOAT"), ("read_min_ms", "FLOAT"),
-    ("read_max_ms", "FLOAT"), ("read_avg_ms", "FLOAT"), ("read_stddev_ms", "FLOAT"),
+    ("read_bw_mbs", "FLOAT"), ("write_bw_mbs", "FLOAT"), 
+    ("read_min_ms", "FLOAT"), ("read_max_ms", "FLOAT"), ("read_avg_ms", "FLOAT"), ("read_stddev_ms", "FLOAT"),
     ("read_p50_ms", "FLOAT"), ("read_p90_ms", "FLOAT"), ("read_p99_ms", "FLOAT"),
+    ("write_min_ms", "FLOAT"), ("write_max_ms", "FLOAT"), ("write_avg_ms", "FLOAT"), ("write_stddev_ms", "FLOAT"),
+    ("write_p50_ms", "FLOAT"), ("write_p90_ms", "FLOAT"), ("write_p99_ms", "FLOAT"),
     
     # Resources & Network
     ("avg_cpu_percent", "FLOAT"), ("peak_cpu_percent", "FLOAT"),
