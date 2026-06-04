@@ -171,8 +171,8 @@ def main():
         "--bucket-name", required=True, help="Name of the GCS bucket."
     )
     parser.add_argument(
-        "--client-protocol", default="http", choices=["http", "grpc"],
-        help="Network protocol to use: http or grpc."
+        "--client-protocol", default="http1", choices=["http1", "grpc"],
+        help="Network protocol to use: http1 or grpc."
     )
     parser.add_argument(
         "--numjobs", type=int, default=128,
