@@ -137,6 +137,8 @@ def main():
     bq_client = fio_benchmark_runner.bigquery.Client(project=args.project_id)
     fio_benchmark_runner.truncate_bq_table(bq_client, args.project_id, args.bq_dataset_id, args.bq_table_id)
 
+  has_failures = False
+
   for i, config in enumerate(configs):
     # Create a string representation of the configuration for logging.
     config_str = ", ".join([f"{k}={v}" for k, v in sorted(config.items())])
@@ -174,10 +176,14 @@ def main():
           keep_mount=args.keep_mount)
     except Exception as e:
       logging.error("Benchmark run failed for configuration %s: %s", config, e)
+      has_failures = True
       # Continue to the next configuration
       continue
 
   logging.info("--- All benchmark matrix runs complete. ---")
+
+  if has_failures:
+    sys.exit(1)
 
 
 if __name__ == "__main__":
