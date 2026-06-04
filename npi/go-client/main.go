@@ -222,7 +222,7 @@ func main() {
 	var client *storage.Client
 	var err error
 
-	if *clientProtocol == "http1" || *clientProtocol == "http" {
+	if *clientProtocol == "http1" {
 		client, err = CreateHTTPClient(ctx)
 	} else if *clientProtocol == "grpc" {
 		client, err = CreateGrpcClient(ctx)
