@@ -79,9 +79,9 @@ def create_job_spec(job_name, image, args, bucket_name, service_account, extra_f
     container["args"] = args
     
     if resources_limits:
-        if "resources" not in container:
+        if container.get("resources") is None:
             container["resources"] = {}
-        if "limits" not in container["resources"]:
+        if container["resources"].get("limits") is None:
             container["resources"]["limits"] = {}
         container["resources"]["limits"].update(resources_limits)
     
