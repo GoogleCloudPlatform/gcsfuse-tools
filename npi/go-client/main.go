@@ -24,7 +24,7 @@ import (
 
 var (
 	bucketName       = flag.String("bucket", "", "GCS bucket name.")
-	clientProtocol   = flag.String("client-protocol", "http", "Network protocol: http or grpc.")
+	clientProtocol   = flag.String("client-protocol", "http1", "Network protocol: http1 or grpc.")
 	blockSizeStr     = flag.String("bs", "1M", "Block size (e.g. 128K, 1M, etc.).")
 	fileSizeStr      = flag.String("filesize", "1G", "File size per file (e.g. 1M, 10M, 1G).")
 	numOfWorkers     = flag.Int("numjobs", 128, "Number of concurrent workers (threads) to read.")
@@ -222,7 +222,7 @@ func main() {
 	var client *storage.Client
 	var err error
 
-	if *clientProtocol == "http" {
+	if *clientProtocol == "http1" || *clientProtocol == "http" {
 		client, err = CreateHTTPClient(ctx)
 	} else if *clientProtocol == "grpc" {
 		client, err = CreateGrpcClient(ctx)

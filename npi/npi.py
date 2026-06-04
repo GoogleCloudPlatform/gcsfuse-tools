@@ -279,7 +279,7 @@ class BenchmarkFactory:
                 runner_args = bench_config.get("runner_args")
 
                 if bench_name == "go_read":
-                    protocol = "grpc" if "grpc" in config_name else "http"
+                    protocol = "grpc" if "grpc" in config_name else "http1"
                     runner_args = f"--client-protocol={protocol}"
                     bq_table_id = f"go_client_read_{config_name}"
 

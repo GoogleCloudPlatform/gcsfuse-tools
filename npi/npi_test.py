@@ -75,7 +75,7 @@ class TestBenchmarkFactory(unittest.TestCase):
         cmd, table_id = factory.get_benchmark_command("go_read_http1")
         self.assertEqual(table_id, "go_client_read_http1")
         self.assertIn("us-docker.pkg.dev/test-project/gcsfuse-benchmarks/go-client-read-benchmark:latest", cmd)
-        self.assertIn("--client-protocol=http", cmd)
+        self.assertIn("--client-protocol=http1", cmd)
 
     @patch('subprocess.run')
     def test_get_cpu_list_for_numa_node_success(self, mock_run):

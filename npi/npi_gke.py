@@ -252,7 +252,7 @@ def main():
         ("write", "http1", "fio-write-benchmark", "", None, None),
         ("write", "grpc", "fio-write-benchmark", "--client-protocol=grpc", None, None),
         ("read_file_cache", "grpc", "fio-read-benchmark", f"client-protocol=grpc,metadata-cache-ttl-secs=-1,file-cache:max-size-mb:{args.file_cache_size_mb},file-cache-cache-file-for-range-read", 5, "--keep-mount"),
-        ("go_read", "http1", "go-client-read-benchmark", "", None, "--client-protocol=http"),
+        ("go_read", "http1", "go-client-read-benchmark", "", None, "--client-protocol=http1"),
         ("go_read", "grpc", "go-client-read-benchmark", "", None, "--client-protocol=grpc"),
     ]
 
