@@ -242,10 +242,18 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Error parsing filesize: %v\n", err)
 		os.Exit(1)
 	}
+	if fileSize <= 0 {
+		fmt.Fprintln(os.Stderr, "Error: filesize must be greater than 0")
+		os.Exit(1)
+	}
 
 	blockSize, err := parseSize(*blockSizeStr)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error parsing bs (block size): %v\n", err)
+		os.Exit(1)
+	}
+	if blockSize <= 0 {
+		fmt.Fprintln(os.Stderr, "Error: bs (block size) must be greater than 0")
 		os.Exit(1)
 	}
 
