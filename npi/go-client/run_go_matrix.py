@@ -321,8 +321,8 @@ def main():
                     upload_results_to_bq(
                         client=bq_client,
                         project_id=args.project_id,
-                        bq_dataset_id=args.bq_dataset_id,
-                        bq_table_id=args.bq_table_id,
+                        dataset_id=args.bq_dataset_id,
+                        table_id=args.bq_table_id,
                         json_output_content=json_output,
                         iteration=iteration,
                         client_protocol=args.client_protocol,

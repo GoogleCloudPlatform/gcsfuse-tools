@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -35,9 +36,7 @@ var (
 type ZeroReader struct{}
 
 func (ZeroReader) Read(p []byte) (int, error) {
-	for i := range p {
-		p[i] = 0
-	}
+	clear(p)
 	return len(p), nil
 }
 
@@ -138,8 +137,13 @@ func populateFilesIfMissing(ctx context.Context, client *storage.Client, bucketN
 				objName := getObjectPath(workerID, fileIndex)
 				obj := bucket.Object(objName)
 				attrs, err := obj.Attrs(ctx)
-				if err == nil && attrs.Size == fileSize {
-					// File already exists and has correct size, skip upload
+				if err == nil {
+					if attrs.Size == fileSize {
+						// File already exists and has correct size, skip upload
+						return
+					}
+				} else if !errors.Is(err, storage.ErrObjectNotExist) {
+					errChan <- fmt.Errorf("failed to check status of %s: %w", objName, err)
 					return
 				}
 
@@ -283,6 +287,7 @@ func main() {
 					// If context is cancelled, this error is expected
 					if runCtx.Err() == nil {
 						fmt.Fprintf(os.Stderr, "Worker %d failed to open reader: %v\n", workerID, err)
+						os.Exit(1)
 					}
 					return
 				}
@@ -311,6 +316,8 @@ func main() {
 						}
 						if runCtx.Err() == nil {
 							fmt.Fprintf(os.Stderr, "Worker %d error reading: %v\n", workerID, err)
+							rc.Close()
+							os.Exit(1)
 						}
 						rc.Close()
 						return
