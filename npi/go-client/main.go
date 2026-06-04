@@ -28,7 +28,7 @@ var (
 	fileSizeStr      = flag.String("filesize", "1G", "File size per file (e.g. 1M, 10M, 1G).")
 	numOfWorkers     = flag.Int("numjobs", 128, "Number of concurrent workers (threads) to read.")
 	nrFiles          = flag.Int("nrfiles", 10, "How many files does each thread/worker need to read.")
-	objectNamePrefix = flag.String("obj-prefix", "go-benchmark/", "Prefix for GCS objects.")
+	objectNamePrefix = flag.String("obj-prefix", "", "Prefix for GCS objects.")
 	grpcConnPoolSize = flag.Int("grpc-conn-pool-size", 1, "gRPC connection pool size.")
 )
 
