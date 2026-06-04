@@ -208,6 +208,16 @@ func main() {
 		os.Exit(1)
 	}
 
+	if *numOfWorkers <= 0 {
+		fmt.Fprintln(os.Stderr, "Error: --numjobs must be greater than 0")
+		os.Exit(1)
+	}
+
+	if *nrFiles <= 0 {
+		fmt.Fprintln(os.Stderr, "Error: --nrfiles must be greater than 0")
+		os.Exit(1)
+	}
+
 	ctx := context.Background()
 	var client *storage.Client
 	var err error
