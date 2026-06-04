@@ -18,7 +18,7 @@ import yaml
 import os
 import datetime
 
-def create_job_spec(job_name, image, args, bucket_name, service_account, extra_flag=None, use_memory_volumes=False):
+def create_job_spec(job_name, image, args, bucket_name, service_account, extra_flag=None, use_memory_volumes=False, is_go_client=False, node_selector=None, resources_limits=None):
     """Creates a Kubernetes Job spec dictionary from the template yaml."""
     script_dir = os.path.dirname(os.path.realpath(__file__))
     template_path = os.path.join(script_dir, "npi_job_spec.yaml")
@@ -33,40 +33,60 @@ def create_job_spec(job_name, image, args, bucket_name, service_account, extra_f
     # Replace service account
     pod_spec["serviceAccountName"] = service_account
     
-    if use_memory_volumes:
-        if "volumes" not in pod_spec:
-            pod_spec["volumes"] = []
-        pod_spec["volumes"].extend([
-            {
-                "name": "gke-gcsfuse-cache",
-                "emptyDir": {
-                    "medium": "Memory"
-                }
-            },
-            {
-                "name": "gke-gcsfuse-buffer",
-                "emptyDir": {
-                    "medium": "Memory"
-                }
-            }
-        ])
-    
-    # Replace bucket name in CSI volume
-    for vol in pod_spec.get("volumes", []):
-        if "csi" in vol and vol["csi"].get("driver") == "gcsfuse.csi.storage.gke.io":
-            if "volumeAttributes" not in vol["csi"] or not vol["csi"]["volumeAttributes"]:
-                vol["csi"]["volumeAttributes"] = {}
-            vol["csi"]["volumeAttributes"]["bucketName"] = bucket_name
-            if extra_flag:
-                # Strip leading dashes for CSI mountOptions e.g. '--client-protocol=grpc' -> 'client-protocol=grpc'
-                flag_str = extra_flag.strip().lstrip('-')
-                vol["csi"]["volumeAttributes"]["mountOptions"] = flag_str
+    if node_selector:
+        pod_spec["nodeSelector"] = node_selector
+        
+    if is_go_client:
+        # For Go client, remove the GCSFuse CSI volumes and annotations
+        if "volumes" in pod_spec:
+            pod_spec["volumes"] = [v for v in pod_spec["volumes"] if v["name"] != "gcsfuse-csi"]
+        if "volumeMounts" in pod_spec["containers"][0]:
+            pod_spec["containers"][0]["volumeMounts"] = [vm for vm in pod_spec["containers"][0]["volumeMounts"] if vm["name"] != "gcsfuse-csi"]
+        if "annotations" in job_spec["spec"]["template"]["metadata"]:
+            job_spec["spec"]["template"]["metadata"]["annotations"].pop("gke-gcsfuse/volumes", None)
+    else:
+        # Replace bucket name in CSI volume
+        for vol in pod_spec.get("volumes", []):
+            if "csi" in vol and vol["csi"].get("driver") == "gcsfuse.csi.storage.gke.io":
+                if "volumeAttributes" not in vol["csi"] or not vol["csi"]["volumeAttributes"]:
+                    vol["csi"]["volumeAttributes"] = {}
+                vol["csi"]["volumeAttributes"]["bucketName"] = bucket_name
+                if extra_flag:
+                    # Strip leading dashes for CSI mountOptions e.g. '--client-protocol=grpc' -> 'client-protocol=grpc'
+                    flag_str = extra_flag.strip().lstrip('-')
+                    vol["csi"]["volumeAttributes"]["mountOptions"] = flag_str
 
+        if use_memory_volumes:
+            if "volumes" not in pod_spec:
+                pod_spec["volumes"] = []
+            pod_spec["volumes"].extend([
+                {
+                    "name": "gke-gcsfuse-cache",
+                    "emptyDir": {
+                        "medium": "Memory"
+                    }
+                },
+                {
+                    "name": "gke-gcsfuse-buffer",
+                    "emptyDir": {
+                        "medium": "Memory"
+                    }
+                }
+            ])
+    
     container = pod_spec["containers"][0]
     container["image"] = image
     container["args"] = args
     
+    if resources_limits:
+        if container.get("resources") is None:
+            container["resources"] = {}
+        if container["resources"].get("limits") is None:
+            container["resources"]["limits"] = {}
+        container["resources"]["limits"].update(resources_limits)
+    
     return job_spec
+
 
 def wait_for_job_completion(job_name, timeout_seconds=None):
     """Waits for a Kubernetes Job to complete or fail."""
@@ -122,13 +142,14 @@ def wait_for_job_completion(job_name, timeout_seconds=None):
                 subprocess.run(["kubectl", "logs", "-l", f"job-name={job_name}"])
                 return False
 
-def run_benchmark_job(job_name, image, args_list, project_id, dataset_id, table_id, bucket_name, service_account, extra_flag=None, use_memory_volumes=False):
+
+def run_benchmark_job(job_name, image, args_list, project_id, dataset_id, table_id, bucket_name, service_account, extra_flag=None, use_memory_volumes=False, is_go_client=False, node_selector=None, resources_limits=None):
     """Runs a benchmark job on GKE and waits for its completion."""
     # 1. Cleanup any existing job with the same name
     subprocess.run(["kubectl", "delete", "job", job_name, "--ignore-not-found=true", "--wait=true"], capture_output=True)
 
     # 2. Create Job Spec and Apply
-    job_spec = create_job_spec(job_name, image, args_list, bucket_name, service_account, extra_flag, use_memory_volumes)
+    job_spec = create_job_spec(job_name, image, args_list, bucket_name, service_account, extra_flag, use_memory_volumes, is_go_client, node_selector, resources_limits)
     yaml_data = yaml.dump(job_spec)
 
     print(f"--- Submitting Kubernetes Job: {job_name} ---")
@@ -144,6 +165,17 @@ def run_benchmark_job(job_name, image, args_list, project_id, dataset_id, table_
 
     # 4. Wait for Job to Complete
     return wait_for_job_completion(job_name)
+
+def parse_key_value_pairs(kv_str):
+    if not kv_str:
+        return None
+    pairs = {}
+    for part in kv_str.split(','):
+        if '=' in part:
+            k, v = part.split('=', 1)
+            pairs[k.strip()] = v.strip()
+    return pairs
+
 
 def main():
     parser = argparse.ArgumentParser(description="GKE benchmark runner for GCSFuse NPI.")
@@ -184,8 +216,21 @@ def main():
         action="store_true",
         help="Declare gke-gcsfuse-cache and gke-gcsfuse-buffer volumes on memory."
     )
+    parser.add_argument(
+        "--node-selector",
+        default=None,
+        help="Comma-separated list of key-value pairs for pod nodeSelector, e.g., 'key1=val1,key2=val2'"
+    )
+    parser.add_argument(
+        "--resources-limits",
+        default=None,
+        help="Comma-separated list of key-value pairs for resource limits, e.g., 'google.com/tpu=4'"
+    )
     
     args = parser.parse_args()
+
+    node_selector = parse_key_value_pairs(args.node_selector)
+    resources_limits = parse_key_value_pairs(args.resources_limits)
 
     if args.cluster_name and args.location:
         print(f"--- Fetching credentials for GKE cluster: {args.cluster_name} in {args.location} ---")
@@ -207,6 +252,8 @@ def main():
         ("write", "http1", "fio-write-benchmark", "", None, None),
         ("write", "grpc", "fio-write-benchmark", "--client-protocol=grpc", None, None),
         ("read_file_cache", "grpc", "fio-read-benchmark", f"client-protocol=grpc,metadata-cache-ttl-secs=-1,file-cache:max-size-mb:{args.file_cache_size_mb},file-cache-cache-file-for-range-read", 5, "--keep-mount"),
+        ("go_read", "http1", "go-client-read-benchmark", "", None, "--client-protocol=http1"),
+        ("go_read", "grpc", "go-client-read-benchmark", "", None, "--client-protocol=grpc"),
     ]
 
     # If not explicitly told to run file cache benchmarks, validate and filter them out.
@@ -222,6 +269,8 @@ def main():
         else:
             # Exclude file cache tests from 'all' when the flag is not passed.
             print("Warning: File-cache tests are not being run because --run-file-cache-test was not provided.", file=sys.stderr)
+            # Also exclude go_read benchmarks from "all" if the user wants "all" FIO benchmarks.
+            # Wait, should we include go_read benchmarks in "all"? Yes, "all" typically means all defined benchmarks.
             benchmarks_to_run = [b for b in all_benchmarks if "file_cache" not in b[0]]
     else:
         available_names = {f"{b[0]}_{b[1]}" if b[1] else b[0] for b in all_benchmarks}
@@ -251,33 +300,51 @@ def main():
     for bench_type, config_name, image_suffix, extra_flag, iter_override, runner_args in benchmarks_to_run:
         full_bench_name = f"{bench_type}_{config_name}" if config_name else bench_type
         job_name = f"gcsfuse-npi-{full_bench_name}".replace("_", "-")
+        is_go_client = (bench_type == "go_read")
         
         if bench_type == "host_info":
             bq_table_id = "host_info"
         elif bench_type == "read_file_cache":
             bq_table_id = "fio_read_file_cache"
+        elif bench_type == "go_read":
+            bq_table_id = f"go_client_read_{config_name}"
         else:
             bq_table_id = f"fio_{full_bench_name}"
         
         target_iterations = iter_override if iter_override is not None else args.iterations
         image = f"us-docker.pkg.dev/{args.project_id}/gcsfuse-benchmarks/{image_suffix}:{args.image_version}"
-        cmd_args = [
-            f"--iterations={target_iterations}",
-            f"--project-id={args.project_id}",
-            f"--bq-dataset-id={args.bq_dataset_id}",
-            f"--bq-table-id={bq_table_id}",
-            "--mount-path=/data"
-        ]
+        
+        if is_go_client:
+            cmd_args = [
+                f"--iterations={target_iterations}",
+                f"--project-id={args.project_id}",
+                f"--bq-dataset-id={args.bq_dataset_id}",
+                f"--bq-table-id={bq_table_id}",
+                f"--bucket-name={args.bucket_name}"
+            ]
+        else:
+            cmd_args = [
+                f"--iterations={target_iterations}",
+                f"--project-id={args.project_id}",
+                f"--bq-dataset-id={args.bq_dataset_id}",
+                f"--bq-table-id={bq_table_id}",
+                "--mount-path=/data"
+            ]
+            
         if runner_args:
             cmd_args.append(runner_args)
 
         if args.dry_run:
-            job_spec = create_job_spec(job_name, image, cmd_args, args.bucket_name, args.kubernetes_service_account, extra_flag, args.use_memory_volumes)
+            job_spec = create_job_spec(job_name, image, cmd_args, args.bucket_name, args.kubernetes_service_account, extra_flag, args.use_memory_volumes, is_go_client, node_selector, resources_limits)
             print(f" - {full_bench_name}")
             print(f"   Job Name: {job_name}")
             print(f"   Image: {image}")
             print(f"   Args: {cmd_args}")
             print(f"   Volumes: {[v['name'] for v in job_spec['spec']['template']['spec'].get('volumes', [])]}")
+            if 'nodeSelector' in job_spec['spec']['template']['spec']:
+                print(f"   NodeSelector: {job_spec['spec']['template']['spec']['nodeSelector']}")
+            if 'resources' in job_spec['spec']['template']['spec']['containers'][0]:
+                print(f"   Resources: {job_spec['spec']['template']['spec']['containers'][0]['resources']}")
         else:
             success = run_benchmark_job(
                 job_name=job_name,
@@ -289,7 +356,10 @@ def main():
                 bucket_name=args.bucket_name,
                 service_account=args.kubernetes_service_account,
                 extra_flag=extra_flag,
-                use_memory_volumes=args.use_memory_volumes
+                use_memory_volumes=args.use_memory_volumes,
+                is_go_client=is_go_client,
+                node_selector=node_selector,
+                resources_limits=resources_limits
             )
 
             if not success:

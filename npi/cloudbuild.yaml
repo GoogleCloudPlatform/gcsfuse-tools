@@ -83,6 +83,30 @@ steps:
       - '${_REGISTRY}/${_PROJECT}/gcsfuse-benchmarks/fio-read-benchmark:${_IMAGE_VERSION}'
       - 'fio'
 
+  # Build and push the go-client-read-benchmark image.
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'go-client-read-benchmark'
+    waitFor: ['base']
+    args:
+      - 'buildx'
+      - 'build'
+      - '--push'
+      - '-f'
+      - 'go-client/go-client.dockerfile'
+      - '--platform'
+      - 'linux/amd64,linux/arm64'
+      - '--build-arg'
+      - 'GO_VERSION=${_GO_VERSION}'
+      - '--build-arg'
+      - 'REGISTRY=${_REGISTRY}'
+      - '--build-arg'
+      - 'PROJECT=${_PROJECT}'
+      - '--build-arg'
+      - 'IMAGE_VERSION=${_IMAGE_VERSION}'
+      - '-t'
+      - '${_REGISTRY}/${_PROJECT}/gcsfuse-benchmarks/go-client-read-benchmark:${_IMAGE_VERSION}'
+      - 'go-client'
+
   # Build and push the write-benchmark image.
   - name: 'gcr.io/cloud-builders/docker'
     id: 'write-benchmark'

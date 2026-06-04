@@ -220,6 +220,7 @@ class BenchmarkFactory:
             "read": {"image_suffix": "fio-read-benchmark"},
             "write": {"image_suffix": "fio-write-benchmark"},
             "read_file_cache": read_file_cache_config,
+            "go_read": {"image_suffix": "go-client-read-benchmark"},
         }
 
         # Define test configurations (protocol, cpu pinning, etc.)
@@ -276,6 +277,11 @@ class BenchmarkFactory:
                 cpu_list = config_params.get("cpu_list")
                 bind_fio = config_params.get("bind_fio")
                 runner_args = bench_config.get("runner_args")
+
+                if bench_name == "go_read":
+                    protocol = "grpc" if "grpc" in config_name else "http1"
+                    runner_args = f"--client-protocol={protocol}"
+                    bq_table_id = f"go_client_read_{config_name}"
 
                 # Use functools.partial to create a command function with pre-filled arguments
                 definitions[full_bench_name] = functools.partial(

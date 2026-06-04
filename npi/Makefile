@@ -13,7 +13,7 @@
 # limitations under the License.
 
 GCSFUSE_VERSION ?= v3.9.0
-GO_VERSION=1.26.2
+GO_VERSION=1.26.4
 UBUNTU_VERSION=24.04
 REGISTRY=us-docker.pkg.dev
 PROJECT=gcs-fuse-test
