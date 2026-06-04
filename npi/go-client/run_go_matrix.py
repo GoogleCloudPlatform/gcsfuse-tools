@@ -260,7 +260,8 @@ def main():
             file_size = config.get("FILE_SIZE")
             block_size = config.get("BLOCK_SIZE")
             nr_files = config.get("NR_FILES")
-            num_jobs = int(config.get("NUMJOBS", args.numjobs))
+            num_jobs_val = config.get("NUMJOBS")
+            num_jobs = int(num_jobs_val) if num_jobs_val else args.numjobs
 
             # Generate unique config name
             config_name_parts = [f"{k}_{v}" for k, v in sorted(config.items())]
