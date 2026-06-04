@@ -18,7 +18,7 @@ import yaml
 import os
 import datetime
 
-def create_job_spec(job_name, image, args, bucket_name, service_account, extra_flag=None, use_memory_volumes=False, is_go_client=False):
+def create_job_spec(job_name, image, args, bucket_name, service_account, extra_flag=None, use_memory_volumes=False, is_go_client=False, node_selector=None, resources_limits=None):
     """Creates a Kubernetes Job spec dictionary from the template yaml."""
     script_dir = os.path.dirname(os.path.realpath(__file__))
     template_path = os.path.join(script_dir, "npi_job_spec.yaml")
@@ -33,6 +33,9 @@ def create_job_spec(job_name, image, args, bucket_name, service_account, extra_f
     # Replace service account
     pod_spec["serviceAccountName"] = service_account
     
+    if node_selector:
+        pod_spec["nodeSelector"] = node_selector
+        
     if is_go_client:
         # For Go client, remove the GCSFuse CSI volumes and annotations
         if "volumes" in pod_spec:
@@ -75,7 +78,15 @@ def create_job_spec(job_name, image, args, bucket_name, service_account, extra_f
     container["image"] = image
     container["args"] = args
     
+    if resources_limits:
+        if "resources" not in container:
+            container["resources"] = {}
+        if "limits" not in container["resources"]:
+            container["resources"]["limits"] = {}
+        container["resources"]["limits"].update(resources_limits)
+    
     return job_spec
+
 
 def wait_for_job_completion(job_name, timeout_seconds=None):
     """Waits for a Kubernetes Job to complete or fail."""
@@ -131,13 +142,14 @@ def wait_for_job_completion(job_name, timeout_seconds=None):
                 subprocess.run(["kubectl", "logs", "-l", f"job-name={job_name}"])
                 return False
 
-def run_benchmark_job(job_name, image, args_list, project_id, dataset_id, table_id, bucket_name, service_account, extra_flag=None, use_memory_volumes=False, is_go_client=False):
+
+def run_benchmark_job(job_name, image, args_list, project_id, dataset_id, table_id, bucket_name, service_account, extra_flag=None, use_memory_volumes=False, is_go_client=False, node_selector=None, resources_limits=None):
     """Runs a benchmark job on GKE and waits for its completion."""
     # 1. Cleanup any existing job with the same name
     subprocess.run(["kubectl", "delete", "job", job_name, "--ignore-not-found=true", "--wait=true"], capture_output=True)
 
     # 2. Create Job Spec and Apply
-    job_spec = create_job_spec(job_name, image, args_list, bucket_name, service_account, extra_flag, use_memory_volumes, is_go_client)
+    job_spec = create_job_spec(job_name, image, args_list, bucket_name, service_account, extra_flag, use_memory_volumes, is_go_client, node_selector, resources_limits)
     yaml_data = yaml.dump(job_spec)
 
     print(f"--- Submitting Kubernetes Job: {job_name} ---")
@@ -153,6 +165,17 @@ def run_benchmark_job(job_name, image, args_list, project_id, dataset_id, table_
 
     # 4. Wait for Job to Complete
     return wait_for_job_completion(job_name)
+
+def parse_key_value_pairs(kv_str):
+    if not kv_str:
+        return None
+    pairs = {}
+    for part in kv_str.split(','):
+        if '=' in part:
+            k, v = part.split('=', 1)
+            pairs[k.strip()] = v.strip()
+    return pairs
+
 
 def main():
     parser = argparse.ArgumentParser(description="GKE benchmark runner for GCSFuse NPI.")
@@ -193,8 +216,21 @@ def main():
         action="store_true",
         help="Declare gke-gcsfuse-cache and gke-gcsfuse-buffer volumes on memory."
     )
+    parser.add_argument(
+        "--node-selector",
+        default=None,
+        help="Comma-separated list of key-value pairs for pod nodeSelector, e.g., 'key1=val1,key2=val2'"
+    )
+    parser.add_argument(
+        "--resources-limits",
+        default=None,
+        help="Comma-separated list of key-value pairs for resource limits, e.g., 'google.com/tpu=4'"
+    )
     
     args = parser.parse_args()
+
+    node_selector = parse_key_value_pairs(args.node_selector)
+    resources_limits = parse_key_value_pairs(args.resources_limits)
 
     if args.cluster_name and args.location:
         print(f"--- Fetching credentials for GKE cluster: {args.cluster_name} in {args.location} ---")
@@ -299,12 +335,16 @@ def main():
             cmd_args.append(runner_args)
 
         if args.dry_run:
-            job_spec = create_job_spec(job_name, image, cmd_args, args.bucket_name, args.kubernetes_service_account, extra_flag, args.use_memory_volumes, is_go_client)
+            job_spec = create_job_spec(job_name, image, cmd_args, args.bucket_name, args.kubernetes_service_account, extra_flag, args.use_memory_volumes, is_go_client, node_selector, resources_limits)
             print(f" - {full_bench_name}")
             print(f"   Job Name: {job_name}")
             print(f"   Image: {image}")
             print(f"   Args: {cmd_args}")
             print(f"   Volumes: {[v['name'] for v in job_spec['spec']['template']['spec'].get('volumes', [])]}")
+            if 'nodeSelector' in job_spec['spec']['template']['spec']:
+                print(f"   NodeSelector: {job_spec['spec']['template']['spec']['nodeSelector']}")
+            if 'resources' in job_spec['spec']['template']['spec']['containers'][0]:
+                print(f"   Resources: {job_spec['spec']['template']['spec']['containers'][0]['resources']}")
         else:
             success = run_benchmark_job(
                 job_name=job_name,
@@ -317,7 +357,9 @@ def main():
                 service_account=args.kubernetes_service_account,
                 extra_flag=extra_flag,
                 use_memory_volumes=args.use_memory_volumes,
-                is_go_client=is_go_client
+                is_go_client=is_go_client,
+                node_selector=node_selector,
+                resources_limits=resources_limits
             )
 
             if not success:
