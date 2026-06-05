@@ -19,44 +19,60 @@ import subprocess
 import sys
 import tempfile
 import re
+import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-def run_build(cmd, name, active_builds, active_processes):
+def terminate_process(process, name):
+    print(f"Terminating local subprocess for [{name}]...")
+    process.terminate()
+    try:
+        process.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        print(f"Subprocess for [{name}] did not terminate in time. Killing it forcefully...")
+        process.kill()
+        process.wait()
+
+def run_build(cmd, name, active_builds, active_processes, builds_lock):
     print(f"[{name}] Starting build...")
     logs_url = None
     output_lines = []
     
     try:
         with subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1) as process:
-            active_processes[name] = process
+            with builds_lock:
+                active_processes[name] = process
             try:
                 for line in iter(process.stdout.readline, ''):
                     output_lines.append(line)
                     
+                    # Stream log line to console in real-time
+                    print(f"[{name}] {line}", end='', flush=True)
+                    
                     # Parse build ID and location/region
                     if "/builds/" in line:
-                        match = re.search(r'/locations/([^/]+)/builds/([a-f0-9\-]+)', line)
+                        match = re.search(r'(?:locations/([^/]+)/)?builds/([a-f0-9\-]+)', line)
                         if match:
-                            region = match.group(1)
+                            region = match.group(1) or "global"
                             build_id = match.group(2)
-                            active_builds[name] = {"id": build_id, "region": region}
-                            
+                            with builds_lock:
+                                active_builds[name] = {"id": build_id, "region": region}
+                                
                     # Search for logs URL
                     if "Logs are available at" in line:
                         match = re.search(r'\[\s*(https://[^\s\]]+)\s*\]', line)
                         if match:
                             logs_url = match.group(1)
-                            print(f"[{name}] Build log URL: {logs_url}")
+                            print(f"\n[{name}] Detected Build log URL: {logs_url}\n", flush=True)
             except BaseException:
-                process.terminate()
-                process.wait()
+                terminate_process(process, name)
                 raise
             
             return_code = process.wait()
     except Exception as e:
         return 1, f"Local wrapper error: {str(e)}"
     finally:
-        active_processes.pop(name, None)
+        with builds_lock:
+            active_processes.pop(name, None)
         
     return return_code, "".join(output_lines)
 
@@ -90,16 +106,14 @@ def main():
             flags=re.MULTILINE
         )
 
-        # Create temporary YAML file for the ARM build in the current directory
-        # (needs to be in the uploaded directory so Cloud Build can find it)
+        # Create temporary YAML file for the ARM build in the system temporary directory
+        # to avoid polluting the workspace and uploading unnecessary files to GCS context.
         # Uses NamedTemporaryFile for safe file descriptor management.
-        temp_file = tempfile.NamedTemporaryFile(mode='w', suffix=".yaml", dir=".", delete=False)
+        temp_file = tempfile.NamedTemporaryFile(mode='w', suffix=".yaml", delete=False)
         temp_path = temp_file.name
         try:
             with temp_file:
                 temp_file.write(arm_yaml_content)
-            
-            temp_config_name = os.path.basename(temp_path)
 
             # AMD Build command (uses default pool, needs E2_HIGHCPU_32, uses original cloudbuild.yaml)
             amd_substitutions = (
@@ -134,7 +148,7 @@ def main():
             arm_cmd = [
                 "gcloud", "builds", "submit",
                 "--project", args.project,
-                "--config", temp_config_name,
+                "--config", temp_path,
                 "--worker-pool", args.arm_worker_pool,
                 "--substitutions", arm_substitutions,
                 "."
@@ -149,29 +163,31 @@ def main():
 
             active_builds = {}
             active_processes = {}
+            builds_lock = threading.Lock()
             # Run both AMD and ARM builds in parallel
             with ThreadPoolExecutor(max_workers=2) as executor:
                 futures = {
-                    executor.submit(run_build, amd_cmd, "AMD", active_builds, active_processes): "AMD",
-                    executor.submit(run_build, arm_cmd, "ARM", active_builds, active_processes): "ARM"
+                    executor.submit(run_build, amd_cmd, "AMD", active_builds, active_processes, builds_lock): "AMD",
+                    executor.submit(run_build, arm_cmd, "ARM", active_builds, active_processes, builds_lock): "ARM"
                 }
                 
                 for future in as_completed(futures):
                     build_name = futures[future]
                     return_code, stdout = future.result()
                     if return_code != 0:
-                        print(f"[{build_name}] Build failed with exit code {return_code}")
-                        print(stdout)
+                        print(f"\n[{build_name}] Build failed with exit code {return_code}\n")
                         
                         # Immediately terminate all other local subprocesses
-                        for name, proc in list(active_processes.items()):
+                        with builds_lock:
+                            procs_to_terminate = list(active_processes.items())
+                        for name, proc in procs_to_terminate:
                             if name != build_name:
-                                print(f"Terminating local subprocess for [{name}]...")
-                                proc.terminate()
-                                proc.wait()
+                                terminate_process(proc, name)
                                 
                         # Immediately try to cancel the other remote builds to save resources
-                        for name, build_info in list(active_builds.items()):
+                        with builds_lock:
+                            builds_to_cancel = list(active_builds.items())
+                        for name, build_info in builds_to_cancel:
                             if name != build_name:
                                 print(f"Cancelling remote active build [{name}] ({build_info['id']})...")
                                 cancel_cmd = ["gcloud", "builds", "cancel", build_info["id"], "--project", args.project]
