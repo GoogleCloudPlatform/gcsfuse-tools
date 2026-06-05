@@ -509,9 +509,14 @@ def cleanup(args):
     baseline_cluster = f"{args.cluster_name}-baseline"
     regression_cluster = f"{args.cluster_name}-regression"
 
-    # 1. Delete both clusters
-    delete_cluster(args, baseline_cluster)
-    delete_cluster(args, regression_cluster)
+    # 1. Delete both clusters (Concurrently)
+    print("\n[INFO] Starting concurrent GKE cluster deletion...")
+    t_del_baseline = threading.Thread(target=delete_cluster, args=(args, baseline_cluster))
+    t_del_regression = threading.Thread(target=delete_cluster, args=(args, regression_cluster))
+    t_del_baseline.start()
+    t_del_regression.start()
+    t_del_baseline.join()
+    t_del_regression.join()
 
     # 2. Delete GCS Bucket
     run_cmd(["gcloud", "storage", "rm", "-r", f"gs://{bucket_name}", f"--project={project_id}", "--quiet"], check=False)
