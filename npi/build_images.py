@@ -19,18 +19,28 @@ import subprocess
 import sys
 import tempfile
 import re
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
-def run_build(cmd, name):
+def run_build(cmd, name, active_builds, active_processes):
     print(f"[{name}] Starting build...")
     logs_url = None
     output_lines = []
     
     try:
         with subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1) as process:
+            active_processes[name] = process
             try:
                 for line in iter(process.stdout.readline, ''):
                     output_lines.append(line)
+                    
+                    # Parse build ID and location/region
+                    if "/builds/" in line:
+                        match = re.search(r'/locations/([^/]+)/builds/([a-f0-9\-]+)', line)
+                        if match:
+                            region = match.group(1)
+                            build_id = match.group(2)
+                            active_builds[name] = {"id": build_id, "region": region}
+                            
                     # Search for logs URL
                     if "Logs are available at" in line:
                         match = re.search(r'\[\s*(https://[^\s\]]+)\s*\]', line)
@@ -45,6 +55,8 @@ def run_build(cmd, name):
             return_code = process.wait()
     except Exception as e:
         return 1, f"Local wrapper error: {str(e)}"
+    finally:
+        active_processes.pop(name, None)
         
     return return_code, "".join(output_lines)
 
@@ -68,12 +80,12 @@ def main():
         with open("cloudbuild.yaml", "r") as f:
             yaml_content = f.read()
 
-        # Comment out the machineType configuration for the ARM build (runs on worker pool)
-        # so it doesn't cause conflicting machineType option errors.
-        # Uses a robust regex to match any variation of whitespace and quotes.
+        # Remove the entire options block for the ARM build (runs on worker pool)
+        # since regional worker pools do not support machineType and leaving an empty options:
+        # block can cause YAML parsing errors.
         arm_yaml_content = re.sub(
-            r'(^\s*machineType\s*:.*$)',
-            r'# \1',
+            r'(^\s*options:\s*\n(?:\s+.*(?:\n|$))*)',
+            '',
             yaml_content,
             flags=re.MULTILINE
         )
@@ -135,23 +147,39 @@ def main():
                 region = region_match.group(1)
                 arm_cmd.extend(["--region", region])
 
+            active_builds = {}
+            active_processes = {}
             # Run both AMD and ARM builds in parallel
             with ThreadPoolExecutor(max_workers=2) as executor:
-                amd_future = executor.submit(run_build, amd_cmd, "AMD")
-                arm_future = executor.submit(run_build, arm_cmd, "ARM")
+                futures = {
+                    executor.submit(run_build, amd_cmd, "AMD", active_builds, active_processes): "AMD",
+                    executor.submit(run_build, arm_cmd, "ARM", active_builds, active_processes): "ARM"
+                }
                 
-                amd_code, amd_out = amd_future.result()
-                arm_code, arm_out = arm_future.result()
-
-            if amd_code != 0:
-                print("--- AMD BUILD FAILED ---", file=sys.stderr)
-                print(amd_out, file=sys.stderr)
-            if arm_code != 0:
-                print("--- ARM BUILD FAILED ---", file=sys.stderr)
-                print(arm_out, file=sys.stderr)
-
-            if amd_code != 0 or arm_code != 0:
-                sys.exit(1)
+                for future in as_completed(futures):
+                    build_name = futures[future]
+                    return_code, stdout = future.result()
+                    if return_code != 0:
+                        print(f"[{build_name}] Build failed with exit code {return_code}")
+                        print(stdout)
+                        
+                        # Immediately terminate all other local subprocesses
+                        for name, proc in list(active_processes.items()):
+                            if name != build_name:
+                                print(f"Terminating local subprocess for [{name}]...")
+                                proc.terminate()
+                                proc.wait()
+                                
+                        # Immediately try to cancel the other remote builds to save resources
+                        for name, build_info in list(active_builds.items()):
+                            if name != build_name:
+                                print(f"Cancelling remote active build [{name}] ({build_info['id']})...")
+                                cancel_cmd = ["gcloud", "builds", "cancel", build_info["id"], "--project", args.project]
+                                if build_info["region"] != "global":
+                                    cancel_cmd.extend(["--region", build_info["region"]])
+                                subprocess.run(cancel_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                        
+                        sys.exit(1)
 
         finally:
             if os.path.exists(temp_path):
