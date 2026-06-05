@@ -436,7 +436,6 @@ def main():
     parser.add_argument("--gcsfuse-version", default="master", help="GCSFuse branch/version to build images for.")
     parser.add_argument("--keep-clusters", action="store_true", help="Keep clusters alive after run (do not delete them sequentially).")
     parser.add_argument("--mtu", type=int, default=8896, help="VPC Network MTU.")
-    parser.add_argument("--lro", default="on", choices=["on", "off"], help="Configure Large Receive Offload (LRO) status on network interface. Default: on.")
     parser.add_argument("--tpu-provision-timeout-hours", type=float, default=2.0, help="TPU node pool provisioning timeout in hours. Default: 2.0.")
     parser.add_argument("--reservation-affinity", default=None, choices=["any", "none", "specific"], help="GCE Reservation affinity for TPU node pool.")
     parser.add_argument("--reservation", default=None, help="Name of GCE reservation to use (required if reservation-affinity is specific).")
