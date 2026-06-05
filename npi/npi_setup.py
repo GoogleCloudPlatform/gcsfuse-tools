@@ -348,6 +348,7 @@ def run_all(args):
     print(f"\n==================================================")
     print(f"=== PHASE 1: Baseline GKE {args.baseline_gke_version} ===")
     print(f"==================================================")
+    baseline_error = None
     try:
         setup_cluster(args, baseline_cluster, args.baseline_gke_version)
         
@@ -358,14 +359,26 @@ def run_all(args):
         # 3b. Run Baseline with LRO OFF
         configure_lro_on_cluster(args, baseline_cluster, "off")
         run_benchmarks_for_cluster(args, baseline_cluster, f"{bq_dataset_id}_baseline_lro_off")
+    except Exception as e:
+        baseline_error = e
     finally:
         if not args.keep_clusters:
             delete_cluster(args, baseline_cluster)
+
+    if baseline_error:
+        print("\n" + "="*60)
+        print("===                     PHASE 1 FAILURE                      ===")
+        print("="*60)
+        print(f"[FAIL] Baseline GKE phase failed with error: {baseline_error}")
+        print("Please check the console logs above for the specific benchmark failure details.")
+        print("="*60 + "\n")
+        raise baseline_error
 
     # 4. Regression Phase
     print(f"\n==================================================")
     print(f"=== PHASE 2: Regression GKE {args.gke_version} ===")
     print(f"==================================================")
+    regression_error = None
     try:
         setup_cluster(args, regression_cluster, args.gke_version)
         
@@ -376,9 +389,20 @@ def run_all(args):
         # 4b. Run Regression with LRO OFF
         configure_lro_on_cluster(args, regression_cluster, "off")
         run_benchmarks_for_cluster(args, regression_cluster, f"{bq_dataset_id}_regression_lro_off")
+    except Exception as e:
+        regression_error = e
     finally:
         if not args.keep_clusters:
             delete_cluster(args, regression_cluster)
+
+    if regression_error:
+        print("\n" + "="*60)
+        print("===                     PHASE 2 FAILURE                      ===")
+        print("="*60)
+        print(f"[FAIL] Regression GKE phase failed with error: {regression_error}")
+        print("Please check the console logs above for the specific benchmark failure details.")
+        print("="*60 + "\n")
+        raise regression_error
 
     # 5. Comparison Phase
     compare_results(args, bq_dataset_id)
