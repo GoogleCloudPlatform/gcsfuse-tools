@@ -32,7 +32,9 @@ def terminate_process(process, name):
         process.kill()
         process.wait()
 
-def run_build(cmd, name, active_builds, active_processes, builds_lock):
+def run_build(cmd, name, active_builds, active_processes, builds_lock, cancellation_event):
+    if cancellation_event.is_set():
+        return 1, "Cancelled"
     print(f"[{name}] Starting build...")
     logs_url = None
     output_lines = []
@@ -43,6 +45,9 @@ def run_build(cmd, name, active_builds, active_processes, builds_lock):
                 active_processes[name] = process
             try:
                 for line in iter(process.stdout.readline, ''):
+                    if cancellation_event.is_set():
+                        terminate_process(process, name)
+                        return 1, "Cancelled"
                     output_lines.append(line)
                     
                     # Stream log line to console in real-time
@@ -164,8 +169,10 @@ def main():
             active_builds = {}
             active_processes = {}
             builds_lock = threading.Lock()
+            cancellation_event = threading.Event()
 
             def teardown(exclude_name=None):
+                cancellation_event.set()
                 # Immediately terminate all local subprocesses to unblock threads
                 with builds_lock:
                     procs_to_terminate = list(active_processes.items())
@@ -184,29 +191,27 @@ def main():
                             cancel_cmd.extend(["--region", build_info["region"]])
                         subprocess.run(cancel_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
-            # Run both AMD and ARM builds in parallel, managed manually to handle Ctrl+C safely without hangs
-            executor = ThreadPoolExecutor(max_workers=2)
             try:
-                futures = {
-                    executor.submit(run_build, amd_cmd, "AMD", active_builds, active_processes, builds_lock): "AMD",
-                    executor.submit(run_build, arm_cmd, "ARM", active_builds, active_processes, builds_lock): "ARM"
-                }
+                # Run both AMD and ARM builds in parallel, managed manually to handle Ctrl+C safely without hangs
+                with ThreadPoolExecutor(max_workers=2) as executor:
+                    futures = {
+                        executor.submit(run_build, amd_cmd, "AMD", active_builds, active_processes, builds_lock, cancellation_event): "AMD",
+                        executor.submit(run_build, arm_cmd, "ARM", active_builds, active_processes, builds_lock, cancellation_event): "ARM"
+                    }
 
-                for future in as_completed(futures):
-                    build_name = futures[future]
-                    return_code, stdout = future.result()
-                    if return_code != 0:
-                        print(f"\n[{build_name}] Build failed with exit code {return_code}\n")
-                        teardown(exclude_name=build_name)
-                        sys.exit(1)
+                    for future in as_completed(futures):
+                        build_name = futures[future]
+                        return_code, stdout = future.result()
+                        if return_code != 0:
+                            print(f"\n[{build_name}] Build failed with exit code {return_code}\n")
+                            teardown(exclude_name=build_name)
+                            sys.exit(1)
             except BaseException as e:
                 if isinstance(e, SystemExit):
                     raise
                 print(f"\nExecution interrupted: {type(e).__name__}. Initiating emergency teardown...\n", file=sys.stderr)
                 teardown()
                 raise
-            finally:
-                executor.shutdown(wait=False)
 
         finally:
             if os.path.exists(temp_path):
