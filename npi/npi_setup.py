@@ -63,14 +63,6 @@ def clone_repo():
         print(f"\n[INFO] Removing existing repo directory: {REPO_DIR}")
         shutil.rmtree(REPO_DIR)
     run_cmd(["git", "clone", "https://github.com/GoogleCloudPlatform/gcsfuse-tools.git", REPO_DIR])
-    
-    # Copy local workspace npi_gke.py to the cloned repo so local changes are tested
-    local_script_dir = os.path.dirname(os.path.abspath(__file__))
-    local_gke_script = os.path.join(local_script_dir, "npi_gke.py")
-    target_gke_script = os.path.join(REPO_DIR, "npi", "npi_gke.py")
-    if os.path.exists(local_gke_script):
-        print(f"[INFO] Copying workspace {local_gke_script} to {target_gke_script}...")
-        shutil.copy(local_gke_script, target_gke_script)
 
 def build_images(project_id, gcsfuse_version):
     print("\n[INFO] Creating Artifact Registry repository...")
@@ -270,8 +262,6 @@ def run_benchmarks_for_cluster(args, cluster_name, dataset_id):
         "--resources-limits=google.com/tpu=4",
         "-b", "go_read_http1", "go_read_grpc"
     ]
-    if args.numjobs != 128:
-        cmd.append(f"--numjobs={args.numjobs}")
     cwd = os.path.join(REPO_DIR, "npi")
     print(f"\n[INFO] Executing benchmarks for {cluster_name} in {cwd}...")
     subprocess.run(cmd, check=True, text=True, cwd=cwd)
@@ -446,7 +436,6 @@ def main():
     parser.add_argument("--gcsfuse-version", default="master", help="GCSFuse branch/version to build images for.")
     parser.add_argument("--keep-clusters", action="store_true", help="Keep clusters alive after run (do not delete them sequentially).")
     parser.add_argument("--mtu", type=int, default=8896, help="VPC Network MTU.")
-    parser.add_argument("--numjobs", type=int, default=128, help="Number of concurrent workers for benchmarks. Default: 128.")
     parser.add_argument("--lro", default="on", choices=["on", "off"], help="Configure Large Receive Offload (LRO) status on network interface. Default: on.")
     parser.add_argument("--tpu-provision-timeout-hours", type=float, default=2.0, help="TPU node pool provisioning timeout in hours. Default: 2.0.")
     parser.add_argument("--reservation-affinity", default=None, choices=["any", "none", "specific"], help="GCE Reservation affinity for TPU node pool.")
