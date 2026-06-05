@@ -9,6 +9,7 @@ import shutil
 import json
 import time
 import threading
+import tempfile
 
 LRO_DAEMONSET_YAML = """
 apiVersion: apps/v1
@@ -53,7 +54,7 @@ spec:
           path: /proc
 """
 
-REPO_DIR = "gcsfuse-tools-repo"
+REPO_DIR = os.path.join(tempfile.gettempdir(), "gcsfuse-tools-npi-repo")
 
 def run_cmd(cmd, check=True):
     print(f"\n[INFO] Running: {' '.join(cmd)}")
