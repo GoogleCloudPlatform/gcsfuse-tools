@@ -19,6 +19,8 @@ substitutions:
   _REGISTRY: 'us-docker.pkg.dev'
   _PROJECT: 'gcs-fuse-test'
   _IMAGE_VERSION: 'latest'
+  _PLATFORM: 'linux/amd64,linux/arm64'
+  _ARCH_SUFFIX: ''
 
 steps:
   # Set up buildx to use the docker-container driver, which is necessary for multi-platform builds.
@@ -33,7 +35,7 @@ steps:
       - '--driver'
       - 'docker-container'
 
-  # Build and push the base image for both amd64 and arm64.
+  # Build and push the base image.
   - name: 'gcr.io/cloud-builders/docker'
     id: 'base'
     waitFor: ['buildx-setup']
@@ -44,7 +46,7 @@ steps:
       - '-f'
       - 'gcsfuse-perf-base.dockerfile'
       - '--platform'
-      - 'linux/amd64,linux/arm64'
+      - '${_PLATFORM}'
       - '--build-arg'
       - 'GCSFUSE_VERSION=${_GCSFUSE_VERSION}'
       - '--build-arg'
@@ -52,7 +54,7 @@ steps:
       - '--build-arg'
       - 'UBUNTU_VERSION=${_UBUNTU_VERSION}'
       - '-t'
-      - '${_REGISTRY}/${_PROJECT}/gcsfuse-benchmarks/gcsfuse-perf-base:${_IMAGE_VERSION}'
+      - '${_REGISTRY}/${_PROJECT}/gcsfuse-benchmarks/gcsfuse-perf-base:${_IMAGE_VERSION}${_ARCH_SUFFIX}'
       - '.'
 
   # Build and push the read-benchmark image.
@@ -66,7 +68,7 @@ steps:
       - '-f'
       - 'fio/read.dockerfile'
       - '--platform'
-      - 'linux/amd64,linux/arm64'
+      - '${_PLATFORM}'
       - '--build-arg'
       - 'GCSFUSE_VERSION=${_GCSFUSE_VERSION}'
       - '--build-arg'
@@ -78,9 +80,9 @@ steps:
       - '--build-arg'
       - 'PROJECT=${_PROJECT}'
       - '--build-arg'
-      - 'IMAGE_VERSION=${_IMAGE_VERSION}'
+      - 'IMAGE_VERSION=${_IMAGE_VERSION}${_ARCH_SUFFIX}'
       - '-t'
-      - '${_REGISTRY}/${_PROJECT}/gcsfuse-benchmarks/fio-read-benchmark:${_IMAGE_VERSION}'
+      - '${_REGISTRY}/${_PROJECT}/gcsfuse-benchmarks/fio-read-benchmark:${_IMAGE_VERSION}${_ARCH_SUFFIX}'
       - 'fio'
 
   # Build and push the go-client-read-benchmark image.
@@ -94,7 +96,7 @@ steps:
       - '-f'
       - 'go-client/go-client.dockerfile'
       - '--platform'
-      - 'linux/amd64,linux/arm64'
+      - '${_PLATFORM}'
       - '--build-arg'
       - 'GO_VERSION=${_GO_VERSION}'
       - '--build-arg'
@@ -102,9 +104,9 @@ steps:
       - '--build-arg'
       - 'PROJECT=${_PROJECT}'
       - '--build-arg'
-      - 'IMAGE_VERSION=${_IMAGE_VERSION}'
+      - 'IMAGE_VERSION=${_IMAGE_VERSION}${_ARCH_SUFFIX}'
       - '-t'
-      - '${_REGISTRY}/${_PROJECT}/gcsfuse-benchmarks/go-client-read-benchmark:${_IMAGE_VERSION}'
+      - '${_REGISTRY}/${_PROJECT}/gcsfuse-benchmarks/go-client-read-benchmark:${_IMAGE_VERSION}${_ARCH_SUFFIX}'
       - 'go-client'
 
   # Build and push the write-benchmark image.
@@ -118,7 +120,7 @@ steps:
       - '-f'
       - 'fio/write.dockerfile'
       - '--platform'
-      - 'linux/amd64,linux/arm64'
+      - '${_PLATFORM}'
       - '--build-arg'
       - 'GCSFUSE_VERSION=${_GCSFUSE_VERSION}'
       - '--build-arg'
@@ -130,9 +132,9 @@ steps:
       - '--build-arg'
       - 'PROJECT=${_PROJECT}'
       - '--build-arg'
-      - 'IMAGE_VERSION=${_IMAGE_VERSION}'
+      - 'IMAGE_VERSION=${_IMAGE_VERSION}${_ARCH_SUFFIX}'
       - '-t'
-      - '${_REGISTRY}/${_PROJECT}/gcsfuse-benchmarks/fio-write-benchmark:${_IMAGE_VERSION}'
+      - '${_REGISTRY}/${_PROJECT}/gcsfuse-benchmarks/fio-write-benchmark:${_IMAGE_VERSION}${_ARCH_SUFFIX}'
       - 'fio'
 
   # Build and push the fullsweep-benchmark image.
@@ -146,7 +148,7 @@ steps:
       - '-f'
       - 'fio/fullsweep.dockerfile'
       - '--platform'
-      - 'linux/amd64,linux/arm64'
+      - '${_PLATFORM}'
       - '--build-arg'
       - 'GCSFUSE_VERSION=${_GCSFUSE_VERSION}'
       - '--build-arg'
@@ -158,9 +160,9 @@ steps:
       - '--build-arg'
       - 'PROJECT=${_PROJECT}'
       - '--build-arg'
-      - 'IMAGE_VERSION=${_IMAGE_VERSION}'
+      - 'IMAGE_VERSION=${_IMAGE_VERSION}${_ARCH_SUFFIX}'
       - '-t'
-      - '${_REGISTRY}/${_PROJECT}/gcsfuse-benchmarks/fio-fullsweep-benchmark:${_IMAGE_VERSION}'
+      - '${_REGISTRY}/${_PROJECT}/gcsfuse-benchmarks/fio-fullsweep-benchmark:${_IMAGE_VERSION}${_ARCH_SUFFIX}'
       - 'fio'
 
   # Build and push the orbax-benchmark image.
@@ -174,7 +176,7 @@ steps:
       - '-f'
       - 'fio/orbax_emulated.dockerfile'
       - '--platform'
-      - 'linux/amd64,linux/arm64'
+      - '${_PLATFORM}'
       - '--build-arg'
       - 'GCSFUSE_VERSION=${_GCSFUSE_VERSION}'
       - '--build-arg'
@@ -186,9 +188,9 @@ steps:
       - '--build-arg'
       - 'PROJECT=${_PROJECT}'
       - '--build-arg'
-      - 'IMAGE_VERSION=${_IMAGE_VERSION}'
+      - 'IMAGE_VERSION=${_IMAGE_VERSION}${_ARCH_SUFFIX}'
       - '-t'
-      - '${_REGISTRY}/${_PROJECT}/gcsfuse-benchmarks/orbax-emulated-benchmark:${_IMAGE_VERSION}'
+      - '${_REGISTRY}/${_PROJECT}/gcsfuse-benchmarks/orbax-emulated-benchmark:${_IMAGE_VERSION}${_ARCH_SUFFIX}'
       - 'fio'
 
   # Build and push the host-info-collector image.
@@ -202,7 +204,7 @@ steps:
       - '-f'
       - 'host_info/host_info.dockerfile'
       - '--platform'
-      - 'linux/amd64,linux/arm64'
+      - '${_PLATFORM}'
       - '--build-arg'
       - 'GCSFUSE_VERSION=${_GCSFUSE_VERSION}'
       - '--build-arg'
@@ -214,9 +216,9 @@ steps:
       - '--build-arg'
       - 'PROJECT=${_PROJECT}'
       - '--build-arg'
-      - 'IMAGE_VERSION=${_IMAGE_VERSION}'
+      - 'IMAGE_VERSION=${_IMAGE_VERSION}${_ARCH_SUFFIX}'
       - '-t'
-      - '${_REGISTRY}/${_PROJECT}/gcsfuse-benchmarks/host-info-collector:${_IMAGE_VERSION}'
+      - '${_REGISTRY}/${_PROJECT}/gcsfuse-benchmarks/host-info-collector:${_IMAGE_VERSION}${_ARCH_SUFFIX}'
       - 'host_info'
 
   # Build and push the routing init-container image.
@@ -230,9 +232,9 @@ steps:
       - '-f'
       - 'multinic/routing.dockerfile'
       - '--platform'
-      - 'linux/amd64,linux/arm64'
+      - '${_PLATFORM}'
       - '-t'
-      - '${_REGISTRY}/${_PROJECT}/gcsfuse-benchmarks/multinic-routing:${_IMAGE_VERSION}'
+      - '${_REGISTRY}/${_PROJECT}/gcsfuse-benchmarks/multinic-routing:${_IMAGE_VERSION}${_ARCH_SUFFIX}'
       - 'multinic'
 
 options:

@@ -20,9 +20,19 @@ PROJECT=gcs-fuse-test
 IMAGE_VERSION ?= latest
 
 
+ARM_WORKER_POOL ?=
+
+
 .DEFAULT_GOAL := build
 
 .PHONY: build
 
 build:
-	gcloud builds submit --project $(PROJECT) --config cloudbuild.yaml . --substitutions=_GCSFUSE_VERSION=$(GCSFUSE_VERSION),_GO_VERSION=$(GO_VERSION),_UBUNTU_VERSION=$(UBUNTU_VERSION),_REGISTRY=$(REGISTRY),_PROJECT=$(PROJECT),_IMAGE_VERSION=$(IMAGE_VERSION)
+	python3 -u build_images.py \
+		--gcsfuse-version $(GCSFUSE_VERSION) \
+		--go-version $(GO_VERSION) \
+		--ubuntu-version $(UBUNTU_VERSION) \
+		--registry $(REGISTRY) \
+		--project $(PROJECT) \
+		--image-version $(IMAGE_VERSION) \
+		$(if $(ARM_WORKER_POOL),--arm-worker-pool $(ARM_WORKER_POOL))

@@ -1,0 +1,107 @@
+# Copyright 2026 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+substitutions:
+  _REGISTRY: 'us-docker.pkg.dev'
+  _PROJECT: 'gcs-fuse-test'
+  _IMAGE_VERSION: 'latest'
+
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'merge-gcsfuse-perf-base'
+    args:
+      - 'buildx'
+      - 'imagetools'
+      - 'create'
+      - '-t'
+      - '${_REGISTRY}/${_PROJECT}/gcsfuse-benchmarks/gcsfuse-perf-base:${_IMAGE_VERSION}'
+      - '${_REGISTRY}/${_PROJECT}/gcsfuse-benchmarks/gcsfuse-perf-base:${_IMAGE_VERSION}-amd64'
+      - '${_REGISTRY}/${_PROJECT}/gcsfuse-benchmarks/gcsfuse-perf-base:${_IMAGE_VERSION}-arm64'
+
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'merge-fio-read-benchmark'
+    args:
+      - 'buildx'
+      - 'imagetools'
+      - 'create'
+      - '-t'
+      - '${_REGISTRY}/${_PROJECT}/gcsfuse-benchmarks/fio-read-benchmark:${_IMAGE_VERSION}'
+      - '${_REGISTRY}/${_PROJECT}/gcsfuse-benchmarks/fio-read-benchmark:${_IMAGE_VERSION}-amd64'
+      - '${_REGISTRY}/${_PROJECT}/gcsfuse-benchmarks/fio-read-benchmark:${_IMAGE_VERSION}-arm64'
+
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'merge-go-client-read-benchmark'
+    args:
+      - 'buildx'
+      - 'imagetools'
+      - 'create'
+      - '-t'
+      - '${_REGISTRY}/${_PROJECT}/gcsfuse-benchmarks/go-client-read-benchmark:${_IMAGE_VERSION}'
+      - '${_REGISTRY}/${_PROJECT}/gcsfuse-benchmarks/go-client-read-benchmark:${_IMAGE_VERSION}-amd64'
+      - '${_REGISTRY}/${_PROJECT}/gcsfuse-benchmarks/go-client-read-benchmark:${_IMAGE_VERSION}-arm64'
+
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'merge-fio-write-benchmark'
+    args:
+      - 'buildx'
+      - 'imagetools'
+      - 'create'
+      - '-t'
+      - '${_REGISTRY}/${_PROJECT}/gcsfuse-benchmarks/fio-write-benchmark:${_IMAGE_VERSION}'
+      - '${_REGISTRY}/${_PROJECT}/gcsfuse-benchmarks/fio-write-benchmark:${_IMAGE_VERSION}-amd64'
+      - '${_REGISTRY}/${_PROJECT}/gcsfuse-benchmarks/fio-write-benchmark:${_IMAGE_VERSION}-arm64'
+
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'merge-fio-fullsweep-benchmark'
+    args:
+      - 'buildx'
+      - 'imagetools'
+      - 'create'
+      - '-t'
+      - '${_REGISTRY}/${_PROJECT}/gcsfuse-benchmarks/fio-fullsweep-benchmark:${_IMAGE_VERSION}'
+      - '${_REGISTRY}/${_PROJECT}/gcsfuse-benchmarks/fio-fullsweep-benchmark:${_IMAGE_VERSION}-amd64'
+      - '${_REGISTRY}/${_PROJECT}/gcsfuse-benchmarks/fio-fullsweep-benchmark:${_IMAGE_VERSION}-arm64'
+
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'merge-orbax-emulated-benchmark'
+    args:
+      - 'buildx'
+      - 'imagetools'
+      - 'create'
+      - '-t'
+      - '${_REGISTRY}/${_PROJECT}/gcsfuse-benchmarks/orbax-emulated-benchmark:${_IMAGE_VERSION}'
+      - '${_REGISTRY}/${_PROJECT}/gcsfuse-benchmarks/orbax-emulated-benchmark:${_IMAGE_VERSION}-amd64'
+      - '${_REGISTRY}/${_PROJECT}/gcsfuse-benchmarks/orbax-emulated-benchmark:${_IMAGE_VERSION}-arm64'
+
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'merge-host-info-collector'
+    args:
+      - 'buildx'
+      - 'imagetools'
+      - 'create'
+      - '-t'
+      - '${_REGISTRY}/${_PROJECT}/gcsfuse-benchmarks/host-info-collector:${_IMAGE_VERSION}'
+      - '${_REGISTRY}/${_PROJECT}/gcsfuse-benchmarks/host-info-collector:${_IMAGE_VERSION}-amd64'
+      - '${_REGISTRY}/${_PROJECT}/gcsfuse-benchmarks/host-info-collector:${_IMAGE_VERSION}-arm64'
+
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'merge-multinic-routing'
+    args:
+      - 'buildx'
+      - 'imagetools'
+      - 'create'
+      - '-t'
+      - '${_REGISTRY}/${_PROJECT}/gcsfuse-benchmarks/multinic-routing:${_IMAGE_VERSION}'
+      - '${_REGISTRY}/${_PROJECT}/gcsfuse-benchmarks/multinic-routing:${_IMAGE_VERSION}-amd64'
+      - '${_REGISTRY}/${_PROJECT}/gcsfuse-benchmarks/multinic-routing:${_IMAGE_VERSION}-arm64'
