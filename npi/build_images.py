@@ -164,8 +164,9 @@ def main():
             active_builds = {}
             active_processes = {}
             builds_lock = threading.Lock()
-            # Run both AMD and ARM builds in parallel
-            with ThreadPoolExecutor(max_workers=2) as executor:
+            # Run both AMD and ARM builds in parallel, managed manually to handle Ctrl+C safely without hangs
+            executor = ThreadPoolExecutor(max_workers=2)
+            try:
                 futures = {
                     executor.submit(run_build, amd_cmd, "AMD", active_builds, active_processes, builds_lock): "AMD",
                     executor.submit(run_build, arm_cmd, "ARM", active_builds, active_processes, builds_lock): "ARM"
@@ -196,6 +197,26 @@ def main():
                                 subprocess.run(cancel_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                         
                         sys.exit(1)
+            except BaseException as e:
+                print(f"\nExecution interrupted: {type(e).__name__}. Initiating emergency teardown...\n", file=sys.stderr)
+                # Immediately terminate all local subprocesses to unblock threads
+                with builds_lock:
+                    procs_to_terminate = list(active_processes.items())
+                for name, proc in procs_to_terminate:
+                    terminate_process(proc, name)
+                    
+                # Cancel all remote active builds on GCP
+                with builds_lock:
+                    builds_to_cancel = list(active_builds.items())
+                for name, build_info in builds_to_cancel:
+                    print(f"Cancelling remote active build [{name}] ({build_info['id']})...", file=sys.stderr)
+                    cancel_cmd = ["gcloud", "builds", "cancel", build_info["id"], "--project", args.project]
+                    if build_info["region"] != "global":
+                        cancel_cmd.extend(["--region", build_info["region"]])
+                    subprocess.run(cancel_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                raise
+            finally:
+                executor.shutdown(wait=False)
 
         finally:
             if os.path.exists(temp_path):
