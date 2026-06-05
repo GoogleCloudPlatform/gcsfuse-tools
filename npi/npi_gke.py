@@ -185,6 +185,7 @@ def main():
     parser.add_argument("--project-id", required=True, help="Project ID for results.")
     parser.add_argument("--bq-dataset-id", required=True, help="BigQuery dataset ID for results.")
     parser.add_argument("--iterations", type=int, default=5, help="Number of FIO test iterations per benchmark. Default: 5.")
+    parser.add_argument("--numjobs", type=int, default=128, help="Number of concurrent workers for go_read benchmarks. Default: 128.")
     parser.add_argument("--image-version", default="latest", help="The version (tag) of the benchmark Docker images to use. Default: latest.")
     parser.add_argument("--cluster-name", help="GKE cluster name. If provided with --location, the script will fetch cluster credentials.")
     parser.add_argument("--location", help="GCP location (region or zone) of the GKE cluster.")
@@ -320,7 +321,8 @@ def main():
                 f"--project-id={args.project_id}",
                 f"--bq-dataset-id={args.bq_dataset_id}",
                 f"--bq-table-id={bq_table_id}",
-                f"--bucket-name={args.bucket_name}"
+                f"--bucket-name={args.bucket_name}",
+                f"--numjobs={args.numjobs}"
             ]
         else:
             cmd_args = [
