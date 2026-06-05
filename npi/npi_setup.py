@@ -8,6 +8,7 @@ import os
 import shutil
 import json
 import time
+import threading
 
 LRO_DAEMONSET_YAML = """
 apiVersion: apps/v1
@@ -201,15 +202,22 @@ def create_tpu_node_pool_with_retries(args, cluster_name):
             print(f"[INFO] Waiting {sleep_time:.0f} seconds before retrying...")
             time.sleep(sleep_time)
 
-def setup_cluster(args, cluster_name, gke_version):
+def setup_cluster_control_plane(args, cluster_name, gke_version):
     project_id = args.project_id
     zone = args.zone
     network_name = args.network_name
     subnet_name = args.subnet_name
-    ksa_name = "gcsfuse-npi-ksa"
-    namespace = "default"
 
-    # 1. Create the GKE Cluster
+    # Check if cluster already exists
+    res = subprocess.run([
+        "gcloud", "container", "clusters", "describe", cluster_name,
+        f"--zone={zone}", f"--project={project_id}"
+    ], capture_output=True)
+    if res.returncode == 0:
+        print(f"\n[INFO] Cluster {cluster_name} already exists. Deleting it to ensure clean slate...")
+        delete_cluster(args, cluster_name)
+
+    print(f"\n[INFO] Creating GKE Cluster (Control Plane): {cluster_name} (Version: {gke_version})...")
     run_cmd([
         "gcloud", "container", "clusters", "create", cluster_name,
         f"--project={project_id}", f"--zone={zone}", f"--cluster-version={gke_version}",
@@ -218,14 +226,27 @@ def setup_cluster(args, cluster_name, gke_version):
         f"--workload-pool={project_id}.svc.id.goog"
     ])
 
-    # 2. Add TPU Node Pool (with retries and reservation support)
+def provision_tpu_and_setup_ksa(args, cluster_name):
+    project_id = args.project_id
+    zone = args.zone
+    ksa_name = "gcsfuse-npi-ksa"
+    namespace = "default"
+
+    # Add TPU Node Pool (with retries and reservation support)
     create_tpu_node_pool_with_retries(args, cluster_name)
 
-    # 3. Get Cluster Credentials
+    # Get Cluster Credentials
     run_cmd(["gcloud", "container", "clusters", "get-credentials", cluster_name, f"--zone={zone}", f"--project={project_id}"])
 
-    # 4. Create KSA
+    # Create KSA
     run_cmd(["kubectl", "create", "serviceaccount", ksa_name, f"--namespace={namespace}"], check=False)
+
+def delete_node_pool(args, cluster_name, pool_name):
+    print(f"\n[INFO] Deleting node pool {pool_name} from cluster {cluster_name}...")
+    run_cmd([
+        "gcloud", "container", "node-pools", "delete", pool_name,
+        f"--cluster={cluster_name}", f"--zone={args.zone}", f"--project={args.project_id}", "--quiet"
+    ], check=False)
 
 
 def configure_lro_on_cluster(args, cluster_name, lro_status):
@@ -330,9 +351,64 @@ def run_all(args):
     # 1. Setup global infrastructure (VPC, GCS Bucket, direct WI bindings)
     setup_global_infra(args)
 
-    # 2. Clone and build images
-    clone_repo()
-    build_images(args.project_id, args.gcsfuse_version)
+    errors = {}
+
+    def run_image_build():
+        try:
+            clone_repo()
+            build_images(args.project_id, args.gcsfuse_version)
+        except Exception as e:
+            errors["image_build"] = e
+            print(f"[ERROR] Image building failed: {e}", file=sys.stderr)
+
+    def run_setup_baseline():
+        try:
+            setup_cluster_control_plane(args, baseline_cluster, args.baseline_gke_version)
+        except Exception as e:
+            errors["baseline_setup"] = e
+            print(f"[ERROR] Baseline GKE control plane setup failed: {e}", file=sys.stderr)
+
+    def run_setup_regression():
+        try:
+            setup_cluster_control_plane(args, regression_cluster, args.gke_version)
+        except Exception as e:
+            errors["regression_setup"] = e
+            print(f"[ERROR] Regression GKE control plane setup failed: {e}", file=sys.stderr)
+
+    # 2. Run image builds and GKE cluster creations concurrently
+    print("\n[INFO] Starting concurrent image building and cluster control plane provisioning...")
+    t_build = threading.Thread(target=run_image_build)
+    t_baseline = threading.Thread(target=run_setup_baseline)
+    t_regression = threading.Thread(target=run_setup_regression)
+
+    t_build.start()
+    t_baseline.start()
+    t_regression.start()
+
+    t_build.join()
+    t_baseline.join()
+    t_regression.join()
+
+    # Check if any errors occurred during concurrent initialization phase
+    if errors:
+        print("\n" + "="*60)
+        print("===           CONCURRENT INITIALIZATION FAILURE              ===")
+        print("="*60)
+        for name, err in errors.items():
+            print(f"[FAIL] Task '{name}' failed with error: {err}")
+        print("="*60 + "\n")
+        # Clean up any created GKE clusters
+        if not args.keep_clusters:
+            print("[INFO] Cleaning up GKE clusters after initialization failure...")
+            t_del_baseline = threading.Thread(target=delete_cluster, args=(args, baseline_cluster))
+            t_del_regression = threading.Thread(target=delete_cluster, args=(args, regression_cluster))
+            t_del_baseline.start()
+            t_del_regression.start()
+            t_del_baseline.join()
+            t_del_regression.join()
+        sys.exit(1)
+
+    print("\n[INFO] Concurrent initialization complete. Proceeding with sequential TPU benchmark phases...")
 
     # 3. Baseline Phase
     print(f"\n==================================================")
@@ -340,7 +416,7 @@ def run_all(args):
     print(f"==================================================")
     baseline_error = None
     try:
-        setup_cluster(args, baseline_cluster, args.baseline_gke_version)
+        provision_tpu_and_setup_ksa(args, baseline_cluster)
         
         # 3a. Run Baseline with LRO ON
         configure_lro_on_cluster(args, baseline_cluster, "on")
@@ -352,8 +428,8 @@ def run_all(args):
     except Exception as e:
         baseline_error = e
     finally:
-        if not args.keep_clusters:
-            delete_cluster(args, baseline_cluster)
+        # Delete only the TPU node pool, keeping the GKE cluster alive for now
+        delete_node_pool(args, baseline_cluster, "tpu-pool")
 
     if baseline_error:
         print("\n" + "="*60)
@@ -362,6 +438,14 @@ def run_all(args):
         print(f"[FAIL] Baseline GKE phase failed with error: {baseline_error}")
         print("Please check the console logs above for the specific benchmark failure details.")
         print("="*60 + "\n")
+        if not args.keep_clusters:
+            print("[INFO] Cleaning up clusters after Phase 1 failure...")
+            t_del_baseline = threading.Thread(target=delete_cluster, args=(args, baseline_cluster))
+            t_del_regression = threading.Thread(target=delete_cluster, args=(args, regression_cluster))
+            t_del_baseline.start()
+            t_del_regression.start()
+            t_del_baseline.join()
+            t_del_regression.join()
         raise baseline_error
 
     # 4. Regression Phase
@@ -370,7 +454,7 @@ def run_all(args):
     print(f"==================================================")
     regression_error = None
     try:
-        setup_cluster(args, regression_cluster, args.gke_version)
+        provision_tpu_and_setup_ksa(args, regression_cluster)
         
         # 4a. Run Regression with LRO ON
         configure_lro_on_cluster(args, regression_cluster, "on")
@@ -382,8 +466,8 @@ def run_all(args):
     except Exception as e:
         regression_error = e
     finally:
-        if not args.keep_clusters:
-            delete_cluster(args, regression_cluster)
+        # Delete only the TPU node pool
+        delete_node_pool(args, regression_cluster, "tpu-pool")
 
     if regression_error:
         print("\n" + "="*60)
@@ -392,9 +476,27 @@ def run_all(args):
         print(f"[FAIL] Regression GKE phase failed with error: {regression_error}")
         print("Please check the console logs above for the specific benchmark failure details.")
         print("="*60 + "\n")
+        if not args.keep_clusters:
+            print("[INFO] Cleaning up GKE clusters after Phase 2 failure...")
+            t_del_baseline = threading.Thread(target=delete_cluster, args=(args, baseline_cluster))
+            t_del_regression = threading.Thread(target=delete_cluster, args=(args, regression_cluster))
+            t_del_baseline.start()
+            t_del_regression.start()
+            t_del_baseline.join()
+            t_del_regression.join()
         raise regression_error
 
-    # 5. Comparison Phase
+    # 5. Teardown GKE Clusters (Concurrently)
+    if not args.keep_clusters:
+        print("\n[INFO] Starting concurrent GKE cluster deletion...")
+        t_del_baseline = threading.Thread(target=delete_cluster, args=(args, baseline_cluster))
+        t_del_regression = threading.Thread(target=delete_cluster, args=(args, regression_cluster))
+        t_del_baseline.start()
+        t_del_regression.start()
+        t_del_baseline.join()
+        t_del_regression.join()
+
+    # 6. Comparison Phase
     compare_results(args, bq_dataset_id)
 
 def cleanup(args):
