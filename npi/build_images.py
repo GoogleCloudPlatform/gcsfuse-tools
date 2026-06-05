@@ -23,25 +23,29 @@ from concurrent.futures import ThreadPoolExecutor
 
 def run_build(cmd, name):
     print(f"[{name}] Starting build...")
-    # Run process
-    process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
-    
     logs_url = None
     output_lines = []
     
-    # Read output line by line as it becomes available
-    for line in iter(process.stdout.readline, ''):
-        output_lines.append(line)
-        # Search for logs URL
-        if "Logs are available at" in line:
-            match = re.search(r'\[\s*(https://[^\s\]]+)\s*\]', line)
-            if match:
-                logs_url = match.group(1)
-                print(f"[{name}] Build log URL: {logs_url}")
-                
-    process.stdout.close()
-    return_code = process.wait()
-    
+    try:
+        with subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1) as process:
+            try:
+                for line in iter(process.stdout.readline, ''):
+                    output_lines.append(line)
+                    # Search for logs URL
+                    if "Logs are available at" in line:
+                        match = re.search(r'\[\s*(https://[^\s\]]+)\s*\]', line)
+                        if match:
+                            logs_url = match.group(1)
+                            print(f"[{name}] Build log URL: {logs_url}")
+            except BaseException:
+                process.terminate()
+                process.wait()
+                raise
+            
+            return_code = process.wait()
+    except Exception as e:
+        return 1, f"Local wrapper error: {str(e)}"
+        
     return return_code, "".join(output_lines)
 
 def main():
@@ -66,16 +70,21 @@ def main():
 
         # Comment out the machineType configuration for the ARM build (runs on worker pool)
         # so it doesn't cause conflicting machineType option errors.
-        arm_yaml_content = yaml_content.replace(
-            "machineType: 'E2_HIGHCPU_32'",
-            "# machineType: 'E2_HIGHCPU_32'"
+        # Uses a robust regex to match any variation of whitespace and quotes.
+        arm_yaml_content = re.sub(
+            r'(^\s*machineType\s*:.*$)',
+            r'# \1',
+            yaml_content,
+            flags=re.MULTILINE
         )
 
         # Create temporary YAML file for the ARM build in the current directory
         # (needs to be in the uploaded directory so Cloud Build can find it)
-        temp_fd, temp_path = tempfile.mkstemp(suffix=".yaml", dir=".")
+        # Uses NamedTemporaryFile for safe file descriptor management.
+        temp_file = tempfile.NamedTemporaryFile(mode='w', suffix=".yaml", dir=".", delete=False)
+        temp_path = temp_file.name
         try:
-            with os.fdopen(temp_fd, 'w') as temp_file:
+            with temp_file:
                 temp_file.write(arm_yaml_content)
             
             temp_config_name = os.path.basename(temp_path)
