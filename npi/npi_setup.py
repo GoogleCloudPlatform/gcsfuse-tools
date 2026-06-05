@@ -266,11 +266,12 @@ def run_benchmarks_for_cluster(args, cluster_name, dataset_id):
         f"--kubernetes-service-account={ksa_name}",
         f"--cluster-name={cluster_name}",
         f"--location={args.zone}",
-        f"--numjobs={args.numjobs}",
         "--node-selector=cloud.google.com/gke-tpu-accelerator=tpu-v6e-slice,cloud.google.com/gke-tpu-topology=2x2",
         "--resources-limits=google.com/tpu=4",
         "-b", "go_read_http1", "go_read_grpc"
     ]
+    if args.numjobs != 128:
+        cmd.append(f"--numjobs={args.numjobs}")
     cwd = os.path.join(REPO_DIR, "npi")
     print(f"\n[INFO] Executing benchmarks for {cluster_name} in {cwd}...")
     subprocess.run(cmd, check=True, text=True, cwd=cwd)
