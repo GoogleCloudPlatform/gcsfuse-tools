@@ -38,7 +38,7 @@ def run_build(cmd, name, active_builds, active_processes, builds_lock):
     output_lines = []
     
     try:
-        with subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1) as process:
+        with subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding='utf-8', errors='replace', bufsize=1) as process:
             with builds_lock:
                 active_processes[name] = process
             try:
