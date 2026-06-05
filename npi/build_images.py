@@ -100,7 +100,7 @@ def main():
         # since regional worker pools do not support machineType and leaving an empty options:
         # block can cause YAML parsing errors.
         arm_yaml_content = re.sub(
-            r'(^\s*options:\s*\n(?:\s+.*(?:\n|$))*)',
+            r'(^[ \t]*options:\s*\n(?:(?:[ \t]+.*|^[ \t]*)(?:\n|$))*)',
             '',
             yaml_content,
             flags=re.MULTILINE
@@ -164,6 +164,26 @@ def main():
             active_builds = {}
             active_processes = {}
             builds_lock = threading.Lock()
+
+            def teardown(exclude_name=None):
+                # Immediately terminate all local subprocesses to unblock threads
+                with builds_lock:
+                    procs_to_terminate = list(active_processes.items())
+                for name, proc in procs_to_terminate:
+                    if name != exclude_name:
+                        terminate_process(proc, name)
+
+                # Cancel all remote active builds on GCP
+                with builds_lock:
+                    builds_to_cancel = list(active_builds.items())
+                for name, build_info in builds_to_cancel:
+                    if name != exclude_name:
+                        print(f"Cancelling remote active build [{name}] ({build_info['id']})...", file=sys.stderr)
+                        cancel_cmd = ["gcloud", "builds", "cancel", build_info["id"], "--project", args.project]
+                        if build_info["region"] != "global":
+                            cancel_cmd.extend(["--region", build_info["region"]])
+                        subprocess.run(cancel_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
             # Run both AMD and ARM builds in parallel, managed manually to handle Ctrl+C safely without hangs
             executor = ThreadPoolExecutor(max_workers=2)
             try:
@@ -171,49 +191,19 @@ def main():
                     executor.submit(run_build, amd_cmd, "AMD", active_builds, active_processes, builds_lock): "AMD",
                     executor.submit(run_build, arm_cmd, "ARM", active_builds, active_processes, builds_lock): "ARM"
                 }
-                
+
                 for future in as_completed(futures):
                     build_name = futures[future]
                     return_code, stdout = future.result()
                     if return_code != 0:
                         print(f"\n[{build_name}] Build failed with exit code {return_code}\n")
-                        
-                        # Immediately terminate all other local subprocesses
-                        with builds_lock:
-                            procs_to_terminate = list(active_processes.items())
-                        for name, proc in procs_to_terminate:
-                            if name != build_name:
-                                terminate_process(proc, name)
-                                
-                        # Immediately try to cancel the other remote builds to save resources
-                        with builds_lock:
-                            builds_to_cancel = list(active_builds.items())
-                        for name, build_info in builds_to_cancel:
-                            if name != build_name:
-                                print(f"Cancelling remote active build [{name}] ({build_info['id']})...")
-                                cancel_cmd = ["gcloud", "builds", "cancel", build_info["id"], "--project", args.project]
-                                if build_info["region"] != "global":
-                                    cancel_cmd.extend(["--region", build_info["region"]])
-                                subprocess.run(cancel_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                        
+                        teardown(exclude_name=build_name)
                         sys.exit(1)
             except BaseException as e:
+                if isinstance(e, SystemExit):
+                    raise
                 print(f"\nExecution interrupted: {type(e).__name__}. Initiating emergency teardown...\n", file=sys.stderr)
-                # Immediately terminate all local subprocesses to unblock threads
-                with builds_lock:
-                    procs_to_terminate = list(active_processes.items())
-                for name, proc in procs_to_terminate:
-                    terminate_process(proc, name)
-                    
-                # Cancel all remote active builds on GCP
-                with builds_lock:
-                    builds_to_cancel = list(active_builds.items())
-                for name, build_info in builds_to_cancel:
-                    print(f"Cancelling remote active build [{name}] ({build_info['id']})...", file=sys.stderr)
-                    cancel_cmd = ["gcloud", "builds", "cancel", build_info["id"], "--project", args.project]
-                    if build_info["region"] != "global":
-                        cancel_cmd.extend(["--region", build_info["region"]])
-                    subprocess.run(cancel_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                teardown()
                 raise
             finally:
                 executor.shutdown(wait=False)
