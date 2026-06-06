@@ -381,6 +381,7 @@ def main():
     subparsers.add_parser("setup-global", help="Setup VPC Network, Bucket, and IAM permissions.")
     subparsers.add_parser("build-images", help="Clone gcsfuse-tools and build/push benchmark images.")
     subparsers.add_parser("run-verify", help="Setup GKE control plane, TPU node pool, deploy job, and fetch logs.")
+    subparsers.add_parser("run-all", help="Run setup-global, build-images, and run-verify in one go.")
     subparsers.add_parser("cleanup", help="Tear down GKE cluster, bucket, and VPC network.")
     
     args = parser.parse_args()
@@ -388,11 +389,7 @@ def main():
     if args.reservation_affinity == "specific" and not args.reservation:
         parser.error("--reservation is required when --reservation-affinity is set to specific.")
 
-    if args.action == "setup-global":
-        setup_global_infra(args)
-    elif args.action == "build-images":
-        build_images(args.project_id, args.gcsfuse_version)
-    elif args.action == "run-verify":
+    def run_verify_sequence(args):
         try:
             setup_cluster_control_plane(args, args.cluster_name, args.gke_version)
             provision_tpu_and_setup_ksa(args, args.cluster_name)
@@ -401,6 +398,17 @@ def main():
             if not args.keep_cluster:
                 print("[INFO] Tearing down cluster...")
                 delete_cluster(args, args.cluster_name)
+
+    if args.action == "setup-global":
+        setup_global_infra(args)
+    elif args.action == "build-images":
+        build_images(args.project_id, args.gcsfuse_version)
+    elif args.action == "run-verify":
+        run_verify_sequence(args)
+    elif args.action == "run-all":
+        setup_global_infra(args)
+        build_images(args.project_id, args.gcsfuse_version)
+        run_verify_sequence(args)
     elif args.action == "cleanup":
         cleanup(args)
 

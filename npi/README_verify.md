@@ -20,6 +20,7 @@ python3 npi_setup_verify.py [ACTION] [OPTIONS]
 - `setup-global`: Sets up the dual-stack VPC network, subnetwork, GCS bucket, and Workload Identity IAM permissions.
 - `build-images`: Builds and pushes the validation Docker images to Artifact Registry using Cloud Build.
 - `run-verify`: Creates a GKE cluster (v1.34 or v1.35), creates the node pools, runs the validation workload, outputs logs, and tears down the cluster.
+- `run-all`: Performs global setup, builds/pushes images, and runs the verification workload in a single automated flow.
 - `cleanup`: Complete teardown of GKE clusters, buckets, and VPC network.
 
 ### Command-line Options
@@ -37,14 +38,21 @@ python3 npi_setup_verify.py [ACTION] [OPTIONS]
 
 ## Examples
 
-### 1. Run Verification on standard nodes (non-TPU)
+### 1. Run the entire verification pipeline end-to-end (non-TPU)
+```sh
+python3 npi_setup_verify.py run-all \
+    --project-id=my-gcp-project \
+    --no-tpu
+```
+
+### 2. Run Verification only (after infra and images exist) on standard nodes
 ```sh
 python3 npi_setup_verify.py run-verify \
     --project-id=my-gcp-project \
     --no-tpu
 ```
 
-### 2. Run Verification on TPU nodes with a specific reservation
+### 3. Run Verification only on TPU nodes with a reservation
 ```sh
 python3 npi_setup_verify.py run-verify \
     --project-id=my-gcp-project \
