@@ -40,24 +40,17 @@ python3 npi_setup_verify.py [ACTION] [OPTIONS]
 
 ### 1. Run the entire verification pipeline end-to-end (non-TPU)
 ```sh
-python3 npi_setup_verify.py run-all \
-    --project-id=my-gcp-project \
-    --no-tpu
+python3 npi_setup_verify.py --project-id=my-gcp-project --no-tpu run-all
 ```
 
 ### 2. Run Verification only (after infra and images exist) on standard nodes
 ```sh
-python3 npi_setup_verify.py run-verify \
-    --project-id=my-gcp-project \
-    --no-tpu
+python3 npi_setup_verify.py --project-id=my-gcp-project --no-tpu run-verify
 ```
 
 ### 3. Run Verification only on TPU nodes with a reservation
 ```sh
-python3 npi_setup_verify.py run-verify \
-    --project-id=my-gcp-project \
-    --reservation-affinity=specific \
-    --reservation=my-tpu-reservation
+python3 npi_setup_verify.py --project-id=my-gcp-project --reservation-affinity=specific --reservation=my-tpu-reservation run-verify
 ```
 
 ### 3. Verification Job Output Excerpt (Success)
