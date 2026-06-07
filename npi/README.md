@@ -186,6 +186,38 @@ python3 npi_gke.py \
     --location us-central1-c
 ```
 
+## Concurrent Multi-Platform Orchestration (`npi_orchestrator.py`)
+
+For large-scale runs, you can use `npi_orchestrator.py` to trigger and monitor benchmark suites concurrently on both GCE VM and GKE TPU cluster environments.
+
+### Key Features
+1. **Concurrent Multi-Threading**: Launches GCE and GKE runs simultaneously, using background threads to monitor progress.
+2. **Code Synchronization**: Automatically syncs local modifications in `npi.py` or `npi_gke.py` to remote runner VMs via SSH before executing.
+3. **Connection Resilience**: Progress is saved to a local state file. If your local terminal session disconnects, restarting the orchestrator automatically resumes monitoring the background execution without losing progress.
+4. **Validation Checks**: Automatically validates GKE TPU cluster topologies to assert standard CPU compute nodes are present alongside TPU accelerator nodes.
+5. **Active Disk Monitoring**: Periodically queries VM disk utilization (tracking open-but-deleted file descriptors) to abort benchmarks before hitting out-of-disk failures.
+6. **Startup Cleanups**: Wipes lingering Docker containers, GCSFuse mounts, and GKE Kubernetes jobs from prior runs before executing.
+
+### Usage
+
+```sh
+python3 npi_orchestrator.py [OPTIONS]
+```
+
+### Arguments
+*   `--config`: Path to target configurations JSON file. Defaults to `targets.json`.
+*   `--benchmarks`: List of benchmarks to run (e.g., `read_grpc write_grpc` or `all`). Defaults to `read_grpc write_grpc`.
+*   `--image-version`: Docker image tag to pull (e.g., `smoke-test` or `latest`). Defaults to `smoke-test`.
+*   `--iterations`: Number of FIO test iterations. Defaults to `2`.
+*   `--project`: GCP Project ID. Defaults to `gcs-fuse-test`.
+
+
+### Example
+
+```sh
+python3 npi_orchestrator.py --benchmarks all --image-version smoke-test --iterations 2
+```
+
 ## Benchmark Glossary
 
 The names of the GCSFUSE performance benchmarks follow a strict format designed to clearly communicate the **access pattern**, **protocol**, **NUMA locality**, and **CPU affinity** being tested.
@@ -200,7 +232,6 @@ This segment identifies the **data access pattern** being measured.
 | :--- | :--- | :--- |
 | **`read`** | Measures the basic performance of a standard file **read** operation from GCS via FUSE. | General I/O performance. |
 | **`write`** | Measures the basic performance of a standard file **write** operation to GCS via FUSE. | General I/O performance. |
-| **`orbax_read`** | Measures performance using an access pattern that mimics **reading an Orbax checkpoint** (a common data format in machine learning, e.g., JAX/Flax). | Critical for Deep Learning/TPU workloads. |
 
 ---
 
@@ -244,7 +275,7 @@ This segment controls whether the I/O threads are explicitly **pinned** to CPU c
 
 | Benchmark Name | Detailed Meaning |
 | :--- | :--- |
-| **`orbax_read_grpc_numa0_fio_bound`** | Measures **Orbax checkpoint read** performance using **gRPC**, running on **NUMA Node 0**, with FIO threads **pinned** to local cores. |
+| **`read_grpc_numa0_fio_bound`** | Measures **standard file read** performance using **gRPC**, running on **NUMA Node 0**, with FIO threads **pinned** to local cores. |
 | **`write_http1_numa1_fio_notbound`** | Measures **standard file write** performance using **HTTP/1.1**, running on **NUMA Node 1**, with FIO threads **unpinned** (OS manages placement). |
 
 ## Examples
