@@ -472,11 +472,8 @@ def execute_target(target, args, state_lock, state):
                 bench_cmd = f"nohup sh -c {shlex.quote(full_cmd)} > /tmp/output_{target_name}.txt 2>&1 & echo $! > /tmp/npi_{target_name}.pid"
                 
             elif target["type"] == "gke":
-                is_tpu = target.get("is_tpu", True)
-                default_node_sel = "cloud.google.com/gke-accelerator-count=4,cloud.google.com/gke-nodepool=ct6e-pool,cloud.google.com/gke-tpu-accelerator=tpu-v6e-slice,cloud.google.com/gke-tpu-topology=2x2" if is_tpu else ""
-                default_res_lim = "google.com/tpu=4" if is_tpu else ""
-                node_sel = target.get("node_selector", default_node_sel)
-                res_lim = target.get("resources_limits", default_res_lim)
+                node_sel = target.get("node_selector", "")
+                res_lim = target.get("resources_limits", "")
                 cluster_name = target.get("cluster_name", "gke-orbax-benchmark-cluster")
                 location = target.get("location", target.get("zone", "europe-west4-a"))
                 
