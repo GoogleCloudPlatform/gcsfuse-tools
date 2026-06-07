@@ -127,6 +127,17 @@ def save_state(state):
     except Exception as e:
         print(f"Error saving state file: {e}")
 
+def detect_remote_raid0_mount(socket_path, vm_name, zone):
+    """Checks the remote VM for any mounted RAID0 (/dev/md*) devices and returns the mount path."""
+    code, out, _ = run_ssh_cmd(
+        socket_path, vm_name, zone,
+        "df -P | grep -E '^/dev/md[0-9]+' | awk '{print $6}' | head -n 1",
+        timeout=15
+    )
+    if code == 0 and out.strip():
+        return out.strip()
+    return None
+
 def prep_vm(target, socket_path):
     vm_name = target["vm_name"]
     zone = target["zone"]
@@ -142,6 +153,15 @@ def prep_vm(target, socket_path):
     if target["type"] == "gce":
         # Validate RAID0 ssd mount if specified
         buffer_mount = target.get("buffer_mount")
+        
+        # Try to auto-detect if the RAID0 array is mounted at a different location
+        detected_mount = detect_remote_raid0_mount(socket_path, vm_name, zone)
+        if detected_mount:
+            if buffer_mount != detected_mount:
+                print(f"[{target_name}] RAID0 SSD mount auto-detected at '{detected_mount}' (overriding configured '{buffer_mount}')")
+                target["buffer_mount"] = detected_mount
+                buffer_mount = detected_mount
+
         if buffer_mount:
             quoted_mount = shlex.quote(buffer_mount)
             code, out, _ = run_ssh_cmd(socket_path, vm_name, zone, f"mountpoint -q {quoted_mount}")

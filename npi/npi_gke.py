@@ -175,12 +175,63 @@ def parse_key_value_pairs(kv_str):
             k, v = part.split('=', 1)
             pairs[k.strip()] = v.strip()
     return pairs
+def setup_kubernetes_service_account(project_id, ksa_name, namespace, buckets, dry_run=False):
+    """Creates a GKE service account and grants it Workload Identity access to GCS and BigQuery."""
+    if dry_run:
+        print(f"[DRY RUN] Would verify/create Kubernetes Service Account '{ksa_name}' in namespace '{namespace}'")
+        return True
+
+    # 1. Create KSA if not exists
+    print(f"--- Ensuring Kubernetes Service Account '{ksa_name}' exists in namespace '{namespace}' ---")
+    create_cmd = ["kubectl", "create", "serviceaccount", ksa_name, f"--namespace={namespace}"]
+    res = subprocess.run(create_cmd, capture_output=True, text=True)
+    if res.returncode != 0 and "already exists" not in res.stderr:
+        print(f"Failed to create Kubernetes service account: {res.stderr}", file=sys.stderr)
+        return False
+        
+    # 2. Get GCP project number
+    num_cmd = ["gcloud", "projects", "describe", project_id, "--format=value(projectNumber)"]
+    res = subprocess.run(num_cmd, capture_output=True, text=True)
+    if res.returncode != 0:
+        print(f"Failed to retrieve project number for {project_id}: {res.stderr}", file=sys.stderr)
+        return False
+    project_number = res.stdout.strip()
+    
+    member_principal = f"principal://iam.googleapis.com/projects/{project_number}/locations/global/workloadIdentityPools/{project_id}.svc.id.goog/subject/ns/{namespace}/sa/{ksa_name}"
+    
+    # 3. Grant roles/storage.objectUser on each GCS bucket
+    for b in buckets:
+        if not b:
+            continue
+        b_name = b[5:] if b.startswith("gs://") else b
+        print(f"--- Granting storage.objectUser role to {ksa_name} on bucket gs://{b_name} ---")
+        iam_cmd = [
+            "gcloud", "storage", "buckets", "add-iam-policy-binding", f"gs://{b_name}",
+            f"--member={member_principal}", "--role=roles/storage.objectUser", "--quiet"
+        ]
+        res = subprocess.run(iam_cmd, capture_output=True, text=True)
+        if res.returncode != 0:
+            print(f"Failed to bind storage permission on gs://{b_name}: {res.stderr}", file=sys.stderr)
+            return False
+
+    # 4. Grant roles/bigquery.dataEditor on the GCP project (for dataset tables)
+    print(f"--- Granting bigquery.dataEditor role to {ksa_name} on project {project_id} ---")
+    bq_cmd = [
+        "gcloud", "projects", "add-iam-policy-binding", project_id,
+        f"--member={member_principal}", "--role=roles/bigquery.dataEditor", "--quiet"
+    ]
+    res = subprocess.run(bq_cmd, capture_output=True, text=True)
+    if res.returncode != 0:
+        print(f"Failed to bind BigQuery permission on project {project_id}: {res.stderr}", file=sys.stderr)
+        return False
+        
+    return True
 
 
 def main():
     parser = argparse.ArgumentParser(description="GKE benchmark runner for GCSFuse NPI.")
     parser.add_argument("--bucket-name", required=True, help="Name of the GCS bucket to use.")
-    parser.add_argument("--kubernetes-service-account", default="default", help="Kubernetes Service Account name to run the job with. Default: default.")
+    parser.add_argument("--kubernetes-service-account", default="gcsfuse-npi-ksa", help="Kubernetes Service Account name to run the job with. Default: gcsfuse-npi-ksa.")
     parser.add_argument("--dry-run", action="store_true", help="List down all the benchmarks that would be executed without actually running them.")
     parser.add_argument("--project-id", required=True, help="Project ID for results.")
     parser.add_argument("--bq-dataset-id", required=True, help="BigQuery dataset ID for results.")
@@ -244,6 +295,12 @@ def main():
         print("Successfully fetched cluster credentials.")
     elif args.cluster_name or args.location:
         parser.error("Both --cluster-name and --location must be provided together to fetch cluster credentials.")
+
+    # Automatically setup/ensure service account permissions
+    buckets_to_auth = [args.bucket_name]
+    if not setup_kubernetes_service_account(args.project_id, args.kubernetes_service_account, "default", buckets_to_auth, dry_run=args.dry_run):
+        print("Failed to setup Kubernetes service account. Exiting.", file=sys.stderr)
+        sys.exit(1)
 
     all_benchmarks = [
         ("host_info", "", "host-info-collector", "", 1, None),
