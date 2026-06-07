@@ -1,0 +1,23 @@
+[
+  {
+    "name": "gce-c4-ssd",
+    "type": "gce",
+    "vm_name": "your-gce-vm-name",
+    "zone": "us-central1-c",
+    "bucket": "your-gce-bucket-name",
+    "dataset": "your_gce_dataset_name",
+    "buffer_mount": "/mnt/lssd"
+  },
+  {
+    "name": "gke-tpu-slice",
+    "type": "gke",
+    "vm_name": "your-gke-vm-name",
+    "zone": "us-central1-a",
+    "cluster_name": "your-gke-cluster-name",
+    "location": "us-central1-a",
+    "bucket": "your-gke-bucket-name",
+    "dataset": "your_gke_dataset_name",
+    "node_selector": "cloud.google.com/gke-accelerator-count=4,cloud.google.com/gke-nodepool=ct6e-pool,cloud.google.com/gke-tpu-accelerator=tpu-v6e-slice,cloud.google.com/gke-tpu-topology=2x2",
+    "resources_limits": "google.com/tpu=4"
+  }
+]
