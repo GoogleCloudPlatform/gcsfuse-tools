@@ -314,7 +314,13 @@ def main():
         target_iterations = iter_override if iter_override is not None else args.iterations
         image = f"us-docker.pkg.dev/{args.project_id}/gcsfuse-benchmarks/{image_suffix}:{args.image_version}"
         
-        if is_go_client:
+        if bench_type == "host_info":
+            cmd_args = [
+                f"--project-id={args.project_id}",
+                f"--bq-dataset-id={args.bq_dataset_id}",
+                f"--bq-table-id={bq_table_id}"
+            ]
+        elif is_go_client:
             cmd_args = [
                 f"--iterations={target_iterations}",
                 f"--project-id={args.project_id}",

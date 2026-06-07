@@ -63,28 +63,6 @@ steps:
       - '${_REGISTRY}/${_PROJECT}/gcsfuse-benchmarks/fio-write-benchmark:${_IMAGE_VERSION}-arm64'
 
   - name: 'gcr.io/cloud-builders/docker'
-    id: 'merge-fio-fullsweep-benchmark'
-    args:
-      - 'buildx'
-      - 'imagetools'
-      - 'create'
-      - '-t'
-      - '${_REGISTRY}/${_PROJECT}/gcsfuse-benchmarks/fio-fullsweep-benchmark:${_IMAGE_VERSION}'
-      - '${_REGISTRY}/${_PROJECT}/gcsfuse-benchmarks/fio-fullsweep-benchmark:${_IMAGE_VERSION}-amd64'
-      - '${_REGISTRY}/${_PROJECT}/gcsfuse-benchmarks/fio-fullsweep-benchmark:${_IMAGE_VERSION}-arm64'
-
-  - name: 'gcr.io/cloud-builders/docker'
-    id: 'merge-orbax-emulated-benchmark'
-    args:
-      - 'buildx'
-      - 'imagetools'
-      - 'create'
-      - '-t'
-      - '${_REGISTRY}/${_PROJECT}/gcsfuse-benchmarks/orbax-emulated-benchmark:${_IMAGE_VERSION}'
-      - '${_REGISTRY}/${_PROJECT}/gcsfuse-benchmarks/orbax-emulated-benchmark:${_IMAGE_VERSION}-amd64'
-      - '${_REGISTRY}/${_PROJECT}/gcsfuse-benchmarks/orbax-emulated-benchmark:${_IMAGE_VERSION}-arm64'
-
-  - name: 'gcr.io/cloud-builders/docker'
     id: 'merge-host-info-collector'
     args:
       - 'buildx'
