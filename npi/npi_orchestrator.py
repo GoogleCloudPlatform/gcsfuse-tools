@@ -429,8 +429,16 @@ def execute_target(target, args, state_lock, state):
             else:
                 active_benchmarks = requested_benchmarks
 
+            is_rapid = target.get("is_rapid_bucket", False)
+            if is_rapid:
+                grpc_only_benchmarks = [b for b in active_benchmarks if "grpc" in b or b == "host_info"]
+                if len(grpc_only_benchmarks) < len(active_benchmarks):
+                    skipped_http = [b for b in active_benchmarks if "grpc" not in b and b != "host_info"]
+                    print(f"[{target_name}] Skipping HTTP1 benchmarks because RAPID bucket is enabled: {', '.join(skipped_http)}")
+                active_benchmarks = grpc_only_benchmarks
+
             if not active_benchmarks:
-                print(f"[{target_name}] Skipping target: no benchmarks to run after filtering file-cache tests.")
+                print(f"[{target_name}] Skipping target: no benchmarks to run after filtering.")
                 with state_lock:
                     state[target_name]["status"] = "SUCCESS"
                     save_state(state)
@@ -445,6 +453,8 @@ def execute_target(target, args, state_lock, state):
                     "--image-version", args.image_version,
                     "--iterations", str(args.iterations),
                 ]
+                if is_rapid:
+                    python_args.append("--is-rapid-bucket")
                 python_args.extend(["--benchmarks"] + active_benchmarks)
                 if target.get("buffer_mount"):
                     python_args.append(f"--buffer-mount-path={target['buffer_mount']}")
@@ -471,6 +481,8 @@ def execute_target(target, args, state_lock, state):
                     "--resources-limits", res_lim,
                     "--iterations", str(args.iterations),
                 ]
+                if is_rapid:
+                    python_args.append("--is-rapid-bucket")
                 
                 if not has_ssd:
                     python_args.append("--use-memory-volumes")
