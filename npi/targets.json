@@ -22,6 +22,7 @@
     "node_selector": "cloud.google.com/gke-accelerator-count=4,cloud.google.com/gke-nodepool=ct6e-pool,cloud.google.com/gke-tpu-accelerator=tpu-v6e-slice,cloud.google.com/gke-tpu-topology=2x2",
     "resources_limits": "google.com/tpu=4",
     "has_ssd": false,
+    "is_tpu": true,
     "is_rapid_bucket": false
   }
 ]

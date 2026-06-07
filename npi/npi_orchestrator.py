@@ -222,7 +222,8 @@ def validate_gke_nodes(socket_path, vm_name, zone, target):
 
     if cpu_count == 0:
         raise RuntimeError("GKE Cluster Error: TPU GKE cluster requires at least one CPU compute node to host system services and CSI drivers.")
-    if tpu_count == 0:
+    is_tpu = target.get("is_tpu", "google.com/tpu" in target.get("resources_limits", ""))
+    if is_tpu and tpu_count == 0:
         raise RuntimeError("GKE Cluster Error: TPU GKE cluster requires at least one TPU node to execute benchmarks.")
 
 def get_last_log_line(socket_path, vm_name, zone, log_path):
@@ -471,8 +472,11 @@ def execute_target(target, args, state_lock, state):
                 bench_cmd = f"nohup sh -c {shlex.quote(full_cmd)} > /tmp/output_{target_name}.txt 2>&1 & echo $! > /tmp/npi_{target_name}.pid"
                 
             elif target["type"] == "gke":
-                node_sel = target.get("node_selector", "cloud.google.com/gke-accelerator-count=4,cloud.google.com/gke-nodepool=ct6e-pool,cloud.google.com/gke-tpu-accelerator=tpu-v6e-slice,cloud.google.com/gke-tpu-topology=2x2")
-                res_lim = target.get("resources_limits", "google.com/tpu=4")
+                is_tpu = target.get("is_tpu", True)
+                default_node_sel = "cloud.google.com/gke-accelerator-count=4,cloud.google.com/gke-nodepool=ct6e-pool,cloud.google.com/gke-tpu-accelerator=tpu-v6e-slice,cloud.google.com/gke-tpu-topology=2x2" if is_tpu else ""
+                default_res_lim = "google.com/tpu=4" if is_tpu else ""
+                node_sel = target.get("node_selector", default_node_sel)
+                res_lim = target.get("resources_limits", default_res_lim)
                 cluster_name = target.get("cluster_name", "gke-orbax-benchmark-cluster")
                 location = target.get("location", target.get("zone", "europe-west4-a"))
                 

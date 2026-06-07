@@ -33,8 +33,10 @@ def create_job_spec(job_name, image, args, bucket_name, service_account, extra_f
     # Replace service account
     pod_spec["serviceAccountName"] = service_account
     
+    print(f"DEBUG: Parsed node_selector: {node_selector}")
     if node_selector:
         pod_spec["nodeSelector"] = node_selector
+        print(f"DEBUG: Applied nodeSelector: {pod_spec['nodeSelector']}")
         
     if is_go_client:
         # For Go client, remove the GCSFuse CSI volumes and annotations
@@ -89,58 +91,72 @@ def create_job_spec(job_name, image, args, bucket_name, service_account, extra_f
 
 
 def wait_for_job_completion(job_name, timeout_seconds=None):
-    """Waits for a Kubernetes Job to complete or fail."""
-    print(f"Waiting for Job {job_name} to complete...")
+    """Waits for a Kubernetes Job to complete, streaming its pod logs in real-time."""
+    print(f"Waiting for Job {job_name} to start...")
     start_time = time.time()
     
+    # 1. Wait for pod to reach Running or Terminal phase
+    pod_started = False
+    last_print_time = 0
     while True:
         if timeout_seconds is not None and time.time() - start_time > timeout_seconds:
-            print(f"--- Job {job_name} TIMED OUT (Script timeout reached) ---", file=sys.stderr)
-            print("Fetching logs...", file=sys.stderr)
-            subprocess.run(["kubectl", "logs", "-l", f"job-name={job_name}"])
+            print(f"--- Job {job_name} TIMED OUT waiting to start ---", file=sys.stderr)
             return False
             
-        try:
-            subprocess.run(
-                ["kubectl", "wait", f"job/{job_name}", "--for=condition=complete", "--timeout=10s"],
-                check=True, text=True, capture_output=True
-            )
-            print(f"--- Job {job_name} finished successfully ---")
-            return True
-        except subprocess.CalledProcessError as e:
-            if e.stderr and "not found" in e.stderr.lower():
-                print(f"--- Job {job_name} NOT FOUND ---", file=sys.stderr)
-                return False
-                
-            # Check if the job has failed
-            res_failed = subprocess.run(
-                ["kubectl", "get", f"job/{job_name}", "-o", "jsonpath={.status.conditions[?(@.type=='Failed')].status}"],
+        res = subprocess.run(
+            ["kubectl", "get", "pods", "-l", f"job-name={job_name}", "-o", "jsonpath={.items[*].status.phase}"],
+            capture_output=True, text=True
+        )
+        phases = res.stdout.strip().split()
+        if "Running" in phases or "Succeeded" in phases or "Failed" in phases:
+            pod_started = True
+            break
+            
+        if time.time() - last_print_time > 30:
+            last_print_time = time.time()
+            print(f"[{job_name}] Pod phases: {', '.join(phases) if phases else 'None (creating...)'}. Waiting for pod to start...")
+            sys.stdout.flush()
+            
+            # Fetch recent scheduling failure reason if any
+            events_res = subprocess.run(
+                ["kubectl", "get", "events", "--field-selector", "reason=FailedScheduling", "-o", "jsonpath={.items[-1].message}"],
                 capture_output=True, text=True
             )
-            if res_failed.stdout.strip() == "True":
-                print(f"--- Job {job_name} FAILED ---", file=sys.stderr)
-                
-                # Get the failure reason
-                res_reason = subprocess.run(
-                    ["kubectl", "get", f"job/{job_name}", "-o", "jsonpath={.status.conditions[?(@.type=='Failed')].reason}"],
-                    capture_output=True, text=True
-                )
-                reason = res_reason.stdout.strip()
-                
-                res_message = subprocess.run(
-                    ["kubectl", "get", f"job/{job_name}", "-o", "jsonpath={.status.conditions[?(@.type=='Failed')].message}"],
-                    capture_output=True, text=True
-                )
-                message = res_message.stdout.strip()
-                
-                if reason == "DeadlineExceeded":
-                    print(f"Job timed out: {message}", file=sys.stderr)
-                elif reason or message:
-                    print(f"Reason: {reason} - {message}", file=sys.stderr)
-                
-                print("Fetching logs...", file=sys.stderr)
-                subprocess.run(["kubectl", "logs", "-l", f"job-name={job_name}"])
-                return False
+            failed_reason = events_res.stdout.strip()
+            if failed_reason:
+                print(f"[{job_name}] Warning (Scheduling): {failed_reason}")
+                sys.stdout.flush()
+        
+        time.sleep(2)
+        
+    print(f"--- Job {job_name} pod started, streaming logs ---")
+    
+    # 2. Stream logs from the pod container 'benchmark'
+    log_proc = subprocess.Popen(
+        ["kubectl", "logs", "-f", "-l", f"job-name={job_name}", "-c", "benchmark"],
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True
+    )
+    
+    while True:
+        line = log_proc.stdout.readline()
+        if not line:
+            break
+        print(line.strip())
+        sys.stdout.flush()
+        
+    log_proc.wait()
+    
+    # 3. Wait up to 15 seconds for Job object to finalize state
+    wait_res = subprocess.run(
+        ["kubectl", "wait", f"job/{job_name}", "--for=condition=complete", "--timeout=15s"],
+        capture_output=True
+    )
+    if wait_res.returncode == 0:
+        print(f"--- Job {job_name} finished successfully ---")
+        return True
+    else:
+        print(f"--- Job {job_name} FAILED or timed out finalizing ---", file=sys.stderr)
+        return False
 
 
 def run_benchmark_job(job_name, image, args_list, project_id, dataset_id, table_id, bucket_name, service_account, extra_flag=None, use_memory_volumes=False, is_go_client=False, node_selector=None, resources_limits=None):
@@ -204,10 +220,10 @@ def setup_kubernetes_service_account(project_id, ksa_name, namespace, buckets, d
         if not b:
             continue
         b_name = b[5:] if b.startswith("gs://") else b
-        print(f"--- Granting storage.objectUser role to {ksa_name} on bucket gs://{b_name} ---")
+        print(f"--- Granting storage.admin role to {ksa_name} on bucket gs://{b_name} ---")
         iam_cmd = [
             "gcloud", "storage", "buckets", "add-iam-policy-binding", f"gs://{b_name}",
-            f"--member={member_principal}", "--role=roles/storage.objectUser", "--quiet"
+            f"--member={member_principal}", "--role=roles/storage.admin", "--quiet"
         ]
         res = subprocess.run(iam_cmd, capture_output=True, text=True)
         if res.returncode != 0:
