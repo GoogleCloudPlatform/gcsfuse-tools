@@ -54,9 +54,16 @@ def run_ssh_cmd(socket_path, vm_name, zone, cmd, timeout=60):
         "-o", "ControlPersist=10m",
         "-o", "StrictHostKeyChecking=no",
         "-o", "UserKnownHostsFile=/dev/null",
+    ]
+    
+    identity_key = os.path.expanduser("~/.ssh/google_compute_engine")
+    if os.path.exists(identity_key):
+        ssh_cmd.extend(["-i", identity_key, "-o", "IdentitiesOnly=yes"])
+        
+    ssh_cmd.extend([
         f"{SSH_USER}@nic0.{vm_name}.{zone}.c.{PROJECT_ID}.internal.gcpnode.com",
         cmd
-    ]
+    ])
     
     try:
         timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")

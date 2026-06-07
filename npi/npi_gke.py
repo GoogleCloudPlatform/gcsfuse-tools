@@ -218,7 +218,7 @@ def setup_kubernetes_service_account(project_id, ksa_name, namespace, buckets, d
     print(f"--- Granting bigquery.dataEditor role to {ksa_name} on project {project_id} ---")
     bq_cmd = [
         "gcloud", "projects", "add-iam-policy-binding", project_id,
-        f"--member={member_principal}", "--role=roles/bigquery.dataEditor", "--quiet"
+        f"--member={member_principal}", "--role=roles/bigquery.dataEditor", "--condition=None", "--quiet"
     ]
     res = subprocess.run(bq_cmd, capture_output=True, text=True)
     if res.returncode != 0:
