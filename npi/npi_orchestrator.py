@@ -556,7 +556,9 @@ def validate_colocation(target, project_id):
     ]
     try:
         res = subprocess.run(cmd, capture_output=True, text=True, check=True)
-        meta = json.loads(res.stdout) or {}
+        meta = json.loads(res.stdout)
+        if not isinstance(meta, dict):
+            raise ValueError("Unexpected metadata format (expected a JSON object).")
     except subprocess.CalledProcessError as e:
         error_msg = e.stderr.strip() if e.stderr else str(e)
         raise ValueError(f"Failed to describe GCS bucket '{bucket_name}': {error_msg}")
@@ -564,18 +566,22 @@ def validate_colocation(target, project_id):
         raise ValueError(f"Failed to describe GCS bucket '{bucket_name}': {e}")
         
     # Validate HNS
-    hns_enabled = (meta.get("hierarchicalNamespace") or {}).get("enabled", False)
+    hns_meta = meta.get("hierarchicalNamespace")
+    hns_enabled = hns_meta.get("enabled", False) if isinstance(hns_meta, dict) else False
     if not hns_enabled:
         raise ValueError(f"Bucket '{bucket_name}' does not have Hierarchical Namespace (HNS) enabled. NPI benchmarks require HNS.")
         
-    location = (meta.get("location") or "").lower()
-    location_type = (meta.get("locationType") or "").lower()
+    raw_location = meta.get("location")
+    location = raw_location.lower() if isinstance(raw_location, str) else ""
+    raw_location_type = meta.get("locationType")
+    location_type = raw_location_type.lower() if isinstance(raw_location_type, str) else ""
     
     if is_rapid:
         if location_type != "zone":
             raise ValueError(f"Bucket '{bucket_name}' is configured as a RAPID bucket, but GCS location type is '{location_type}' (expected 'zone').")
             
-        data_locs = [loc.lower() for loc in (meta.get("dataLocations") or [])]
+        raw_data_locs = meta.get("dataLocations")
+        data_locs = [loc.lower() for loc in raw_data_locs if isinstance(loc, str)] if isinstance(raw_data_locs, list) else []
         if not data_locs:
             raise ValueError(f"Bucket '{bucket_name}' has no data locations listed in GCS metadata.")
             
