@@ -557,6 +557,9 @@ def validate_colocation(target, project_id):
     try:
         res = subprocess.run(cmd, capture_output=True, text=True, check=True)
         meta = json.loads(res.stdout) or {}
+    except subprocess.CalledProcessError as e:
+        error_msg = e.stderr.strip() if e.stderr else str(e)
+        raise ValueError(f"Failed to describe GCS bucket '{bucket_name}': {error_msg}")
     except Exception as e:
         raise ValueError(f"Failed to describe GCS bucket '{bucket_name}': {e}")
         
