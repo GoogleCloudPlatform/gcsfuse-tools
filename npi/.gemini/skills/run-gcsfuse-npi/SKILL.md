@@ -209,7 +209,7 @@ Once the orchestrator outputs `SUCCESS`:
     python3 query_results.py
     ```
 3.  Compile the throughput comparison report.
-3.  **High-Performance Machine Type Verification**:
+4.  **High-Performance Machine Type Verification**:
     *   Check if the GCE VM or GKE node machine type used in the test (e.g., `c4-standard-96`, `ct6e-standard-4t`) is classified under the high-performance machine types in the GCSFuse `params.yaml` configuration file (located in the main GCSFuse repository).
     *   If the machine type is missing, raise a Pull Request (PR) in the GCSFuse repository to add it. This ensures GCSFuse dynamically applies optimal configuration defaults (such as Direct Path, large connection pools, and high read-ahead) for this machine family in production.
 

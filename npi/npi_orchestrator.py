@@ -546,23 +546,23 @@ def validate_colocation(target, project_id):
     ]
     try:
         res = subprocess.run(cmd, capture_output=True, text=True, check=True)
-        meta = json.loads(res.stdout)
+        meta = json.loads(res.stdout) or {}
     except Exception as e:
         raise ValueError(f"Failed to describe GCS bucket '{bucket_name}': {e}")
         
     # Validate HNS
-    hns_enabled = meta.get("hierarchicalNamespace", {}).get("enabled", False)
+    hns_enabled = (meta.get("hierarchicalNamespace") or {}).get("enabled", False)
     if not hns_enabled:
         raise ValueError(f"Bucket '{bucket_name}' does not have Hierarchical Namespace (HNS) enabled. NPI benchmarks require HNS.")
         
-    location = meta.get("location", "").lower()
-    location_type = meta.get("locationType", "").lower()
+    location = (meta.get("location") or "").lower()
+    location_type = (meta.get("locationType") or "").lower()
     
     if is_rapid:
         if location_type != "zone":
             raise ValueError(f"Bucket '{bucket_name}' is configured as a RAPID bucket, but GCS location type is '{location_type}' (expected 'zone').")
             
-        data_locs = [loc.lower() for loc in meta.get("dataLocations", [])]
+        data_locs = [loc.lower() for loc in (meta.get("dataLocations") or [])]
         if not data_locs:
             raise ValueError(f"Bucket '{bucket_name}' has no data locations listed in GCS metadata.")
             
