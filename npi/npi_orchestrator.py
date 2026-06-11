@@ -579,7 +579,8 @@ def validate_colocation(target, project_id):
         # If run_location is a zone (e.g. us-central1-a), ensure it is in data_locs.
         # If run_location is a region (e.g. us-central1), ensure at least one data_loc is in that region.
         loc_parts = run_location.split("-")
-        if len(loc_parts) == 3:
+        is_zone = loc_parts[-1].isalpha() and len(loc_parts[-1]) == 1
+        if is_zone:
             if run_location not in data_locs:
                 raise ValueError(f"Colocation Error: RAPID bucket '{bucket_name}' is in zone(s) {data_locs}, but target is in zone '{run_location}'. They must be in the same zone.")
         else:
@@ -588,7 +589,8 @@ def validate_colocation(target, project_id):
                 raise ValueError(f"Colocation Error: RAPID bucket '{bucket_name}' is in zone(s) {data_locs}, but target is in region '{run_location}'. The bucket zone must be within the target region.")
     else:
         loc_parts = run_location.split("-")
-        run_region = "-".join(loc_parts[:2])
+        is_zone = loc_parts[-1].isalpha() and len(loc_parts[-1]) == 1
+        run_region = "-".join(loc_parts[:-1]) if is_zone else run_location
         if location_type != "region":
             raise ValueError(f"Bucket '{bucket_name}' is configured as a regional bucket, but GCS location type is '{location_type}' (expected 'region').")
         
