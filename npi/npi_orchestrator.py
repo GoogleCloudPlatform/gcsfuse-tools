@@ -531,6 +531,51 @@ def execute_target(target, args, state_lock, state):
     else:
         print(f"[{target_name}] Run already completed successfully.")
 
+def validate_colocation(target, project_id):
+    """Validates that GCS bucket has HNS enabled and is colocated with the VM."""
+    bucket_name = target["bucket"]
+    vm_zone = target["zone"].lower()
+    is_rapid = target.get("is_rapid_bucket", False)
+    
+    cmd = [
+        "gcloud", "storage", "buckets", "describe",
+        f"gs://{bucket_name}",
+        f"--project={project_id}",
+        "--raw",
+        "--format=json"
+    ]
+    try:
+        res = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        meta = json.loads(res.stdout)
+    except Exception as e:
+        raise ValueError(f"Failed to describe GCS bucket '{bucket_name}': {e}")
+        
+    # Validate HNS
+    hns_enabled = meta.get("hierarchicalNamespace", {}).get("enabled", False)
+    if not hns_enabled:
+        raise ValueError(f"Bucket '{bucket_name}' does not have Hierarchical Namespace (HNS) enabled. NPI benchmarks require HNS.")
+        
+    location = meta.get("location", "").lower()
+    location_type = meta.get("locationType", "").lower()
+    
+    if is_rapid:
+        if location_type != "zone":
+            raise ValueError(f"Bucket '{bucket_name}' is configured as a RAPID bucket, but GCS location type is '{location_type}' (expected 'zone').")
+            
+        data_locs = [loc.lower() for loc in meta.get("dataLocations", [])]
+        if not data_locs:
+            raise ValueError(f"Bucket '{bucket_name}' has no data locations listed in GCS metadata.")
+            
+        if vm_zone not in data_locs:
+            raise ValueError(f"Colocation Error: RAPID bucket '{bucket_name}' is in zone(s) {data_locs}, but VM '{target['vm_name']}' is in zone '{vm_zone}'. They must be in the same zone.")
+    else:
+        vm_region = "-".join(vm_zone.split("-")[:-1])
+        if location_type != "region":
+            raise ValueError(f"Bucket '{bucket_name}' is configured as a regional bucket, but GCS location type is '{location_type}' (expected 'region').")
+            
+        if location != vm_region:
+            raise ValueError(f"Colocation Error: Regional bucket '{bucket_name}' is in region '{location}', but VM '{target['vm_name']}' is in region '{vm_region}'. They must be in the same region.")
+
 def main():
     parser = argparse.ArgumentParser(description="GCSFuse NPI Orchestrator")
     parser.add_argument("--config", default="targets.json", help="Path to targets.json configuration file")
@@ -575,6 +620,7 @@ def main():
                 raise ValueError(f"Target '{t.get('name', 'unknown')}' is missing required fields: {', '.join(missing)}")
             if not all(c.isalnum() or c in '-_' for c in t["name"]):
                 raise ValueError(f"Target name '{t['name']}' is invalid. Only alphanumeric characters, dashes, and underscores are allowed.")
+            validate_colocation(t, PROJECT_ID)
     except Exception as e:
         print(f"Error parsing configuration file {config_path}: {e}", file=sys.stderr)
         sys.exit(1)
