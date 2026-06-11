@@ -186,7 +186,7 @@ Once the orchestrator outputs `SUCCESS`:
     To extract the performance results of a custom benchmark run, execute a `bq` query command. 
     
     > [!IMPORTANT]
-    > **JSON Key Spacing**: In the FIO JSON output, the version is stored under the key `"fio version"` (with a space). Always query it using the quoted format: `JSON_VALUE(fio_json_output, '\$."fio version"')` to avoid returning `NULL`.
+    > **JSON Key Spacing**: In the FIO JSON output, the version is stored under the key `"fio version"` (with a space). Always query it using the quoted format: `JSON_VALUE(fio_json_output, '$."fio version"')` to avoid returning `NULL`.
     
     Run the following query substituting your Cloud Project, Dataset ID, and Table Name (e.g. `fio_read_grpc` or `fio_write_grpc`):
     ```bash

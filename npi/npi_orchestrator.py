@@ -650,10 +650,16 @@ def main():
                 raise ValueError(f"Target '{t.get('name', 'unknown')}' is missing required fields: {', '.join(missing)}")
             if not all(c.isalnum() or c in '-_' for c in t["name"]):
                 raise ValueError(f"Target name '{t['name']}' is invalid. Only alphanumeric characters, dashes, and underscores are allowed.")
-            validate_colocation(t, PROJECT_ID)
     except Exception as e:
         print(f"Error parsing configuration file {config_path}: {e}", file=sys.stderr)
         sys.exit(1)
+
+    for t in targets:
+        try:
+            validate_colocation(t, PROJECT_ID)
+        except Exception as e:
+            print(f"Validation failed for target '{t.get('name', 'unknown')}': {e}", file=sys.stderr)
+            sys.exit(1)
 
     state = load_state(targets)
     print(f"Current State: {json.dumps(state, indent=2)}")
