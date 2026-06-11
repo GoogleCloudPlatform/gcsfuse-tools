@@ -534,7 +534,17 @@ def execute_target(target, args, state_lock, state):
 def validate_colocation(target, project_id):
     """Validates that GCS bucket has HNS enabled and is colocated with the VM."""
     bucket_name = target["bucket"]
-    vm_zone = target["zone"].lower()
+    if bucket_name.startswith("gs://"):
+        bucket_name = bucket_name[5:]
+    
+    # For GKE, the benchmarks run on the GKE cluster, so we use its location.
+    # For GCE, they run on the GCE VM itself.
+    if target.get("type") == "gke":
+        run_location = target.get("location") or target["zone"]
+    else:
+        run_location = target["zone"]
+    run_location = run_location.lower()
+    
     is_rapid = target.get("is_rapid_bucket", False)
     
     cmd = [
@@ -566,15 +576,24 @@ def validate_colocation(target, project_id):
         if not data_locs:
             raise ValueError(f"Bucket '{bucket_name}' has no data locations listed in GCS metadata.")
             
-        if vm_zone not in data_locs:
-            raise ValueError(f"Colocation Error: RAPID bucket '{bucket_name}' is in zone(s) {data_locs}, but VM '{target['vm_name']}' is in zone '{vm_zone}'. They must be in the same zone.")
+        # If run_location is a zone (e.g. us-central1-a), ensure it is in data_locs.
+        # If run_location is a region (e.g. us-central1), ensure at least one data_loc is in that region.
+        loc_parts = run_location.split("-")
+        if len(loc_parts) == 3:
+            if run_location not in data_locs:
+                raise ValueError(f"Colocation Error: RAPID bucket '{bucket_name}' is in zone(s) {data_locs}, but target is in zone '{run_location}'. They must be in the same zone.")
+        else:
+            region_prefix = run_location + "-"
+            if not any(loc.startswith(region_prefix) for loc in data_locs):
+                raise ValueError(f"Colocation Error: RAPID bucket '{bucket_name}' is in zone(s) {data_locs}, but target is in region '{run_location}'. The bucket zone must be within the target region.")
     else:
-        vm_region = "-".join(vm_zone.split("-")[:-1])
+        loc_parts = run_location.split("-")
+        run_region = "-".join(loc_parts[:2])
         if location_type != "region":
             raise ValueError(f"Bucket '{bucket_name}' is configured as a regional bucket, but GCS location type is '{location_type}' (expected 'region').")
-            
-        if location != vm_region:
-            raise ValueError(f"Colocation Error: Regional bucket '{bucket_name}' is in region '{location}', but VM '{target['vm_name']}' is in region '{vm_region}'. They must be in the same region.")
+        
+        if location != run_region:
+            raise ValueError(f"Colocation Error: Regional bucket '{bucket_name}' is in region '{location}', but target is in region '{run_region}'. They must be in the same region.")
 
 def main():
     parser = argparse.ArgumentParser(description="GCSFuse NPI Orchestrator")
