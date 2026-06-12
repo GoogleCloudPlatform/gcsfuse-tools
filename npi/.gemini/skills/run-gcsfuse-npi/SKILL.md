@@ -182,12 +182,34 @@ For each GCE VM target that requires preparation (e.g. if freshly created or res
 
 Once the orchestrator outputs `SUCCESS`:
 
-1.  Execute the results query script:
+1.  **Extract Custom Run Results**:
+    To extract the performance results of a custom benchmark run, execute a `bq` query command. 
+    
+    > [!IMPORTANT]
+    > **JSON Key Spacing**: In the FIO JSON output, the version is stored under the key `"fio version"` (with a space). Always query it using the quoted format: `JSON_VALUE(fio_json_output, '$."fio version"')` to avoid returning `NULL`.
+    
+    Run the following query substituting your Cloud Project, Dataset ID, and Table Name (e.g. `fio_read_grpc` or `fio_write_grpc`):
+    ```bash
+    bq query --project_id=<PROJECT_ID> --use_legacy_sql=false \
+    "SELECT
+      run_timestamp,
+      iteration,
+      JSON_VALUE(fio_json_output, '\$.\"fio version\"') AS fio_version,
+      AVG(SAFE_CAST(JSON_VALUE(job.read.bw) AS FLOAT64)) / 1024.0 AS avg_read_bw_mib,
+      AVG(SAFE_CAST(JSON_VALUE(job.write.bw) AS FLOAT64)) / 1024.0 AS avg_write_bw_mib
+    FROM
+      \`<PROJECT_ID>.<DATASET_ID>.<TABLE_ID>\`,
+      UNNEST(JSON_EXTRACT_ARRAY(fio_json_output.jobs)) AS job
+    GROUP BY 1, 2, 3
+    ORDER BY run_timestamp DESC"
+    ```
+2.  **Compare Against Baselines (Optional)**:
+    If running comparison baseline tests, you can execute the results comparison script:
     ```bash
     python3 query_results.py
     ```
-2.  Compile the throughput comparison report.
-3.  **High-Performance Machine Type Verification**:
+3.  Compile the throughput comparison report.
+4.  **High-Performance Machine Type Verification**:
     *   Check if the GCE VM or GKE node machine type used in the test (e.g., `c4-standard-96`, `ct6e-standard-4t`) is classified under the high-performance machine types in the GCSFuse `params.yaml` configuration file (located in the main GCSFuse repository).
     *   If the machine type is missing, raise a Pull Request (PR) in the GCSFuse repository to add it. This ensures GCSFuse dynamically applies optimal configuration defaults (such as Direct Path, large connection pools, and high read-ahead) for this machine family in production.
 
@@ -198,6 +220,8 @@ To ensure that the executing agent does not skip or miss any critical setup, run
 - [ ] **Prerequisites Verification**:
   - GCE boot disk size verified (>= 200GB).
   - GCE RAID0 SSD mount verified at `/mnt/lssd`.
+  - Target VM and GCS bucket colocation verified (same zone for RAPID bucket, same region for regional bucket).
+  - Target GCS bucket verified to have Hierarchical Namespace (HNS) enabled.
   - GKE TPU cluster node requirements verified (at least 1 CPU node + 1 TPU node active).
   - Remote python output buffering set to unbuffered (`python3 -u` verified).
 - [ ] **Startup Cleanup**:
