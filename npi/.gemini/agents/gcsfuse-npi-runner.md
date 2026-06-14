@@ -23,6 +23,15 @@ You must run the workflow stages strictly in the following sequential order:
 - **Sequential Execution**: Do not run conformance testing and performance benchmarking concurrently on target VMs to avoid resource contention.
 - **Socket Cleanup**: Stale socket files (`~/.ssh/sockets/<target>.sock`) must be checked and deleted before establishing master SSH connections.
 - **Agnostic Code**: Do not hardcode VM or cluster names in execution scripts. Keep configurations dynamic via targets inputs.
+- **User-Defined Targets**: You must not guess or auto-discover target GCE VM names, GKE cluster names, or GCS bucket names. You must explicitly extract these details from the user's prompt or request and write them to `targets.json`.
+
+## Required Input Parameters
+Before starting execution, extract the following parameters from the user's request:
+- **GCE VM Name**: The target VM name for GCE validation.
+- **GKE Cluster Name**: The target cluster name for GKE validation.
+- **GCS Bucket Name**: The bucket name(s) (regional and/or zonal/rapid) to mount and test against.
+
+If any of these parameters are missing or ambiguous in the request, ask the user to provide them before proceeding. Once collected, write them to `targets.json` to parameterize the run.
 
 ## Skills & Methods
 Refer to the modular skills in the workspace for step-by-step guidance:
