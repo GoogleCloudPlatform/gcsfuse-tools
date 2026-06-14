@@ -81,10 +81,33 @@ def run_build(cmd, name, active_builds, active_processes, builds_lock, cancellat
         
     return return_code, "".join(output_lines)
 
+def resolve_go_version(gcsfuse_version):
+    import urllib.request
+    import urllib.error
+    url = f"https://raw.githubusercontent.com/GoogleCloudPlatform/gcsfuse/{gcsfuse_version}/go.mod"
+    print(f"Attempting to resolve Go version from: {url}")
+    try:
+        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req, timeout=10) as response:
+            content = response.read().decode('utf-8')
+            for line in content.splitlines():
+                line = line.strip()
+                if line.startswith("go "):
+                    parts = line.split()
+                    if len(parts) >= 2:
+                        go_ver = parts[1]
+                        print(f"Detected Go version {go_ver} in GCSFuse {gcsfuse_version} go.mod")
+                        return go_ver
+    except urllib.error.HTTPError as e:
+        print(f"Warning: Failed to fetch go.mod (HTTP {e.code}). Using default fallback Go version.")
+    except Exception as e:
+        print(f"Warning: Error resolving Go version: {e}. Using default fallback Go version.")
+    return None
+
 def main():
     parser = argparse.ArgumentParser(description="Orchestrate building NPI Docker images.")
     parser.add_argument("--gcsfuse-version", default="v3.9.0", help="GCSFuse version to build")
-    parser.add_argument("--go-version", default="1.26.4", help="Go version to use")
+    parser.add_argument("--go-version", default=None, help="Go version to use (default: resolved from GCSFuse go.mod, fallback to 1.26.4)")
     parser.add_argument("--ubuntu-version", default="24.04", help="Ubuntu version to use")
     parser.add_argument("--registry", default="us-docker.pkg.dev", help="Docker registry")
     parser.add_argument("--project", default="gcs-fuse-test", help="GCP Project ID")
@@ -92,6 +115,14 @@ def main():
     parser.add_argument("--arm-worker-pool", default=None, help="Cloud Build ARM worker pool resource name")
 
     args = parser.parse_args()
+
+    if not args.go_version:
+        resolved_go = resolve_go_version(args.gcsfuse_version)
+        if resolved_go:
+            args.go_version = resolved_go
+        else:
+            args.go_version = "1.26.4"
+    print(f"Using Go version: {args.go_version} to compile GCSFuse performance test base image.")
 
     if args.arm_worker_pool:
         print(f"Worker pool specified: {args.arm_worker_pool}")
