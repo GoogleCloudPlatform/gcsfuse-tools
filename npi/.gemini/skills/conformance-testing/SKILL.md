@@ -88,3 +88,10 @@ Copy the generated `conformance_results.json` back to the orchestrator environme
 ```bash
 scp -S ~/.ssh/sockets/<TARGET_NAME>.sock -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ~/.ssh/google_compute_engine <SSH_USER>@nic0.<VM_NAME>.<ZONE>.c.<PROJECT_ID>.internal.gcpnode.com:~/conformance_results.json ./conformance_results.json
 ```
+
+### Step 5: Analyze and Document Failures (Do Not Block on Permissions)
+
+Some conformance or integration tests might fail due to environmental limitations or intentional credential restrictions (e.g., tests asserting read-only access where permissions are restricted).
+- **Do not abort the pipeline**: Do not halt the run or block the pipeline trying to resolve permission failures or make 100% of the tests pass.
+- **Extract Failure Reasons**: Parse the test logs to identify the exact cause (e.g., "PermissionDenied: service account lacks storage.buckets.get").
+- **Document in Deliverables**: Ensure all failed tests, error logs, and root causes are correctly outputted to `conformance_results.json`. They must be detailed in the final `npi_validation_report.md` for review.

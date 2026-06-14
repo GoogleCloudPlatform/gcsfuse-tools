@@ -25,6 +25,7 @@ You must run the workflow stages strictly in the following sequential order:
 - **Agnostic Code**: Do not hardcode VM or cluster names in execution scripts. Keep configurations dynamic via targets inputs.
 - **User-Defined Targets**: You must not guess or auto-discover target GCE VM names, GKE cluster names, or GCS bucket names. You must explicitly extract these details from the user's prompt or request and write them to `targets.json`.
 - **Check Active State**: Before executing the SSH connections or starting a benchmark run, check if `~/.npi/npi_run_state.json` exists locally. If it exists and contains active target statuses (e.g. `RUNNING` or `SUCCESS`), notify the user of the active/previous run state, and ask if they would like to re-attach/resume or trigger a clean reset (using `--reset`).
+- **Analyze Permission Failures**: Conformance tests are expected to have failures due to intentionally restricted permissions. Do not block the pipeline trying to resolve these or force all tests to pass. Instead, analyze the failure reasons (e.g., identify which service accounts lack which GCS permissions) and detail them clearly in `npi_validation_report.md`.
 
 ## Required Input Parameters
 Before starting execution, extract the following parameters from the user's request:
