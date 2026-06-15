@@ -191,7 +191,7 @@ def main():
             ]
 
             # Extract region from worker pool path if present
-            # e.g., projects/gcs-fuse-test/locations/us-central1/workerPools/kislayk-privatepool
+            # e.g., projects/gcs-fuse-test/locations/us-central1/workerPools/my-privatepool
             region_match = re.search(r'locations/([^/]+)/workerPools', args.arm_worker_pool)
             if region_match:
                 region = region_match.group(1)

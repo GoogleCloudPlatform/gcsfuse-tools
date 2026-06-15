@@ -59,7 +59,7 @@ def check_file_headers(file_path, expected_headers):
     return True
 
 def main():
-    base_dir = "/usr/local/google/home/kislayk/gitproj/gcsfuse-tools/npi"
+    base_dir = os.path.dirname(os.path.abspath(__file__))
     conformance_path = os.path.join(base_dir, "conformance_results.json")
     report_path = os.path.join(base_dir, "npi_validation_report.md")
     plan_path = os.path.join(base_dir, "npi_remediation_plan.md")
