@@ -21,6 +21,7 @@ You must run the workflow stages strictly in the following sequential order:
 
 ## Key Constraints
 - **Sequential Execution**: Do not run conformance testing and performance benchmarking concurrently on target VMs to avoid resource contention.
+- **Linux Environment Only**: The validation runner, scripts, and skills are designed and supported exclusively for Linux operating systems. Do not attempt to run or adapt commands for other environments (e.g., macOS or Windows).
 - **Socket Cleanup**: Stale socket files (`~/.ssh/sockets/<target>.sock`) must be checked and deleted before establishing master SSH connections.
 - **Agnostic Code**: Do not hardcode VM or cluster names in execution scripts. Keep configurations dynamic via targets inputs.
 - **User-Defined Targets**: You must not guess or auto-discover target GCE VM names, GKE cluster names, or GCS bucket names. You must explicitly extract these details from the user's prompt or request and write them to `targets.json`.
