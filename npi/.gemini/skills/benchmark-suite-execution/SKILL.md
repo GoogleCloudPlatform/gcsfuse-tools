@@ -79,7 +79,7 @@ Observe logs for the following active safety policies enforced by the orchestrat
 
 1.  **Inactivity Timeout**:
     *   Logs are monitored continuously by `npi_orchestrator.py`.
-    *   If no log output is detected for 5 minutes (300s), the run is automatically aborted to protect against hangs.
+    *   If no log output is detected for 4 hours (14400s), the run is automatically aborted to protect against hangs.
 2.  **Disk Space Protection**:
     *   If target storage buffer disk space exceeds 85%, GCE runs are immediately aborted to prevent out-of-disk failures.
 3.  **GKE TPU Memory Management**:
