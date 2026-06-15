@@ -18,7 +18,7 @@ import yaml
 import os
 import datetime
 
-def create_job_spec(job_name, image, args, bucket_name, service_account, extra_flag=None, use_memory_volumes=False, is_go_client=False, node_selector=None, resources_limits=None):
+def create_job_spec(job_name, image, args, bucket_name, service_account, extra_flag=None, use_memory_volumes=False, is_go_client=False, node_selector=None, resources_limits=None, project_id=None):
     """Creates a Kubernetes Job spec dictionary from the template yaml."""
     script_dir = os.path.dirname(os.path.realpath(__file__))
     template_path = os.path.join(script_dir, "npi_job_spec.yaml")
@@ -53,10 +53,28 @@ def create_job_spec(job_name, image, args, bucket_name, service_account, extra_f
                 if "volumeAttributes" not in vol["csi"] or not vol["csi"]["volumeAttributes"]:
                     vol["csi"]["volumeAttributes"] = {}
                 vol["csi"]["volumeAttributes"]["bucketName"] = bucket_name
+                
+                mount_opts = []
                 if extra_flag:
                     # Strip leading dashes for CSI mountOptions e.g. '--client-protocol=grpc' -> 'client-protocol=grpc'
                     flag_str = extra_flag.strip().lstrip('-')
-                    vol["csi"]["volumeAttributes"]["mountOptions"] = flag_str
+                    if flag_str:
+                        mount_opts.append(flag_str)
+                
+                # Check if billing-project is already specified
+                has_billing_project = any("billing-project" in opt for opt in mount_opts)
+                if not has_billing_project and project_id:
+                    mount_opts.append(f"billing-project={project_id}")
+                
+                if mount_opts:
+                    vol["csi"]["volumeAttributes"]["mountOptions"] = ",".join(mount_opts)
+
+        # Set the billing project annotation
+        if project_id:
+            metadata = job_spec["spec"]["template"]["metadata"]
+            if "annotations" not in metadata or not metadata["annotations"]:
+                metadata["annotations"] = {}
+            metadata["annotations"]["gke-gcsfuse/billing-project"] = project_id
 
         if use_memory_volumes:
             if "volumes" not in pod_spec:
@@ -165,7 +183,7 @@ def run_benchmark_job(job_name, image, args_list, project_id, dataset_id, table_
     subprocess.run(["kubectl", "delete", "job", job_name, "--ignore-not-found=true", "--wait=true"], capture_output=True)
 
     # 2. Create Job Spec and Apply
-    job_spec = create_job_spec(job_name, image, args_list, bucket_name, service_account, extra_flag, use_memory_volumes, is_go_client, node_selector, resources_limits)
+    job_spec = create_job_spec(job_name, image, args_list, bucket_name, service_account, extra_flag, use_memory_volumes, is_go_client, node_selector, resources_limits, project_id=project_id)
     yaml_data = yaml.dump(job_spec)
 
     print(f"--- Submitting Kubernetes Job: {job_name} ---")

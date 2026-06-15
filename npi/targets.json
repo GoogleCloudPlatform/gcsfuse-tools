@@ -2,10 +2,10 @@
   {
     "name": "gce-c4-ssd",
     "type": "gce",
-    "vm_name": "your-gce-vm-name",
-    "zone": "your-gce-zone",
-    "bucket": "your-gce-bucket-name",
-    "dataset": "your_gce_dataset_name",
+    "vm_name": "kislayk-npi",
+    "zone": "us-central1-c",
+    "bucket": "kislayk_npi_regional_bkt",
+    "dataset": "kislayk_npi_regional",
     "buffer_mount": "/mnt/lssd",
     "has_ssd": true,
     "is_rapid_bucket": false
@@ -13,16 +13,15 @@
   {
     "name": "gke-tpu-slice",
     "type": "gke",
-    "vm_name": "your-gke-vm-name",
-    "zone": "your-gke-vm-zone",
-    "cluster_name": "your-gke-cluster-name",
-    "location": "your-gke-cluster-location",
-    "bucket": "your-gke-bucket-name",
-    "dataset": "your_gke_dataset_name",
-    "node_selector": "cloud.google.com/gke-accelerator-count=4,cloud.google.com/gke-nodepool=ct6e-pool,cloud.google.com/gke-tpu-accelerator=tpu-v6e-slice,cloud.google.com/gke-tpu-topology=2x2",
-    "resources_limits": "google.com/tpu=4",
+    "vm_name": "kislayk-npi",
+    "zone": "us-central1-c",
+    "cluster_name": "kislayk-npi",
+    "location": "us-central1-f",
+    "bucket": "kislayk_npi_regional_bkt",
+    "dataset": "kislayk_npi_gke_regional",
+    "node_selector": "cloud.google.com/gke-nodepool=pool-1",
     "has_ssd": false,
-    "is_tpu": true,
+    "is_tpu": false,
     "is_rapid_bucket": false
   }
 ]
