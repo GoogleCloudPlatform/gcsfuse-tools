@@ -5,7 +5,10 @@ description: Guides on running GCSFuse integration/conformance tests on target n
 
 # GCSFuse Conformance and Integration Testing
 
-This skill guides you through checking out the official GCSFuse repository, executing the integration and conformance test suites on a target GCE VM or GKE node, and parsing the test outputs into a structured `conformance_results.json`.
+This skill guides you through checking out the official GCSFuse repository, executing the integration and conformance test suites on a target GCE VM, and parsing the test outputs into a structured `conformance_results.json`.
+
+> [!IMPORTANT]
+> **GCE VM Targets Only**: Conformance and integration testing (`go test` execution) is only supported and executed on GCE VM targets. For GKE cluster target environments, conformance testing is skipped (GKE validation relies on GKE performance benchmark runs instead). Do not attempt to run conformance tests on GKE nodes.
 
 ## Prerequisites
 
