@@ -43,6 +43,9 @@ ORDER BY run_timestamp DESC"
 
 Execute comparison scripts (e.g. `query_results.py`) or calculate the percentage difference in throughput/latency between baseline and regression datasets.
 
+> [!IMPORTANT]
+> **No Cross-Target Comparisons**: Performance results from different targets (e.g., GKE Node runs vs GCE VM runs) represent distinct platforms and are not directly comparable. Do not compare them against each other, compute cross-target deltas, or label differences between them as regressions. Compare each environment exclusively against its own respective historical baseline.
+
 Example Comparison Matrix:
 | Protocol | Baseline Throughput (MiB/s) | New Run Throughput (MiB/s) | Delta (%) | Status |
 | :--- | :--- | :--- | :--- | :--- |

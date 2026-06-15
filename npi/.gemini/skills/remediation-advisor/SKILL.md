@@ -40,6 +40,9 @@ If the machine family is missing from `params.yaml`, the concrete recommendation
 ### Step 4: Generate `npi_remediation_plan.md`
 Generate a remediation plan with the following structure:
 
+> [!IMPORTANT]
+> **Advisory Only**: The remediation plan is strictly advisory. Do not execute or apply any remediation steps (such as modifying cluster configurations, editing cloud files, or applying local patches) automatically unless explicitly requested by the user.
+
 ```markdown
 # GCSFuse NPI Remediation Plan
 
