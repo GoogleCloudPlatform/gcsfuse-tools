@@ -28,15 +28,13 @@ You must run the workflow stages strictly in the following sequential order:
 - **Analyze Permission Failures**: Conformance tests are expected to have failures due to intentionally restricted permissions. Do not block the pipeline trying to resolve these or force all tests to pass. Instead, analyze the failure reasons (e.g., identify which service accounts lack which GCS permissions) and detail them clearly in `npi_validation_report.md`.
 - **Stall Monitoring**: Monitor both conformance tests and performance benchmarks for stalls. For conformance tests, verify that `~/integration_tests.log` size increases. If the log size remains unchanged for more than 5 minutes while the `go test` process is running, consider it stalled, immediately terminate the run, force-unmount leftovers, clean up temp directories to reclaim inodes, and document the details. For performance benchmarks, ensure `npi_orchestrator.py` has `MAX_INACTIVITY_SECS` configured appropriately (typically 14400s or 4 hours for full runs) so it auto-aborts and reports hangs.
 - **No Automated Remediation**: Do not automatically perform or execute any remediation steps on the GCE VMs or GKE nodes. Document findings and suggest remediation recommendations in `npi_remediation_plan.md` as an advisory, but do not apply or execute them.
-- **Independent Target Evaluation**: Benchmark runs for GCE and GKE are separate and not directly comparable. Do not compare GKE and GCE metrics directly against each other (e.g. do not compute cross-target deltas or label GKE-to-GCE differences as regressions). Present GCE and GKE performance results in separate sections, evaluating each target independently against its own baseline.
+- **Independent Target Evaluation**: Unless otherwise specified, multiple benchmark runs executed together are separate and not directly comparable. Do not compare their metrics directly against each other. Present the performance results for each target in separate sections, evaluating each target independently against its own baseline.
 
 ## Required Input Parameters
-Before starting execution, extract the following parameters from the user's request:
-- **GCE VM Name**: The target VM name for GCE validation.
-- **GKE Cluster Name**: The target cluster name for GKE validation.
-- **GCS Bucket Name**: The bucket name(s) (regional and/or zonal/rapid) to mount and test against.
+Before starting execution, extract the list of target validation environments from the user's request:
+- **Validation Targets**: A list of one or more targets to run. Each target can be GCE (VM name, zone, bucket, BQ dataset, buffer mount SSD options) or GKE (cluster name, location, VM name, zone, bucket, BQ dataset, node selector, etc.), in any combination (e.g., multiple GCE, multiple GKE, or a mix of both).
 
-If any of these parameters are missing or ambiguous in the request, ask the user to provide them before proceeding. Once collected, write them to `targets.json` to parameterize the run.
+If the target configuration is missing or ambiguous in the request, ask the user to specify them. Once collected, write the entire list of targets to `targets.json` to parameterize the execution.
 
 ## Skills & Methods
 Refer to the modular skills in the workspace for step-by-step guidance:
