@@ -46,8 +46,8 @@ ssh -S ~/.ssh/sockets/<TARGET_NAME>.sock -o StrictHostKeyChecking=no -o UserKnow
   cd ~/gcsfuse
   # Run integration tests and redirect output to a file
   export GCSFUSE_TEST_BUCKET=<TEST_BUCKET_NAME>
-  # Run all integration tests under tools/integration_tests
-  go test -v ./tools/integration_tests/... > ~/integration_tests.log 2>&1
+  # Run all integration tests under tools/integration_tests, excluding emulator_tests (which require a local docker emulator running on port 9000)
+  go test -v $(go list ./tools/integration_tests/... | grep -v emulator_tests) > ~/integration_tests.log 2>&1
 EOF
 ```
 
