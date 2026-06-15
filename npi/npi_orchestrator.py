@@ -280,7 +280,7 @@ def monitor_run(target, socket_path, state_lock, state):
 
     last_log_change_time = time.time()
     previous_log_line = ""
-    MAX_INACTIVITY_SECS = 600
+    MAX_INACTIVITY_SECS = 300
     
     consecutive_ssh_failures = 0
     MAX_SSH_RETRIES = 3
