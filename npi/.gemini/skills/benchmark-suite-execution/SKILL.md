@@ -78,8 +78,8 @@ Populate `targets.json` with the corresponding target details. Format:
 Observe logs for the following active safety policies enforced by the orchestrator:
 
 1.  **Inactivity Timeout**:
-    *   Logs are monitored continuously.
-    *   If no log output is detected for 10 minutes (600s), the run is automatically aborted to protect against hangs.
+    *   Logs are monitored continuously by `npi_orchestrator.py`.
+    *   If no log output is detected for 5 minutes (300s), the run is automatically aborted to protect against hangs.
 2.  **Disk Space Protection**:
     *   If target storage buffer disk space exceeds 85%, GCE runs are immediately aborted to prevent out-of-disk failures.
 3.  **GKE TPU Memory Management**:

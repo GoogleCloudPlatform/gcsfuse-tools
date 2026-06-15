@@ -95,3 +95,8 @@ Some conformance or integration tests might fail due to environmental limitation
 - **Do not abort the pipeline**: Do not halt the run or block the pipeline trying to resolve permission failures or make 100% of the tests pass.
 - **Extract Failure Reasons**: Parse the test logs to identify the exact cause (e.g., "PermissionDenied: service account lacks storage.buckets.get").
 - **Document in Deliverables**: Ensure all failed tests, error logs, and root causes are correctly outputted to `conformance_results.json`. They must be detailed in the final `npi_validation_report.md` for review.
+- **Monitor for Stalls**: Monitor the log progress (`~/integration_tests.log` size) on the remote VM at regular check-in intervals (e.g., every 5 minutes). If the log file size remains unchanged for more than 5 minutes while the `go test` process is active, it indicates a test stall/hang. In this event, you must immediately:
+  1. Kill all test and GCSFuse daemon processes: `sudo pkill -9 -f 'go test' ; sudo pkill -9 gcsfuse ; sudo pkill -9 -f proxy_server`
+  2. Force-unmount any leftover test mounts: `sudo umount -f /tmp/gcsfuse_readwrite_test_*/mnt || true`
+  3. Clean up the temp directories to free up inodes: `sudo rm -rf /tmp/gcsfuse_readwrite_test_* /tmp/gcsfuse_integration_tests*`
+  4. Document the stall and process dump details in `conformance_results.json` and the final report.
