@@ -22,18 +22,14 @@ This skill guides you through checking out the GCSFuse repository, configuring t
 Configure the storage buffer and Docker workspace on each target VM using the established SSH master connection socket.
 
 ### A. Configure Storage Buffer
-Choose one of the following based on VM hardware:
-
-*   **Case 1: Local SSDs Present (`has_ssd: true`)**
-    Mount a RAID0 SSD array on the target VM:
+*   **Unified Buffer Setup (Local SSD or RAM Fallback)**:
+    Execute `raid0-script.sh` on the target VM, passing the target mount path (from `targets.json`'s `buffer_mount`) as the argument. The script will automatically build a RAID0 array from local SSDs if present. If no local SSDs are found, it will verify that the host has at least 600GB of RAM and mount a 600GB memory volume (`tmpfs`) at the mount path instead:
     ```bash
-    ssh -S ~/.ssh/sockets/<TARGET_NAME>.sock -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ~/.ssh/google_compute_engine <SSH_USER>@nic0.<VM_NAME>.<ZONE>.c.<PROJECT_ID>.internal.gcpnode.com "bash -s" < raid0-script.sh
-    ```
-
-*   **Case 2: No Local SSDs (`has_ssd: false`)**
-    Mount a `tmpfs` RAM disk to act as a safe buffer:
-    ```bash
-    ssh -S ~/.ssh/sockets/<TARGET_NAME>.sock -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ~/.ssh/google_compute_engine <SSH_USER>@nic0.<VM_NAME>.<ZONE>.c.<PROJECT_ID>.internal.gcpnode.com "sudo mkdir -p /tmp/npi_buffer && sudo mount -t tmpfs -o size=1G tmpfs /tmp/npi_buffer && sudo chown -R \$USER:\$USER /tmp/npi_buffer"
+    # Copy script to target
+    scp -S ~/.ssh/sockets/<TARGET_NAME>.sock -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ~/.ssh/google_compute_engine raid0-script.sh <SSH_USER>@nic0.<VM_NAME>.<ZONE>.c.<PROJECT_ID>.internal.gcpnode.com:~/raid0-script.sh
+    
+    # Run script with the target mount path argument (e.g. /mnt/lssd)
+    ssh -S ~/.ssh/sockets/<TARGET_NAME>.sock -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ~/.ssh/google_compute_engine <SSH_USER>@nic0.<VM_NAME>.<ZONE>.c.<PROJECT_ID>.internal.gcpnode.com "bash ~/raid0-script.sh <SSD_MOUNT_PATH>"
     ```
 
 ### B. Install Docker & Configure Permissions

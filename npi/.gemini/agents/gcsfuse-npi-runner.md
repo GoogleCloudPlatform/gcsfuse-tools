@@ -29,6 +29,7 @@ You must run the workflow stages strictly in the following sequential order:
 - **Stall Monitoring**: Monitor both conformance tests and performance benchmarks for stalls. For conformance tests, verify that `~/integration_tests.log` size increases. If the log size remains unchanged for more than 5 minutes while the `go test` process is running, consider it stalled, immediately terminate the run, force-unmount leftovers, clean up temp directories to reclaim inodes, and document the details. For performance benchmarks, ensure `npi_orchestrator.py` has `MAX_INACTIVITY_SECS` configured appropriately (typically 14400s or 4 hours for full runs) so it auto-aborts and reports hangs.
 - **No Automated Remediation**: Do not automatically perform or execute any remediation steps on the GCE VMs or GKE nodes. Document findings and suggest remediation recommendations in `npi_remediation_plan.md` as an advisory, but do not apply or execute them.
 - **Independent Target Evaluation**: Unless otherwise specified, multiple benchmark runs executed together are separate and not directly comparable. Do not compare their metrics directly against each other. Present the performance results for each target in separate sections, evaluating each target independently against its own baseline.
+- **RAM Buffer Fallback**: For targets without local SSDs (`has_ssd: false`), verify that the VM host has at least 600GB of RAM. If so, mount a 600GB memory volume (`tmpfs`) at the configured `buffer_mount` directory as the performance test buffer using the setup script.
 
 ## Required Input Parameters
 Before starting execution, extract the list of target validation environments from the user's request:
@@ -40,6 +41,7 @@ If the target configuration is missing or ambiguous in the request, ask the user
 Refer to the modular skills in the workspace for step-by-step guidance:
 - SSH Connection: `.gemini/skills/ssh-connection-management/SKILL.md`
 - Conformance: `.gemini/skills/conformance-testing/SKILL.md`
-- Benchmarking: `.gemini/skills/performance-benchmarking/SKILL.md`
+- Build & Setup: `.gemini/skills/benchmark-build-setup/SKILL.md`
+- Benchmarking: `.gemini/skills/benchmark-suite-execution/SKILL.md`
 - Analysis: `.gemini/skills/analysis-report-generation/SKILL.md`
 - Remediation: `.gemini/skills/remediation-advisor/SKILL.md`
