@@ -71,7 +71,10 @@ def create_job_spec(job_name, image, args, bucket_name, service_account, extra_f
 
         # Set the billing project annotation
         if project_id:
-            metadata = job_spec["spec"]["template"]["metadata"]
+            template = job_spec["spec"]["template"]
+            if "metadata" not in template or template["metadata"] is None:
+                template["metadata"] = {}
+            metadata = template["metadata"]
             if "annotations" not in metadata or not metadata["annotations"]:
                 metadata["annotations"] = {}
             metadata["annotations"]["gke-gcsfuse/billing-project"] = project_id
