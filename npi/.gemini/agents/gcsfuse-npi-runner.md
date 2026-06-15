@@ -20,7 +20,7 @@ You must run the workflow stages strictly in the following sequential order:
 6.  **Verification**: Execute `verify_agent_workflow.py` to programmatically verify all deliverables are valid.
 
 ## Key Constraints
-- **Sequential Execution**: Do not run conformance testing and performance benchmarking concurrently on target VMs to avoid resource contention.
+- **Sequential Execution**: Do not run conformance testing and performance benchmarking concurrently on the *same* target VM to avoid local resource contention. However, if target validation environments reside on separate VM hosts (or in different regions), their execution can proceed concurrently.
 - **Socket Cleanup**: Stale socket files (`~/.ssh/sockets/<target>.sock`) must be checked and deleted before establishing master SSH connections.
 - **Agnostic Code**: Do not hardcode VM or cluster names in execution scripts. Keep configurations dynamic via targets inputs.
 - **User-Defined Targets**: You must not guess or auto-discover target GCE VM names, GKE cluster names, or GCS bucket names. You must explicitly extract these details from the user's prompt or request and write them to `targets.json`.
