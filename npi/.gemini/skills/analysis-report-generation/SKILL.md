@@ -29,8 +29,8 @@ bq query --project_id=<PROJECT_ID> --use_legacy_sql=false \
   run_timestamp,
   iteration,
   JSON_VALUE(fio_json_output, '\$.\"fio version\"') AS fio_version,
-  AVG(SAFE_CAST(JSON_VALUE(job.read.bw) AS FLOAT64)) / 1024.0 AS avg_read_bw_mib,
-  AVG(SAFE_CAST(JSON_VALUE(job.write.bw) AS FLOAT64)) / 1024.0 AS avg_write_bw_mib,
+  AVG(SAFE_CAST(JSON_VALUE(job.read.bw) AS FLOAT64)) * 1024.0 / 1000000.0 AS avg_read_bw_mb,
+  AVG(SAFE_CAST(JSON_VALUE(job.write.bw) AS FLOAT64)) * 1024.0 / 1000000.0 AS avg_write_bw_mb,
   AVG(SAFE_CAST(JSON_VALUE(job.read.clat_ns.mean) AS FLOAT64)) / 1000000.0 AS avg_read_clat_ms
 FROM
   \`<PROJECT_ID>.<DATASET_ID>.<TABLE_ID>\`,
@@ -84,8 +84,8 @@ The report must follow this structure:
 - **Performance Metrics vs Baseline**:
 | Benchmark / Protocol | Baseline (Version) | Current Run (Version) | Delta (%) | Status |
 |---|---|---|---|---|
-| HTTP1 Read | 1250 MiB/s | 1240 MiB/s | -0.8% | PASS |
-| gRPC Read | 3500 MiB/s | 2800 MiB/s | -20.0% | FAIL (Regression) |
+| HTTP1 Read | 1250 MB/s | 1240 MB/s | -0.8% | PASS |
+| gRPC Read | 3500 MB/s | 2800 MB/s | -20.0% | FAIL (Regression) |
 
 ## High-Performance Machine Type Classification
 - **Machine Type Used**: `c4-standard-96`
