@@ -63,20 +63,25 @@ Verify if the GCE VM or GKE node machine type (e.g., `c4-standard-96`) is classi
 
 Compile the queried results, baselines comparison, and machine family configuration verification into `npi_validation_report.md`.
 
+For each target validation environment executed (GCE VM or GKE Cluster), create a separate section and performance table to isolate their metrics and prevent incorrect direct comparisons.
+
 The report must follow this structure:
 ```markdown
 # GCSFuse NPI Validation Report
 
 ## Executive Summary
-[Brief description of whether the release/run meets performance criteria and if any regressions/failures were detected.]
+[Brief description of whether the run meets performance criteria and if any regressions/failures were detected.]
 
 ## Run Details
 - **Timestamp**: [ISO 8601 Timestamp]
-- **Target Platform**: [e.g. GCE VM c4-standard-96 / GKE TPU Node]
+- **Target Platforms**: [List of all target names, e.g. GCE VM target-1, GKE Cluster target-2, etc.]
+
+## Target Performance Results
+
+### [TARGET_NAME_1] (Platform Type, e.g., GCE VM)
 - **GCSFuse Version**: [e.g. v3.9.0]
 - **Target Bucket**: [RAPID / Regional]
-
-## Performance Metrics Comparison
+- **Performance Metrics vs Baseline**:
 | Benchmark / Protocol | Baseline (Version) | Current Run (Version) | Delta (%) | Status |
 |---|---|---|---|---|
 | HTTP1 Read | 1250 MiB/s | 1240 MiB/s | -0.8% | PASS |

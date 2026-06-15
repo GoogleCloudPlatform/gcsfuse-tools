@@ -84,9 +84,9 @@ Example structure of `conformance_results.json`:
 }
 ```
 
-Copy the generated `conformance_results.json` back to the orchestrator environment:
+Copy the generated JSON report back to the orchestrator environment, naming it uniquely per target to prevent overwrites:
 ```bash
-scp -S ~/.ssh/sockets/<TARGET_NAME>.sock -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ~/.ssh/google_compute_engine <SSH_USER>@nic0.<VM_NAME>.<ZONE>.c.<PROJECT_ID>.internal.gcpnode.com:~/conformance_results.json ./conformance_results.json
+scp -S ~/.ssh/sockets/<TARGET_NAME>.sock -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ~/.ssh/google_compute_engine <SSH_USER>@nic0.<VM_NAME>.<ZONE>.c.<PROJECT_ID>.internal.gcpnode.com:~/conformance_results.json ./conformance_results_<TARGET_NAME>.json
 ```
 
 ### Step 5: Analyze and Document Failures (Do Not Block on Permissions)
