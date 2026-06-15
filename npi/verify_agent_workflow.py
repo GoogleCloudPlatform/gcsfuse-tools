@@ -14,6 +14,10 @@ def verify_conformance_results(file_path):
         print(f"Error: Failed to load {file_path} as JSON: {e}")
         return False
 
+    if not isinstance(data, dict):
+        print("Error: JSON root is not a dictionary.")
+        return False
+
     if 'timestamp' not in data or not data['timestamp']:
         print("Error: 'timestamp' key is missing or empty in JSON.")
         return False
@@ -25,11 +29,17 @@ def verify_conformance_results(file_path):
         return False
 
     summary = data['summary']
+    if not isinstance(summary, dict):
+        print("Error: 'summary' is not a dictionary.")
+        return False
     if 'total_tests' not in summary:
         print("Error: 'total_tests' is missing in 'summary'.")
         return False
     
     total_tests = summary['total_tests']
+    if not isinstance(total_tests, int):
+        print("Error: 'total_tests' is not an integer.")
+        return False
     if total_tests < 100:
         print(f"Error: Expected 'total_tests' to be at least 100, but got {total_tests}.")
         return False

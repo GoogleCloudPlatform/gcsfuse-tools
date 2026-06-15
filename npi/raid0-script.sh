@@ -22,6 +22,10 @@ if [ $NUM_DEVICES -eq 0 ]; then
     echo "Checking if host has sufficient RAM (>= 600GB) to mount tmpfs instead..."
     
     TOTAL_RAM_KB=$(grep MemTotal /proc/meminfo | awk '{print $2}')
+    if [ -z "$TOTAL_RAM_KB" ] || ! [[ "$TOTAL_RAM_KB" =~ ^[0-9]+$ ]]; then
+        echo "Error: Failed to parse MemTotal from /proc/meminfo."
+        exit 1
+    fi
     TOTAL_RAM_GB=$((TOTAL_RAM_KB / 1024 / 1024))
     
     if [ $TOTAL_RAM_GB -ge 600 ]; then
