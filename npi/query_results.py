@@ -52,11 +52,6 @@ def main():
         bw_base_on_str = f"{bw_base_on:.2f} MB/s" if bw_base_on > 0 else "N/A"
         bw_base_off_str = f"{bw_base_off:.2f} MB/s" if bw_base_off > 0 else "N/A"
         bw_reg_on_str = f"{bw_reg_on:.2f} MB/s" if bw_reg_on > 0 else "FAILED / N/A"
-        
-        # Special case: we know HTTP1 failed on 1.35.3 LRO ON
-        if proto == "http1" and bw_reg_on == 0:
-            bw_reg_on_str = "FAILED (TLS Handshake Error)"
-            
         print(f"{proto.upper():<10} | {bw_base_on_str:<25} | {bw_base_off_str:<25} | {bw_reg_on_str:<25}")
 
 if __name__ == "__main__":
