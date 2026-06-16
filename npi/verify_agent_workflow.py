@@ -70,17 +70,22 @@ def check_file_headers(file_path, expected_headers):
 
 def main():
     base_dir = os.path.dirname(os.path.abspath(__file__))
+    conformance_paths = []
     conformance_path = os.path.join(base_dir, "conformance_results.json")
-    if not os.path.exists(conformance_path):
+    if os.path.exists(conformance_path):
+        conformance_paths.append(conformance_path)
+    else:
         import glob
-        matches = glob.glob(os.path.join(base_dir, "conformance_results_*.json"))
-        if matches:
-            conformance_path = matches[0]
+        conformance_paths.extend(glob.glob(os.path.join(base_dir, "conformance_results_*.json")))
             
     report_path = os.path.join(base_dir, "npi_validation_report.md")
     plan_path = os.path.join(base_dir, "npi_remediation_plan.md")
 
-    conformance_ok = verify_conformance_results(conformance_path)
+    if not conformance_paths:
+        print("Error: No conformance results JSON file found.")
+        conformance_ok = False
+    else:
+        conformance_ok = all(verify_conformance_results(p) for p in conformance_paths)
     
     report_headers = [
         "# GCSFuse NPI Validation Report",
