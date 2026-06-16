@@ -56,10 +56,11 @@ def create_job_spec(job_name, image, args, bucket_name, service_account, extra_f
                 
                 mount_opts = []
                 if extra_flag:
-                    # Strip leading dashes for CSI mountOptions e.g. '--client-protocol=grpc' -> 'client-protocol=grpc'
-                    flag_str = extra_flag.strip().lstrip('-')
-                    if flag_str:
-                        mount_opts.append(flag_str)
+                    # extra_flag can be a comma-separated list of flags, e.g., "implicit-dirs,billing-project=xyz"
+                    for opt in extra_flag.split(","):
+                        opt_str = opt.strip().lstrip('-')
+                        if opt_str:
+                            mount_opts.append(opt_str)
                 
                 # Check if billing-project is already specified
                 has_billing_project = any(opt.startswith("billing-project=") for opt in mount_opts)

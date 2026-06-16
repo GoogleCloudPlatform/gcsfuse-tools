@@ -71,12 +71,13 @@ def check_file_headers(file_path, expected_headers):
 def main():
     base_dir = os.path.dirname(os.path.abspath(__file__))
     conformance_paths = []
-    conformance_path = os.path.join(base_dir, "conformance_results.json")
-    if os.path.exists(conformance_path):
-        conformance_paths.append(conformance_path)
-    else:
-        import glob
-        conformance_paths.extend(glob.glob(os.path.join(base_dir, "conformance_results_*.json")))
+    default_path = os.path.join(base_dir, "conformance_results.json")
+    if os.path.exists(default_path):
+        conformance_paths.append(default_path)
+    import glob
+    conformance_paths.extend(glob.glob(os.path.join(base_dir, "conformance_results_*.json")))
+    # De-duplicate paths
+    conformance_paths = list(set(conformance_paths))
             
     report_path = os.path.join(base_dir, "npi_validation_report.md")
     plan_path = os.path.join(base_dir, "npi_remediation_plan.md")
