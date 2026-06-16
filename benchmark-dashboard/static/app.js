@@ -9,14 +9,60 @@ let charts = {}; // references to Chart.js instances
 
 // Run comparison state
 let comparedData = null;
+let localProject = null;
 
 // Initialize on page load
 document.addEventListener("DOMContentLoaded", () => {
     checkAuthentication();
     fetchConfigFiles();
+    detectLocalProject();
     startPollingActiveRuns();
     fetchHistory();
+
+    const execVmEl = document.getElementById('executor_vm');
+    if (execVmEl) {
+        execVmEl.addEventListener('blur', (e) => {
+            resolveTargetVMDetails(e.target.value.trim());
+        });
+    }
 });
+
+async function resolveTargetVMDetails(vmName) {
+    if (!vmName) return;
+    
+    const projEl = document.getElementById('project');
+    const zoneEl = document.getElementById('zone');
+    
+    try {
+        if (projEl) projEl.value = "Detecting project...";
+        
+        const res = await fetch(`/api/configs/detect-project?name=${encodeURIComponent(vmName)}`);
+        const data = await res.json();
+        
+        if (projEl) projEl.value = data.project || "";
+        if (data.zone && zoneEl) {
+            zoneEl.value = data.zone;
+        }
+    } catch (e) {
+        console.error("Failed GCE project detection:", e);
+        if (projEl) projEl.value = localProject || "gcs-fuse-test";
+    }
+}
+
+async function detectLocalProject() {
+    try {
+        const res = await fetch('/api/configs/project');
+        const data = await res.json();
+        localProject = data.project;
+        
+        const projEl = document.getElementById('project');
+        if (projEl) {
+            projEl.value = localProject;
+        }
+    } catch (e) {
+        console.error("Failed to detect GCE project:", e);
+    }
+}
 
 // Authentication System (LDAP)
 function checkAuthentication() {

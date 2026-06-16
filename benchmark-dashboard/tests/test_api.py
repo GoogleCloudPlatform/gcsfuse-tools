@@ -1,4 +1,5 @@
 import os
+os.environ["GCP_PROJECT"] = "test-project"
 import sys
 import tempfile
 import pytest
@@ -17,6 +18,13 @@ from fastapi.testclient import TestClient
 from main import app, DMB_DIR
 
 client = TestClient(app)
+
+
+@pytest.fixture(scope="session", autouse=True)
+def mock_project_id():
+    """Mock GCE metadata query to consistently return 'test-project' for tests."""
+    with patch("main.get_gce_project_id", return_value="test-project") as m:
+        yield m
 
 
 @pytest.fixture(scope="session", autouse=True)

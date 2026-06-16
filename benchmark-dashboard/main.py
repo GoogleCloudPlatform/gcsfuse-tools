@@ -190,6 +190,72 @@ async def get_index():
     return FileResponse(str(BASE_DIR / "static" / "index.html"))
 
 
+def get_gce_project_id():
+    """Queries GCE metadata server to resolve the local project ID."""
+    try:
+        import urllib.request
+        req = urllib.request.Request("http://metadata.google.internal/computeMetadata/v1/project/project-id")
+        req.add_header("Metadata-Flavor", "Google")
+        with urllib.request.urlopen(req, timeout=1.0) as response:
+            return response.read().decode("utf-8").strip()
+    except Exception:
+        # Fallback to local environment variable or default project
+        return os.getenv("GCP_PROJECT", "gcs-fuse-test")
+
+
+def GCE_lookup_project_and_zone(resource_name: str):
+    """Checks GCE for a VM or MIG matching resource_name in both projects."""
+    projects = ["gcs-fuse-test", "gcs-fuse-test-ml"]
+    
+    # Try looking for an instance first
+    for proj in projects:
+        try:
+            cmd = [
+                "gcloud", "compute", "instances", "list",
+                "--project", proj,
+                "--filter", f"name={resource_name}",
+                "--format", "value(zone.basename())"
+            ]
+            output = subprocess.check_output(cmd, stderr=subprocess.DEVNULL).decode("utf-8").strip()
+            if output:
+                return proj, output
+        except Exception:
+            pass
+            
+    # Try looking for an instance group (MIG)
+    for proj in projects:
+        try:
+            cmd = [
+                "gcloud", "compute", "instance-groups", "list",
+                "--project", proj,
+                "--filter", f"name={resource_name}",
+                "--format", "value(zone.basename())"
+            ]
+            output = subprocess.check_output(cmd, stderr=subprocess.DEVNULL).decode("utf-8").strip()
+            if output:
+                return proj, output
+        except Exception:
+            pass
+            
+    return None, None
+
+
+@app.get("/api/configs/project")
+def get_local_project():
+    """Returns the detected project ID of the hosting VM."""
+    return {"project": get_gce_project_id()}
+
+
+@app.get("/api/configs/detect-project")
+def detect_project(name: str):
+    """Scans GCE namespaces in both projects to resolve target project & zone."""
+    proj, zone = GCE_lookup_project_and_zone(name)
+    if proj:
+        return {"project": proj, "zone": zone}
+    else:
+        return {"project": get_gce_project_id(), "zone": None}
+
+
 @app.get("/api/configs/files")
 def get_config_files():
     """Lists files inside the distributed-micro-benchmark/test_suites/ directory."""
@@ -290,6 +356,9 @@ def get_file_preview(path: str):
 @app.post("/api/runs")
 def create_run(run: BenchmarkRunRequest):
     """Creates and enqueues a new benchmark run."""
+    # Resolve project context from GCE Metadata
+    local_project = get_gce_project_id()
+
     # Validate file existences in test_suites
     if not (DMB_DIR / run.test_csv).exists():
         raise HTTPException(status_code=400, detail=f"Test CSV not found: {run.test_csv}")
@@ -623,12 +692,14 @@ def compare_runs(ids: str, project_id: str = "gcs-fuse-test-ml"):
         raise HTTPException(status_code=400, detail="No run IDs specified")
 
     try:
-        client = bigquery.Client(project=project_id)
-        
-        # Construct dynamic SQL querying the tables
-        # Since BQ creates one table per run, we need to query tables matching the IDs
         data = {}
         for rid in id_list:
+            # Resolve GCE project dynamically from DB, fallback to default
+            run_config = db.get_run(rid)
+            proj = run_config.get("project", project_id) if run_config else project_id
+            
+            client = bigquery.Client(project=proj)
+            
             # Safely determine dataset (periodic for kokoro, adhoc for local)
             dataset = "periodic_benchmarks" if "kokoro" in rid else "adhoc_benchmarks"
             
@@ -645,7 +716,7 @@ def compare_runs(ids: str, project_id: str = "gcs-fuse-test-ml"):
                 CONCAT(io_type, '|', num_jobs, '|', file_size, '|', block_size, '|', io_depth, '|', num_files, '|', direct) as param_str,
                 config,
                 read_bw_mbs, write_bw_mbs, read_avg_ms, write_avg_ms, avg_cpu_percent, avg_sys_cpu_percent, avg_pgcache_gb
-            FROM `{project_id}.{dataset}.{matching_table}`
+            FROM `{proj}.{dataset}.{matching_table}`
             """
             
             results = client.query(query).result()
