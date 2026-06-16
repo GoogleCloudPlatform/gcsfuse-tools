@@ -84,6 +84,13 @@ def run_build(cmd, name, active_builds, active_processes, builds_lock, cancellat
 def resolve_go_version(gcsfuse_version):
     import urllib.request
     import urllib.error
+    import re
+
+    # Sanitize the input version to prevent path traversal or URL manipulation
+    if ".." in gcsfuse_version or not all(c.isalnum() or c in ".-_/" for c in gcsfuse_version):
+        print("Warning: Invalid GCSFuse version format. Using default fallback Go version.")
+        return None
+
     url = f"https://raw.githubusercontent.com/GoogleCloudPlatform/gcsfuse/{gcsfuse_version}/go.mod"
     print(f"Attempting to resolve Go version from: {url}")
     try:
@@ -96,8 +103,10 @@ def resolve_go_version(gcsfuse_version):
                     parts = line.split()
                     if len(parts) >= 2:
                         go_ver = parts[1]
-                        print(f"Detected Go version {go_ver} in GCSFuse {gcsfuse_version} go.mod")
-                        return go_ver
+                        # Validate the Go version format to prevent injection into build substitutions
+                        if re.match(r"^\d+(\.\d+)*([a-zA-Z0-9.-]+)?$", go_ver):
+                            print(f"Detected Go version {go_ver} in GCSFuse {gcsfuse_version} go.mod")
+                            return go_ver
     except urllib.error.HTTPError as e:
         print(f"Warning: Failed to fetch go.mod (HTTP {e.code}). Using default fallback Go version.")
     except Exception as e:
@@ -116,12 +125,32 @@ def main():
 
     args = parser.parse_args()
 
+    import re
+    if not re.match(r"^[a-zA-Z0-9/._-]+$", args.gcsfuse_version):
+        print(f"Error: Invalid GCSFuse version format: {args.gcsfuse_version}", file=sys.stderr)
+        sys.exit(1)
+
     if not args.go_version:
         resolved_go = resolve_go_version(args.gcsfuse_version)
         if resolved_go:
             args.go_version = resolved_go
         else:
             args.go_version = "1.26.4"
+
+    if not re.match(r"^\d+(\.\d+)*([a-zA-Z0-9.-]+)?$", args.go_version):
+        print(f"Error: Invalid Go version format: {args.go_version}", file=sys.stderr)
+        sys.exit(1)
+
+    for param_name, param_val in [
+        ("ubuntu-version", args.ubuntu_version),
+        ("registry", args.registry),
+        ("project", args.project),
+        ("image-version", args.image_version)
+    ]:
+        if not re.match(r"^[a-zA-Z0-9/._-]+$", param_val):
+            print(f"Error: Invalid parameter format for --{param_name}: {param_val}", file=sys.stderr)
+            sys.exit(1)
+
     print(f"Using Go version: {args.go_version} to compile GCSFuse performance test base image.")
 
     if args.arm_worker_pool:
