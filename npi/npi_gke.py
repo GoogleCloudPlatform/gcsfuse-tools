@@ -60,6 +60,9 @@ def create_job_spec(job_name, image, args, bucket_name, service_account, extra_f
                     for opt in extra_flag.split(","):
                         opt_str = opt.strip().lstrip('-')
                         if opt_str:
+                            if '=' in opt_str:
+                                k, v = opt_str.split('=', 1)
+                                opt_str = f"{k.strip()}={v.strip()}"
                             mount_opts.append(opt_str)
                 
                 # Check if billing-project is already specified
