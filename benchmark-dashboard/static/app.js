@@ -435,6 +435,7 @@ async function cancelRun(event, id) {
         if (res.ok) {
             alert(`Cancellation signal sent for ${id}`);
             pollActiveRuns();
+            fetchHistory();
         }
     } catch (e) {
         alert(`Failed to cancel: ${e}`);
@@ -516,6 +517,10 @@ function renderHistoryRows(runs) {
                         <p>Finished: <span class="text-slate-850">${run.completed_at || 'N/A'}</span></p>
                     </div>
                 </div>
+                <div class="mt-4 pt-4 border-t border-slate-200">
+                    <span class="font-bold text-slate-700 uppercase tracking-wider block mb-2"><i class="fa-solid fa-terminal mr-1.5 text-blue-600"></i>Orchestrator Logs</span>
+                    <pre class="bg-slate-900 text-emerald-400 p-4 rounded-lg font-mono text-[11px] overflow-auto max-h-60 leading-normal" id="logs-history-${run.benchmark_id}">Loading logs...</pre>
+                </div>
             </td>
         `;
         tbody.appendChild(detailsTr);
@@ -528,9 +533,22 @@ function expandRunDetails(btn, id) {
     if (row.classList.contains('hidden')) {
         row.classList.remove('hidden');
         icon.className = "fa-solid fa-chevron-up text-sm";
+        fetchHistoryLogs(id);
     } else {
         row.classList.add('hidden');
         icon.className = "fa-solid fa-chevron-down text-sm";
+    }
+}
+
+async function fetchHistoryLogs(id) {
+    const logEl = document.getElementById(`logs-history-${id}`);
+    if (!logEl) return;
+    try {
+        const res = await fetch(`/api/runs/${id}/logs`);
+        const data = await res.json();
+        logEl.textContent = data.logs || "No logs returned.";
+    } catch (e) {
+        logEl.textContent = `Failed to fetch logs: ${e}`;
     }
 }
 
