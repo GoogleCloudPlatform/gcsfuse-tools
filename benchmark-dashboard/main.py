@@ -4,6 +4,7 @@ import json
 import asyncio
 import logging
 import subprocess
+from collections import defaultdict
 from datetime import datetime
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.responses import HTMLResponse, FileResponse
@@ -11,7 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from typing import List, Optional
 from pathlib import Path
-from google.cloud import bigquery
+from google.cloud import bigquery, storage
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 import db
@@ -49,6 +50,8 @@ class BenchmarkRunRequest(BaseModel):
     timeout: int = 7200
     single_thread_vm_type: Optional[str] = None
     multi_thread_vm_type: Optional[str] = None
+    artifacts_bucket: str
+    test_data_bucket: str
 
 
 class FioJobCreateRequest(BaseModel):
@@ -302,9 +305,9 @@ def create_run(run: BenchmarkRunRequest):
     results_dir = DMB_DIR / "results" / benchmark_id
     results_dir.mkdir(parents=True, exist_ok=True)
 
-    # Defaults buckets (similar to run.sh)
-    artifacts_bucket = "pranjal-bucket-1"
-    test_data_bucket = "grpc-metric-dmb-regional"
+    # Bind custom user bucket parameters
+    artifacts_bucket = run.artifacts_bucket.strip() or "pranjal-bucket-1"
+    test_data_bucket = run.test_data_bucket.strip() or "grpc-metric-dmb-regional"
 
     # Deduce suite type
     if "kokoro" in run.test_csv.lower():
@@ -409,6 +412,168 @@ def get_logs(run_id: str):
             return {"logs": "".join(lines[-200:])}
     except Exception as e:
         return {"logs": f"Failed to read logs: {e}"}
+
+
+@app.get("/api/runs/{run_id}/progress")
+def get_progress(run_id: str):
+    """Calculates active benchmark progress by matching job configurations with durations stored in GCS."""
+    run = db.get_run(run_id)
+    if not run:
+        raise HTTPException(status_code=404, detail="Run not found in local cache")
+
+    # If run is queued, it hasn't created GCS objects yet
+    if run["status"] == "queued":
+        return {
+            "status": "queued",
+            "total_jobs": 0, "completed_jobs": 0, "failed_jobs": 0, "pending_jobs": 0,
+            "vms": {}
+        }
+
+    try:
+        # 1. Initialize GCS bucket
+        client = storage.Client()
+        bucket = client.bucket(run["artifacts_bucket"])
+        
+        # 2. Find and parse all source-of-truth VM job JSON definitions
+        blobs = client.list_blobs(bucket, prefix=f"{run_id}/jobs/")
+        
+        job_data_by_id = {}
+        vms = []
+        vm_assignments = defaultdict(int)
+
+        for blob in blobs:
+            if not blob.name.endswith(".json"):
+                continue
+            
+            vm_full = blob.name.split("/")[-1].replace(".json", "")
+            vms.append(vm_full)
+            vm_short = "mig-" + vm_full.split("-")[-1] if "-mig-" in vm_full else vm_full
+
+            try:
+                content = blob.download_as_text()
+                data = json.loads(content)
+                entries = data.get("test_entries", [])
+                for entry in entries:
+                    matrix_id = int(entry.get("matrix_id", 0))
+                    
+                    # Compute signature
+                    sig_parts = (
+                        str(entry.get("io_type", "")).strip().lower(),
+                        str(entry.get("num_jobs", "")).strip(),
+                        str(entry.get("file_size", "")).strip().lower(),
+                        str(entry.get("block_size", "")).strip().lower(),
+                        str(entry.get("io_depth", "")).strip(),
+                        str(entry.get("nr_files", entry.get("nrfiles", ""))).strip(),
+                        str(entry.get("direct", "")).strip()
+                    )
+
+                    job_data_by_id[matrix_id] = {
+                        "vm": vm_short,
+                        "vm_full": vm_full,
+                        "id": matrix_id,
+                        "signature": sig_parts,
+                        "status": "PENDING"
+                    }
+                    vm_assignments[vm_full] += 1
+            except Exception as e:
+                logger.warning(f"Failed to read/parse GCS job definition {blob.name}: {e}")
+
+        if not job_data_by_id:
+            # Jobs have not been uploaded by the orchestrator yet
+            return {
+                "status": run["status"],
+                "total_jobs": 0, "completed_jobs": 0, "failed_jobs": 0, "pending_jobs": 0,
+                "vms": {}
+            }
+
+        # 3. Fetch status files (manifest.json and fio_durations.csv) from GCS per VM
+        vm_progress = {}
+        total_completed = 0
+        total_failed = 0
+        total_pending = 0
+
+        for vm in sorted(vms):
+            # Check manifest for finished statuses
+            manifest_blob = bucket.blob(f"{run_id}/results/{vm}/manifest.json")
+            vm_overall_status = "running"
+            if manifest_blob.exists():
+                try:
+                    manifest_data = json.loads(manifest_blob.download_as_text())
+                    vm_overall_status = manifest_data.get("status", "running")
+                except:
+                    pass
+
+            # Read durations CSV
+            csv_blob = bucket.blob(f"{run_id}/results/{vm}/fio_durations.csv")
+            completed_signatures = set()
+            if csv_blob.exists():
+                try:
+                    csv_content = csv_blob.download_as_text()
+                    lines = csv_content.splitlines()
+                    for line in lines[1:]:
+                        if not line.strip():
+                            continue
+                        parts = [p.strip() for p in line.split(",")]
+                        if len(parts) >= 7:
+                            sig = (
+                                str(parts[0]).strip().lower(),
+                                str(parts[1]).strip(),
+                                str(parts[2]).strip().lower(),
+                                str(parts[3]).strip().lower(),
+                                str(parts[4]).strip(),
+                                str(parts[5]).strip(),
+                                str(parts[6]).strip()
+                            )
+                            completed_signatures.add(sig)
+                except Exception as e:
+                    logger.warning(f"Error reading durations CSV for {vm}: {e}")
+
+            # Loop over VM assigned jobs and map status
+            vm_jobs = [j for j in job_data_by_id.values() if j["vm_full"] == vm]
+            vm_completed = 0
+            vm_failed = 0
+            vm_pending = 0
+
+            for job in vm_jobs:
+                if job["signature"] in completed_signatures:
+                    job["status"] = "SUCCESS"
+                    vm_completed += 1
+                else:
+                    if vm_overall_status in ["completed", "failed", "cancelled"]:
+                        job["status"] = "FAILED/TIMEOUT"
+                        vm_failed += 1
+                    else:
+                        job["status"] = "RUNNING/PENDING"
+                        vm_pending += 1
+
+            total_completed += vm_completed
+            total_failed += vm_failed
+            total_pending += vm_pending
+
+            vm_progress[vm] = {
+                "total": vm_assignments[vm],
+                "completed": vm_completed,
+                "failed": vm_failed,
+                "pending": vm_pending,
+                "status": "completed" if vm_completed == vm_assignments[vm] and vm_assignments[vm] > 0 else vm_overall_status
+            }
+
+        return {
+            "status": run["status"],
+            "total_jobs": len(job_data_by_id),
+            "completed_jobs": total_completed,
+            "failed_jobs": total_failed,
+            "pending_jobs": total_pending,
+            "vms": vm_progress
+        }
+
+    except Exception as e:
+        logger.error(f"Failed to calculate progress for {run_id}: {e}", exc_info=True)
+        return {
+            "status": run["status"],
+            "total_jobs": 0, "completed_jobs": 0, "failed_jobs": 0, "pending_jobs": 0,
+            "vms": {}
+        }
 
 
 @app.get("/api/runs/{run_id}/config")
