@@ -20,6 +20,8 @@ import sys
 import tempfile
 import re
 import threading
+import urllib.request
+import urllib.error
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 def terminate_process(process, name):
@@ -82,10 +84,6 @@ def run_build(cmd, name, active_builds, active_processes, builds_lock, cancellat
     return return_code, "".join(output_lines)
 
 def resolve_go_version(gcsfuse_version):
-    import urllib.request
-    import urllib.error
-    import re
-
     # Sanitize the input version to prevent path traversal or URL manipulation
     if ".." in gcsfuse_version or not all(c.isalnum() or c in ".-_/" for c in gcsfuse_version):
         print("Warning: Invalid GCSFuse version format. Using default fallback Go version.")
@@ -125,7 +123,6 @@ def main():
 
     args = parser.parse_args()
 
-    import re
     if not re.match(r"^[a-zA-Z0-9/._-]+$", args.gcsfuse_version):
         print(f"Error: Invalid GCSFuse version format: {args.gcsfuse_version}", file=sys.stderr)
         sys.exit(1)

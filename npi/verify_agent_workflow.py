@@ -1,6 +1,7 @@
 import os
 import json
 import sys
+import glob
 
 def verify_conformance_results(file_path):
     print(f"Checking {file_path}...")
@@ -74,7 +75,6 @@ def main():
     default_path = os.path.join(base_dir, "conformance_results.json")
     if os.path.exists(default_path):
         conformance_paths.append(default_path)
-    import glob
     conformance_paths.extend(glob.glob(os.path.join(base_dir, "conformance_results_*.json")))
     # De-duplicate paths
     conformance_paths = list(set(conformance_paths))
