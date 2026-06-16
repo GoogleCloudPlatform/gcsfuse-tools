@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GCSFuse Distributed Benchmark Dashboard</title>
+    <!-- Tailwind CSS (Dark Mode enabled by default) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        darkBg: '#0f172a',
+                        cardBg: '#1e293b',
+                        accentBlue: '#3b82f6',
+                        accentGreen: '#10b981',
+                        accentRed: '#ef4444',
+                        accentOrange: '#f97316'
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            background-color: #0f172a;
+        }
+        /* Custom scrollbars */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0f172a;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #475569;
+        }
+    </style>
+</head>
+<body class="text-slate-100 min-h-screen font-sans">
+
+    <!-- TOP HEADER -->
+    <header class="border-b border-slate-800 bg-slate-900/50 backdrop-blur sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <i class="fa-solid fa-gauge-high text-blue-500 text-2xl"></i>
+                <span class="font-bold text-xl tracking-tight bg-gradient-to-r from-blue-400 to-indigo-400 bg-clip-text text-transparent">GCSFuse Micro-Benchmark</span>
+            </div>
+            
+            <!-- TABS NAVIGATION -->
+            <nav class="flex space-x-2">
+                <button onclick="switchTab('launch')" id="tab-launch" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium transition duration-200 bg-blue-600 text-white">
+                    <i class="fa-solid fa-circle-play mr-2"></i>Launch Run
+                </button>
+                <button onclick="switchTab('active')" id="tab-active" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium transition duration-200 text-slate-400 hover:text-white hover:bg-slate-800">
+                    <i class="fa-solid fa-spinner mr-2"></i>Active Monitor
+                    <span id="active-badge" class="hidden ml-2 bg-blue-500 text-white text-[10px] px-1.5 py-0.5 rounded-full font-bold">0</span>
+                </button>
+                <button onclick="switchTab('history')" id="tab-history" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium transition duration-200 text-slate-400 hover:text-white hover:bg-slate-800">
+                    <i class="fa-solid fa-clock-rotate-left mr-2"></i>Run History & Compare
+                </button>
+            </nav>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-6 py-8">
+
+        <!-- ================= LAUNCH TAB ================= -->
+        <section id="section-launch" class="tab-section">
+            <div class="bg-slate-800/50 border border-slate-700/50 rounded-xl p-6 shadow-xl max-w-3xl mx-auto">
+                <h2 class="text-xl font-bold mb-6 text-slate-100 flex items-center">
+                    <i class="fa-solid fa-sliders mr-3 text-blue-400"></i>Configure Benchmark Run
+                </h2>
+                
+                <form id="launch-form" onsubmit="submitRun(event)" class="space-y-6">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <!-- User & Description -->
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Username *</label>
+                            <input type="text" id="username" required placeholder="e.g. cpranjal" class="w-full bg-slate-900/80 border border-slate-700 rounded-lg px-4 py-2.5 text-slate-100 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Run Description *</label>
+                            <input type="text" id="description" required placeholder="e.g. gRPC read performance tests" class="w-full bg-slate-900/80 border border-slate-700 rounded-lg px-4 py-2.5 text-slate-100 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition">
+                        </div>
+
+                        <!-- Target Machine / MIG -->
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Target Executor (VM or MIG Name) *</label>
+                            <input type="text" id="executor_vm" required placeholder="e.g. dmb-instance-group" class="w-full bg-slate-900/80 border border-slate-700 rounded-lg px-4 py-2.5 text-slate-100 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition">
+                        </div>
+                        
+                        <!-- Zone & Project -->
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Zone *</label>
+                                <input type="text" id="zone" required placeholder="us-central1-c" class="w-full bg-slate-900/80 border border-slate-700 rounded-lg px-3 py-2.5 text-slate-100 focus:outline-none focus:border-blue-500 transition">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Project *</label>
+                                <input type="text" id="project" required placeholder="gcs-fuse-test" class="w-full bg-slate-900/80 border border-slate-700 rounded-lg px-3 py-2.5 text-slate-100 focus:outline-none focus:border-blue-500 transition">
+                            </div>
+                        </div>
+
+                        <!-- Test CSV File selection -->
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Test Cases CSV *</label>
+                            <select id="test_csv" required class="w-full bg-slate-900/80 border border-slate-700 rounded-lg px-4 py-2.5 text-slate-100 focus:outline-none focus:border-blue-500 transition">
+                                <option value="">Loading test cases...</option>
+                            </select>
+                        </div>
+                        
+                        <!-- FIO Job file selection -->
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">FIO Job Template *</label>
+                            <select id="fio_job" required class="w-full bg-slate-900/80 border border-slate-700 rounded-lg px-4 py-2.5 text-slate-100 focus:outline-none focus:border-blue-500 transition">
+                                <option value="">Loading FIO jobs...</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Configuration Mode Toggles -->
+                    <div class="border-t border-slate-700/60 pt-6">
+                        <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-4">Mount Configuration Type</label>
+                        <div class="flex space-x-6 mb-4">
+                            <label class="flex items-center space-x-2.5 cursor-pointer">
+                                <input type="radio" name="config_mode" value="multi" checked onchange="toggleConfigMode()" class="w-4 h-4 text-blue-600 focus:ring-blue-500">
+                                <span>Multi-Config (use Mount Configs CSV)</span>
+                            </label>
+                            <label class="flex items-center space-x-2.5 cursor-pointer">
+                                <input type="radio" name="config_mode" value="single" onchange="toggleConfigMode()" class="w-4 h-4 text-blue-600 focus:ring-blue-500">
+                                <span>Single-Config (Run custom flags & commit)</span>
+                            </label>
+                        </div>
+
+                        <!-- Multi config fields -->
+                        <div id="configs-csv-container">
+                            <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Mount Configs CSV *</label>
+                            <select id="configs_csv" class="w-full bg-slate-900/80 border border-slate-700 rounded-lg px-4 py-2.5 text-slate-100 focus:outline-none focus:border-blue-500 transition">
+                                <option value="">Loading mount configs...</option>
+                            </select>
+                        </div>
+
+                        <!-- Single config fields -->
+                        <div id="single-config-container" class="hidden grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">GCSFuse Branch/Commit</label>
+                                <input type="text" id="commit_hash" placeholder="master" class="w-full bg-slate-900/80 border border-slate-700 rounded-lg px-4 py-2.5 text-slate-100 focus:outline-none focus:border-blue-500 transition">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">GCSFuse Mount Arguments</label>
+                                <input type="text" id="mount_args" placeholder="e.g. --implicit-dirs --client-protocol=grpc" class="w-full bg-slate-900/80 border border-slate-700 rounded-lg px-4 py-2.5 text-slate-100 focus:outline-none focus:border-blue-500 transition">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 border-t border-slate-700/60 pt-6">
+                        <!-- Iterations -->
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Iterations per matrix cell</label>
+                            <input type="number" id="iterations" min="1" max="10" value="2" class="w-full bg-slate-900/80 border border-slate-700 rounded-lg px-4 py-2.5 text-slate-100 focus:outline-none focus:border-blue-500 transition">
+                        </div>
+                    </div>
+
+                    <div class="pt-4">
+                        <button type="submit" class="w-full py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-lg font-bold shadow-lg transform hover:-translate-y-0.5 transition duration-150 flex items-center justify-center space-x-2">
+                            <i class="fa-solid fa-play"></i><span>Submit to Queue / Run</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </section>
+
+        <!-- ================= ACTIVE MONITOR TAB ================= -->
+        <section id="section-active" class="tab-section hidden">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <!-- Queue / Active Jobs List -->
+                <div class="lg:col-span-1 bg-slate-800/50 border border-slate-700/50 rounded-xl p-5 shadow-xl h-[650px] flex flex-col">
+                    <h3 class="text-md font-bold mb-4 flex items-center text-slate-100">
+                        <i class="fa-solid fa-list-ol mr-2.5 text-blue-400"></i>Active Queue / Jobs
+                    </h3>
+                    <div id="active-list" class="space-y-3 overflow-y-auto flex-grow pr-1">
+                        <p class="text-slate-400 text-sm italic">No active or queued runs.</p>
+                    </div>
+                </div>
+
+                <!-- Live Logs Output Console -->
+                <div class="lg:col-span-2 bg-slate-850 border border-slate-700/50 rounded-xl p-5 shadow-xl h-[650px] flex flex-col">
+                    <div class="flex items-center justify-between mb-4 border-b border-slate-700 pb-3">
+                        <h3 class="text-md font-bold flex items-center text-slate-100">
+                            <i class="fa-solid fa-terminal mr-2.5 text-indigo-400"></i>Live Orchestrator Console
+                        </h3>
+                        <div id="live-console-meta" class="text-xs text-slate-400 font-mono">
+                            Select an active run from the queue to view logs
+                        </div>
+                    </div>
+                    <!-- The log text box -->
+                    <pre id="logs-console" class="bg-slate-950/90 text-green-400 font-mono text-xs p-4 rounded-lg overflow-y-auto flex-grow select-text leading-relaxed whitespace-pre-wrap">Waiting for run selection...</pre>
+                </div>
+            </div>
+        </section>
+
+        <!-- ================= RUN HISTORY TAB ================= -->
+        <section id="section-history" class="tab-section hidden space-y-8">
+            <!-- Main Historical Runs Table -->
+            <div class="bg-slate-800/50 border border-slate-700/50 rounded-xl p-6 shadow-xl">
+                <div class="flex items-center justify-between mb-6">
+                    <h2 class="text-xl font-bold text-slate-100 flex items-center">
+                        <i class="fa-solid fa-clock-rotate-left mr-3 text-emerald-400"></i>Benchmark Executions
+                    </h2>
+                    <button onclick="compareSelected()" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 font-semibold rounded-lg text-sm shadow-md transition flex items-center space-x-2">
+                        <i class="fa-solid fa-right-left"></i><span>Compare Selected Runs</span>
+                    </button>
+                </div>
+
+                <div class="overflow-x-auto rounded-lg border border-slate-700">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="bg-slate-900/80 text-xs font-semibold text-slate-400 uppercase border-b border-slate-700">
+                                <th class="py-3 px-4 w-12 text-center"><input type="checkbox" id="select-all-history" onchange="toggleSelectAll(this)"></th>
+                                <th class="py-3 px-4">Benchmark ID</th>
+                                <th class="py-3 px-4">Description</th>
+                                <th class="py-3 px-4">User</th>
+                                <th class="py-3 px-4">Target Machine</th>
+                                <th class="py-3 px-4">Date / Time</th>
+                                <th class="py-3 px-4">Status</th>
+                                <th class="py-3 px-4 text-center">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="history-rows" class="divide-y divide-slate-700/50 text-sm">
+                            <tr>
+                                <td colspan="8" class="text-center py-6 text-slate-400 italic">Loading benchmark history...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Graphing Comparative Workspace -->
+            <div id="chart-workspace" class="hidden bg-slate-800/50 border border-slate-700/50 rounded-xl p-6 shadow-xl space-y-6">
+                <div class="flex items-center justify-between border-b border-slate-700 pb-4">
+                    <h3 class="text-lg font-bold flex items-center text-slate-100">
+                        <i class="fa-solid fa-chart-line mr-3 text-indigo-400"></i>Performance Comparison Dashboard
+                    </h3>
+                    <div class="flex items-center space-x-4">
+                        <label class="text-xs font-semibold text-slate-400 uppercase">X-Axis:</label>
+                        <select id="chart-x-axis" onchange="replotCharts()" class="bg-slate-900 border border-slate-700 rounded px-3 py-1 text-sm text-slate-100">
+                            <option value="test-cases">Test Cases (Configs as series)</option>
+                            <option value="configs">Configs (Test Cases as series)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Dual Charts Container -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    <!-- Chart 1: Bandwidth / Throughput -->
+                    <div class="bg-slate-900/60 border border-slate-700/50 p-4 rounded-xl flex flex-col h-[450px]">
+                        <h4 class="text-sm font-bold text-slate-300 mb-3 flex items-center">
+                            <i class="fa-solid fa-bolt mr-2 text-yellow-500"></i>Bandwidth / Throughput (MB/s)
+                        </h4>
+                        <div class="relative flex-grow h-0 w-full">
+                            <canvas id="throughput-chart"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Chart 2: Average Latency -->
+                    <div class="bg-slate-900/60 border border-slate-700/50 p-4 rounded-xl flex flex-col h-[450px]">
+                        <h4 class="text-sm font-bold text-slate-300 mb-3 flex items-center">
+                            <i class="fa-solid fa-stopwatch mr-2 text-red-500"></i>Average Execution Latency (ms)
+                        </h4>
+                        <div class="relative flex-grow h-0 w-full">
+                            <canvas id="latency-chart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Custom Frontend Logic script -->
+    <script src="/static/app.js"></script>
+</body>
+</html>
