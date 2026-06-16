@@ -169,10 +169,10 @@ async function submitRun(event) {
     }
 }
 
-// Polling Active Jobs & Console logs
+// Polling Active Jobs & Console logs (Configured to 10s to keep it lightweight)
 function startPollingActiveRuns() {
     pollActiveRuns();
-    activeRunsPollInterval = setInterval(pollActiveRuns, 5000);
+    activeRunsPollInterval = setInterval(pollActiveRuns, 10000);
 }
 
 async function pollActiveRuns() {
@@ -251,7 +251,7 @@ function selectActiveRun(id) {
 function startPollingLogs(id) {
     stopPollingLogs();
     pollLogs(id);
-    logPollInterval = setInterval(() => pollLogs(id), 3000);
+    logPollInterval = setInterval(() => pollLogs(id), 10000); // Poll logs every 10s
 }
 
 function stopPollingLogs() {
@@ -281,7 +281,7 @@ async function pollLogs(id) {
 function startPollingProgress(id) {
     stopPollingProgress();
     pollProgress(id);
-    progressPollInterval = setInterval(() => pollProgress(id), 5000);
+    progressPollInterval = setInterval(() => pollProgress(id), 10000); // Poll GCS progress every 10s
 }
 
 function stopPollingProgress() {
