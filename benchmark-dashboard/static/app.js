@@ -44,14 +44,17 @@ function toggleConfigMode() {
     const mode = document.querySelector('input[name="config_mode"]:checked').value;
     const configsCsvContainer = document.getElementById('configs-csv-container');
     const singleConfigContainer = document.getElementById('single-config-container');
+    const previewWrapper = document.getElementById('configs-csv-preview-wrapper');
     
     if (mode === 'multi') {
         configsCsvContainer.classList.remove('hidden');
         singleConfigContainer.classList.add('hidden');
+        previewWrapper.classList.remove('hidden');
         document.getElementById('configs_csv').setAttribute('required', 'true');
     } else {
         configsCsvContainer.classList.add('hidden');
         singleConfigContainer.classList.remove('hidden');
+        previewWrapper.classList.add('hidden');
         document.getElementById('configs_csv').removeAttribute('required');
     }
 }
@@ -63,11 +66,13 @@ async function fetchConfigFiles() {
         const data = await res.json();
 
         // Populate drop-downs
-        populateSelect('test_csv', data.test_cases, 'Select test cases...');
+        // Filter out mount configs from the main test cases dropdown
+        const testCases = data.test_cases.filter(f => !f.includes('custom_mount_configs') && !f.includes('mount_configs'));
+        populateSelect('test_csv', testCases, 'Select test cases...');
         populateSelect('fio_job', data.fio_jobs, 'Select FIO job...');
         
         // Filter test cases to extract mount config files
-        const mountConfigs = data.test_cases.filter(f => f.includes('mount_config') || f.includes('mount_args') || f.includes('config'));
+        const mountConfigs = data.test_cases.filter(f => f.includes('mount_config') || f.includes('mount_args') || f.includes('config') || f.includes('custom_mount_configs'));
         populateSelect('configs_csv', mountConfigs, 'Select mount configs...');
     } catch (e) {
         console.error("Failed to load configs:", e);
@@ -97,6 +102,11 @@ async function submitRun(event) {
         fio_job: document.getElementById('fio_job').value,
         iterations: parseInt(document.getElementById('iterations').value) || 2
     };
+
+    if (document.getElementById('enable_mig_templates').checked) {
+        payload.single_thread_vm_type = document.getElementById('single_thread_vm_type').value.trim() || null;
+        payload.multi_thread_vm_type = document.getElementById('multi_thread_vm_type').value.trim() || null;
+    }
 
     if (mode === 'multi') {
         payload.configs_csv = document.getElementById('configs_csv').value;
@@ -352,6 +362,18 @@ async function cloneRun(id) {
         document.getElementById('project').value = run.project;
         document.getElementById('iterations').value = run.iterations;
 
+        if (run.single_thread_vm_type || run.multi_thread_vm_type) {
+            document.getElementById('enable_mig_templates').checked = true;
+            toggleMigTemplates();
+            document.getElementById('single_thread_vm_type').value = run.single_thread_vm_type || '';
+            document.getElementById('multi_thread_vm_type').value = run.multi_thread_vm_type || '';
+        } else {
+            document.getElementById('enable_mig_templates').checked = false;
+            toggleMigTemplates();
+            document.getElementById('single_thread_vm_type').value = '';
+            document.getElementById('multi_thread_vm_type').value = '';
+        }
+
         // Force dropdown options selection
         document.getElementById('test_csv').value = run.test_csv_name;
         document.getElementById('fio_job').value = run.fio_job_name;
@@ -599,4 +621,184 @@ function renderChart(canvasId, type, labels, datasets, yLabel) {
             }
         }
     });
+}
+
+// Custom FIO Config Modal Controls
+function openFioModal() {
+    document.getElementById('fio-modal').classList.remove('hidden');
+    // Pre-populate template to guide user
+    if (!document.getElementById('fio_content').value) {
+        document.getElementById('fio_content').value = `[global]
+ioengine=libaio
+direct=1
+fdatasync=1
+invalidate=1
+rw=read
+bs=1m
+size=1g
+numjobs=1
+time_based=0
+
+[job1]
+filename=test_file_0
+`;
+    }
+}
+
+function closeFioModal() {
+    document.getElementById('fio-modal').classList.add('hidden');
+    document.getElementById('fio_filename').value = '';
+}
+
+async function submitFioConfig(event) {
+    event.preventDefault();
+    const filename = document.getElementById('fio_filename').value.trim();
+    const content = document.getElementById('fio_content').value;
+
+    try {
+        const res = await fetch('/api/configs/fio-jobs', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ filename, content })
+        });
+
+        if (res.ok) {
+            const data = await res.json();
+            alert("Custom FIO template saved successfully!");
+            closeFioModal();
+            // Reload select options to show new FIO file
+            await fetchConfigFiles();
+            // Select the newly added FIO file
+            document.getElementById('fio_job').value = data.path;
+        } else {
+            const err = await res.json();
+            alert(`Error saving FIO config: ${err.detail}`);
+        }
+    } catch (e) {
+        alert(`Failed to save: ${e}`);
+    }
+}
+
+// Toggle MIG VM templates container
+function toggleMigTemplates() {
+    const checked = document.getElementById('enable_mig_templates').checked;
+    const container = document.getElementById('mig-template-container');
+    if (checked) {
+        container.classList.remove('hidden');
+    } else {
+        container.classList.add('hidden');
+    }
+}
+
+// Collapsible previews wrapper
+function togglePreviewAccordion(containerId) {
+    const container = document.getElementById(containerId);
+    const icon = document.getElementById(containerId.replace('container', 'icon'));
+    if (container.classList.contains('hidden')) {
+        container.classList.remove('hidden');
+        if (icon) icon.className = "fa-solid fa-chevron-up text-slate-500";
+    } else {
+        container.classList.add('hidden');
+        if (icon) icon.className = "fa-solid fa-chevron-down text-slate-500";
+    }
+}
+
+// Preview file content dynamically
+async function previewConfigFile(path, elementId) {
+    const el = document.getElementById(elementId);
+    if (!path) {
+        el.innerText = "No file selected.";
+        return;
+    }
+    
+    // Auto expand accordion when a file is selected to show preview instantly
+    const containerId = elementId + '-container';
+    const container = document.getElementById(containerId);
+    if (container && container.classList.contains('hidden')) {
+        togglePreviewAccordion(containerId);
+    }
+
+    try {
+        el.innerText = "Loading preview...";
+        const res = await fetch(`/api/configs/preview?path=${encodeURIComponent(path)}`);
+        if (res.ok) {
+            const data = await res.json();
+            el.innerText = data.content;
+        } else {
+            el.innerText = "Error loading file preview.";
+        }
+    } catch (e) {
+        el.innerText = `Failed to fetch file content: ${e}`;
+    }
+}
+
+// Custom CSV Modals
+function openCsvModal(type) {
+    document.getElementById('csv-modal').classList.remove('hidden');
+    document.getElementById('csv_target_type').value = type;
+    
+    const title = document.getElementById('csv-modal-title');
+    const filenameInput = document.getElementById('csv_filename');
+    const contentText = document.getElementById('csv_content');
+    
+    // Clear previous
+    filenameInput.value = '';
+    
+    if (type === 'test_cases') {
+        title.innerHTML = '<i class="fa-solid fa-file-csv mr-2.5 text-emerald-400"></i>Create Custom Test Cases CSV';
+        filenameInput.placeholder = 'e.g. read_custom_tests.csv';
+        contentText.placeholder = 'IOType,Jobs,FSize,BS,IOD,NrFiles,Direct\nread,1,1g,1m,1,1,0\nread,4,1g,256k,8,4,1';
+        contentText.value = 'IOType,Jobs,FSize,BS,IOD,NrFiles,Direct\nread,1,1g,1m,1,1,0\n';
+    } else {
+        title.innerHTML = '<i class="fa-solid fa-file-shield mr-2.5 text-indigo-400"></i>Create Custom GCSFuse Mount Configs CSV';
+        filenameInput.placeholder = 'e.g. grpc_and_kernel_mounts.csv';
+        contentText.placeholder = 'config,gcsfuse-commit,gcsfuse-mount-args\ngrpc,master,--client-protocol=grpc --implicit-dirs\nkernel,master,--implicit-dirs';
+        contentText.value = 'config,gcsfuse-commit,gcsfuse-mount-args\ngrpc,master,--client-protocol=grpc --implicit-dirs\n';
+    }
+}
+
+function closeCsvModal() {
+    document.getElementById('csv-modal').classList.add('hidden');
+    document.getElementById('csv_filename').value = '';
+    document.getElementById('csv_content').value = '';
+}
+
+async function submitCsvConfig(event) {
+    event.preventDefault();
+    const type = document.getElementById('csv_target_type').value;
+    const filename = document.getElementById('csv_filename').value.trim();
+    const content = document.getElementById('csv_content').value;
+    
+    const apiEndpoint = type === 'test_cases' ? '/api/configs/test-cases' : '/api/configs/mount-configs';
+    
+    try {
+        const res = await fetch(apiEndpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ filename, content })
+        });
+        
+        if (res.ok) {
+            const data = await res.json();
+            alert("Custom CSV file saved successfully!");
+            closeCsvModal();
+            
+            // Reload selects
+            await fetchConfigFiles();
+            
+            // Auto select new file & trigger preview
+            if (type === 'test_cases') {
+                document.getElementById('test_csv').value = data.path;
+                previewConfigFile(data.path, 'test-csv-preview');
+            } else {
+                document.getElementById('configs_csv').value = data.path;
+                previewConfigFile(data.path, 'configs-csv-preview');
+            }
+        } else {
+            const err = await res.json();
+            alert(`Error saving CSV file: ${err.detail}`);
+        }
+    } catch (e) {
+        alert(`Failed to save CSV: ${e}`);
+    }
 }

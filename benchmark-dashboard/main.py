@@ -13,6 +13,7 @@ from typing import List, Optional
 from pathlib import Path
 from google.cloud import bigquery
 
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 import db
 
 # Setup logger
@@ -46,6 +47,18 @@ class BenchmarkRunRequest(BaseModel):
     iterations: int = 2
     poll_interval: int = 30
     timeout: int = 7200
+    single_thread_vm_type: Optional[str] = None
+    multi_thread_vm_type: Optional[str] = None
+
+
+class FioJobCreateRequest(BaseModel):
+    filename: str
+    content: str
+
+
+class CustomCsvCreateRequest(BaseModel):
+    filename: str
+    content: str
 
 
 # Background Queue Task
@@ -107,6 +120,11 @@ async def execute_orchestrator(run):
         "--poll-interval", "30",
         "--timeout", "7200"
     ]
+    
+    if run.get("single_thread_vm_type"):
+        args.extend(["--single-thread-vm-type", run["single_thread_vm_type"]])
+    if run.get("multi_thread_vm_type"):
+        args.extend(["--multi-thread-vm-type", run["multi_thread_vm_type"]])
     
     if run.get("configs_csv_name"):
         args.extend(["--configs-csv", str(DMB_DIR / run["configs_csv_name"])])
@@ -185,6 +203,86 @@ def get_config_files():
     }
 
 
+@app.post("/api/configs/fio-jobs")
+def create_fio_job(fio: FioJobCreateRequest):
+    """Saves a custom FIO job configuration in the test_suites/custom/ directory."""
+    # Sanitize filename (remove path traversals)
+    filename = os.path.basename(fio.filename)
+    if not filename.endswith(".fio"):
+        filename += ".fio"
+        
+    custom_dir = DMB_DIR / "test_suites" / "custom"
+    custom_dir.mkdir(parents=True, exist_ok=True)
+    
+    file_path = custom_dir / filename
+    try:
+        with open(file_path, "w") as f:
+            f.write(fio.content)
+        logger.info(f"Custom FIO job config saved: {file_path}")
+        return {"status": "success", "path": str(file_path.relative_to(DMB_DIR))}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to write FIO config: {e}")
+
+
+@app.post("/api/configs/test-cases")
+def create_test_cases(csv: CustomCsvCreateRequest):
+    """Saves a custom test cases CSV file in the test_suites/custom_test_cases/ directory."""
+    filename = os.path.basename(csv.filename)
+    if not filename.endswith(".csv"):
+        filename += ".csv"
+        
+    custom_dir = DMB_DIR / "test_suites" / "custom_test_cases"
+    custom_dir.mkdir(parents=True, exist_ok=True)
+    
+    file_path = custom_dir / filename
+    try:
+        with open(file_path, "w") as f:
+            f.write(csv.content)
+        logger.info(f"Custom test cases CSV saved: {file_path}")
+        return {"status": "success", "path": str(file_path.relative_to(DMB_DIR))}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to write test cases: {e}")
+
+
+@app.post("/api/configs/mount-configs")
+def create_mount_configs(csv: CustomCsvCreateRequest):
+    """Saves a custom GCSFuse mount configs CSV in the test_suites/custom_mount_configs/ directory."""
+    filename = os.path.basename(csv.filename)
+    if not filename.endswith(".csv"):
+        filename += ".csv"
+        
+    custom_dir = DMB_DIR / "test_suites" / "custom_mount_configs"
+    custom_dir.mkdir(parents=True, exist_ok=True)
+    
+    file_path = custom_dir / filename
+    try:
+        with open(file_path, "w") as f:
+            f.write(csv.content)
+        logger.info(f"Custom mount configs CSV saved: {file_path}")
+        return {"status": "success", "path": str(file_path.relative_to(DMB_DIR))}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to write mount configs: {e}")
+
+
+@app.get("/api/configs/preview")
+def get_file_preview(path: str):
+    """Reads and returns the contents of a config file relative to the benchmark directory."""
+    # Sanitize path to prevent traversal
+    safe_path = (DMB_DIR / path).resolve()
+    if not str(safe_path).startswith(str(DMB_DIR)):
+        raise HTTPException(status_code=403, detail="Access denied: Path lies outside benchmark directory")
+        
+    if not safe_path.exists() or not safe_path.is_file():
+        raise HTTPException(status_code=404, detail="Config file not found")
+        
+    try:
+        with open(safe_path, "r") as f:
+            lines = f.readlines()
+            return {"content": "".join(lines[:1000])}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to read file: {e}")
+
+
 @app.post("/api/runs")
 def create_run(run: BenchmarkRunRequest):
     """Creates and enqueues a new benchmark run."""
@@ -205,16 +303,36 @@ def create_run(run: BenchmarkRunRequest):
     results_dir.mkdir(parents=True, exist_ok=True)
 
     # Defaults buckets (similar to run.sh)
-    artifacts_bucket = "dmb-artifacts-regional"
+    artifacts_bucket = "pranjal-bucket-1"
     test_data_bucket = "grpc-metric-dmb-regional"
+
+    # Deduce suite type
+    if "kokoro" in run.test_csv.lower():
+        suite = "kokoro"
+    elif "published" in run.test_csv.lower():
+        suite = "published"
+    else:
+        suite = "custom"
+
+    # Deduce io_type
+    if "read" in run.fio_job.lower():
+        io_type = "read"
+    elif "write" in run.fio_job.lower():
+        io_type = "write"
+    else:
+        io_type = "other"
 
     run_record = {
         "benchmark_id": benchmark_id,
         "description": run.description,
         "username": run.username,
+        "suite": suite,
+        "io_type": io_type,
         "executor_vm": run.executor_vm,
         "zone": run.zone,
         "project": run.project,
+        "single_thread_vm_type": run.single_thread_vm_type,
+        "multi_thread_vm_type": run.multi_thread_vm_type,
         "commit_hash": run.commit_hash or "master",
         "test_csv_name": run.test_csv,
         "configs_csv_name": run.configs_csv,

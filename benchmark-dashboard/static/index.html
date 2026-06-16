@@ -87,7 +87,7 @@
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <!-- User & Description -->
                         <div>
-                            <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Username *</label>
+                            <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Username (LDAP) *</label>
                             <input type="text" id="username" required placeholder="e.g. cpranjal" class="w-full bg-slate-900/80 border border-slate-700 rounded-lg px-4 py-2.5 text-slate-100 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition">
                         </div>
                         <div>
@@ -113,18 +113,44 @@
                             </div>
                         </div>
 
-                        <!-- Test CSV File selection -->
+                        <!-- MIG Thread distribution template settings -->
+                        <div class="md:col-span-2 flex items-center space-x-2">
+                            <input type="checkbox" id="enable_mig_templates" onchange="toggleMigTemplates()" class="w-4 h-4 text-blue-600 focus:ring-blue-500 rounded bg-slate-900 border-slate-700">
+                            <label for="enable_mig_templates" class="text-xs text-slate-400 font-semibold uppercase tracking-wider cursor-pointer">Configure thread-based VM distribution (Managed Instance Groups)</label>
+                        </div>
+                        <div id="mig-template-container" class="hidden md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-900/30 p-4 rounded-xl border border-slate-700/50">
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Single-thread VM template identifier</label>
+                                <input type="text" id="single_thread_vm_type" placeholder="e.g. n2-standard-32-single-threaded" class="w-full bg-slate-900/80 border border-slate-700 rounded-lg px-4 py-2.5 text-slate-100 focus:outline-none focus:border-blue-500 transition text-sm">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Multi-thread VM template identifier</label>
+                                <input type="text" id="multi_thread_vm_type" placeholder="e.g. c4-standard-192" class="w-full bg-slate-900/80 border border-slate-700 rounded-lg px-4 py-2.5 text-slate-100 focus:outline-none focus:border-blue-500 transition text-sm">
+                            </div>
+                        </div>
+
+                        <!-- Test Cases CSV File selection -->
                         <div>
-                            <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Test Cases CSV *</label>
-                            <select id="test_csv" required class="w-full bg-slate-900/80 border border-slate-700 rounded-lg px-4 py-2.5 text-slate-100 focus:outline-none focus:border-blue-500 transition">
+                            <div class="flex justify-between items-center mb-2">
+                                <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider">Test Cases CSV *</label>
+                                <button type="button" onclick="openCsvModal('test_cases')" class="text-xs text-blue-400 hover:text-blue-300 font-bold transition flex items-center space-x-1">
+                                    <i class="fa-solid fa-plus-circle"></i><span>Add Custom CSV</span>
+                                </button>
+                            </div>
+                            <select id="test_csv" required onchange="previewConfigFile(this.value, 'test-csv-preview')" class="w-full bg-slate-900/80 border border-slate-700 rounded-lg px-4 py-2.5 text-slate-100 focus:outline-none focus:border-blue-500 transition">
                                 <option value="">Loading test cases...</option>
                             </select>
                         </div>
                         
                         <!-- FIO Job file selection -->
                         <div>
-                            <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">FIO Job Template *</label>
-                            <select id="fio_job" required class="w-full bg-slate-900/80 border border-slate-700 rounded-lg px-4 py-2.5 text-slate-100 focus:outline-none focus:border-blue-500 transition">
+                            <div class="flex justify-between items-center mb-2">
+                                <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider">FIO Job Template *</label>
+                                <button type="button" onclick="openFioModal()" class="text-xs text-blue-400 hover:text-blue-300 font-bold transition flex items-center space-x-1">
+                                    <i class="fa-solid fa-plus-circle"></i><span>Add Custom FIO</span>
+                                </button>
+                            </div>
+                            <select id="fio_job" required onchange="previewConfigFile(this.value, 'fio-job-preview')" class="w-full bg-slate-900/80 border border-slate-700 rounded-lg px-4 py-2.5 text-slate-100 focus:outline-none focus:border-blue-500 transition">
                                 <option value="">Loading FIO jobs...</option>
                             </select>
                         </div>
@@ -146,8 +172,13 @@
 
                         <!-- Multi config fields -->
                         <div id="configs-csv-container">
-                            <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Mount Configs CSV *</label>
-                            <select id="configs_csv" class="w-full bg-slate-900/80 border border-slate-700 rounded-lg px-4 py-2.5 text-slate-100 focus:outline-none focus:border-blue-500 transition">
+                            <div class="flex justify-between items-center mb-2">
+                                <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider">Mount Configs CSV *</label>
+                                <button type="button" onclick="openCsvModal('mount_configs')" class="text-xs text-blue-400 hover:text-blue-300 font-bold transition flex items-center space-x-1">
+                                    <i class="fa-solid fa-plus-circle"></i><span>Add Custom CSV</span>
+                                </button>
+                            </div>
+                            <select id="configs_csv" onchange="previewConfigFile(this.value, 'configs-csv-preview')" class="w-full bg-slate-900/80 border border-slate-700 rounded-lg px-4 py-2.5 text-slate-100 focus:outline-none focus:border-blue-500 transition">
                                 <option value="">Loading mount configs...</option>
                             </select>
                         </div>
@@ -170,6 +201,44 @@
                         <div>
                             <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Iterations per matrix cell</label>
                             <input type="number" id="iterations" min="1" max="10" value="2" class="w-full bg-slate-900/80 border border-slate-700 rounded-lg px-4 py-2.5 text-slate-100 focus:outline-none focus:border-blue-500 transition">
+                        </div>
+                    </div>
+
+                    <!-- CONFIG PREVIEW ACCORDIONS -->
+                    <div class="border-t border-slate-700/60 pt-6 space-y-4">
+                        <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider">Selected Configuration Previews</label>
+                        
+                        <!-- Test Cases Preview -->
+                        <div class="bg-slate-900/30 border border-slate-700/50 rounded-lg overflow-hidden">
+                            <button type="button" onclick="togglePreviewAccordion('test-csv-preview-container')" class="w-full px-4 py-3 flex justify-between items-center text-xs font-bold text-slate-300 bg-slate-900/50 hover:bg-slate-900 transition">
+                                <span><i class="fa-solid fa-file-csv mr-2 text-emerald-400"></i>Test Cases CSV Preview</span>
+                                <i id="test-csv-preview-icon" class="fa-solid fa-chevron-down text-slate-500"></i>
+                            </button>
+                            <div id="test-csv-preview-container" class="hidden p-4 border-t border-slate-800">
+                                <pre id="test-csv-preview" class="bg-slate-950/70 p-3 rounded text-[11px] font-mono text-slate-300 overflow-x-auto max-h-48 whitespace-pre leading-relaxed">No test case selected.</pre>
+                            </div>
+                        </div>
+
+                        <!-- FIO Job Preview -->
+                        <div class="bg-slate-900/30 border border-slate-700/50 rounded-lg overflow-hidden">
+                            <button type="button" onclick="togglePreviewAccordion('fio-job-preview-container')" class="w-full px-4 py-3 flex justify-between items-center text-xs font-bold text-slate-300 bg-slate-900/50 hover:bg-slate-900 transition">
+                                <span><i class="fa-solid fa-file-code mr-2 text-blue-400"></i>FIO Job Template Preview</span>
+                                <i id="fio-job-preview-icon" class="fa-solid fa-chevron-down text-slate-500"></i>
+                            </button>
+                            <div id="fio-job-preview-container" class="hidden p-4 border-t border-slate-800">
+                                <pre id="fio-job-preview" class="bg-slate-950/70 p-3 rounded text-[11px] font-mono text-slate-300 overflow-x-auto max-h-48 whitespace-pre leading-relaxed">No FIO job selected.</pre>
+                            </div>
+                        </div>
+
+                        <!-- Mount Configs Preview (Only if multi config) -->
+                        <div id="configs-csv-preview-wrapper" class="bg-slate-900/30 border border-slate-700/50 rounded-lg overflow-hidden">
+                            <button type="button" onclick="togglePreviewAccordion('configs-csv-preview-container')" class="w-full px-4 py-3 flex justify-between items-center text-xs font-bold text-slate-300 bg-slate-900/50 hover:bg-slate-900 transition">
+                                <span><i class="fa-solid fa-file-shield mr-2 text-indigo-400"></i>Mount Configs CSV Preview</span>
+                                <i id="configs-csv-preview-icon" class="fa-solid fa-chevron-down text-slate-500"></i>
+                            </button>
+                            <div id="configs-csv-preview-container" class="hidden p-4 border-t border-slate-800">
+                                <pre id="configs-csv-preview" class="bg-slate-950/70 p-3 rounded text-[11px] font-mono text-slate-300 overflow-x-auto max-h-48 whitespace-pre leading-relaxed">No mount config selected.</pre>
+                            </div>
                         </div>
                     </div>
 
@@ -288,6 +357,69 @@
         </section>
 
     </main>
+
+    <!-- ================= ADD CUSTOM FIO MODAL ================= -->
+    <div id="fio-modal" class="hidden fixed inset-0 z-50 overflow-y-auto bg-slate-950/80 flex items-center justify-center p-4 backdrop-blur-sm">
+        <div class="bg-slate-800 border border-slate-700 rounded-xl max-w-lg w-full p-6 shadow-2xl space-y-4">
+            <div class="flex justify-between items-center border-b border-slate-700 pb-3">
+                <h3 class="text-md font-bold text-slate-100 flex items-center">
+                    <i class="fa-solid fa-file-circle-plus mr-2.5 text-blue-400"></i>Create Custom FIO Template
+                </h3>
+                <button onclick="closeFioModal()" class="text-slate-400 hover:text-slate-200"><i class="fa-solid fa-times text-lg"></i></button>
+            </div>
+            
+            <form id="fio-form" onsubmit="submitFioConfig(event)" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Filename (must end in .fio)</label>
+                    <input type="text" id="fio_filename" required placeholder="e.g. randwrite_4m_direct.fio" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-slate-100 focus:outline-none focus:border-blue-500 transition text-sm">
+                </div>
+                
+                <div>
+                    <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Template Code</label>
+                    <textarea id="fio_content" required rows="10" placeholder="[global]
+ioengine=libaio
+direct=1
+..." class="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-slate-100 font-mono text-xs focus:outline-none focus:border-blue-500 transition leading-relaxed"></textarea>
+                </div>
+                
+                <div class="flex space-x-3 justify-end pt-2 border-t border-slate-700/60">
+                    <button type="button" onclick="closeFioModal()" class="px-4 py-2 bg-slate-700 hover:bg-slate-650 rounded-lg text-xs font-semibold transition">Cancel</button>
+                    <button type="submit" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-semibold transition">Save Config</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ================= ADD CUSTOM CSV MODAL ================= -->
+    <div id="csv-modal" class="hidden fixed inset-0 z-50 overflow-y-auto bg-slate-950/80 flex items-center justify-center p-4 backdrop-blur-sm">
+        <div class="bg-slate-800 border border-slate-700 rounded-xl max-w-lg w-full p-6 shadow-2xl space-y-4">
+            <div class="flex justify-between items-center border-b border-slate-700 pb-3">
+                <h3 id="csv-modal-title" class="text-md font-bold text-slate-100 flex items-center">
+                    <i class="fa-solid fa-file-csv mr-2.5 text-emerald-400"></i>Create Custom CSV file
+                </h3>
+                <button onclick="closeCsvModal()" class="text-slate-400 hover:text-slate-200"><i class="fa-solid fa-times text-lg"></i></button>
+            </div>
+            
+            <form id="csv-form" onsubmit="submitCsvConfig(event)" class="space-y-4">
+                <input type="hidden" id="csv_target_type" value="test_cases">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Filename (must end in .csv)</label>
+                    <input type="text" id="csv_filename" required placeholder="e.g. my_custom_cases.csv" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-slate-100 focus:outline-none focus:border-blue-500 transition text-sm">
+                </div>
+                
+                <div>
+                    <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">CSV Table Data (Comma-separated)</label>
+                    <textarea id="csv_content" required rows="10" placeholder="header1,header2,header3
+value1,value2,value3" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-slate-100 font-mono text-xs focus:outline-none focus:border-blue-500 transition leading-relaxed"></textarea>
+                </div>
+                
+                <div class="flex space-x-3 justify-end pt-2 border-t border-slate-700/60">
+                    <button type="button" onclick="closeCsvModal()" class="px-4 py-2 bg-slate-700 hover:bg-slate-650 rounded-lg text-xs font-semibold transition">Cancel</button>
+                    <button type="submit" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-semibold transition">Save CSV File</button>
+                </div>
+            </form>
+        </div>
+    </div>
 
     <!-- Custom Frontend Logic script -->
     <script src="/static/app.js"></script>

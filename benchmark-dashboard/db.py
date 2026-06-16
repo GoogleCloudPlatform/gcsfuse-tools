@@ -18,11 +18,15 @@ def init_db():
         description TEXT,
         username VARCHAR(100),
         status VARCHAR(50),                 -- queued, running, completed, failed, cancelled
+        suite VARCHAR(50),                  -- kokoro, published, custom
+        io_type VARCHAR(50),                -- read, write, zonal
         
         -- Target Machine
         executor_vm VARCHAR(255),
         zone VARCHAR(100),
         project VARCHAR(255),
+        single_thread_vm_type VARCHAR(255),
+        multi_thread_vm_type VARCHAR(255),
         
         -- Execution Parameters
         commit_hash VARCHAR(100),
@@ -49,16 +53,18 @@ def insert_run(run_data):
     cursor.execute("""
     INSERT INTO ui_runs (
         benchmark_id, description, username, status,
-        executor_vm, zone, project, commit_hash,
+        suite, io_type, executor_vm, zone, project,
+        single_thread_vm_type, multi_thread_vm_type, commit_hash,
         test_csv_name, configs_csv_name, fio_job_name,
         mount_args, test_data_bucket, artifacts_bucket, iterations
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
         run_data["benchmark_id"], run_data["description"], run_data["username"], "queued",
-        run_data["executor_vm"], run_data["zone"], run_data["project"], run_data["commit_hash"],
-        run_data["test_csv_name"], run_data.get("configs_csv_name"), run_data["fio_job_name"],
-        run_data.get("mount_args"), run_data["test_data_bucket"], run_data["artifacts_bucket"],
-        run_data["iterations"]
+        run_data["suite"], run_data["io_type"], run_data["executor_vm"], run_data["zone"],
+        run_data["project"], run_data.get("single_thread_vm_type"), run_data.get("multi_thread_vm_type"),
+        run_data["commit_hash"], run_data["test_csv_name"], run_data.get("configs_csv_name"),
+        run_data["fio_job_name"], run_data.get("mount_args"), run_data["test_data_bucket"],
+        run_data["artifacts_bucket"], run_data["iterations"]
     ))
     conn.commit()
     conn.close()
