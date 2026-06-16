@@ -132,6 +132,14 @@ This creates a matrix of **2 x 10 = 20 total jobs**.
 
 If your managed instance group is scaled to **4 VMs**, the orchestrator will distribute these 20 jobs evenly among the available VMs. Each VM will receive approximately 5 jobs (e.g., VM 1 gets jobs 1-5, VM 2 gets jobs 6-10, etc.). The VMs will pull their specific assignments from the artifacts bucket and run only their assigned portion of the matrix.
 
+### Thread-Based VM Distribution
+
+For heterogenous environments (e.g., Kokoro CI), the orchestrator can distribute workloads to different machine types based on the thread count (`num_jobs`) of the test case. This is enabled by passing:
+- `--single-thread-vm-type`: The identifier in the instance template name for single-threaded VMs (e.g., `n2-standard-32-single-threaded`).
+- `--multi-thread-vm-type`: The identifier in the instance template name for multi-threaded VMs (e.g., `c4-standard-192`).
+
+If both flags are specified, test cases with `num_jobs=1` are sent only to VMs running the single-threaded template, and test cases with `num_jobs > 1` are routed to the multi-threaded template VMs. Otherwise, the orchestrator defaults to round-robin distribution across all available VMs.
+
 ### Artifacts Bucket Hierarchy
 The `ARTIFACTS_BUCKET` defined in `run.sh` is used heavily by the orchestrator to communicate with the worker VMs. The structure looks like this:
 
@@ -151,3 +159,12 @@ gs://<ARTIFACTS_BUCKET>/
         ├── <vm-2-name>/
         └── ...
 ```
+
+## Resource Metrics Collection
+
+During the FIO execution, a background monitor process (`monitor.sh`) periodically samples resource utilization every 2 seconds. The following metrics are aggregated (averages and peaks) and reported in the final manifest and BigQuery tables:
+
+- **CPU**: GCSFuse CPU utilization (%), and overall system CPU utilization (%).
+- **Memory**: Resident Set Size (RSS) and Virtual Memory Size (VSZ) of GCSFuse in MB.
+- **Page Cache**: Total system Page Cache utilization (GB).
+- **Network**: Network download (RX) and upload (TX) throughput (MB/s).
