@@ -35,17 +35,38 @@ async function resolveTargetVMDetails(vmName) {
     
     try {
         if (projEl) projEl.value = "Detecting project...";
+        if (zoneEl) {
+            zoneEl.value = "Detecting zone...";
+            zoneEl.disabled = true;
+            zoneEl.className = "w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-slate-500 cursor-not-allowed text-sm";
+        }
         
         const res = await fetch(`/api/configs/detect-project?name=${encodeURIComponent(vmName)}`);
         const data = await res.json();
         
         if (projEl) projEl.value = data.project || "";
-        if (data.zone && zoneEl) {
-            zoneEl.value = data.zone;
+        
+        if (zoneEl) {
+            if (data.zone) {
+                zoneEl.value = data.zone;
+                zoneEl.disabled = true;
+                zoneEl.className = "w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-slate-500 cursor-not-allowed text-sm";
+            } else {
+                zoneEl.value = "";
+                zoneEl.disabled = false;
+                zoneEl.placeholder = "e.g. us-central1-c";
+                zoneEl.className = "w-full bg-white border border-slate-300 rounded-lg px-4 py-2.5 text-slate-800 focus:outline-none focus:border-blue-600 transition text-sm cursor-text";
+            }
         }
     } catch (e) {
         console.error("Failed GCE project detection:", e);
         if (projEl) projEl.value = localProject || "gcs-fuse-test";
+        if (zoneEl) {
+            zoneEl.value = "";
+            zoneEl.disabled = false;
+            zoneEl.placeholder = "e.g. us-central1-c";
+            zoneEl.className = "w-full bg-white border border-slate-300 rounded-lg px-4 py-2.5 text-slate-800 focus:outline-none focus:border-blue-600 transition text-sm cursor-text";
+        }
     }
 }
 
