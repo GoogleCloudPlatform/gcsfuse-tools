@@ -144,7 +144,7 @@ async def execute_orchestrator(run):
         # Open local log file to stream subprocess output
         with open(log_file_path, "w") as log_f:
             process = await asyncio.create_subprocess_exec(
-                "python3", *args,
+                "python3", "-u", *args,
                 cwd=str(DMB_DIR),
                 stdout=log_f,
                 stderr=subprocess.STDOUT if hasattr(subprocess, 'STDOUT') else log_f
