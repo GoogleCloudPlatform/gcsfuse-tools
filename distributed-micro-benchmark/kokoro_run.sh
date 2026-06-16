@@ -255,7 +255,8 @@ run_benchmark() {
   --timeout $TIMEOUT \
   --report-name $REPORT_NAME \
   --single-thread-vm-type=\"$TARGET_SINGLE_THREAD_VM_TYPE\" \
-  --multi-thread-vm-type=\"$TARGET_MULTI_THREAD_VM_TYPE\""
+  --multi-thread-vm-type=\"$TARGET_MULTI_THREAD_VM_TYPE\" \
+  --no-auto-plot"
 
   if [ -n "$CONFIGS_CSV" ] && [ -f "$CONFIGS_CSV" ]; then
     ORCHESTRATOR_CMD="$ORCHESTRATOR_CMD --configs-csv $CONFIGS_CSV"

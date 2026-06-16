@@ -57,6 +57,8 @@ def parse_args():
 
     parser.add_argument('--single-thread-vm-type', type=str, default=None, help='Identifier in instance template name for single-threaded VMs (e.g., n2-standard-32)')
     parser.add_argument('--multi-thread-vm-type', type=str, default=None, help='Identifier in instance template name for multi-threaded VMs (e.g., c4-standard-192)')
+    parser.add_argument('--no-auto-plot', action='store_true', help='Disable automatic generation of performance plots')
+    parser.add_argument('--plot-metric-group', type=str, default='default', choices=['default', 'full'], help='Metrics to plot: default or full')
     return parser.parse_args()
 
 
@@ -293,6 +295,24 @@ def run_benchmark(args):
     else:
         print(f"\n✓ Report generated: {report_file}")
     
+    # 10. Auto-generate plots (unless disabled)
+    if not args.no_auto_plot:
+        print(f"\nGenerating plots (metric group: {args.plot_metric_group})...")
+        try:
+            import subprocess
+            script_dir = os.path.dirname(os.path.abspath(__file__))
+            plot_script = os.path.join(script_dir, 'plot_reports.py')
+            subprocess.run([
+                'python3', plot_script,
+                report_file,
+                '--metric-group', args.plot_metric_group,
+                '--output-file', f"{results_dir}/plots.png",
+                '--mode', 'combined'
+            ], check=True)
+            print(f"✓ Plots generated: {results_dir}/plots.png")
+        except subprocess.CalledProcessError as e:
+            print(f"✗ Plot generation failed: {e}")
+
     # Update 'latest' symlink
     latest_link = "results/latest"
     if os.path.islink(latest_link):
@@ -305,6 +325,8 @@ def run_benchmark(args):
     print(f"Results saved to: {results_dir}/")
     print(f"  - Input files: {test_csv_name}, {configs_csv_name if args.configs_csv else ''}, {fio_job_name}")
     print(f"  - Report: {args.report_name}")
+    if not args.no_auto_plot:
+        print(f"  - Plots: plots.png")
     print(f"  - Latest: results/latest/ ")
     
     # Exit with error code if some VMs failed
