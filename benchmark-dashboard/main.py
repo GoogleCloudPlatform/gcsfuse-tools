@@ -208,13 +208,13 @@ def get_config_files():
 
 @app.post("/api/configs/fio-jobs")
 def create_fio_job(fio: FioJobCreateRequest):
-    """Saves a custom FIO job configuration in the test_suites/custom/ directory."""
+    """Saves a custom FIO job configuration in the test_suites/custom_fio_configs/ directory."""
     # Sanitize filename (remove path traversals)
     filename = os.path.basename(fio.filename)
     if not filename.endswith(".fio"):
         filename += ".fio"
         
-    custom_dir = DMB_DIR / "test_suites" / "custom"
+    custom_dir = DMB_DIR / "test_suites" / "custom_fio_configs"
     custom_dir.mkdir(parents=True, exist_ok=True)
     
     file_path = custom_dir / filename
