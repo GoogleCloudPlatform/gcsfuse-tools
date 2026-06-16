@@ -92,10 +92,10 @@ You can edit these files or change `READ_FIO_JOB_FILE` and `WRITE_FIO_JOB_FILE` 
 `run.sh` has several variables at the top of the file that define the Google Cloud infrastructure used for the tests. If you are running this in your own project, you will need to update these:
 
 - `PROJECT`: Your Google Cloud project ID.
-- `INSTANCE_GROUP_NAME`: The name of the Managed Instance Group to use as workers.
+- `INSTANCE_GROUP_NAME`: The name of the Managed Instance Group or the name of a **single GCE VM** to use as the worker. The orchestrator automatically detects whether this is a MIG or a single VM and routes workloads accordingly.
 - `REGIONAL_TEST_DATA_BUCKET`: A pre-existing bucket used for reading/writing test data.
 - `ARTIFACTS_BUCKET`: A bucket used to store scripts and intermediate benchmark logs.
-- `ZONE`: The Google Cloud zone where the instance group is located.
+- `ZONE`: The Google Cloud zone where the instance group or VM is located.
 
 ## Analyzing Results
 
@@ -131,6 +131,27 @@ The orchestrator creates a "cross product" of your test cases and your mount con
 This creates a matrix of **2 x 10 = 20 total jobs**.
 
 If your managed instance group is scaled to **4 VMs**, the orchestrator will distribute these 20 jobs evenly among the available VMs. Each VM will receive approximately 5 jobs (e.g., VM 1 gets jobs 1-5, VM 2 gets jobs 6-10, etc.). The VMs will pull their specific assignments from the artifacts bucket and run only their assigned portion of the matrix.
+
+### Single VM Target Mode
+
+If you specify a single VM name (instead of a Managed Instance Group name) for the `--executor-vm` flag (or `INSTANCE_GROUP_NAME` in `run.sh`), the orchestrator automatically identifies it as a single running VM. 
+
+In this mode, all generated matrix jobs are assigned to that single VM, which executes them sequentially. This is useful for running quick ad-hoc tests on a dedicated testing machine without setting up Managed Instance Groups.
+
+**Example command targeting a single VM:**
+```bash
+python3 orchestrator.py \
+    --benchmark-id "single-vm-run-$(date +%s)" \
+    --executor-vm "my-single-test-vm" \
+    --zone "us-central1-c" \
+    --project "my-gcp-project" \
+    --artifacts-bucket "my-artifacts-bucket" \
+    --test-csv "test_suites/published_benchmarks/read_test_cases.csv" \
+    --configs-csv "test_suites/published_benchmarks/read_mount_configs.csv" \
+    --fio-job-file "test_suites/published_benchmarks/read.fio" \
+    --test-data-bucket "my-test-data-bucket" \
+    --iterations 2
+```
 
 ### Thread-Based VM Distribution
 
