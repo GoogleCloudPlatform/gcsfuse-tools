@@ -23,7 +23,7 @@ Configure the storage buffer and Docker workspace on each target VM using the es
 
 ### A. Configure Storage Buffer
 *   **Unified Buffer Setup (Local SSD or RAM Fallback)**:
-    Execute `raid0-script.sh` on the target VM, passing the target mount path (from `targets.json`'s `buffer_mount`) as the argument. The script will automatically build a RAID0 array from local SSDs if present. If no local SSDs are found, it will verify that the host has at least 600GB of RAM and mount a 600GB memory volume (`tmpfs`) at the mount path instead:
+    Execute `raid0-script.sh` on the target VM, passing the target mount path (from `targets.json`'s `buffer_mount`) as the argument. The script will automatically build a RAID0 array from local SSDs if present. If no local SSDs are found, it will verify that the host has at least 600GB of RAM (minimum 550GB detected due to kernel reservations) and mount a 500GB memory volume (`tmpfs`) at the mount path instead:
     ```bash
     # Copy script to target
     scp -S ~/.ssh/sockets/<TARGET_NAME>.sock -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ~/.ssh/google_compute_engine raid0-script.sh <SSH_USER>@nic0.<VM_NAME>.<ZONE>.c.<PROJECT_ID>.internal.gcpnode.com:~/raid0-script.sh

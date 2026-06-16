@@ -29,15 +29,15 @@ if [ $NUM_DEVICES -eq 0 ]; then
     TOTAL_RAM_GB=$((TOTAL_RAM_KB / 1024 / 1024))
     
     if [ $TOTAL_RAM_GB -ge 550 ]; then
-        echo "Found ${TOTAL_RAM_GB}GB RAM. Creating 600GB tmpfs memory volume..."
+        echo "Found ${TOTAL_RAM_GB}GB RAM. Creating 500GB tmpfs memory volume to leave OS headroom..."
         sudo mkdir -p "$MOUNT_PATH"
-        sudo mount -t tmpfs -o size=600G tmpfs "$MOUNT_PATH"
+        sudo mount -t tmpfs -o size=500G tmpfs "$MOUNT_PATH"
         sudo chmod a+w "$MOUNT_PATH"
         echo "Memory volume (tmpfs) mounted successfully at $MOUNT_PATH."
         df -h "$MOUNT_PATH"
         exit 0
     else
-        echo "Error: Host has no local SSDs, and RAM is only ${TOTAL_RAM_GB}GB (requires a 600GB VM, minimum 550GB detected)."
+        echo "Error: Host has no local SSDs, and RAM is only ${TOTAL_RAM_GB}GB (requires a 600GB VM class, minimum 550GB detected)."
         exit 1
     fi
 fi
