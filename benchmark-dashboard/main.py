@@ -52,6 +52,7 @@ class BenchmarkRunRequest(BaseModel):
     multi_thread_vm_type: Optional[str] = None
     artifacts_bucket: str
     test_data_bucket: str
+    commit_hash: Optional[str] = None
 
 
 class FioJobCreateRequest(BaseModel):
@@ -298,8 +299,9 @@ def create_run(run: BenchmarkRunRequest):
         raise HTTPException(status_code=400, detail=f"Configs CSV not found: {run.configs_csv}")
 
     # Generate benchmark ID
+    import random
     timestamp = int(datetime.utcnow().timestamp())
-    benchmark_id = f"web-run-{timestamp}"
+    benchmark_id = f"web-run-{timestamp}-{random.randint(10, 99)}"
 
     # Setup directories
     results_dir = DMB_DIR / "results" / benchmark_id
