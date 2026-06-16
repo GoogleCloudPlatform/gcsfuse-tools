@@ -62,7 +62,7 @@ def create_job_spec(job_name, image, args, bucket_name, service_account, extra_f
                         mount_opts.append(flag_str)
                 
                 # Check if billing-project is already specified
-                has_billing_project = any("billing-project" in opt for opt in mount_opts)
+                has_billing_project = any(opt.startswith("billing-project=") for opt in mount_opts)
                 if not has_billing_project and project_id:
                     mount_opts.append(f"billing-project={project_id}")
                 
