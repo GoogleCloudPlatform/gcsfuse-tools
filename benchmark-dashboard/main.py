@@ -717,6 +717,7 @@ def fetch_metrics_from_gcs(run_id: str, run_config: dict):
                 manifest = json.loads(manifest_blob.download_as_text())
                 for test in manifest.get("tests", []):
                     test_id = test.get("test_id")
+                    matrix_id = test.get("matrix_id", test_id)
                     params = test.get("params", {})
                     
                     # FIO parameters
@@ -731,8 +732,8 @@ def fetch_metrics_from_gcs(run_id: str, run_config: dict):
                     param_str = f"{io_type}|{num_jobs}|{file_size}|{block_size}|{io_depth}|{nr_files}|{direct}"
                     config_label = test.get("config_label", params.get("config_label", "default"))
                     
-                    # Fetch FIO iteration JSON files to calculate throughput/latency
-                    fio_blobs = client.list_blobs(bucket, prefix=f"{run_id}/results/{vm}/test-{test_id}/fio_output_")
+                    # Fetch FIO iteration JSON files to calculate throughput/latency (using matrix_id directory prefix)
+                    fio_blobs = client.list_blobs(bucket, prefix=f"{run_id}/results/{vm}/test-{matrix_id}/fio_output_")
                     bw_values = []
                     lat_values = []
                     peak_bw_values = []

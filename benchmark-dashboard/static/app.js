@@ -492,7 +492,7 @@ function renderHistoryRows(runs) {
         detailsTr.className = "hidden bg-slate-50 border-b border-slate-200";
         detailsTr.innerHTML = `
             <td colspan="8" class="py-4 px-6 max-w-full overflow-hidden">
-                <div class="grid grid-cols-2 md:grid-cols-4 gap-6 text-xs text-slate-600 leading-loose">
+                <div class="flex flex-wrap gap-x-16 gap-y-6 text-xs text-slate-600 leading-loose justify-start">
                     <div>
                         <span class="font-bold text-slate-700 uppercase tracking-wider block mb-1">GCSFuse Configs</span>
                         <p>Commit: <span class="font-mono text-slate-850 font-bold">${run.commit_hash}</span></p>
@@ -559,7 +559,7 @@ function renderHistoryRows(runs) {
                 <!-- Live/Orchestrator logs -->
                 <div class="mt-4 pt-4 border-t border-slate-200 max-w-full overflow-hidden">
                     <span class="font-bold text-slate-700 uppercase tracking-wider block mb-2"><i class="fa-solid fa-terminal mr-1.5 text-blue-600"></i>Orchestrator Logs</span>
-                    <pre class="bg-slate-900 text-emerald-400 p-4 rounded-lg font-mono text-[11px] overflow-x-auto max-h-60 max-w-full whitespace-pre" id="logs-history-${run.benchmark_id}">Loading logs...</pre>
+                    <pre class="w-full bg-slate-900 text-emerald-400 p-4 rounded-lg font-mono text-[11px] overflow-x-auto max-h-[600px] whitespace-pre" id="logs-history-${run.benchmark_id}">Loading logs...</pre>
                 </div>
             </td>
         `;
