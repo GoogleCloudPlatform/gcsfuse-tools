@@ -47,7 +47,7 @@ class BenchmarkRunRequest(BaseModel):
     mount_args: Optional[str] = None
     iterations: int = 2
     poll_interval: int = 30
-    timeout: int = 7200
+    timeout: int = 0
     single_thread_vm_type: Optional[str] = None
     multi_thread_vm_type: Optional[str] = None
     artifacts_bucket: str
@@ -122,7 +122,7 @@ async def execute_orchestrator(run):
         "--fio-job-file", str(DMB_DIR / run["fio_job_name"]),
         "--iterations", str(run["iterations"]),
         "--poll-interval", "30",
-        "--timeout", "7200"
+        "--timeout", str(run.get("timeout", 0))
     ]
     
     if run.get("single_thread_vm_type"):
