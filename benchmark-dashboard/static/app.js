@@ -1119,9 +1119,15 @@ function renderChart(canvasId, type, labels, datasets, yLabel) {
             labels: labels,
             datasets: datasets
         },
+        plugins: [ChartDataLabels],
         options: {
             responsive: true,
             maintainAspectRatio: false,
+            layout: {
+                padding: {
+                    top: 15 // Add padding at the top so labels don't get clipped by the chart border!
+                }
+            },
             scales: {
                 x: {
                     grid: { color: '#e2e8f0' },
@@ -1158,6 +1164,24 @@ function renderChart(canvasId, type, labels, datasets, yLabel) {
                     bodyColor: '#334155',
                     borderColor: '#cbd5e1',
                     borderWidth: 1
+                },
+                datalabels: {
+                    anchor: 'end',
+                    align: 'top',
+                    offset: 1,
+                    formatter: (value) => {
+                        if (!value || value === 0) return '';
+                        if (value < 0.001) return value.toFixed(4);
+                        if (value < 0.01) return value.toFixed(3);
+                        if (value < 1.0) return value.toFixed(2);
+                        if (value >= 100) return Math.round(value);
+                        return value.toFixed(1);
+                    },
+                    font: {
+                        weight: 'bold',
+                        size: 8
+                    },
+                    color: '#64748b'
                 }
             }
         }
