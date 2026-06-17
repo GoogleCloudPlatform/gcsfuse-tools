@@ -783,7 +783,12 @@ def fetch_metrics_from_gcs(run_id: str, run_config: dict):
                         "cpu": float(params.get("avg_cpu", 0)),
                         "sys_cpu": float(params.get("avg_sys_cpu", 0)),
                         "pgcache": float(params.get("avg_page_cache_gb", 0)),
+                        "peak_pgcache": float(params.get("peak_page_cache_gb", 0)),
                         "mem": float(params.get("avg_mem_mb", 0)),
+                        "net_rx": float(params.get("avg_net_rx_mbps", 0)),
+                        "peak_net_rx": float(params.get("peak_net_rx_mbps", 0)),
+                        "net_tx": float(params.get("avg_net_tx_mbps", 0)),
+                        "peak_net_tx": float(params.get("peak_net_tx_mbps", 0)),
                         "peak_bw": max_bw
                     })
             except Exception as e:
@@ -832,7 +837,8 @@ def compare_runs(ids: str, project_id: str = "gcs-fuse-test-ml"):
             SELECT 
                 CONCAT(io_type, '|', num_jobs, '|', file_size, '|', block_size, '|', io_depth, '|', num_files, '|', direct) as param_str,
                 config,
-                read_bw_mbs, write_bw_mbs, read_avg_ms, write_avg_ms, avg_cpu_percent, avg_sys_cpu_percent, avg_pgcache_gb, avg_mem_mb
+                read_bw_mbs, write_bw_mbs, read_avg_ms, write_avg_ms, avg_cpu_percent, avg_sys_cpu_percent, avg_pgcache_gb, peak_pgcache_gb, avg_mem_mb,
+                avg_net_rx_mbs, peak_net_rx_mbs, avg_net_tx_mbs, peak_net_tx_mbs
             FROM `{proj}.{dataset}.{matching_table}`
             """
             
@@ -850,7 +856,12 @@ def compare_runs(ids: str, project_id: str = "gcs-fuse-test-ml"):
                     "cpu": row.avg_cpu_percent,
                     "sys_cpu": row.avg_sys_cpu_percent,
                     "pgcache": row.avg_pgcache_gb,
+                    "peak_pgcache": row.peak_pgcache_gb,
                     "mem": row.avg_mem_mb,
+                    "net_rx": row.avg_net_rx_mbs,
+                    "peak_net_rx": row.peak_net_rx_mbs,
+                    "net_tx": row.avg_net_tx_mbs,
+                    "peak_net_tx": row.peak_net_tx_mbs,
                     "peak_bw": max(row.read_bw_mbs or 0.0, row.write_bw_mbs or 0.0)
                 })
             data[rid] = rows

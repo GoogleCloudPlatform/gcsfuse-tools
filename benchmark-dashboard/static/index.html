@@ -425,11 +425,11 @@
                     </div>
                 </div>
 
-                <!-- Dual Charts Container (Now 5 charts in grid) -->
-                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <!-- Dual Charts Container (Now 9 charts in compact 3-column grid) -->
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     <!-- Chart 1: Bandwidth / Throughput -->
-                    <div class="bg-slate-50 border border-slate-200 p-4 rounded-xl flex flex-col h-[450px]">
-                        <h4 class="text-sm font-bold text-slate-700 mb-3 flex items-center">
+                    <div class="bg-slate-50 border border-slate-200 p-4 rounded-xl flex flex-col h-[290px]">
+                        <h4 class="text-xs font-bold text-slate-700 mb-2 flex items-center">
                             <i class="fa-solid fa-bolt mr-2 text-amber-500"></i>Bandwidth / Throughput (MB/s)
                         </h4>
                         <div class="relative flex-grow h-0 w-full">
@@ -438,8 +438,8 @@
                     </div>
 
                     <!-- Chart 2: Average Latency -->
-                    <div class="bg-slate-50 border border-slate-200 p-4 rounded-xl flex flex-col h-[450px]">
-                        <h4 class="text-sm font-bold text-slate-700 mb-3 flex items-center">
+                    <div class="bg-slate-50 border border-slate-200 p-4 rounded-xl flex flex-col h-[290px]">
+                        <h4 class="text-xs font-bold text-slate-700 mb-2 flex items-center">
                             <i class="fa-solid fa-stopwatch mr-2 text-rose-500"></i>Average Execution Latency (ms)
                         </h4>
                         <div class="relative flex-grow h-0 w-full">
@@ -448,8 +448,8 @@
                     </div>
 
                     <!-- Chart 3: Peak Throughput -->
-                    <div class="bg-slate-50 border border-slate-200 p-4 rounded-xl flex flex-col h-[450px]">
-                        <h4 class="text-sm font-bold text-slate-700 mb-3 flex items-center">
+                    <div class="bg-slate-50 border border-slate-200 p-4 rounded-xl flex flex-col h-[290px]">
+                        <h4 class="text-xs font-bold text-slate-700 mb-2 flex items-center">
                             <i class="fa-solid fa-arrow-trend-up mr-2 text-emerald-500"></i>Peak Throughput (MB/s)
                         </h4>
                         <div class="relative flex-grow h-0 w-full">
@@ -458,8 +458,8 @@
                     </div>
 
                     <!-- Chart 4: CPU Usage -->
-                    <div class="bg-slate-50 border border-slate-200 p-4 rounded-xl flex flex-col h-[450px]">
-                        <h4 class="text-sm font-bold text-slate-700 mb-3 flex items-center">
+                    <div class="bg-slate-50 border border-slate-200 p-4 rounded-xl flex flex-col h-[290px]">
+                        <h4 class="text-xs font-bold text-slate-700 mb-2 flex items-center">
                             <i class="fa-solid fa-microchip mr-2 text-blue-500"></i>GCSFuse CPU Usage (%)
                         </h4>
                         <div class="relative flex-grow h-0 w-full">
@@ -468,12 +468,52 @@
                     </div>
 
                     <!-- Chart 5: Memory Usage -->
-                    <div class="bg-slate-50 border border-slate-200 p-4 rounded-xl flex flex-col h-[450px]">
-                        <h4 class="text-sm font-bold text-slate-700 mb-3 flex items-center">
+                    <div class="bg-slate-50 border border-slate-200 p-4 rounded-xl flex flex-col h-[290px]">
+                        <h4 class="text-xs font-bold text-slate-700 mb-2 flex items-center">
                             <i class="fa-solid fa-memory mr-2 text-indigo-500"></i>GCSFuse Memory RSS (MB)
                         </h4>
                         <div class="relative flex-grow h-0 w-full">
                             <canvas id="mem-chart"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Chart 6: OS Page Cache -->
+                    <div class="bg-slate-50 border border-slate-200 p-4 rounded-xl flex flex-col h-[290px]">
+                        <h4 class="text-xs font-bold text-slate-700 mb-2 flex items-center">
+                            <i class="fa-solid fa-hard-drive mr-2 text-cyan-500"></i>OS Page Cache (GB)
+                        </h4>
+                        <div class="relative flex-grow h-0 w-full">
+                            <canvas id="pgcache-chart"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Chart 7: Avg Network RX -->
+                    <div class="bg-slate-50 border border-slate-200 p-4 rounded-xl flex flex-col h-[290px]">
+                        <h4 class="text-xs font-bold text-slate-700 mb-2 flex items-center">
+                            <i class="fa-solid fa-cloud-arrow-down mr-2 text-teal-500"></i>Avg Network Ingress (RX) (MB/s)
+                        </h4>
+                        <div class="relative flex-grow h-0 w-full">
+                            <canvas id="net-rx-chart"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Chart 8: Peak Network RX -->
+                    <div class="bg-slate-50 border border-slate-200 p-4 rounded-xl flex flex-col h-[290px]">
+                        <h4 class="text-xs font-bold text-slate-700 mb-2 flex items-center">
+                            <i class="fa-solid fa-cloud-download mr-2 text-sky-500"></i>Peak Network Ingress (RX) (MB/s)
+                        </h4>
+                        <div class="relative flex-grow h-0 w-full">
+                            <canvas id="peak-net-rx-chart"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Chart 9: Network TX -->
+                    <div class="bg-slate-50 border border-slate-200 p-4 rounded-xl flex flex-col h-[290px]">
+                        <h4 class="text-xs font-bold text-slate-700 mb-2 flex items-center">
+                            <i class="fa-solid fa-cloud-arrow-up mr-2 text-violet-500"></i>Network Egress (TX) (MB/s)
+                        </h4>
+                        <div class="relative flex-grow h-0 w-full">
+                            <canvas id="net-tx-chart"></canvas>
                         </div>
                     </div>
                 </div>

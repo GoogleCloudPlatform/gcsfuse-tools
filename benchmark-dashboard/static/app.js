@@ -536,22 +536,34 @@ function renderHistoryRows(runs) {
                     </a>
                 </div>
 
-                <!-- Run Level Charts Container -->
-                <div class="mt-4 pt-4 border-t border-slate-200 grid grid-cols-1 md:grid-cols-2 gap-4 hidden" id="charts-container-${run.benchmark_id}">
-                    <div class="h-64 bg-white p-4 border border-slate-250 rounded-lg shadow-sm">
+                <!-- Run Level Charts Container (Now 9 compact charts in 3-column grid) -->
+                <div class="mt-4 pt-4 border-t border-slate-200 grid grid-cols-1 md:grid-cols-3 gap-4 hidden" id="charts-container-${run.benchmark_id}">
+                    <div class="h-48 bg-white p-3 border border-slate-250 rounded-lg shadow-sm">
                         <canvas id="throughput-chart-${run.benchmark_id}"></canvas>
                     </div>
-                    <div class="h-64 bg-white p-4 border border-slate-250 rounded-lg shadow-sm">
+                    <div class="h-48 bg-white p-3 border border-slate-250 rounded-lg shadow-sm">
                         <canvas id="latency-chart-${run.benchmark_id}"></canvas>
                     </div>
-                    <div class="h-64 bg-white p-4 border border-slate-250 rounded-lg shadow-sm">
+                    <div class="h-48 bg-white p-3 border border-slate-250 rounded-lg shadow-sm">
                         <canvas id="peak-bw-chart-${run.benchmark_id}"></canvas>
                     </div>
-                    <div class="h-64 bg-white p-4 border border-slate-250 rounded-lg shadow-sm">
+                    <div class="h-48 bg-white p-3 border border-slate-250 rounded-lg shadow-sm">
                         <canvas id="cpu-chart-${run.benchmark_id}"></canvas>
                     </div>
-                    <div class="h-64 bg-white p-4 border border-slate-250 rounded-lg shadow-sm">
+                    <div class="h-48 bg-white p-3 border border-slate-250 rounded-lg shadow-sm">
                         <canvas id="mem-chart-${run.benchmark_id}"></canvas>
+                    </div>
+                    <div class="h-48 bg-white p-3 border border-slate-250 rounded-lg shadow-sm">
+                        <canvas id="pgcache-chart-${run.benchmark_id}"></canvas>
+                    </div>
+                    <div class="h-48 bg-white p-3 border border-slate-250 rounded-lg shadow-sm">
+                        <canvas id="net-rx-chart-${run.benchmark_id}"></canvas>
+                    </div>
+                    <div class="h-48 bg-white p-3 border border-slate-250 rounded-lg shadow-sm">
+                        <canvas id="peak-net-rx-chart-${run.benchmark_id}"></canvas>
+                    </div>
+                    <div class="h-48 bg-white p-3 border border-slate-250 rounded-lg shadow-sm">
+                        <canvas id="net-tx-chart-${run.benchmark_id}"></canvas>
                     </div>
                 </div>
 
@@ -798,10 +810,37 @@ function replotCharts() {
     let datasetsPeakBw = [];
     let datasetsCpu = [];
     let datasetsMem = [];
+    let datasetsPgCache = [];
+    let datasetsNetRx = [];
+    let datasetsPeakNetRx = [];
+    let datasetsNetTx = [];
 
     const colors = [
         '#1a73e8', '#1e8e3e', '#d93025', '#f97316', '#8b5cf6', '#ec4899', '#f59e0b', '#06b6d4'
     ];
+
+    // Detect if the compared runs are exclusively reads or writes for dynamic labeling
+    let hasRead = false;
+    let hasWrite = false;
+    runIds.forEach(id => {
+        (comparedData[id] || []).forEach(row => {
+            if (row.param_str.toLowerCase().includes('write')) {
+                hasWrite = true;
+            } else {
+                hasRead = true;
+            }
+        });
+    });
+
+    let bwLabel = 'Throughput (MB/s)';
+    let latLabel = 'Latency (ms)';
+    if (hasRead && !hasWrite) {
+        bwLabel = 'Read Throughput (MB/s)';
+        latLabel = 'Read Latency (ms)';
+    } else if (hasWrite && !hasRead) {
+        bwLabel = 'Write Throughput (MB/s)';
+        latLabel = 'Write Latency (ms)';
+    }
 
     if (xAxisMode === 'test-cases') {
         labels = sortedParams;
@@ -813,6 +852,10 @@ function replotCharts() {
                 const peakBwData = [];
                 const cpuData = [];
                 const memData = [];
+                const pgCacheData = [];
+                const netRxData = [];
+                const peakNetRxData = [];
+                const netTxData = [];
                 let hasData = false;
 
                 sortedParams.forEach(param => {
@@ -824,12 +867,20 @@ function replotCharts() {
                         peakBwData.push(match.peak_bw || match.read_bw || match.write_bw || 0);
                         cpuData.push(match.cpu || 0);
                         memData.push(match.mem || 0);
+                        pgCacheData.push(match.pgcache || 0);
+                        netRxData.push(match.net_rx || 0);
+                        peakNetRxData.push(match.peak_net_rx || 0);
+                        netTxData.push(match.net_tx || 0);
                     } else {
                         bwData.push(0);
                         latData.push(0);
                         peakBwData.push(0);
                         cpuData.push(0);
                         memData.push(0);
+                        pgCacheData.push(0);
+                        netRxData.push(0);
+                        peakNetRxData.push(0);
+                        netTxData.push(0);
                     }
                 });
 
@@ -881,6 +932,38 @@ function replotCharts() {
                         borderWidth: 1
                     });
 
+                    datasetsPgCache.push({
+                        label: labelName,
+                        data: pgCacheData,
+                        backgroundColor: color + 'bf',
+                        borderColor: color,
+                        borderWidth: 1
+                    });
+
+                    datasetsNetRx.push({
+                        label: labelName,
+                        data: netRxData,
+                        backgroundColor: color + 'bf',
+                        borderColor: color,
+                        borderWidth: 1
+                    });
+
+                    datasetsPeakNetRx.push({
+                        label: labelName,
+                        data: peakNetRxData,
+                        backgroundColor: color + 'bf',
+                        borderColor: color,
+                        borderWidth: 1
+                    });
+
+                    datasetsNetTx.push({
+                        label: labelName,
+                        data: netTxData,
+                        backgroundColor: color + 'bf',
+                        borderColor: color,
+                        borderWidth: 1
+                    });
+
                     seriesIdx++;
                 }
             });
@@ -895,6 +978,10 @@ function replotCharts() {
                 const peakBwData = [];
                 const cpuData = [];
                 const memData = [];
+                const pgCacheData = [];
+                const netRxData = [];
+                const peakNetRxData = [];
+                const netTxData = [];
                 let hasData = false;
 
                 sortedConfigs.forEach(conf => {
@@ -906,12 +993,20 @@ function replotCharts() {
                         peakBwData.push(match.peak_bw || match.read_bw || match.write_bw || 0);
                         cpuData.push(match.cpu || 0);
                         memData.push(match.mem || 0);
+                        pgCacheData.push(match.pgcache || 0);
+                        netRxData.push(match.net_rx || 0);
+                        peakNetRxData.push(match.peak_net_rx || 0);
+                        netTxData.push(match.net_tx || 0);
                     } else {
                         bwData.push(0);
                         latData.push(0);
                         peakBwData.push(0);
                         cpuData.push(0);
                         memData.push(0);
+                        pgCacheData.push(0);
+                        netRxData.push(0);
+                        peakNetRxData.push(0);
+                        netTxData.push(0);
                     }
                 });
 
@@ -963,17 +1058,53 @@ function replotCharts() {
                         borderWidth: 1
                     });
 
+                    datasetsPgCache.push({
+                        label: labelName,
+                        data: pgCacheData,
+                        backgroundColor: color + 'bf',
+                        borderColor: color,
+                        borderWidth: 1
+                    });
+
+                    datasetsNetRx.push({
+                        label: labelName,
+                        data: netRxData,
+                        backgroundColor: color + 'bf',
+                        borderColor: color,
+                        borderWidth: 1
+                    });
+
+                    datasetsPeakNetRx.push({
+                        label: labelName,
+                        data: peakNetRxData,
+                        backgroundColor: color + 'bf',
+                        borderColor: color,
+                        borderWidth: 1
+                    });
+
+                    datasetsNetTx.push({
+                        label: labelName,
+                        data: netTxData,
+                        backgroundColor: color + 'bf',
+                        borderColor: color,
+                        borderWidth: 1
+                    });
+
                     seriesIdx++;
                 }
             });
         });
     }
 
-    renderChart('throughput-chart', 'bar', labels, datasetsBw, 'Throughput (MB/s)');
-    renderChart('latency-chart', 'line', labels, datasetsLat, 'Latency (ms)');
-    renderChart('peak-bw-chart', 'bar', labels, datasetsPeakBw, 'Peak Throughput (MB/s)');
+    renderChart('throughput-chart', 'bar', labels, datasetsBw, bwLabel);
+    renderChart('latency-chart', 'line', labels, datasetsLat, latLabel);
+    renderChart('peak-bw-chart', 'bar', labels, datasetsPeakBw, 'Peak ' + bwLabel);
     renderChart('cpu-chart', 'line', labels, datasetsCpu, 'CPU Usage (%)');
     renderChart('mem-chart', 'bar', labels, datasetsMem, 'RSS Memory (MB)');
+    renderChart('pgcache-chart', 'bar', labels, datasetsPgCache, 'Page Cache (GB)');
+    renderChart('net-rx-chart', 'bar', labels, datasetsNetRx, 'Avg Net Ingress (RX) (MB/s)');
+    renderChart('peak-net-rx-chart', 'bar', labels, datasetsPeakNetRx, 'Peak Net Ingress (RX) (MB/s)');
+    renderChart('net-tx-chart', 'bar', labels, datasetsNetTx, 'Net Egress (TX) (MB/s)');
 }
 
 function renderChart(canvasId, type, labels, datasets, yLabel) {
@@ -1268,9 +1399,34 @@ function renderRowCharts(runId, data) {
     const datasetsPeakBw = [];
     const datasetsCpu = [];
     const datasetsMem = [];
+    const datasetsPgCache = [];
+    const datasetsNetRx = [];
+    const datasetsPeakNetRx = [];
+    const datasetsNetTx = [];
     const colors = [
         '#1a73e8', '#1e8e3e', '#d93025', '#f97316', '#8b5cf6', '#ec4899', '#f59e0b', '#06b6d4'
     ];
+
+    // Detect read/write workload mix for dynamic labeling
+    let hasRead = false;
+    let hasWrite = false;
+    runData.forEach(row => {
+        if (row.param_str.toLowerCase().includes('write')) {
+            hasWrite = true;
+        } else {
+            hasRead = true;
+        }
+    });
+
+    let bwLabel = 'Throughput (MB/s)';
+    let latLabel = 'Latency (ms)';
+    if (hasRead && !hasWrite) {
+        bwLabel = 'Read Throughput (MB/s)';
+        latLabel = 'Read Latency (ms)';
+    } else if (hasWrite && !hasRead) {
+        bwLabel = 'Write Throughput (MB/s)';
+        latLabel = 'Write Latency (ms)';
+    }
     
     let seriesIdx = 0;
     sortedConfigs.forEach(conf => {
@@ -1279,6 +1435,10 @@ function renderRowCharts(runId, data) {
         const peakBwData = [];
         const cpuData = [];
         const memData = [];
+        const pgCacheData = [];
+        const netRxData = [];
+        const peakNetRxData = [];
+        const netTxData = [];
         let hasData = false;
         
         sortedParams.forEach(param => {
@@ -1290,12 +1450,20 @@ function renderRowCharts(runId, data) {
                 peakBwData.push(match.peak_bw || match.read_bw || match.write_bw || 0);
                 cpuData.push(match.cpu || 0);
                 memData.push(match.mem || 0);
+                pgCacheData.push(match.pgcache || 0);
+                netRxData.push(match.net_rx || 0);
+                peakNetRxData.push(match.peak_net_rx || 0);
+                netTxData.push(match.net_tx || 0);
             } else {
                 bwData.push(0);
                 latData.push(0);
                 peakBwData.push(0);
                 cpuData.push(0);
                 memData.push(0);
+                pgCacheData.push(0);
+                netRxData.push(0);
+                peakNetRxData.push(0);
+                netTxData.push(0);
             }
         });
         
@@ -1345,13 +1513,49 @@ function renderRowCharts(runId, data) {
                 borderWidth: 1
             });
 
+            datasetsPgCache.push({
+                label: conf,
+                data: pgCacheData,
+                backgroundColor: color + 'bf',
+                borderColor: color,
+                borderWidth: 1
+            });
+
+            datasetsNetRx.push({
+                label: conf,
+                data: netRxData,
+                backgroundColor: color + 'bf',
+                borderColor: color,
+                borderWidth: 1
+            });
+
+            datasetsPeakNetRx.push({
+                label: conf,
+                data: peakNetRxData,
+                backgroundColor: color + 'bf',
+                borderColor: color,
+                borderWidth: 1
+            });
+
+            datasetsNetTx.push({
+                label: conf,
+                data: netTxData,
+                backgroundColor: color + 'bf',
+                borderColor: color,
+                borderWidth: 1
+            });
+
             seriesIdx++;
         }
     });
     
-    renderChart(`throughput-chart-${runId}`, 'bar', labels, datasetsBw, 'Throughput (MB/s)');
-    renderChart(`latency-chart-${runId}`, 'line', labels, datasetsLat, 'Latency (ms)');
-    renderChart(`peak-bw-chart-${runId}`, 'bar', labels, datasetsPeakBw, 'Peak Throughput (MB/s)');
+    renderChart(`throughput-chart-${runId}`, 'bar', labels, datasetsBw, bwLabel);
+    renderChart(`latency-chart-${runId}`, 'line', labels, datasetsLat, latLabel);
+    renderChart(`peak-bw-chart-${runId}`, 'bar', labels, datasetsPeakBw, 'Peak ' + bwLabel);
     renderChart(`cpu-chart-${runId}`, 'line', labels, datasetsCpu, 'CPU Usage (%)');
     renderChart(`mem-chart-${runId}`, 'bar', labels, datasetsMem, 'RSS Memory (MB)');
+    renderChart(`pgcache-chart-${runId}`, 'bar', labels, datasetsPgCache, 'Page Cache (GB)');
+    renderChart(`net-rx-chart-${runId}`, 'bar', labels, datasetsNetRx, 'Avg Net Ingress (RX) (MB/s)');
+    renderChart(`peak-net-rx-chart-${runId}`, 'bar', labels, datasetsPeakNetRx, 'Peak Net Ingress (RX) (MB/s)');
+    renderChart(`net-tx-chart-${runId}`, 'bar', labels, datasetsNetTx, 'Net Egress (TX) (MB/s)');
 }
