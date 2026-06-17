@@ -491,7 +491,7 @@ function renderHistoryRows(runs) {
         detailsTr.id = `details-${run.benchmark_id}`;
         detailsTr.className = "hidden bg-slate-50 border-b border-slate-200";
         detailsTr.innerHTML = `
-            <td colspan="8" class="py-4 px-6">
+            <td colspan="8" class="py-4 px-6 max-w-full overflow-hidden">
                 <div class="grid grid-cols-2 md:grid-cols-4 gap-6 text-xs text-slate-600 leading-loose">
                     <div>
                         <span class="font-bold text-slate-700 uppercase tracking-wider block mb-1">GCSFuse Configs</span>
@@ -500,9 +500,9 @@ function renderHistoryRows(runs) {
                     </div>
                     <div>
                         <span class="font-bold text-slate-700 uppercase tracking-wider block mb-1">Files Run</span>
-                        <p>CSV: <span class="font-mono text-slate-850">${run.test_csv_name}</span></p>
-                        <p>Configs CSV: <span class="font-mono text-slate-850">${run.configs_csv_name || 'N/A'}</span></p>
-                        <p>FIO Job: <span class="font-mono text-slate-855">${run.fio_job_name}</span></p>
+                        <p>CSV: <span class="font-mono text-slate-850 break-all">${run.test_csv_name}</span></p>
+                        <p>Configs CSV: <span class="font-mono text-slate-850 break-all">${run.configs_csv_name || 'N/A'}</span></p>
+                        <p>FIO Job: <span class="font-mono text-slate-855 break-all">${run.fio_job_name}</span></p>
                     </div>
                     <div>
                         <span class="font-bold text-slate-700 uppercase tracking-wider block mb-1">Scope Info</span>
@@ -515,11 +515,51 @@ function renderHistoryRows(runs) {
                         <p>Created: <span class="text-slate-850">${run.created_at}</span></p>
                         <p>Started: <span class="text-slate-850">${run.started_at || 'N/A'}</span></p>
                         <p>Finished: <span class="text-slate-850">${run.completed_at || 'N/A'}</span></p>
+                        <p>Duration: <span class="font-bold text-slate-850">${calculateDuration(run.started_at, run.completed_at)}</span></p>
                     </div>
                 </div>
-                <div class="mt-4 pt-4 border-t border-slate-200">
+
+                <!-- Analysis Actions -->
+                <div class="mt-4 flex items-center space-x-3">
+                    <button id="btn-plot-${run.benchmark_id}" onclick="plotOnDemand('${run.benchmark_id}')" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg text-xs shadow flex items-center transition-colors">
+                        <i class="fa-solid fa-chart-line mr-1.5"></i> Analyse & Plot Graphs
+                    </button>
+                    <a href="/api/runs/${run.benchmark_id}/report-view" target="_blank" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-xs shadow flex items-center transition-colors">
+                        <i class="fa-solid fa-file-pdf mr-1.5"></i> Export PDF Report
+                    </a>
+                </div>
+
+                <!-- Run Level Charts Container -->
+                <div class="mt-4 pt-4 border-t border-slate-200 grid grid-cols-1 md:grid-cols-2 gap-4 hidden" id="charts-container-${run.benchmark_id}">
+                    <div class="h-64 bg-white p-4 border border-slate-250 rounded-lg shadow-sm">
+                        <canvas id="throughput-chart-${run.benchmark_id}"></canvas>
+                    </div>
+                    <div class="h-64 bg-white p-4 border border-slate-250 rounded-lg shadow-sm">
+                        <canvas id="latency-chart-${run.benchmark_id}"></canvas>
+                    </div>
+                    <div class="h-64 bg-white p-4 border border-slate-250 rounded-lg shadow-sm">
+                        <canvas id="peak-bw-chart-${run.benchmark_id}"></canvas>
+                    </div>
+                    <div class="h-64 bg-white p-4 border border-slate-250 rounded-lg shadow-sm">
+                        <canvas id="cpu-chart-${run.benchmark_id}"></canvas>
+                    </div>
+                    <div class="h-64 bg-white p-4 border border-slate-250 rounded-lg shadow-sm">
+                        <canvas id="mem-chart-${run.benchmark_id}"></canvas>
+                    </div>
+                </div>
+
+                <!-- Completed Outputs -->
+                <div class="mt-4 pt-4 border-t border-slate-200 max-w-full overflow-hidden">
+                    <span class="font-bold text-slate-700 uppercase tracking-wider block mb-2"><i class="fa-solid fa-folder-open mr-1.5 text-blue-600"></i>Test Case Outputs</span>
+                    <div id="test-outputs-${run.benchmark_id}" class="text-xs text-slate-600 max-h-48 overflow-y-auto grid grid-cols-1 md:grid-cols-2 gap-2 mt-1">
+                        Loading completed test cases...
+                    </div>
+                </div>
+
+                <!-- Live/Orchestrator logs -->
+                <div class="mt-4 pt-4 border-t border-slate-200 max-w-full overflow-hidden">
                     <span class="font-bold text-slate-700 uppercase tracking-wider block mb-2"><i class="fa-solid fa-terminal mr-1.5 text-blue-600"></i>Orchestrator Logs</span>
-                    <pre class="bg-slate-900 text-emerald-400 p-4 rounded-lg font-mono text-[11px] overflow-auto max-h-60 leading-normal" id="logs-history-${run.benchmark_id}">Loading logs...</pre>
+                    <pre class="bg-slate-900 text-emerald-400 p-4 rounded-lg font-mono text-[11px] overflow-x-auto max-h-60 max-w-full whitespace-pre" id="logs-history-${run.benchmark_id}">Loading logs...</pre>
                 </div>
             </td>
         `;
@@ -534,6 +574,7 @@ function expandRunDetails(btn, id) {
         row.classList.remove('hidden');
         icon.className = "fa-solid fa-chevron-up text-sm";
         fetchHistoryLogs(id);
+        fetchHistoryTestOutputs(id);
     } else {
         row.classList.add('hidden');
         icon.className = "fa-solid fa-chevron-down text-sm";
@@ -550,6 +591,98 @@ async function fetchHistoryLogs(id) {
     } catch (e) {
         logEl.textContent = `Failed to fetch logs: ${e}`;
     }
+}
+
+async function fetchHistoryTestOutputs(id) {
+    const listEl = document.getElementById(`test-outputs-${id}`);
+    if (!listEl) return;
+    try {
+        const res = await fetch(`/api/runs/${id}/progress`);
+        const data = await res.json();
+        
+        let html = '';
+        let hasCompleted = false;
+        
+        for (const [vmFull, vmData] of Object.entries(data.vms || {})) {
+            const jobs = vmData.jobs || [];
+            for (const job of jobs) {
+                if (job.status === 'SUCCESS' || job.status === 'FAILED/TIMEOUT') {
+                    hasCompleted = true;
+                    const statusColor = job.status === 'SUCCESS' ? 'text-emerald-600 bg-emerald-50 border-emerald-250' : 'text-rose-605 bg-rose-50 border-rose-250';
+                    const paramStr = job.signature.join(', ');
+                    html += `
+                        <div class="flex items-center justify-between p-2 bg-white border border-slate-200 rounded-lg shadow-sm">
+                            <div class="flex items-center space-x-2 truncate pr-2">
+                                <span class="px-1.5 py-0.5 text-[9px] font-bold border rounded uppercase ${statusColor}">${job.status === 'SUCCESS' ? 'Success' : 'Fail'}</span>
+                                <span class="font-bold text-slate-700">Test #${job.id}:</span>
+                                <span class="text-slate-500 font-mono truncate" title="${paramStr}">${paramStr}</span>
+                            </div>
+                            <div class="flex items-center space-x-1.5 shrink-0">
+                                <button onclick="viewGcsFile('${id}', '${vmFull}', 'test-${job.id}', 'fio_output_1.json')" class="px-2 py-0.5 bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold rounded text-[10px] border border-slate-300 transition-colors">FIO Json</button>
+                                <button onclick="viewGcsFile('${id}', '${vmFull}', 'test-${job.id}', 'gcsfuse_mount_1.log')" class="px-2 py-0.5 bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold rounded text-[10px] border border-slate-300 transition-colors">Mount Log</button>
+                            </div>
+                        </div>
+                    `;
+                }
+            }
+        }
+        
+        if (!hasCompleted) {
+            listEl.innerHTML = `<p class="text-slate-400 italic">No completed test case outputs available yet.</p>`;
+        } else {
+            listEl.innerHTML = html;
+        }
+    } catch (e) {
+        listEl.innerHTML = `<p class="text-rose-500">Failed to load test outputs: ${e}</p>`;
+    }
+}
+
+function viewGcsFile(runId, vm, testDir, filename) {
+    const overlay = document.createElement('div');
+    overlay.className = "fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-6";
+    overlay.id = "gcs-file-modal";
+    
+    overlay.innerHTML = `
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-4xl h-[80vh] flex flex-col overflow-hidden border border-slate-200">
+            <div class="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+                <div>
+                    <h3 class="font-bold text-slate-800 text-sm flex items-center"><i class="fa-solid fa-file-lines text-blue-600 mr-2"></i> ${filename}</h3>
+                    <p class="text-[10px] text-slate-500 font-mono mt-0.5">${runId} / ${vm} / ${testDir}</p>
+                </div>
+                <button onclick="document.getElementById('gcs-file-modal').remove()" class="text-slate-450 hover:text-slate-700 transition-colors">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+            <div class="p-6 overflow-auto flex-1 bg-slate-950 font-mono text-[11px] leading-relaxed text-slate-300 select-text" id="gcs-file-content">
+                Loading file content from GCS...
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(overlay);
+    
+    fetch(`/api/runs/${runId}/results/${vm}/${testDir}/${filename}`)
+        .then(res => {
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            return res.json();
+        })
+        .then(data => {
+            const contentEl = document.getElementById('gcs-file-content');
+            if (data.content) {
+                contentEl.textContent = data.content;
+            } else {
+                contentEl.textContent = JSON.stringify(data, null, 2);
+            }
+        })
+        .catch(e => {
+            document.getElementById('gcs-file-content').innerHTML = `
+                <div class="text-rose-400 p-4 font-sans text-xs">
+                    <h4 class="font-bold mb-1">Failed to read file from GCS</h4>
+                    <p class="mb-3">${e}</p>
+                    <p class="text-slate-400 text-[10px] italic">Note: File might not be uploaded yet if the iteration did not complete or failed without log capture.</p>
+                </div>
+            `;
+        });
 }
 
 // Clone configurations to launch panel
@@ -655,6 +788,9 @@ function replotCharts() {
     let labels = [];
     let datasetsBw = [];
     let datasetsLat = [];
+    let datasetsPeakBw = [];
+    let datasetsCpu = [];
+    let datasetsMem = [];
 
     const colors = [
         '#1a73e8', '#1e8e3e', '#d93025', '#f97316', '#8b5cf6', '#ec4899', '#f59e0b', '#06b6d4'
@@ -667,6 +803,9 @@ function replotCharts() {
             sortedConfigs.forEach(conf => {
                 const bwData = [];
                 const latData = [];
+                const peakBwData = [];
+                const cpuData = [];
+                const memData = [];
                 let hasData = false;
 
                 sortedParams.forEach(param => {
@@ -675,9 +814,15 @@ function replotCharts() {
                         hasData = true;
                         bwData.push(match.read_bw || match.write_bw || 0);
                         latData.push(match.read_lat || match.write_lat || 0);
+                        peakBwData.push(match.peak_bw || match.read_bw || match.write_bw || 0);
+                        cpuData.push(match.cpu || 0);
+                        memData.push(match.mem || 0);
                     } else {
                         bwData.push(0);
                         latData.push(0);
+                        peakBwData.push(0);
+                        cpuData.push(0);
+                        memData.push(0);
                     }
                 });
 
@@ -688,7 +833,7 @@ function replotCharts() {
                     datasetsBw.push({
                         label: labelName,
                         data: bwData,
-                        backgroundColor: color + 'bf', // alpha transparency
+                        backgroundColor: color + 'bf',
                         borderColor: color,
                         borderWidth: 1
                     });
@@ -702,6 +847,33 @@ function replotCharts() {
                         pointRadius: 4,
                         borderWidth: 2
                     });
+
+                    datasetsPeakBw.push({
+                        label: labelName,
+                        data: peakBwData,
+                        backgroundColor: color + 'bf',
+                        borderColor: color,
+                        borderWidth: 1
+                    });
+
+                    datasetsCpu.push({
+                        label: labelName,
+                        data: cpuData,
+                        fill: false,
+                        borderColor: color,
+                        tension: 0.15,
+                        pointRadius: 4,
+                        borderWidth: 2
+                    });
+
+                    datasetsMem.push({
+                        label: labelName,
+                        data: memData,
+                        backgroundColor: color + 'bf',
+                        borderColor: color,
+                        borderWidth: 1
+                    });
+
                     seriesIdx++;
                 }
             });
@@ -713,6 +885,9 @@ function replotCharts() {
             sortedParams.forEach(param => {
                 const bwData = [];
                 const latData = [];
+                const peakBwData = [];
+                const cpuData = [];
+                const memData = [];
                 let hasData = false;
 
                 sortedConfigs.forEach(conf => {
@@ -721,9 +896,15 @@ function replotCharts() {
                         hasData = true;
                         bwData.push(match.read_bw || match.write_bw || 0);
                         latData.push(match.read_lat || match.write_lat || 0);
+                        peakBwData.push(match.peak_bw || match.read_bw || match.write_bw || 0);
+                        cpuData.push(match.cpu || 0);
+                        memData.push(match.mem || 0);
                     } else {
                         bwData.push(0);
                         latData.push(0);
+                        peakBwData.push(0);
+                        cpuData.push(0);
+                        memData.push(0);
                     }
                 });
 
@@ -748,6 +929,33 @@ function replotCharts() {
                         pointRadius: 4,
                         borderWidth: 2
                     });
+
+                    datasetsPeakBw.push({
+                        label: labelName,
+                        data: peakBwData,
+                        backgroundColor: color + 'bf',
+                        borderColor: color,
+                        borderWidth: 1
+                    });
+
+                    datasetsCpu.push({
+                        label: labelName,
+                        data: cpuData,
+                        fill: false,
+                        borderColor: color,
+                        tension: 0.15,
+                        pointRadius: 4,
+                        borderWidth: 2
+                    });
+
+                    datasetsMem.push({
+                        label: labelName,
+                        data: memData,
+                        backgroundColor: color + 'bf',
+                        borderColor: color,
+                        borderWidth: 1
+                    });
+
                     seriesIdx++;
                 }
             });
@@ -756,6 +964,9 @@ function replotCharts() {
 
     renderChart('throughput-chart', 'bar', labels, datasetsBw, 'Throughput (MB/s)');
     renderChart('latency-chart', 'line', labels, datasetsLat, 'Latency (ms)');
+    renderChart('peak-bw-chart', 'bar', labels, datasetsPeakBw, 'Peak Throughput (MB/s)');
+    renderChart('cpu-chart', 'line', labels, datasetsCpu, 'CPU Usage (%)');
+    renderChart('mem-chart', 'bar', labels, datasetsMem, 'RSS Memory (MB)');
 }
 
 function renderChart(canvasId, type, labels, datasets, yLabel) {
@@ -973,4 +1184,167 @@ async function submitCsvConfig(event) {
     } catch (e) {
         alert(`Failed to save CSV: ${e}`);
     }
+}
+
+function calculateDuration(start, end) {
+    if (!start || !end || start === 'N/A' || end === 'N/A') return 'N/A';
+    try {
+        const sDate = new Date(start);
+        const eDate = new Date(end);
+        const diffMs = eDate - sDate;
+        if (diffMs < 0 || isNaN(diffMs)) return 'N/A';
+        
+        const diffSec = Math.floor(diffMs / 1000);
+        const hrs = Math.floor(diffSec / 3600);
+        const mins = Math.floor((diffSec % 3600) / 60);
+        const secs = diffSec % 60;
+        
+        let str = '';
+        if (hrs > 0) str += `${hrs}h `;
+        if (mins > 0 || hrs > 0) str += `${mins}m `;
+        str += `${secs}s`;
+        return str.trim();
+    } catch {
+        return 'N/A';
+    }
+}
+
+async function plotOnDemand(runId) {
+    const btn = document.getElementById(`btn-plot-${runId}`);
+    const chartContainer = document.getElementById(`charts-container-${runId}`);
+    if (!btn || !chartContainer) return;
+    
+    btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin mr-1.5"></i> Plotting...`;
+    btn.disabled = true;
+    
+    try {
+        const res = await fetch(`/api/runs/compare?ids=${runId}`);
+        const data = await res.json();
+        
+        if (!data[runId] || data[runId].length === 0) {
+            alert("No FIO performance data found for this run yet. Ensure at least one test case successfully finished.");
+            btn.innerHTML = `<i class="fa-solid fa-chart-line mr-1.5"></i> Analyse & Plot Graphs`;
+            btn.disabled = false;
+            return;
+        }
+        
+        chartContainer.classList.remove('hidden');
+        renderRowCharts(runId, data);
+        btn.innerHTML = `<i class="fa-solid fa-check mr-1.5 text-emerald-500"></i> Plotted Successfully`;
+    } catch (e) {
+        alert(`Failed to plot graphs: ${e}`);
+        btn.innerHTML = `<i class="fa-solid fa-chart-line mr-1.5"></i> Analyse & Plot Graphs`;
+        btn.disabled = false;
+    }
+}
+
+function renderRowCharts(runId, data) {
+    const runData = data[runId] || [];
+    
+    const allParams = new Set();
+    const allConfigs = new Set();
+    runData.forEach(row => {
+        allParams.add(row.param_str);
+        allConfigs.add(row.config);
+    });
+    
+    const sortedParams = Array.from(allParams).sort();
+    const sortedConfigs = Array.from(allConfigs).sort();
+    
+    const labels = sortedParams.map(p => {
+        const parts = p.split('|');
+        return `${parts[0]} (${parts[3]}) - depth ${parts[4]} (${parts[1]} jobs)`;
+    });
+    
+    const datasetsBw = [];
+    const datasetsLat = [];
+    const datasetsPeakBw = [];
+    const datasetsCpu = [];
+    const datasetsMem = [];
+    const colors = [
+        '#1a73e8', '#1e8e3e', '#d93025', '#f97316', '#8b5cf6', '#ec4899', '#f59e0b', '#06b6d4'
+    ];
+    
+    let seriesIdx = 0;
+    sortedConfigs.forEach(conf => {
+        const bwData = [];
+        const latData = [];
+        const peakBwData = [];
+        const cpuData = [];
+        const memData = [];
+        let hasData = false;
+        
+        sortedParams.forEach(param => {
+            const match = runData.find(r => r.param_str === param && r.config === conf);
+            if (match) {
+                hasData = true;
+                bwData.push(match.read_bw || match.write_bw || 0);
+                latData.push(match.read_lat || match.write_lat || 0);
+                peakBwData.push(match.peak_bw || match.read_bw || match.write_bw || 0);
+                cpuData.push(match.cpu || 0);
+                memData.push(match.mem || 0);
+            } else {
+                bwData.push(0);
+                latData.push(0);
+                peakBwData.push(0);
+                cpuData.push(0);
+                memData.push(0);
+            }
+        });
+        
+        if (hasData) {
+            const color = colors[seriesIdx % colors.length];
+            datasetsBw.push({
+                label: conf,
+                data: bwData,
+                backgroundColor: color + 'bf',
+                borderColor: color,
+                borderWidth: 1
+            });
+            
+            datasetsLat.push({
+                label: conf,
+                data: latData,
+                fill: false,
+                borderColor: color,
+                tension: 0.15,
+                pointRadius: 4,
+                borderWidth: 2
+            });
+
+            datasetsPeakBw.push({
+                label: conf,
+                data: peakBwData,
+                backgroundColor: color + 'bf',
+                borderColor: color,
+                borderWidth: 1
+            });
+
+            datasetsCpu.push({
+                label: conf,
+                data: cpuData,
+                fill: false,
+                borderColor: color,
+                tension: 0.15,
+                pointRadius: 4,
+                borderWidth: 2
+            });
+
+            datasetsMem.push({
+                label: conf,
+                data: memData,
+                backgroundColor: color + 'bf',
+                borderColor: color,
+                borderWidth: 1
+            });
+
+            seriesIdx++;
+        }
+    });
+    
+    renderChart(`throughput-chart-${runId}`, 'bar', labels, datasetsBw, 'Throughput (MB/s)');
+    renderChart(`latency-chart-${runId}`, 'line', labels, datasetsLat, 'Latency (ms)');
+    renderChart(`peak-bw-chart-${runId}`, 'bar', labels, datasetsPeakBw, 'Peak Throughput (MB/s)');
+    renderChart(`cpu-chart-${runId}`, 'line', labels, datasetsCpu, 'CPU Usage (%)');
+    renderChart(`mem-chart-${runId}`, 'bar', labels, datasetsMem, 'RSS Memory (MB)');
 }

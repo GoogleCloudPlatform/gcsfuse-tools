@@ -155,6 +155,29 @@ async def execute_orchestrator(run):
             
             if exit_code == 0:
                 logger.info(f"Subprocess finished successfully for {benchmark_id}")
+                
+                # Automatically upload ad-hoc results to BigQuery
+                try:
+                    bq_script = DMB_DIR / "helpers" / "upload_to_bq.py"
+                    results_dir = DMB_DIR / "results" / benchmark_id
+                    
+                    if bq_script.exists() and results_dir.exists():
+                        logger.info(f"Triggering BigQuery metrics upload for {benchmark_id}...")
+                        project_id = run.get("project", "gcs-fuse-test-ml")
+                        
+                        bq_proc = await asyncio.create_subprocess_exec(
+                            sys.executable, str(bq_script),
+                            "--results-dir", str(results_dir),
+                            "--project-id", project_id,
+                            "--report-name", "combined_report.csv"
+                        )
+                        await bq_proc.wait()
+                        logger.info(f"BigQuery metrics upload finished for {benchmark_id}.")
+                    else:
+                        logger.warning(f"BigQuery upload script or results dir missing for {benchmark_id}")
+                except Exception as bq_err:
+                    logger.error(f"BigQuery upload failed for {benchmark_id}: {bq_err}", exc_info=True)
+                
                 db.update_run_status(benchmark_id, "completed", completed_at=datetime.utcnow().isoformat())
             else:
                 logger.error(f"Subprocess failed with exit code {exit_code} for {benchmark_id}")
@@ -564,40 +587,23 @@ def get_progress(run_id: str):
         total_pending = 0
 
         for vm in sorted(vms):
-            # Check manifest for finished statuses
+            # Check manifest for finished statuses and completed tests
             manifest_blob = bucket.blob(f"{run_id}/results/{vm}/manifest.json")
             vm_overall_status = "running"
+            completed_matrix_ids = set()
+            
             if manifest_blob.exists():
                 try:
                     manifest_data = json.loads(manifest_blob.download_as_text())
                     vm_overall_status = manifest_data.get("status", "running")
-                except:
-                    pass
-
-            # Read durations CSV
-            csv_blob = bucket.blob(f"{run_id}/results/{vm}/fio_durations.csv")
-            completed_signatures = set()
-            if csv_blob.exists():
-                try:
-                    csv_content = csv_blob.download_as_text()
-                    lines = csv_content.splitlines()
-                    for line in lines[1:]:
-                        if not line.strip():
-                            continue
-                        parts = [p.strip() for p in line.split(",")]
-                        if len(parts) >= 7:
-                            sig = (
-                                str(parts[0]).strip().lower(),
-                                str(parts[1]).strip(),
-                                str(parts[2]).strip().lower(),
-                                str(parts[3]).strip().lower(),
-                                str(parts[4]).strip(),
-                                str(parts[5]).strip(),
-                                str(parts[6]).strip()
-                            )
-                            completed_signatures.add(sig)
+                    
+                    # Collect all completed test matrix IDs from manifest
+                    for test in manifest_data.get("tests", []):
+                        mid = test.get("matrix_id")
+                        if mid is not None:
+                            completed_matrix_ids.add(int(mid))
                 except Exception as e:
-                    logger.warning(f"Error reading durations CSV for {vm}: {e}")
+                    logger.warning(f"Failed to read/parse manifest.json for {vm}: {e}")
 
             # Loop over VM assigned jobs and map status
             vm_jobs = [j for j in job_data_by_id.values() if j["vm_full"] == vm]
@@ -606,7 +612,7 @@ def get_progress(run_id: str):
             vm_pending = 0
 
             for job in vm_jobs:
-                if job["signature"] in completed_signatures:
+                if job["id"] in completed_matrix_ids:
                     job["status"] = "SUCCESS"
                     vm_completed += 1
                 else:
@@ -684,9 +690,113 @@ def cancel_run(run_id: str):
     raise HTTPException(status_code=400, detail="Run is not active")
 
 
+def fetch_metrics_from_gcs(run_id: str, run_config: dict):
+    bucket_name = run_config.get("artifacts_bucket")
+    if not bucket_name:
+        return []
+    
+    try:
+        client = storage.Client()
+        bucket = client.bucket(bucket_name)
+        
+        # Find all VM result folders
+        blobs = client.list_blobs(bucket, prefix=f"{run_id}/results/")
+        vms = set()
+        for blob in blobs:
+            parts = blob.name.split("/")
+            if len(parts) > 2:
+                vms.add(parts[2])
+                
+        rows = []
+        for vm in vms:
+            manifest_blob = bucket.blob(f"{run_id}/results/{vm}/manifest.json")
+            if not manifest_blob.exists():
+                continue
+            
+            try:
+                manifest = json.loads(manifest_blob.download_as_text())
+                for test in manifest.get("tests", []):
+                    test_id = test.get("test_id")
+                    params = test.get("params", {})
+                    
+                    # FIO parameters
+                    io_type = str(params.get("io_type", "read")).strip().lower()
+                    num_jobs = str(params.get("threads", params.get("num_jobs", "1"))).strip()
+                    file_size = str(params.get("file_size", "10g")).strip().lower()
+                    block_size = str(params.get("bs", params.get("block_size", "1m"))).strip().lower()
+                    io_depth = str(params.get("io_depth", "1")).strip()
+                    nr_files = str(params.get("nrfiles", params.get("nr_files", "1"))).strip()
+                    direct = str(params.get("direct", "1")).strip()
+                    
+                    param_str = f"{io_type}|{num_jobs}|{file_size}|{block_size}|{io_depth}|{nr_files}|{direct}"
+                    config_label = test.get("config_label", params.get("config_label", "default"))
+                    
+                    # Fetch FIO iteration JSON files to calculate throughput/latency
+                    fio_blobs = client.list_blobs(bucket, prefix=f"{run_id}/results/{vm}/test-{test_id}/fio_output_")
+                    bw_values = []
+                    lat_values = []
+                    peak_bw_values = []
+                    
+                    for f_blob in fio_blobs:
+                        if not f_blob.name.endswith(".json"):
+                            continue
+                        try:
+                            fio_data = json.loads(f_blob.download_as_text())
+                            jobs = fio_data.get("jobs", [])
+                            if not jobs:
+                                continue
+                            job = jobs[0]
+                            
+                            is_write = "write" in io_type
+                            rw_key = "write" if is_write else "read"
+                            
+                            stats = job.get(rw_key, {})
+                            bw_bytes = stats.get("bw_bytes", 0)
+                            bw_mbs = bw_bytes / (1024 * 1024)
+                            
+                            # FIO reports bw_max in KB/s
+                            bw_max_kbs = stats.get("bw_max", 0)
+                            bw_max_mbs = bw_max_kbs / 1024.0
+                            
+                            clat = stats.get("clat_ns", {})
+                            mean_ns = clat.get("mean", 0)
+                            lat_ms = mean_ns / 1000000.0
+                            
+                            bw_values.append(bw_mbs)
+                            lat_values.append(lat_ms)
+                            peak_bw_values.append(bw_max_mbs)
+                        except Exception as e:
+                            logger.warning(f"Error parsing GCS FIO file {f_blob.name}: {e}")
+                    
+                    avg_bw = sum(bw_values) / len(bw_values) if bw_values else 0.0
+                    avg_lat = sum(lat_values) / len(lat_values) if lat_values else 0.0
+                    max_bw = max(peak_bw_values) if peak_bw_values else 0.0
+                    
+                    rows.append({
+                        "param_str": param_str,
+                        "config": config_label,
+                        "read_bw": avg_bw if "write" not in io_type else 0.0,
+                        "write_bw": avg_bw if "write" in io_type else 0.0,
+                        "read_lat": avg_lat if "write" not in io_type else 0.0,
+                        "write_lat": avg_lat if "write" in io_type else 0.0,
+                        "cpu": float(params.get("avg_cpu", 0)),
+                        "sys_cpu": float(params.get("avg_sys_cpu", 0)),
+                        "pgcache": float(params.get("avg_page_cache_gb", 0)),
+                        "mem": float(params.get("avg_mem_mb", 0)),
+                        "peak_bw": max_bw
+                    })
+            except Exception as e:
+                logger.warning(f"Error parsing manifest.json for VM {vm} in GCS metrics retrieval: {e}")
+                
+        return rows
+    except Exception as e:
+        logger.error(f"Failed to fetch metrics from GCS for {run_id}: {e}", exc_info=True)
+        return []
+
+
 @app.get("/api/runs/compare")
 def compare_runs(ids: str, project_id: str = "gcs-fuse-test-ml"):
-    """Fetches and merges metrics for specified benchmark IDs from BigQuery for plotting."""
+    """Fetches and merges metrics for specified benchmark IDs from BigQuery or GCS for plotting."""
     id_list = [i.strip() for i in ids.split(",") if i.strip()]
     if not id_list:
         raise HTTPException(status_code=400, detail="No run IDs specified")
@@ -694,28 +804,34 @@ def compare_runs(ids: str, project_id: str = "gcs-fuse-test-ml"):
     try:
         data = {}
         for rid in id_list:
-            # Resolve GCE project dynamically from DB, fallback to default
             run_config = db.get_run(rid)
             proj = run_config.get("project", project_id) if run_config else project_id
             
+            # 1. Try resolving table in BigQuery first
             client = bigquery.Client(project=proj)
-            
-            # Safely determine dataset (periodic for kokoro, adhoc for local)
             dataset = "periodic_benchmarks" if "kokoro" in rid else "adhoc_benchmarks"
             
-            # Find the exact table name by listing tables with filter
-            tables = client.list_tables(dataset)
-            matching_table = next((t.table_id for t in tables if rid in t.table_id), None)
+            try:
+                tables = client.list_tables(dataset)
+                matching_table = next((t.table_id for t in tables if rid in t.table_id), None)
+            except Exception as bq_e:
+                logger.info(f"BigQuery access failed or table list failed for {rid}: {bq_e}. Falling back to GCS results.")
+                matching_table = None
             
             if not matching_table:
-                logger.warning(f"Table not found for benchmark ID: {rid}")
+                # 2. Fallback: Parse GCS results directly if BigQuery table not found (e.g. adhoc run)
+                logger.info(f"BigQuery table not found for {rid}. Parsing GCS folders directly.")
+                if run_config:
+                    data[rid] = fetch_metrics_from_gcs(rid, run_config)
+                else:
+                    data[rid] = []
                 continue
                 
             query = f"""
             SELECT 
                 CONCAT(io_type, '|', num_jobs, '|', file_size, '|', block_size, '|', io_depth, '|', num_files, '|', direct) as param_str,
                 config,
-                read_bw_mbs, write_bw_mbs, read_avg_ms, write_avg_ms, avg_cpu_percent, avg_sys_cpu_percent, avg_pgcache_gb
+                read_bw_mbs, write_bw_mbs, read_avg_ms, write_avg_ms, avg_cpu_percent, avg_sys_cpu_percent, avg_pgcache_gb, avg_mem_mb
             FROM `{proj}.{dataset}.{matching_table}`
             """
             
@@ -732,7 +848,9 @@ def compare_runs(ids: str, project_id: str = "gcs-fuse-test-ml"):
                     "write_lat": row.write_avg_ms,
                     "cpu": row.avg_cpu_percent,
                     "sys_cpu": row.avg_sys_cpu_percent,
-                    "pgcache": row.avg_pgcache_gb
+                    "pgcache": row.avg_pgcache_gb,
+                    "mem": row.avg_mem_mb,
+                    "peak_bw": max(row.read_bw_mbs or 0.0, row.write_bw_mbs or 0.0)
                 })
             data[rid] = rows
             
@@ -741,3 +859,341 @@ def compare_runs(ids: str, project_id: str = "gcs-fuse-test-ml"):
     except Exception as e:
         logger.error(f"Failed to fetch comparison metrics: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+
+
+        return {"content": content}
+    except Exception as e:
+        logger.error(f"Failed to fetch file from GCS: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+from fastapi.responses import HTMLResponse
+
+@app.get("/api/runs/{run_id}/report-view", response_class=HTMLResponse)
+def get_report_view(run_id: str):
+    """Serves a print-ready HTML report page for the specified benchmark run containing all 5 metrics."""
+    run = db.get_run(run_id)
+    if not run:
+        raise HTTPException(status_code=404, detail="Run not found")
+    
+    html_content = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Benchmark Performance Report - {run_id}</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+        <style>
+            @media print {{
+                body {{ background: white; color: black; }}
+                .no-print {{ display: none !important; }}
+                .page-break {{ page-break-before: always; }}
+            }}
+        </style>
+    </head>
+    <body class="bg-slate-50 text-slate-800 p-8 min-h-screen">
+        <div class="max-w-4xl mx-auto bg-white p-8 rounded-xl shadow border border-slate-200">
+            <!-- Header -->
+            <div class="flex items-center justify-between border-b-2 border-slate-800 pb-6 mb-6">
+                <div>
+                    <h1 class="text-2xl font-bold text-slate-900">Benchmark Performance Report</h1>
+                    <p class="text-xs text-slate-500 font-mono mt-1">ID: {run_id}</p>
+                </div>
+                <button onclick="window.print()" class="no-print px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg text-xs shadow flex items-center transition-colors">
+                    <i class="fa-solid fa-print mr-2"></i> Print / Save as PDF
+                </button>
+            </div>
+            
+            <!-- Metadata Grid -->
+            <div class="grid grid-cols-2 gap-6 text-xs text-slate-655 mb-8 bg-slate-50 p-5 rounded-lg border border-slate-200">
+                <div>
+                    <p class="mb-1.5"><strong class="text-slate-800 uppercase tracking-wider text-[10px]">Description:</strong> {run.get("description", "N/A")}</p>
+                    <p class="mb-1.5"><strong class="text-slate-800 uppercase tracking-wider text-[10px]">Target VM:</strong> {run.get("executor_vm", "N/A")}</p>
+                    <p class="mb-1.5"><strong class="text-slate-800 uppercase tracking-wider text-[10px]">Zone / Project:</strong> {run.get("zone", "N/A")} / {run.get("project", "N/A")}</p>
+                </div>
+                <div>
+                    <p class="mb-1.5"><strong class="text-slate-800 uppercase tracking-wider text-[10px]">Created:</strong> {run.get("created_at", "N/A")}</p>
+                    <p class="mb-1.5"><strong class="text-slate-800 uppercase tracking-wider text-[10px]">Started:</strong> {run.get("started_at", "N/A")}</p>
+                    <p class="mb-1.5"><strong class="text-slate-800 uppercase tracking-wider text-[10px]">Finished:</strong> {run.get("completed_at", "N/A")}</p>
+                    <p class="mb-1.5" id="duration-container"><strong class="text-slate-800 uppercase tracking-wider text-[10px]">Total Duration:</strong> Calculating...</p>
+                </div>
+            </div>
+
+            <!-- Mount Options -->
+            <div class="mb-8">
+                <h3 class="text-sm font-bold text-slate-900 border-b border-slate-200 pb-2 mb-3 uppercase tracking-wide">Mount Options</h3>
+                <pre class="bg-slate-50 p-4 rounded border border-slate-200 text-xs font-mono whitespace-pre-wrap leading-relaxed text-slate-700">{run.get("mount_args", "Used mount configs CSV")}</pre>
+            </div>
+
+            <!-- Performance Table -->
+            <div class="mb-8">
+                <h3 class="text-sm font-bold text-slate-900 border-b border-slate-200 pb-2 mb-3 uppercase tracking-wide">Test Cases & Performance Outputs</h3>
+                <div class="overflow-x-auto border border-slate-200 rounded-lg shadow-sm">
+                    <table class="w-full text-left border-collapse text-xs">
+                        <thead>
+                            <tr class="bg-slate-800 text-white font-bold">
+                                <th class="py-2.5 px-3 border border-slate-200">ID</th>
+                                <th class="py-2.5 px-3 border border-slate-200">FIO Parameters</th>
+                                <th class="py-2.5 px-3 border border-slate-200">Config Label</th>
+                                <th class="py-2.5 px-3 border border-slate-200 text-right">Avg Throughput</th>
+                                <th class="py-2.5 px-3 border border-slate-200 text-right">Peak Throughput</th>
+                                <th class="py-2.5 px-3 border border-slate-200 text-right">Latency</th>
+                                <th class="py-2.5 px-3 border border-slate-200 text-right">Avg CPU %</th>
+                                <th class="py-2.5 px-3 border border-slate-200 text-right">Memory RSS</th>
+                            </tr>
+                        </thead>
+                        <tbody id="report-table-body">
+                            <tr>
+                                <td colspan="8" class="py-4 text-center text-slate-400 italic">Loading performance metrics...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Page Break for Charts -->
+            <div class="page-break pt-8">
+                <h3 class="text-sm font-bold text-slate-900 border-b border-slate-200 pb-2 mb-6 uppercase tracking-wide">Performance Comparison Graphs</h3>
+                
+                <div class="space-y-8">
+                    <div>
+                        <h4 class="text-xs font-bold text-slate-700 mb-2 uppercase tracking-wide text-center">Average Throughput Comparison (MB/s)</h4>
+                        <div class="h-64 w-full relative border border-slate-200 p-4 rounded-lg bg-white">
+                            <canvas id="throughput-chart"></canvas>
+                        </div>
+                    </div>
+                    <div>
+                        <h4 class="text-xs font-bold text-slate-700 mb-2 uppercase tracking-wide text-center">Peak Throughput Comparison (MB/s)</h4>
+                        <div class="h-64 w-full relative border border-slate-200 p-4 rounded-lg bg-white">
+                            <canvas id="peak-bw-chart"></canvas>
+                        </div>
+                    </div>
+                    <div class="page-break pt-8">
+                        <h4 class="text-xs font-bold text-slate-700 mb-2 uppercase tracking-wide text-center">Average Completion Latency Comparison (ms)</h4>
+                        <div class="h-64 w-full relative border border-slate-200 p-4 rounded-lg bg-white">
+                            <canvas id="latency-chart"></canvas>
+                        </div>
+                    </div>
+                    <div>
+                        <h4 class="text-xs font-bold text-slate-700 mb-2 uppercase tracking-wide text-center">GCSFuse CPU Usage Comparison (%)</h4>
+                        <div class="h-64 w-full relative border border-slate-200 p-4 rounded-lg bg-white">
+                            <canvas id="cpu-chart"></canvas>
+                        </div>
+                    </div>
+                    <div>
+                        <h4 class="text-xs font-bold text-slate-700 mb-2 uppercase tracking-wide text-center">GCSFuse Memory RSS Comparison (MB)</h4>
+                        <div class="h-64 w-full relative border border-slate-200 p-4 rounded-lg bg-white">
+                            <canvas id="mem-chart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <script>
+            const runId = "{run_id}";
+            
+            function formatDuration(start, end) {{
+                if (!start || !end) return "N/A";
+                const sDate = new Date(start);
+                const eDate = new Date(end);
+                const diffMs = eDate - sDate;
+                if (diffMs < 0 || isNaN(diffMs)) return "N/A";
+                
+                const diffSec = Math.floor(diffMs / 1000);
+                const hrs = Math.floor(diffSec / 3600);
+                const mins = Math.floor((diffSec % 3600) / 60);
+                const secs = diffSec % 60;
+                
+                let str = "";
+                if (hrs > 0) str += hrs + "h ";
+                if (mins > 0 || hrs > 0) str += mins + "m ";
+                str += secs + "s";
+                return str.trim();
+            }}
+            
+            window.onload = async () => {{
+                const durationStr = formatDuration("{run.get('started_at', '')}", "{run.get('completed_at', '')}");
+                document.getElementById("duration-container").innerHTML = `<strong class="text-slate-800 uppercase tracking-wider text-[10px]">Total Duration:</strong> ` + durationStr;
+
+                try {{
+                    const res = await fetch(`/api/runs/compare?ids=` + runId);
+                    const metrics = await res.json();
+                    
+                    const runData = metrics[runId] || [];
+                    if (runData.length === 0) {{
+                        document.getElementById("report-table-body").innerHTML = `
+                            <tr>
+                                <td colspan="8" class="py-4 text-center text-rose-500 italic font-bold">No performance metrics found. Did the benchmark run fail or cancel early?</td>
+                            </tr>
+                        `;
+                        return;
+                    }}
+                    
+                    let tableHtml = "";
+                    runData.forEach((row, index) => {{
+                        const paramParts = row.param_str.split('|');
+                        const paramFmt = paramParts[0] + " (" + paramParts[3] + ") - depth " + paramParts[4] + " (" + paramParts[1] + " jobs)";
+                        const readBw = row.read_bw ? row.read_bw.toFixed(2) + " MB/s" : "-";
+                        const writeBw = row.write_bw ? row.write_bw.toFixed(2) + " MB/s" : "-";
+                        const avgBw = row.read_bw ? readBw : writeBw;
+                        const peakBw = row.peak_bw ? row.peak_bw.toFixed(2) + " MB/s" : "-";
+                        const lat = (row.read_lat || row.write_lat) ? (row.read_lat || row.write_lat).toFixed(3) + " ms" : "-";
+                        
+                        tableHtml += `
+                            <tr class="${{index % 2 === 0 ? 'bg-white' : 'bg-slate-50'}} border-b border-slate-200">
+                                <td class="py-2 px-3 font-mono font-bold text-slate-800 border-r border-slate-200">${{index + 1}}</td>
+                                <td class="py-2 px-3 border-r border-slate-200">${{paramFmt}}</td>
+                                <td class="py-2 px-3 font-mono text-slate-700 border-r border-slate-200">${{row.config}}</td>
+                                <td class="py-2 px-3 text-right font-mono font-bold text-slate-800 border-r border-slate-200">${{avgBw}}</td>
+                                <td class="py-2 px-3 text-right font-mono font-bold text-slate-800 border-r border-slate-200">${{peakBw}}</td>
+                                <td class="py-2 px-3 text-right font-mono text-slate-850 border-r border-slate-200">${{lat}}</td>
+                                <td class="py-2 px-3 text-right font-mono text-slate-650 border-r border-slate-200">${{row.cpu.toFixed(2)}}%</td>
+                                <td class="py-2 px-3 text-right font-mono text-slate-650">${{row.mem.toFixed(2)}} MB</td>
+                            </tr>
+                        `;
+                    }});
+                    document.getElementById("report-table-body").innerHTML = tableHtml;
+                    
+                    renderReportCharts(runData);
+                    setTimeout(() => {{ window.print(); }}, 1500);
+                    
+                }} catch (e) {{
+                    document.getElementById("report-table-body").innerHTML = `
+                        <tr>
+                            <td colspan="8" class="py-4 text-center text-rose-500 font-bold">Failed to load report data: ${{e}}</td>
+                        </tr>
+                    `;
+                }}
+            }};
+
+            function renderReportCharts(runData) {{
+                const allParams = new Set();
+                const allConfigs = new Set();
+                runData.forEach(row => {{
+                    allParams.add(row.param_str);
+                    allConfigs.add(row.config);
+                }});
+                
+                const sortedParams = Array.from(allParams).sort();
+                const sortedConfigs = Array.from(allConfigs).sort();
+                
+                const labels = sortedParams.map(p => {{
+                    const parts = p.split('|');
+                    return parts[0] + " (" + parts[3] + ") - depth " + parts[4] + " (" + parts[1] + " jobs)";
+                }});
+                
+                const datasetsBw = [];
+                const datasetsLat = [];
+                const datasetsPeakBw = [];
+                const datasetsCpu = [];
+                const datasetsMem = [];
+                const colors = ['#1a73e8', '#1e8e3e', '#d93025', '#f97316', '#8b5cf6', '#ec4899'];
+                
+                let seriesIdx = 0;
+                sortedConfigs.forEach(conf => {{
+                    const bwData = [];
+                    const latData = [];
+                    const peakBwData = [];
+                    const cpuData = [];
+                    const memData = [];
+                    let hasData = false;
+                    
+                    sortedParams.forEach(param => {{
+                        const match = runData.find(r => r.param_str === param && r.config === conf);
+                        if (match) {{
+                            hasData = true;
+                            bwData.push(match.read_bw || match.write_bw || 0);
+                            latData.push(match.read_lat || match.write_lat || 0);
+                            peakBwData.push(match.peak_bw || match.read_bw || match.write_bw || 0);
+                            cpuData.push(match.cpu || 0);
+                            memData.push(match.mem || 0);
+                        }} else {{
+                            bwData.push(0);
+                            latData.push(0);
+                            peakBwData.push(0);
+                            cpuData.push(0);
+                            memData.push(0);
+                        }}
+                    }});
+                    
+                    if (hasData) {{
+                        const color = colors[seriesIdx % colors.length];
+                        datasetsBw.push({{
+                            label: conf,
+                            data: bwData,
+                            backgroundColor: color + 'bf',
+                            borderColor: color,
+                            borderWidth: 1
+                        }});
+                        
+                        datasetsLat.push({{
+                            label: conf,
+                            data: latData,
+                            fill: false,
+                            borderColor: color,
+                            tension: 0.15,
+                            pointRadius: 4,
+                            borderWidth: 2
+                        }});
+
+                        datasetsPeakBw.push({{
+                            label: conf,
+                            data: peakBwData,
+                            backgroundColor: color + 'bf',
+                            borderColor: color,
+                            borderWidth: 1
+                        }});
+
+                        datasetsCpu.push({{
+                            label: conf,
+                            data: cpuData,
+                            fill: false,
+                            borderColor: color,
+                            tension: 0.15,
+                            pointRadius: 4,
+                            borderWidth: 2
+                        }});
+
+                        datasetsMem.push({{
+                            label: conf,
+                            data: memData,
+                            backgroundColor: color + 'bf',
+                            borderColor: color,
+                            borderWidth: 1
+                        }});
+
+                        seriesIdx++;
+                    }}
+                }});
+                
+                drawChart('throughput-chart', 'bar', labels, datasetsBw, 'Throughput (MB/s)');
+                drawChart('latency-chart', 'line', labels, datasetsLat, 'Latency (ms)');
+                drawChart('peak-bw-chart', 'bar', labels, datasetsPeakBw, 'Peak Throughput (MB/s)');
+                drawChart('cpu-chart', 'line', labels, datasetsCpu, 'CPU Usage (%)');
+                drawChart('mem-chart', 'bar', labels, datasetsMem, 'RSS Memory (MB)');
+            }}
+
+            function drawChart(canvasId, type, labels, datasets, yLabel) {{
+                const ctx = document.getElementById(canvasId).getContext('2d');
+                new Chart(ctx, {{
+                    type: type,
+                    data: {{ labels: labels, datasets: datasets }},
+                    options: {{
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        animation: false,
+                        scales: {{
+                            x: {{ grid: {{ color: '#e2e8f0' }}, ticks: {{ font: {{ size: 8 }} }} }},
+                            y: {{ grid: {{ color: '#e2e8f0' }}, title: {{ display: true, text: yLabel }} }}
+                        }},
+                        plugins: {{ legend: {{ position: 'bottom' }} }}
+                    }}
+                }});
+            }}
+        </script>
+    </body>
+    </html>
+    """
+    return html_content
