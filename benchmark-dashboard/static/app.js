@@ -180,10 +180,17 @@ async function fetchConfigFiles() {
 
 function populateSelect(id, list, placeholder) {
     const el = document.getElementById(id);
+    if (!el) return;
+    
+    const currentValue = el.value;
     el.innerHTML = `<option value="">-- ${placeholder} --</option>`;
     list.forEach(item => {
         el.innerHTML += `<option value="${item}">${item}</option>`;
     });
+    
+    if (currentValue && list.includes(currentValue)) {
+        el.value = currentValue;
+    }
 }
 
 // Submit run config
