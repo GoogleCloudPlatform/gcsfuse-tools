@@ -405,7 +405,7 @@ def create_run(run: BenchmarkRunRequest):
 
     # 1. Resolve & Write Test CSV
     if run.test_csv_content and run.test_csv_content.strip():
-        test_csv_path = f"test_suites/custom_test_cases/ad_hoc_{benchmark_id}.csv"
+        test_csv_path = f"test_suites/custom_test_cases/ad_hoc_test_cases_{benchmark_id}.csv"
         with open(DMB_DIR / test_csv_path, "w") as f:
             f.write(run.test_csv_content)
     else:
@@ -415,7 +415,7 @@ def create_run(run: BenchmarkRunRequest):
 
     # 2. Resolve & Write FIO Job File
     if run.fio_job_content and run.fio_job_content.strip():
-        fio_job_path = f"test_suites/custom_fio_jobs/ad_hoc_{benchmark_id}.fio"
+        fio_job_path = f"test_suites/custom_fio_jobs/ad_hoc_fio_job_{benchmark_id}.fio"
         with open(DMB_DIR / fio_job_path, "w") as f:
             f.write(run.fio_job_content)
     else:
@@ -426,7 +426,7 @@ def create_run(run: BenchmarkRunRequest):
     # 3. Resolve & Write Configs CSV
     configs_csv_path = None
     if run.configs_csv_content and run.configs_csv_content.strip():
-        configs_csv_path = f"test_suites/custom_mount_configs/ad_hoc_{benchmark_id}.csv"
+        configs_csv_path = f"test_suites/custom_mount_configs/ad_hoc_mount_configs_{benchmark_id}.csv"
         with open(DMB_DIR / configs_csv_path, "w") as f:
             f.write(run.configs_csv_content)
     elif run.configs_csv:
