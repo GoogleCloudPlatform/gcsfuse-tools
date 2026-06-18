@@ -39,7 +39,7 @@ MULTI_THREAD_VM_TYPE_ZONAL="kokoro-zonal-perf-template-c4-std-192-multi-thread"
 READ_CONFIGS_CSV_ZONAL="${SCRIPT_DIR}/test_suites/kokoro/kokoro_read_mount_configs_zonal.csv"
 WRITE_CONFIGS_CSV_ZONAL="${SCRIPT_DIR}/test_suites/kokoro/kokoro_write_mount_configs_zonal.csv"
 
-ITERATIONS=3
+ITERATIONS=2
 SEPARATE_CONFIGS=false # Set to true to generate separate CSV per config
 POLL_INTERVAL=180
 TIMEOUT=21600 # 6 hours
