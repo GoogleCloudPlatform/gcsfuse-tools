@@ -510,7 +510,7 @@ def delete_benchmark_run(run_id: str, username: str):
 
 
 @app.post("/api/runs/{run_id}/resume")
-def resume_benchmark_run(run_id: str, username: str):
+async def resume_benchmark_run(run_id: str, username: str):
     """Resumes/re-attaches to a cancelled or failed benchmark run that is still executing on CE."""
     run = db.get_run(run_id)
     if not run:
