@@ -11,12 +11,12 @@ cd "$SCRIPT_DIR"
 
 BENCHMARK_ID="benchmark-$(date +%s)"
 TEST_DATA_BUCKET_READ="kokoro-regional-test-data-hns-bucket"
-TEST_DATA_BUCKET_WRITE="kokoro-regional-test-data-hns-bucket-south"
+TEST_DATA_BUCKET_WRITE="kokoro-regional-test-data-hns-bucket-write"
 ARTIFACTS_BUCKET="kokoro-perf-artifacts-bucket"
 PROJECT="gcs-fuse-test-ml"
-INSTANCE_GROUP_NAME_READ="kokoro-perf-c4-standard-192-mig"
+INSTANCE_GROUP_NAME_READ="kokoro-perf-mig-read"
 ZONE_READ="us-central1-c"
-INSTANCE_GROUP_NAME_WRITE="kokoro-perf-c4-standard-192-mig-write" 
+INSTANCE_GROUP_NAME_WRITE="kokoro-perf-mig-write" 
 ZONE_WRITE="us-south1-a"
 
 READ_CONFIGS_CSV="${SCRIPT_DIR}/test_suites/kokoro/kokoro_read_mount_configs.csv"
@@ -33,8 +33,8 @@ INSTANCE_GROUP_NAME_ZONAL="kokoro-perf-mig-zonal"
 ZONE_ZONAL="us-west4-a"
 
 # Final Zonal Templates
-SINGLE_THREAD_VM_TYPE_ZONAL="kokoro-perf-instance-template-c4-standard-48-single-thread-west"
-MULTI_THREAD_VM_TYPE_ZONAL="kokoro-perf-instance-template-west4"
+SINGLE_THREAD_VM_TYPE_ZONAL="kokoro-zonal-perf-template-c4-std-96-single-thread"
+MULTI_THREAD_VM_TYPE_ZONAL="kokoro-zonal-perf-template-c4-std-192-multi-thread"
 
 READ_CONFIGS_CSV_ZONAL="${SCRIPT_DIR}/test_suites/kokoro/kokoro_read_mount_configs_zonal.csv"
 WRITE_CONFIGS_CSV_ZONAL="${SCRIPT_DIR}/test_suites/kokoro/kokoro_write_mount_configs_zonal.csv"
@@ -48,11 +48,11 @@ RUN_READ=false
 RUN_WRITE=false
 RUN_ZONAL=false
 
-SINGLE_THREAD_VM_TYPE_READ="kokoro-perf-instance-template-n2-standard-32-single-threaded"
-MULTI_THREAD_VM_TYPE_READ="kokoro-perf-instance-template"
+SINGLE_THREAD_VM_TYPE_READ="kokoro-regional-perf-template-n2-std-64-single-thread-read"
+MULTI_THREAD_VM_TYPE_READ="kokoro-regional-perf-template-c4-std-192-multi-thread-read"
 
-SINGLE_THREAD_VM_TYPE_WRITE="kokoro-perf-instance-template-n2-standard-32-single-thread-sout"
-MULTI_THREAD_VM_TYPE_WRITE="kokoro-perf-instance-template-south"
+SINGLE_THREAD_VM_TYPE_WRITE="kokoro-regional-perf-template-n2-std-64-single-thread-write"
+MULTI_THREAD_VM_TYPE_WRITE="kokoro-regional-perf-template-c4-std-192-multi-thread-write"
 
 
 # Parse command line arguments
