@@ -59,6 +59,7 @@ def parse_args():
     parser.add_argument('--multi-thread-vm-type', type=str, default=None, help='Identifier in instance template name for multi-threaded VMs (e.g., c4-standard-192)')
     parser.add_argument('--no-auto-plot', action='store_true', help='Disable automatic generation of performance plots')
     parser.add_argument('--plot-metric-group', type=str, default='default', choices=['default', 'full'], help='Metrics to plot: default or full')
+    parser.add_argument('--resume', action='store_true', help='Resume monitoring an already running benchmark')
     return parser.parse_args()
 
 
@@ -181,17 +182,20 @@ def run_benchmark(args):
     }
     base_path = f"gs://{args.artifacts_bucket}/{args.benchmark_id}"
     config_path = f"{base_path}/config.json"
-    gcs.upload_json(config, config_path)
-    print(f"Uploaded config: iterations={args.iterations}, bucket={args.artifacts_bucket}")
-    gcs.upload_test_cases(args.test_csv, f"{base_path}/{test_csv_name}")
-    print(f"Uploaded test cases to: {base_path}/{test_csv_name}")
-    # Upload configs.csv
-    if args.configs_csv:
-        configs_dest = f"{base_path}/{configs_csv_name}"
-        gcs.upload_test_cases(args.configs_csv, configs_dest)
-        print(f"Uploaded configs to: {configs_dest}")
-    gcs.upload_fio_job_file(args.fio_job_file, f"{base_path}/{fio_job_name}")
-    print(f"Uploaded FIO job file to: {base_path}/{fio_job_name}")
+    if not args.resume:
+        gcs.upload_json(config, config_path)
+        print(f"Uploaded config: iterations={args.iterations}, bucket={args.artifacts_bucket}")
+        gcs.upload_test_cases(args.test_csv, f"{base_path}/{test_csv_name}")
+        print(f"Uploaded test cases to: {base_path}/{test_csv_name}")
+        # Upload configs.csv
+        if args.configs_csv:
+            configs_dest = f"{base_path}/{configs_csv_name}"
+            gcs.upload_test_cases(args.configs_csv, configs_dest)
+            print(f"Uploaded configs to: {configs_dest}")
+        gcs.upload_fio_job_file(args.fio_job_file, f"{base_path}/{fio_job_name}")
+        print(f"Uploaded FIO job file to: {base_path}/{fio_job_name}")
+    else:
+        print("Resuming: Skipping configuration uploads to GCS.")
     
     # 5. Generate and upload job files for each VM (in parallel)
     active_vms = [] 
@@ -204,33 +208,37 @@ def run_benchmark(args):
             print(f"Skipping {vm_name}: No tests assigned")
             continue
         active_vms.append(vm_name)
-        for entry in test_entries:
-            if isinstance(entry, dict) and 'matrix_id' in entry and num_test_cases > 0:
-                # Map global ID back to [1, num_test_cases]
-                entry['test_id'] = ((entry['matrix_id'] - 1) % num_test_cases) + 1
-        
-        job = job_generator.create_job_spec(
-            vm_name=vm_name,
-            benchmark_id=args.benchmark_id,
-            test_entries=test_entries,
-            bucket=args.test_data_bucket,
-            artifacts_bucket=args.artifacts_bucket,
-            iterations=args.iterations,
-        )
-        job_path = f"{base_path}/jobs/{vm_name}.json"
-        jobs_to_upload.append((vm_name, job, job_path, len(test_entries)))
+        if not args.resume:
+            for entry in test_entries:
+                if isinstance(entry, dict) and 'matrix_id' in entry and num_test_cases > 0:
+                    # Map global ID back to [1, num_test_cases]
+                    entry['test_id'] = ((entry['matrix_id'] - 1) % num_test_cases) + 1
+            
+            job = job_generator.create_job_spec(
+                vm_name=vm_name,
+                benchmark_id=args.benchmark_id,
+                test_entries=test_entries,
+                bucket=args.test_data_bucket,
+                artifacts_bucket=args.artifacts_bucket,
+                iterations=args.iterations,
+            )
+            job_path = f"{base_path}/jobs/{vm_name}.json"
+            jobs_to_upload.append((vm_name, job, job_path, len(test_entries)))
     
     # Upload jobs in parallel
-    def upload_job(job_info):
-        vm_name, job, job_path, num_tests = job_info
-        gcs.upload_json(job, job_path)
-        return vm_name, num_tests
-    
-    with ThreadPoolExecutor(max_workers=10) as executor:
-        futures = [executor.submit(upload_job, job_info) for job_info in jobs_to_upload]
-        for future in as_completed(futures):
-            vm_name, num_tests = future.result()
-            print(f"Uploaded job for {vm_name}: {num_tests} tests, {num_tests * args.iterations} total runs")
+    if not args.resume and jobs_to_upload:
+        def upload_job(job_info):
+            vm_name, job, job_path, num_tests = job_info
+            gcs.upload_json(job, job_path)
+            return vm_name, num_tests
+        
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            futures = [executor.submit(upload_job, job_info) for job_info in jobs_to_upload]
+            for future in as_completed(futures):
+                vm_name, num_tests = future.result()
+                print(f"Uploaded job for {vm_name}: {num_tests} tests, {num_tests * args.iterations} total runs")
+    elif args.resume:
+        print(f"Resuming: Re-attaching to active VMs: {', '.join(active_vms)}")
     
     if not active_vms:
         print("\nERROR: No VMs have test assignments")
@@ -238,25 +246,28 @@ def run_benchmark(args):
     print(f"\nActive VMs: {len(active_vms)}/{len(vms)}")
     
     # 6. Trigger VMs to start execution (in parallel)
-    print(f"\nTriggering VMs...")
-    worker_script = "workers/worker.sh"
-    
-    def trigger_vm(vm_name):
-        vm_manager.run_worker_script(
-            vm_name,
-            args.zone,
-            args.project,
-            worker_script,
-            args.benchmark_id,
-            args.artifacts_bucket
-        )
-        return vm_name
-    
-    with ThreadPoolExecutor(max_workers=10) as executor:
-        futures = [executor.submit(trigger_vm, vm_name) for vm_name in active_vms]
-        for future in as_completed(futures):
-            vm_name = future.result()
-            print(f"  Started {vm_name}")
+    if not args.resume:
+        print(f"\nTriggering VMs...")
+        worker_script = "workers/worker.sh"
+        
+        def trigger_vm(vm_name):
+            vm_manager.run_worker_script(
+                vm_name,
+                args.zone,
+                args.project,
+                worker_script,
+                args.benchmark_id,
+                args.artifacts_bucket
+            )
+            return vm_name
+        
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            futures = [executor.submit(trigger_vm, vm_name) for vm_name in active_vms]
+            for future in as_completed(futures):
+                vm_name = future.result()
+                print(f"  Started {vm_name}")
+    else:
+        print(f"\nResuming: Bypassing VM triggering.")
     
     # 7. Monitor progress by polling manifests
     print(f"\nMonitoring progress (polling every {args.poll_interval}s)...")

@@ -108,7 +108,7 @@ async def run_queue_manager():
         await asyncio.sleep(10)  # Check every 10 seconds
 
 
-async def execute_orchestrator(run):
+async def execute_orchestrator(run, resume: bool = False):
     """Launches orchestrator.py in a subprocess, logging output locally."""
     benchmark_id = run["benchmark_id"]
     results_dir = DMB_DIR / "results" / benchmark_id
@@ -144,12 +144,15 @@ async def execute_orchestrator(run):
             "--gcsfuse-commit", run["commit_hash"],
             "--gcsfuse-mount-args", run["mount_args"] or ""
         ])
+        
+    if resume:
+        args.append("--resume")
     
     logger.info(f"Executing: python3 {' '.join(args)} in {DMB_DIR}")
     
     try:
-        # Open local log file to stream subprocess output
-        with open(log_file_path, "w") as log_f:
+        # Open local log file in append mode so resumed logs append
+        with open(log_file_path, "a") as log_f:
             process = await asyncio.create_subprocess_exec(
                 "python3", "-u", *args,
                 cwd=str(DMB_DIR),
@@ -200,6 +203,19 @@ async def execute_orchestrator(run):
 @app.on_event("startup")
 async def startup_event():
     global queue_task
+    # Re-attach to any orphaned active running benchmarks on boot
+    try:
+        db.init_db()
+        running_runs = db.get_active_runs() # Fetching runs in active queue state
+        for run in running_runs:
+            if run["status"] == "running":
+                run_dict = dict(run)
+                logger.info(f"Re-attaching to active running benchmark {run_dict['benchmark_id']} on server startup.")
+                task = asyncio.create_task(execute_orchestrator(run_dict, resume=True))
+                active_processes[run_dict["benchmark_id"]] = task
+    except Exception as e:
+        logger.error(f"Failed to restore active runs on startup: {e}", exc_info=True)
+        
     queue_task = asyncio.create_task(run_queue_manager())
 
 
@@ -491,6 +507,27 @@ def delete_benchmark_run(run_id: str, username: str):
         raise HTTPException(status_code=403, detail="You are not authorized to delete other users' runs!")
     db.delete_run(run_id)
     return {"status": "deleted"}
+
+
+@app.post("/api/runs/{run_id}/resume")
+def resume_benchmark_run(run_id: str, username: str):
+    """Resumes/re-attaches to a cancelled or failed benchmark run that is still executing on CE."""
+    run = db.get_run(run_id)
+    if not run:
+        raise HTTPException(status_code=404, detail="Run not found")
+    
+    # Verify it is not already running
+    if run_id in active_processes:
+        raise HTTPException(status_code=400, detail="Run is already actively monitored")
+        
+    # Update status back to running
+    db.update_run_status(run_id, "running")
+    
+    run_dict = dict(run)
+    task = asyncio.create_task(execute_orchestrator(run_dict, resume=True))
+    active_processes[run_id] = task
+    logger.info(f"Manually resumed/re-attached benchmark {run_id} by request from {username}")
+    return {"status": "resumed", "benchmark_id": run_id}
 
 
 @app.post("/api/runs/{run_id}/star")

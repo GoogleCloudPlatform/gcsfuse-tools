@@ -525,6 +525,11 @@ function renderHistoryRows(runs) {
                 <button onclick="cloneRun('${run.benchmark_id}')" class="text-blue-600 hover:text-blue-800 transition" title="Clone configurations">
                     <i class="fa-solid fa-copy text-sm"></i>
                 </button>
+                ${(run.status === 'failed' || run.status === 'cancelled') ? `
+                    <button onclick="resumeRun('${run.benchmark_id}')" class="text-emerald-600 hover:text-emerald-800 transition" title="Resume/Re-attach to run">
+                        <i class="fa-solid fa-play text-sm"></i>
+                    </button>
+                ` : ''}
                 ${isOwner ? `
                     <button onclick="deleteRun('${run.benchmark_id}')" class="text-rose-500 hover:text-rose-700 transition" title="Delete run">
                         <i class="fa-solid fa-trash text-sm"></i>
@@ -1777,4 +1782,26 @@ async function fetchFileContent(path) {
     if (!res.ok) throw new Error(`Could not fetch file: ${path}`);
     const data = await res.json();
     return data.content;
+}
+
+async function resumeRun(runId) {
+    if (!confirm(`Do you want to re-attach and resume monitoring for benchmark run ${runId}?`)) {
+        return;
+    }
+    const currentUser = localStorage.getItem("ldap_user") || "anonymous";
+    try {
+        const res = await fetch(`/api/runs/${runId}/resume?username=${encodeURIComponent(currentUser)}`, {
+            method: 'POST'
+        });
+        if (res.ok) {
+            alert("Resumed/Re-attached successfully! Switch to Active Monitor tab to view logs.");
+            switchTab('active');
+            pollActiveRuns();
+        } else {
+            const err = await res.json();
+            alert(`Failed to resume run: ${err.detail}`);
+        }
+    } catch (e) {
+        alert(`Failed to resume run: ${e}`);
+    }
 }
