@@ -53,6 +53,9 @@ class BenchmarkRunRequest(BaseModel):
     artifacts_bucket: str
     test_data_bucket: str
     commit_hash: Optional[str] = None
+    test_csv_content: Optional[str] = None
+    fio_job_content: Optional[str] = None
+    configs_csv_content: Optional[str] = None
 
 
 class FioJobCreateRequest(BaseModel):
@@ -63,6 +66,10 @@ class FioJobCreateRequest(BaseModel):
 class CustomCsvCreateRequest(BaseModel):
     filename: str
     content: str
+
+
+class StarRequest(BaseModel):
+    is_starred: int
 
 
 # Background Queue Task
@@ -382,14 +389,6 @@ def create_run(run: BenchmarkRunRequest):
     # Resolve project context from GCE Metadata
     local_project = get_gce_project_id()
 
-    # Validate file existences in test_suites
-    if not (DMB_DIR / run.test_csv).exists():
-        raise HTTPException(status_code=400, detail=f"Test CSV not found: {run.test_csv}")
-    if not (DMB_DIR / run.fio_job).exists():
-        raise HTTPException(status_code=400, detail=f"FIO Job not found: {run.fio_job}")
-    if run.configs_csv and not (DMB_DIR / run.configs_csv).exists():
-        raise HTTPException(status_code=400, detail=f"Configs CSV not found: {run.configs_csv}")
-
     # Generate benchmark ID
     import random
     timestamp = int(datetime.utcnow().timestamp())
@@ -399,22 +398,58 @@ def create_run(run: BenchmarkRunRequest):
     results_dir = DMB_DIR / "results" / benchmark_id
     results_dir.mkdir(parents=True, exist_ok=True)
 
+    # Ensure custom suites folders exist
+    (DMB_DIR / "test_suites" / "custom_test_cases").mkdir(parents=True, exist_ok=True)
+    (DMB_DIR / "test_suites" / "custom_fio_jobs").mkdir(parents=True, exist_ok=True)
+    (DMB_DIR / "test_suites" / "custom_mount_configs").mkdir(parents=True, exist_ok=True)
+
+    # 1. Resolve & Write Test CSV
+    if run.test_csv_content and run.test_csv_content.strip():
+        test_csv_path = f"test_suites/custom_test_cases/ad_hoc_{benchmark_id}.csv"
+        with open(DMB_DIR / test_csv_path, "w") as f:
+            f.write(run.test_csv_content)
+    else:
+        if not (DMB_DIR / run.test_csv).exists():
+            raise HTTPException(status_code=400, detail=f"Test CSV not found: {run.test_csv}")
+        test_csv_path = run.test_csv
+
+    # 2. Resolve & Write FIO Job File
+    if run.fio_job_content and run.fio_job_content.strip():
+        fio_job_path = f"test_suites/custom_fio_jobs/ad_hoc_{benchmark_id}.fio"
+        with open(DMB_DIR / fio_job_path, "w") as f:
+            f.write(run.fio_job_content)
+    else:
+        if not (DMB_DIR / run.fio_job).exists():
+            raise HTTPException(status_code=400, detail=f"FIO Job not found: {run.fio_job}")
+        fio_job_path = run.fio_job
+
+    # 3. Resolve & Write Configs CSV
+    configs_csv_path = None
+    if run.configs_csv_content and run.configs_csv_content.strip():
+        configs_csv_path = f"test_suites/custom_mount_configs/ad_hoc_{benchmark_id}.csv"
+        with open(DMB_DIR / configs_csv_path, "w") as f:
+            f.write(run.configs_csv_content)
+    elif run.configs_csv:
+        if not (DMB_DIR / run.configs_csv).exists():
+            raise HTTPException(status_code=400, detail=f"Configs CSV not found: {run.configs_csv}")
+        configs_csv_path = run.configs_csv
+
     # Bind custom user bucket parameters
     artifacts_bucket = run.artifacts_bucket.strip() or "pranjal-bucket-1"
     test_data_bucket = run.test_data_bucket.strip() or "grpc-metric-dmb-regional"
 
     # Deduce suite type
-    if "kokoro" in run.test_csv.lower():
+    if "kokoro" in test_csv_path.lower():
         suite = "kokoro"
-    elif "published" in run.test_csv.lower():
+    elif "published" in test_csv_path.lower():
         suite = "published"
     else:
         suite = "custom"
 
     # Deduce io_type
-    if "read" in run.fio_job.lower():
+    if "read" in fio_job_path.lower():
         io_type = "read"
-    elif "write" in run.fio_job.lower():
+    elif "write" in fio_job_path.lower():
         io_type = "write"
     else:
         io_type = "other"
@@ -431,9 +466,9 @@ def create_run(run: BenchmarkRunRequest):
         "single_thread_vm_type": run.single_thread_vm_type,
         "multi_thread_vm_type": run.multi_thread_vm_type,
         "commit_hash": run.commit_hash or "master",
-        "test_csv_name": run.test_csv,
-        "configs_csv_name": run.configs_csv,
-        "fio_job_name": run.fio_job,
+        "test_csv_name": test_csv_path,
+        "configs_csv_name": configs_csv_path,
+        "fio_job_name": fio_job_path,
         "mount_args": run.mount_args,
         "test_data_bucket": test_data_bucket,
         "artifacts_bucket": artifacts_bucket,
@@ -444,6 +479,28 @@ def create_run(run: BenchmarkRunRequest):
     logger.info(f"Enqueued run {benchmark_id} submitted by {run.username}")
     
     return {"benchmark_id": benchmark_id, "status": "queued"}
+
+
+@app.delete("/api/runs/{run_id}")
+def delete_benchmark_run(run_id: str, username: str):
+    """Deletes a benchmark run from SQLite. Only creator is permitted to do this."""
+    run = db.get_run(run_id)
+    if not run:
+        raise HTTPException(status_code=404, detail="Run not found")
+    if run["username"] != username:
+        raise HTTPException(status_code=403, detail="You are not authorized to delete other users' runs!")
+    db.delete_run(run_id)
+    return {"status": "deleted"}
+
+
+@app.post("/api/runs/{run_id}/star")
+def toggle_star_run(run_id: str, req: StarRequest):
+    """Stars or unstars a benchmark run."""
+    run = db.get_run(run_id)
+    if not run:
+        raise HTTPException(status_code=404, detail="Run not found")
+    db.update_run_starred(run_id, req.is_starred)
+    return {"status": "success", "is_starred": req.is_starred}
 
 
 @app.get("/api/runs/active")
@@ -883,7 +940,7 @@ from fastapi.responses import HTMLResponse
 
 @app.get("/api/runs/{run_id}/report-view", response_class=HTMLResponse)
 def get_report_view(run_id: str):
-    """Serves a print-ready HTML report page for the specified benchmark run containing all 5 metrics."""
+    """Serves a print-ready HTML report page for the specified benchmark run containing all 9 metrics."""
     run = db.get_run(run_id)
     if not run:
         raise HTTPException(status_code=404, detail="Run not found")
@@ -895,6 +952,7 @@ def get_report_view(run_id: str):
         <title>Benchmark Performance Report - {run_id}</title>
         <script src="https://cdn.tailwindcss.com"></script>
         <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
         <style>
             @media print {{
@@ -918,7 +976,7 @@ def get_report_view(run_id: str):
             </div>
             
             <!-- Metadata Grid -->
-            <div class="grid grid-cols-2 gap-6 text-xs text-slate-655 mb-8 bg-slate-50 p-5 rounded-lg border border-slate-200">
+            <div class="grid grid-cols-2 gap-6 text-xs text-slate-600 mb-8 bg-slate-50 p-5 rounded-lg border border-slate-200">
                 <div>
                     <p class="mb-1.5"><strong class="text-slate-800 uppercase tracking-wider text-[10px]">Description:</strong> {run.get("description", "N/A")}</p>
                     <p class="mb-1.5"><strong class="text-slate-800 uppercase tracking-wider text-[10px]">Target VM:</strong> {run.get("executor_vm", "N/A")}</p>
@@ -931,13 +989,13 @@ def get_report_view(run_id: str):
                     <p class="mb-1.5" id="duration-container"><strong class="text-slate-800 uppercase tracking-wider text-[10px]">Total Duration:</strong> Calculating...</p>
                 </div>
             </div>
-
+ 
             <!-- Mount Options -->
             <div class="mb-8">
                 <h3 class="text-sm font-bold text-slate-900 border-b border-slate-200 pb-2 mb-3 uppercase tracking-wide">Mount Options</h3>
                 <pre class="bg-slate-50 p-4 rounded border border-slate-200 text-xs font-mono whitespace-pre-wrap leading-relaxed text-slate-700">{run.get("mount_args", "Used mount configs CSV")}</pre>
             </div>
-
+ 
             <!-- Performance Table -->
             <div class="mb-8">
                 <h3 class="text-sm font-bold text-slate-900 border-b border-slate-200 pb-2 mb-3 uppercase tracking-wide">Test Cases & Performance Outputs</h3>
@@ -963,26 +1021,28 @@ def get_report_view(run_id: str):
                     </table>
                 </div>
             </div>
-
+ 
             <!-- Page Break for Charts -->
             <div class="page-break pt-8">
                 <h3 class="text-sm font-bold text-slate-900 border-b border-slate-200 pb-2 mb-6 uppercase tracking-wide">Performance Comparison Graphs</h3>
                 
+                <div id="unified-report-legend" class="flex flex-wrap gap-4 mb-6 bg-slate-50 p-4 rounded-lg border border-slate-200 text-xs font-semibold text-slate-700 justify-center"></div>
+
                 <div class="space-y-8">
                     <div>
-                        <h4 class="text-xs font-bold text-slate-700 mb-2 uppercase tracking-wide text-center">Average Throughput Comparison (MB/s)</h4>
+                        <h4 id="label-throughput-chart" class="text-xs font-bold text-slate-700 mb-2 uppercase tracking-wide text-center">Average Throughput Comparison (MB/s)</h4>
                         <div class="h-64 w-full relative border border-slate-200 p-4 rounded-lg bg-white">
                             <canvas id="throughput-chart"></canvas>
                         </div>
                     </div>
                     <div>
-                        <h4 class="text-xs font-bold text-slate-700 mb-2 uppercase tracking-wide text-center">Peak Throughput Comparison (MB/s)</h4>
+                        <h4 id="label-peak-bw-chart" class="text-xs font-bold text-slate-700 mb-2 uppercase tracking-wide text-center">Peak Throughput Comparison (MB/s)</h4>
                         <div class="h-64 w-full relative border border-slate-200 p-4 rounded-lg bg-white">
                             <canvas id="peak-bw-chart"></canvas>
                         </div>
                     </div>
                     <div class="page-break pt-8">
-                        <h4 class="text-xs font-bold text-slate-700 mb-2 uppercase tracking-wide text-center">Average Completion Latency Comparison (ms)</h4>
+                        <h4 id="label-latency-chart" class="text-xs font-bold text-slate-700 mb-2 uppercase tracking-wide text-center">Average Completion Latency Comparison (ms)</h4>
                         <div class="h-64 w-full relative border border-slate-200 p-4 rounded-lg bg-white">
                             <canvas id="latency-chart"></canvas>
                         </div>
@@ -993,16 +1053,40 @@ def get_report_view(run_id: str):
                             <canvas id="cpu-chart"></canvas>
                         </div>
                     </div>
-                    <div>
+                    <div class="page-break pt-8">
                         <h4 class="text-xs font-bold text-slate-700 mb-2 uppercase tracking-wide text-center">GCSFuse Memory RSS Comparison (MB)</h4>
                         <div class="h-64 w-full relative border border-slate-200 p-4 rounded-lg bg-white">
                             <canvas id="mem-chart"></canvas>
                         </div>
                     </div>
+                    <div>
+                        <h4 class="text-xs font-bold text-slate-700 mb-2 uppercase tracking-wide text-center">OS Page Cache Comparison (GB)</h4>
+                        <div class="h-64 w-full relative border border-slate-200 p-4 rounded-lg bg-white">
+                            <canvas id="pgcache-chart"></canvas>
+                        </div>
+                    </div>
+                    <div class="page-break pt-8">
+                        <h4 class="text-xs font-bold text-slate-700 mb-2 uppercase tracking-wide text-center">Avg Network Ingress (RX) Comparison (MB/s)</h4>
+                        <div class="h-64 w-full relative border border-slate-200 p-4 rounded-lg bg-white">
+                            <canvas id="net-rx-chart"></canvas>
+                        </div>
+                    </div>
+                    <div>
+                        <h4 class="text-xs font-bold text-slate-700 mb-2 uppercase tracking-wide text-center">Peak Network Ingress (RX) Comparison (MB/s)</h4>
+                        <div class="h-64 w-full relative border border-slate-200 p-4 rounded-lg bg-white">
+                            <canvas id="peak-net-rx-chart"></canvas>
+                        </div>
+                    </div>
+                    <div class="page-break pt-8">
+                        <h4 class="text-xs font-bold text-slate-700 mb-2 uppercase tracking-wide text-center">Network Egress (TX) Comparison (MB/s)</h4>
+                        <div class="h-64 w-full relative border border-slate-200 p-4 rounded-lg bg-white">
+                            <canvas id="net-tx-chart"></canvas>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
-
+ 
         <script>
             const runId = "{run_id}";
             
@@ -1028,7 +1112,7 @@ def get_report_view(run_id: str):
             window.onload = async () => {{
                 const durationStr = formatDuration("{run.get('started_at', '')}", "{run.get('completed_at', '')}");
                 document.getElementById("duration-container").innerHTML = `<strong class="text-slate-800 uppercase tracking-wider text-[10px]">Total Duration:</strong> ` + durationStr;
-
+ 
                 try {{
                     const res = await fetch(`/api/runs/compare?ids=` + runId);
                     const metrics = await res.json();
@@ -1069,7 +1153,7 @@ def get_report_view(run_id: str):
                     document.getElementById("report-table-body").innerHTML = tableHtml;
                     
                     renderReportCharts(runData);
-                    setTimeout(() => {{ window.print(); }}, 1500);
+                    setTimeout(() => {{ window.print(); }}, 1800);
                     
                 }} catch (e) {{
                     document.getElementById("report-table-body").innerHTML = `
@@ -1079,7 +1163,7 @@ def get_report_view(run_id: str):
                     `;
                 }}
             }};
-
+ 
             function renderReportCharts(runData) {{
                 const allParams = new Set();
                 const allConfigs = new Set();
@@ -1101,8 +1185,38 @@ def get_report_view(run_id: str):
                 const datasetsPeakBw = [];
                 const datasetsCpu = [];
                 const datasetsMem = [];
-                const colors = ['#1a73e8', '#1e8e3e', '#d93025', '#f97316', '#8b5cf6', '#ec4899'];
+                const datasetsPgCache = [];
+                const datasetsNetRx = [];
+                const datasetsPeakNetRx = [];
+                const datasetsNetTx = [];
+                const colors = ['#1a73e8', '#1e8e3e', '#d93025', '#f97316', '#8b5cf6', '#ec4899', '#f59e0b', '#06b6d4'];
                 
+                // Detect dynamic read/write labeling
+                let hasRead = false;
+                let hasWrite = false;
+                runData.forEach(row => {{
+                    if (row.param_str.toLowerCase().includes('write')) {{
+                        hasWrite = true;
+                    }} else {{
+                        hasRead = true;
+                    }}
+                }});
+
+                let bwLabel = 'Throughput (MB/s)';
+                let latLabel = 'Latency (ms)';
+                if (hasRead && !hasWrite) {{
+                    bwLabel = 'Read Throughput (MB/s)';
+                    latLabel = 'Read Latency (ms)';
+                }} else if (hasWrite && !hasRead) {{
+                    bwLabel = 'Write Throughput (MB/s)';
+                    latLabel = 'Write Latency (ms)';
+                }}
+
+                // Update headers in page text
+                document.getElementById('label-throughput-chart').innerText = 'Average ' + bwLabel;
+                document.getElementById('label-peak-bw-chart').innerText = 'Peak ' + bwLabel;
+                document.getElementById('label-latency-chart').innerText = 'Average ' + latLabel;
+
                 let seriesIdx = 0;
                 sortedConfigs.forEach(conf => {{
                     const bwData = [];
@@ -1110,6 +1224,10 @@ def get_report_view(run_id: str):
                     const peakBwData = [];
                     const cpuData = [];
                     const memData = [];
+                    const pgCacheData = [];
+                    const netRxData = [];
+                    const peakNetRxData = [];
+                    const netTxData = [];
                     let hasData = false;
                     
                     sortedParams.forEach(param => {{
@@ -1121,12 +1239,20 @@ def get_report_view(run_id: str):
                             peakBwData.push(match.peak_bw || match.read_bw || match.write_bw || 0);
                             cpuData.push(match.cpu || 0);
                             memData.push(match.mem || 0);
+                            pgCacheData.push(match.pgcache || 0);
+                            netRxData.push(match.net_rx || 0);
+                            peakNetRxData.push(match.peak_net_rx || 0);
+                            netTxData.push(match.net_tx || 0);
                         }} else {{
                             bwData.push(0);
                             latData.push(0);
                             peakBwData.push(0);
                             cpuData.push(0);
                             memData.push(0);
+                            pgCacheData.push(0);
+                            netRxData.push(0);
+                            peakNetRxData.push(0);
+                            netTxData.push(0);
                         }}
                     }});
                     
@@ -1149,7 +1275,7 @@ def get_report_view(run_id: str):
                             pointRadius: 4,
                             borderWidth: 2
                         }});
-
+ 
                         datasetsPeakBw.push({{
                             label: conf,
                             data: peakBwData,
@@ -1157,7 +1283,7 @@ def get_report_view(run_id: str):
                             borderColor: color,
                             borderWidth: 1
                         }});
-
+ 
                         datasetsCpu.push({{
                             label: conf,
                             data: cpuData,
@@ -1167,7 +1293,7 @@ def get_report_view(run_id: str):
                             pointRadius: 4,
                             borderWidth: 2
                         }});
-
+ 
                         datasetsMem.push({{
                             label: conf,
                             data: memData,
@@ -1176,34 +1302,110 @@ def get_report_view(run_id: str):
                             borderWidth: 1
                         }});
 
+                        datasetsPgCache.push({{
+                            label: conf,
+                            data: pgCacheData,
+                            backgroundColor: color + 'bf',
+                            borderColor: color,
+                            borderWidth: 1
+                        }});
+
+                        datasetsNetRx.push({{
+                            label: conf,
+                            data: netRxData,
+                            backgroundColor: color + 'bf',
+                            borderColor: color,
+                            borderWidth: 1
+                        }});
+
+                        datasetsPeakNetRx.push({{
+                            label: conf,
+                            data: peakNetRxData,
+                            backgroundColor: color + 'bf',
+                            borderColor: color,
+                            borderWidth: 1
+                        }});
+
+                        datasetsNetTx.push({{
+                            label: conf,
+                            data: netTxData,
+                            backgroundColor: color + 'bf',
+                            borderColor: color,
+                            borderWidth: 1
+                        }});
+ 
                         seriesIdx++;
                     }}
                 }});
                 
-                drawChart('throughput-chart', 'bar', labels, datasetsBw, 'Throughput (MB/s)');
-                drawChart('latency-chart', 'line', labels, datasetsLat, 'Latency (ms)');
-                drawChart('peak-bw-chart', 'bar', labels, datasetsPeakBw, 'Peak Throughput (MB/s)');
-                drawChart('cpu-chart', 'line', labels, datasetsCpu, 'CPU Usage (%)');
-                drawChart('mem-chart', 'bar', labels, datasetsMem, 'RSS Memory (MB)');
-            }}
-
-            function drawChart(canvasId, type, labels, datasets, yLabel) {{
-                const ctx = document.getElementById(canvasId).getContext('2d');
-                new Chart(ctx, {{
-                    type: type,
-                    data: {{ labels: labels, datasets: datasets }},
-                    options: {{
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        animation: false,
-                        scales: {{
-                            x: {{ grid: {{ color: '#e2e8f0' }}, ticks: {{ font: {{ size: 8 }} }} }},
-                            y: {{ grid: {{ color: '#e2e8f0' }}, title: {{ display: true, text: yLabel }} }}
-                        }},
-                        plugins: {{ legend: {{ position: 'bottom' }} }}
+                // Rebuild report unified legend
+                    const legendEl = document.getElementById('unified-report-legend');
+                    if (legendEl && datasetsBw.length > 0) {{
+                        legendEl.innerHTML = datasetsBw.map(ds => {{
+                            return `
+                                <div class="flex items-center space-x-2 bg-white px-3 py-1.5 rounded-lg border border-slate-200 shadow-sm">
+                                    <span class="w-3.5 h-3.5 rounded-sm" style="background-color: ${{ds.borderColor}}; border: 1px solid ${{ds.borderColor}};"></span>
+                                    <span class="text-slate-700 font-mono text-xs font-semibold">${{ds.label}}</span>
+                                </div>
+                            `;
+                        }}).join('');
                     }}
-                }});
-            }}
+
+                    drawChart('throughput-chart', 'bar', labels, datasetsBw, bwLabel, false);
+                    drawChart('latency-chart', 'line', labels, datasetsLat, latLabel, false);
+                    drawChart('peak-bw-chart', 'bar', labels, datasetsPeakBw, 'Peak ' + bwLabel, false);
+                    drawChart('cpu-chart', 'line', labels, datasetsCpu, 'CPU Usage (%)', false);
+                    drawChart('mem-chart', 'bar', labels, datasetsMem, 'RSS Memory (MB)', false);
+                    drawChart('pgcache-chart', 'bar', labels, datasetsPgCache, 'Page Cache (GB)', false);
+                    drawChart('net-rx-chart', 'bar', labels, datasetsNetRx, 'Avg Net Ingress (RX) (MB/s)', false);
+                    drawChart('peak-net-rx-chart', 'bar', labels, datasetsPeakNetRx, 'Peak Net Ingress (RX) (MB/s)', false);
+                    drawChart('net-tx-chart', 'bar', labels, datasetsNetTx, 'Net Egress (TX) (MB/s)', false);
+                }}
+     
+                function drawChart(canvasId, type, labels, datasets, yLabel, showLegend = true) {{
+                    const ctx = document.getElementById(canvasId).getContext('2d');
+                    new Chart(ctx, {{
+                        type: type,
+                        data: {{ labels: labels, datasets: datasets }},
+                        plugins: [ChartDataLabels],
+                        options: {{
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            animation: false,
+                            layout: {{
+                                padding: {{
+                                    top: 15
+                                }}
+                            }},
+                            scales: {{
+                                x: {{ grid: {{ color: '#e2e8f0' }}, ticks: {{ font: {{ size: 8 }} }} }},
+                                y: {{ grid: {{ color: '#e2e8f0' }}, title: {{ display: true, text: yLabel }} }}
+                            }},
+                            plugins: {{
+                                legend: {{ display: showLegend, position: 'bottom' }},
+                                datalabels: {{
+                                    display: 'auto',
+                                    anchor: 'end',
+                                    align: 'top',
+                                    offset: 1,
+                                    formatter: (value) => {{
+                                        if (!value || value === 0) return '';
+                                        if (value < 0.001) return value.toFixed(4);
+                                        if (value < 0.01) return value.toFixed(3);
+                                        if (value < 1.0) return value.toFixed(2);
+                                        if (value >= 100) return Math.round(value);
+                                        return value.toFixed(1);
+                                    }},
+                                    font: {{
+                                        weight: 'bold',
+                                        size: 8
+                                    }},
+                                    color: '#64748b'
+                                }}
+                            }}
+                        }}
+                    }});
+                }}
         </script>
     </body>
     </html>

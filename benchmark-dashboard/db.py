@@ -44,6 +44,27 @@ def init_db():
         completed_at TIMESTAMP
     )
     """)
+    
+    # Auto-migrate: Add is_starred column if it doesn't exist
+    try:
+        cursor.execute("SELECT is_starred FROM ui_runs LIMIT 1")
+    except sqlite3.OperationalError:
+        cursor.execute("ALTER TABLE ui_runs ADD COLUMN is_starred INTEGER DEFAULT 0")
+        
+    conn.commit()
+    conn.close()
+
+def delete_run(benchmark_id):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM ui_runs WHERE benchmark_id = ?", (benchmark_id,))
+    conn.commit()
+    conn.close()
+
+def update_run_starred(benchmark_id, is_starred):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("UPDATE ui_runs SET is_starred = ? WHERE benchmark_id = ?", (is_starred, benchmark_id))
     conn.commit()
     conn.close()
 

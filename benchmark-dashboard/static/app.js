@@ -223,6 +223,24 @@ async function submitRun(event) {
         payload.mount_args = document.getElementById('mount_args').value.trim();
     }
 
+    // Capture custom edited content from textareas (suppressing default placeholders)
+    const testCsvVal = document.getElementById('test-csv-preview').value.trim();
+    if (testCsvVal && testCsvVal !== "No file selected." && testCsvVal !== "Loading preview...") {
+        payload.test_csv_content = testCsvVal;
+    }
+
+    const fioJobVal = document.getElementById('fio-job-preview').value.trim();
+    if (fioJobVal && fioJobVal !== "No file selected." && fioJobVal !== "Loading preview...") {
+        payload.fio_job_content = fioJobVal;
+    }
+
+    if (mode === 'multi') {
+        const configsCsvVal = document.getElementById('configs-csv-preview').value.trim();
+        if (configsCsvVal && configsCsvVal !== "No file selected." && configsCsvVal !== "Loading preview...") {
+            payload.configs_csv_content = configsCsvVal;
+        }
+    }
+
     try {
         const res = await fetch('/api/runs', {
             method: 'POST',
@@ -463,9 +481,11 @@ async function fetchHistory() {
 function renderHistoryRows(runs) {
     const tbody = document.getElementById('history-rows');
     if (runs.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="8" class="text-center py-6 text-slate-400 italic">No historical runs found.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="9" class="text-center py-6 text-slate-400 italic">No historical runs found.</td></tr>`;
         return;
     }
+
+    const currentUser = localStorage.getItem("ldap_user") || "anonymous";
 
     tbody.innerHTML = '';
     runs.forEach(run => {
@@ -476,19 +496,44 @@ function renderHistoryRows(runs) {
             'cancelled': 'bg-slate-100 text-slate-500 border-slate-200'
         };
 
+        const starClass = run.is_starred ? 'fa-solid text-amber-500' : 'fa-regular text-slate-350 hover:text-amber-500';
+        const isOwner = run.username === currentUser;
+
         const tr = document.createElement('tr');
         tr.className = "hover:bg-slate-50 border-b border-slate-200";
         tr.innerHTML = `
             <td class="py-3 px-4 text-center"><input type="checkbox" name="compare-select" value="${run.benchmark_id}" class="compare-chk"></td>
-            <td class="py-3 px-4 font-mono font-bold text-slate-800">${run.benchmark_id}</td>
+            <td class="py-3 px-1 text-center">
+                <button onclick="expandRunDetails(this, '${run.benchmark_id}')" class="text-slate-400 hover:text-slate-600 transition" title="View details">
+                    <i class="fa-solid fa-chevron-down text-sm"></i>
+                </button>
+            </td>
+            <td class="py-3 px-4 font-mono font-bold text-slate-800">
+                <div class="flex items-center space-x-1.5">
+                    <button onclick="toggleStar('${run.benchmark_id}', ${run.is_starred ? 0 : 1})" class="transition duration-150" title="Star this run">
+                        <i class="${starClass} fa-star text-sm"></i>
+                    </button>
+                    <span>${run.benchmark_id}</span>
+                </div>
+            </td>
             <td class="py-3 px-4 font-semibold text-slate-700">${run.description}</td>
             <td class="py-3 px-4 text-slate-600">${run.username}</td>
             <td class="py-3 px-4 font-mono text-slate-600 text-xs">${run.executor_vm}</td>
             <td class="py-3 px-4 text-slate-500 text-xs">${dateStr}</td>
             <td class="py-3 px-4"><span class="text-[10px] font-bold px-2 py-0.5 rounded border uppercase tracking-wider ${statusColors[run.status] || 'bg-slate-100'}">${run.status}</span></td>
-            <td class="py-3 px-4 text-center space-x-3">
-                <button onclick="cloneRun('${run.benchmark_id}')" class="text-blue-600 hover:text-blue-800 transition" title="Clone configurations"><i class="fa-solid fa-copy text-sm"></i></button>
-                <button onclick="expandRunDetails(this, '${run.benchmark_id}')" class="text-slate-400 hover:text-slate-600 transition" title="View details"><i class="fa-solid fa-chevron-down text-sm"></i></button>
+            <td class="py-3 px-4 text-center space-x-2.5">
+                <button onclick="cloneRun('${run.benchmark_id}')" class="text-blue-600 hover:text-blue-800 transition" title="Clone configurations">
+                    <i class="fa-solid fa-copy text-sm"></i>
+                </button>
+                ${isOwner ? `
+                    <button onclick="deleteRun('${run.benchmark_id}')" class="text-rose-500 hover:text-rose-700 transition" title="Delete run">
+                        <i class="fa-solid fa-trash text-sm"></i>
+                    </button>
+                ` : `
+                    <button class="text-slate-200 cursor-not-allowed" title="Only the owner can delete this run" disabled>
+                        <i class="fa-solid fa-trash text-sm"></i>
+                    </button>
+                `}
             </td>
         `;
         tbody.appendChild(tr);
@@ -498,7 +543,7 @@ function renderHistoryRows(runs) {
         detailsTr.id = `details-${run.benchmark_id}`;
         detailsTr.className = "hidden bg-slate-50 border-b border-slate-200";
         detailsTr.innerHTML = `
-            <td colspan="8" class="py-4 px-6 max-w-full overflow-hidden">
+            <td colspan="9" class="py-4 px-6 max-w-full overflow-hidden">
                 <div class="flex flex-wrap gap-x-16 gap-y-6 text-xs text-slate-600 leading-loose justify-start">
                     <div>
                         <span class="font-bold text-slate-700 uppercase tracking-wider block mb-1">GCSFuse Configs</span>
@@ -1096,18 +1141,37 @@ function replotCharts() {
         });
     }
 
-    renderChart('throughput-chart', 'bar', labels, datasetsBw, bwLabel);
-    renderChart('latency-chart', 'line', labels, datasetsLat, latLabel);
-    renderChart('peak-bw-chart', 'bar', labels, datasetsPeakBw, 'Peak ' + bwLabel);
-    renderChart('cpu-chart', 'line', labels, datasetsCpu, 'CPU Usage (%)');
-    renderChart('mem-chart', 'bar', labels, datasetsMem, 'RSS Memory (MB)');
-    renderChart('pgcache-chart', 'bar', labels, datasetsPgCache, 'Page Cache (GB)');
-    renderChart('net-rx-chart', 'bar', labels, datasetsNetRx, 'Avg Net Ingress (RX) (MB/s)');
-    renderChart('peak-net-rx-chart', 'bar', labels, datasetsPeakNetRx, 'Peak Net Ingress (RX) (MB/s)');
-    renderChart('net-tx-chart', 'bar', labels, datasetsNetTx, 'Net Egress (TX) (MB/s)');
+    // Rebuild the unified HTML legend
+    const legendContainer = document.getElementById('unified-legend-container');
+    const legendEl = document.getElementById('unified-chart-legend');
+    if (legendContainer && legendEl) {
+        if (datasetsBw.length > 0) {
+            legendContainer.classList.remove('hidden');
+            legendEl.innerHTML = datasetsBw.map(ds => {
+                return `
+                    <div class="flex items-center space-x-2 bg-white px-3 py-1.5 rounded-lg border border-slate-200 shadow-sm">
+                        <span class="w-3.5 h-3.5 rounded-sm" style="background-color: ${ds.borderColor}; border: 1px solid ${ds.borderColor};"></span>
+                        <span class="text-slate-700 font-semibold text-xs font-mono">${ds.label}</span>
+                    </div>
+                `;
+            }).join('');
+        } else {
+            legendContainer.classList.add('hidden');
+        }
+    }
+
+    renderChart('throughput-chart', 'bar', labels, datasetsBw, bwLabel, false);
+    renderChart('latency-chart', 'line', labels, datasetsLat, latLabel, false);
+    renderChart('peak-bw-chart', 'bar', labels, datasetsPeakBw, 'Peak ' + bwLabel, false);
+    renderChart('cpu-chart', 'line', labels, datasetsCpu, 'CPU Usage (%)', false);
+    renderChart('mem-chart', 'bar', labels, datasetsMem, 'RSS Memory (MB)', false);
+    renderChart('pgcache-chart', 'bar', labels, datasetsPgCache, 'Page Cache (GB)', false);
+    renderChart('net-rx-chart', 'bar', labels, datasetsNetRx, 'Avg Net Ingress (RX) (MB/s)', false);
+    renderChart('peak-net-rx-chart', 'bar', labels, datasetsPeakNetRx, 'Peak Net Ingress (RX) (MB/s)', false);
+    renderChart('net-tx-chart', 'bar', labels, datasetsNetTx, 'Net Egress (TX) (MB/s)', false);
 }
 
-function renderChart(canvasId, type, labels, datasets, yLabel) {
+function renderChart(canvasId, type, labels, datasets, yLabel, showLegend = true) {
     if (charts[canvasId]) {
         charts[canvasId].destroy();
     }
@@ -1151,6 +1215,7 @@ function renderChart(canvasId, type, labels, datasets, yLabel) {
             },
             plugins: {
                 legend: {
+                    display: showLegend,
                     position: 'bottom',
                     labels: {
                         color: '#334155',
@@ -1166,6 +1231,7 @@ function renderChart(canvasId, type, labels, datasets, yLabel) {
                     borderWidth: 1
                 },
                 datalabels: {
+                    display: 'auto', // Auto-hide overlapping labels!
                     anchor: 'end',
                     align: 'top',
                     offset: 1,
@@ -1202,22 +1268,33 @@ function toggleMigTemplates() {
 // Preview file content dynamically (No accordions required, directly loads on grid block)
 async function previewConfigFile(path, elementId) {
     const el = document.getElementById(elementId);
+    if (!el) return;
+    const isTextarea = el.tagName === 'TEXTAREA' || el.tagName === 'INPUT';
+
     if (!path) {
-        el.innerText = "No file selected.";
+        if (isTextarea) el.value = "";
+        else el.innerText = "No file selected.";
         return;
     }
 
     try {
-        el.innerText = "Loading preview...";
+        if (isTextarea) el.value = "Loading preview...";
+        else el.innerText = "Loading preview...";
+
         const res = await fetch(`/api/configs/preview?path=${encodeURIComponent(path)}`);
         if (res.ok) {
             const data = await res.json();
-            el.innerText = data.content;
+            if (isTextarea) el.value = data.content;
+            else el.innerText = data.content;
         } else {
-            el.innerText = "Error loading file preview.";
+            const err = "Error loading file preview.";
+            if (isTextarea) el.value = err;
+            else el.innerText = err;
         }
     } catch (e) {
-        el.innerText = `Failed to fetch file content: ${e}`;
+        const err = `Failed to fetch file content: ${e}`;
+        if (isTextarea) el.value = err;
+        else el.innerText = err;
     }
 }
 
@@ -1582,4 +1659,122 @@ function renderRowCharts(runId, data) {
     renderChart(`net-rx-chart-${runId}`, 'bar', labels, datasetsNetRx, 'Avg Net Ingress (RX) (MB/s)');
     renderChart(`peak-net-rx-chart-${runId}`, 'bar', labels, datasetsPeakNetRx, 'Peak Net Ingress (RX) (MB/s)');
     renderChart(`net-tx-chart-${runId}`, 'bar', labels, datasetsNetTx, 'Net Egress (TX) (MB/s)');
+}
+
+async function toggleStar(runId, starredState) {
+    try {
+        const res = await fetch(`/api/runs/${runId}/star`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ is_starred: starredState })
+        });
+        if (res.ok) {
+            fetchHistory();
+        } else {
+            const err = await res.json();
+            alert(`Failed to toggle star: ${err.detail}`);
+        }
+    } catch (e) {
+        alert(`Failed to toggle star: ${e}`);
+    }
+}
+
+async function deleteRun(runId) {
+    if (!confirm(`Are you sure you want to delete benchmark run ${runId}? This action cannot be undone.`)) {
+        return;
+    }
+    const currentUser = localStorage.getItem("ldap_user") || "anonymous";
+    try {
+        const res = await fetch(`/api/runs/${runId}?username=${encodeURIComponent(currentUser)}`, {
+            method: 'DELETE'
+        });
+        if (res.ok) {
+            alert("Benchmark run deleted successfully.");
+            fetchHistory();
+        } else {
+            const err = await res.json();
+            alert(`Failed to delete run: ${err.detail}`);
+        }
+    } catch (e) {
+        alert(`Failed to delete run: ${e}`);
+    }
+}
+
+async function applyPreset(presetKey) {
+    const presets = {
+        'seq_read_direct0': {
+            test_csv: 'test_suites/standard_presets/seq_read_direct0.csv',
+            fio_job: 'test_suites/published_benchmarks/read.fio',
+            configs_csv: 'test_suites/published_benchmarks/read_mount_configs.csv'
+        },
+        'seq_read_direct1': {
+            test_csv: 'test_suites/standard_presets/seq_read_direct1.csv',
+            fio_job: 'test_suites/published_benchmarks/read.fio',
+            configs_csv: 'test_suites/published_benchmarks/read_mount_configs.csv'
+        },
+        'rand_read_direct0': {
+            test_csv: 'test_suites/standard_presets/rand_read_direct0.csv',
+            fio_job: 'test_suites/kokoro/kokoro_read_fio_job.fio',
+            configs_csv: 'test_suites/kokoro/kokoro_read_mount_configs_zonal.csv'
+        },
+        'rand_read_direct1': {
+            test_csv: 'test_suites/standard_presets/rand_read_direct1.csv',
+            fio_job: 'test_suites/kokoro/kokoro_read_fio_job.fio',
+            configs_csv: 'test_suites/kokoro/kokoro_read_mount_configs_zonal.csv'
+        },
+        'combined_read': {
+            test_csv: 'test_suites/standard_presets/combined_read.csv',
+            fio_job: 'test_suites/kokoro/kokoro_read_fio_job.fio',
+            configs_csv: 'test_suites/kokoro/kokoro_read_mount_configs_zonal.csv'
+        },
+        'writes': {
+            test_csv: 'test_suites/standard_presets/writes.csv',
+            fio_job: 'test_suites/published_benchmarks/write.fio',
+            configs_csv: 'test_suites/published_benchmarks/write_mount_configs.csv'
+        }
+    };
+
+    const preset = presets[presetKey];
+    if (!preset) return;
+
+    // Toggle to Multi-Config
+    const radioMulti = document.querySelector('input[name="config_mode"][value="multi"]');
+    if (radioMulti) {
+        radioMulti.checked = true;
+        toggleConfigMode();
+    }
+
+    // Update Dropdown Values
+    document.getElementById('test_csv').value = preset.test_csv;
+    document.getElementById('fio_job').value = preset.fio_job;
+    const configsCsvSelect = document.getElementById('configs_csv');
+    if (configsCsvSelect) {
+        configsCsvSelect.value = preset.configs_csv;
+    }
+
+    // Show custom loading status in textareas
+    document.getElementById('test-csv-preview').value = "Loading preset CSV...";
+    document.getElementById('fio-job-preview').value = "Loading preset FIO template...";
+    document.getElementById('configs-csv-preview').value = "Loading preset configs...";
+
+    try {
+        const testCsvContent = await fetchFileContent(preset.test_csv);
+        document.getElementById('test-csv-preview').value = testCsvContent;
+
+        const fioJobContent = await fetchFileContent(preset.fio_job);
+        document.getElementById('fio-job-preview').value = fioJobContent;
+
+        const configsCsvContent = await fetchFileContent(preset.configs_csv);
+        document.getElementById('configs-csv-preview').value = configsCsvContent;
+
+    } catch (e) {
+        alert(`Failed to load preset configurations: ${e.message}`);
+    }
+}
+
+async function fetchFileContent(path) {
+    const res = await fetch(`/api/configs/preview?path=${encodeURIComponent(path)}`);
+    if (!res.ok) throw new Error(`Could not fetch file: ${path}`);
+    const data = await res.json();
+    return data.content;
 }
