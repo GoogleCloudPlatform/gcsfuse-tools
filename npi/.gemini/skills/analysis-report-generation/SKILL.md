@@ -17,7 +17,27 @@ This skill guides you through querying benchmark results from BigQuery tables, p
 
 ### Step 1: Query BigQuery Results
 
-Retrieve performance data from the respective benchmark tables (e.g., `go_client_read_http1`, `go_client_read_grpc`, `fio_write_grpc`).
+Retrieve performance and system metadata from the respective tables:
+*   **`host_info`**: Query to extract target system specs and hardware profiles (e.g. CPU, RAM, kernel version, disk layout).
+*   **`fio_<benchmark>` / `go_client_read_<config>`**: Query to extract raw performance data.
+
+> [!NOTE]
+> **Querying Host Specifications**:
+> To retrieve the host hardware profile for your report, run:
+> ```sql
+> SELECT
+>   run_timestamp,
+>   hostname,
+>   kernel_release,
+>   cpu_model,
+>   cpu_count,
+>   total_memory_gb,
+>   disk_devices
+> FROM
+>   `<PROJECT_ID>.<DATASET_ID>.host_info`
+> ORDER BY run_timestamp DESC
+> LIMIT 1
+> ```
 
 > [!IMPORTANT]
 > **JSON Key Spacing**: In the FIO JSON output, the version is stored under the key `"fio version"` (with a space). Always query it using the quoted format: `JSON_VALUE(fio_json_output, '$."fio version"')` to avoid returning `NULL`.
@@ -92,6 +112,13 @@ The report must follow this structure:
 ## Run Details
 - **Timestamp**: [ISO 8601 Timestamp]
 - **Target Platforms**: [List of all target names, e.g. GCE VM target-1, GKE Cluster target-2, etc.]
+
+## System Specifications (Hardware Profile)
+Query the `host_info` table for each target to populate this hardware profile:
+| Target Name | Platform Type | OS & Kernel | CPU (Model & Cores) | Total RAM (GB) | Disk Buffer / Cache (Type & Size) | TPU Accelerator (Topology) |
+|---|---|---|---|---|---|---|
+| `kislayk-npi2` | GCE VM | Linux 6.1.0 | Intel Xeon (96 cores) | 360 GB | RAID0 SSD (/mnt/lssd, 2.9TB) | N/A |
+| `gke-orbax-benchmark-cluster` | GKE Cluster | Linux 6.1.0 | AMD EPYC (64 cores) | 600 GB | Memory Volume (tmpfs, 500GB) | TPU v6e (2x2 topology, 4 chips) |
 
 ## Target Performance Results
 
