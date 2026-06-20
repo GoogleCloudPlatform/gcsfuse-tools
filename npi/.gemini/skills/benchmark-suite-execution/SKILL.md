@@ -55,6 +55,9 @@ Populate `targets.json` with the corresponding target details. Format:
 1.  **Local Authentication**: Ensure `gcloud` and `kubectl` are configured locally.
 2.  **Access Verification**: Verify direct path routing and quota if using RAPID buckets.
 3.  **Logging**: Ensure all execution commands are logged locally/remotely to `npi_commands.log`.
+4.  **Host-Level Network Tuning (SLA Requirement)**:
+    *   To achieve the target 20 GB/s sustained throughput for both HTTP/1.1 and gRPC, the target GCE VM or GKE node pool nodes must be configured with Large Receive Offload (LRO/GRO), Receive Flow Steering (RFS/RPS), and optimized TCP window buffers.
+    *   Verify these OS-level tunings are applied. If not, follow the setup commands in the **[Remediation Advisor](../remediation-advisor/SKILL.md)** to tune the host interfaces prior to running the benchmarks.
 
 ## Step 3: Execute Orchestrated Benchmarks
 

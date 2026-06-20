@@ -89,6 +89,16 @@ Example Intra-Run Comparison Matrix:
 | Protocol | HTTP/1.1 | gRPC | 1235.2 | 2890.5 | +134.0% | gRPC shows expected scaling |
 | NUMA Binding | Non-NUMA | NUMA-Bound | 2500.0 | 2890.5 | +15.6% | NUMA binding improves throughput |
 
+#### 3. Strict NPI Performance Pass/Fail Gate (SLA Gate)
+To ensure the New Platform Integration (NPI) meets the required high-performance standards, you MUST evaluate the results against the following strict performance gate:
+*   **Target Workload**: Sequential reads of a **1 GiB file size**, with a **1M block size**, using **128 numjobs** and **10 files** (NR_FILES) concurrently, without enabling GCSFuse-specific caches.
+*   **Performance Threshold**: The maximum throughput achieved for this workload MUST be **>= 20 GB/s** (or 20 GiB/s) **for both HTTP/1.1 and gRPC protocols**.
+*   **NUMA Pinning Constraint**: This `20 GB/s` throughput target **MUST be achieved in the standard, non-NUMA-pinned configurations** (i.e. where neither GCSFuse nor FIO are pinned to NUMA nodes or specific CPU lists). If the non-pinned configurations fail to achieve 20 GB/s, the NPI validation MUST be marked as **FAIL / REJECTED**, even if the NUMA-pinned configurations achieve or exceed the target.
+*   **Verdict Rule**:
+    - If the maximum throughput achieved in the **non-pinned configurations** is **>= 20 GB/s** for both protocols, this gate passes (mark as **PASS**).
+    - If the maximum throughput achieved for **either** HTTP/1.1 or gRPC in the **non-pinned configurations** is **< 20 GB/s**, you MUST mark the overall NPI validation as **FAIL / REJECTED** in the Executive Summary, and the platform integration has failed.
+    - In the performance comparison table, the status for any non-pinned protocol configuration falling below 20 GB/s must be marked as **FAIL (Below SLA)**.
+
 ### Step 3: Verify Machine Type Configuration
 
 Verify if the GCE VM or GKE node machine type (e.g., `c4-standard-96`) is classified under the high-performance machine types in the main GCSFuse repository:
@@ -107,7 +117,7 @@ The report must follow this structure:
 # GCSFuse NPI Validation Report
 
 ## Executive Summary
-[Brief description of whether the run meets performance criteria and if any regressions/failures were detected.]
+[Brief description of whether the run meets performance criteria. CRITICAL: You MUST explicitly state the PASS/FAIL verdict for the 20 GB/s SLA gate (sequential reads, 1G file size, 1M block size, 128 numjobs, 10 files) for BOTH HTTP/1.1 and gRPC in the **non-NUMA-pinned** configurations. If the maximum throughput for either protocol without pinning is less than 20 GB/s, the overall verdict is a FAIL / REJECTED, and the platform integration has failed.]
 
 ## Run Details
 - **Timestamp**: [ISO 8601 Timestamp]
