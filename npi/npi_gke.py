@@ -65,23 +65,9 @@ def create_job_spec(job_name, image, args, bucket_name, service_account, extra_f
                                 opt_str = f"{k.strip()}={v.strip()}"
                             mount_opts.append(opt_str)
                 
-                # Check if billing-project is already specified
-                has_billing_project = any(opt.startswith("billing-project=") for opt in mount_opts)
-                if not has_billing_project and project_id:
-                    mount_opts.append(f"billing-project={project_id}")
-                
                 if mount_opts:
                     vol["csi"]["volumeAttributes"]["mountOptions"] = ",".join(mount_opts)
 
-        # Set the billing project annotation
-        if project_id:
-            template = job_spec["spec"]["template"]
-            if "metadata" not in template or template["metadata"] is None:
-                template["metadata"] = {}
-            metadata = template["metadata"]
-            if "annotations" not in metadata or not metadata["annotations"]:
-                metadata["annotations"] = {}
-            metadata["annotations"]["gke-gcsfuse/billing-project"] = project_id
 
         if use_memory_volumes:
             if "volumes" not in pod_spec:
