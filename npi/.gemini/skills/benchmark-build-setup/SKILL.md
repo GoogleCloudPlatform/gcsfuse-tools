@@ -22,8 +22,24 @@ This skill guides you through checking out the GCSFuse repository, configuring t
 Configure the storage buffer and Docker workspace on each target VM using the established SSH master connection socket.
 
 ### A. Configure Storage Buffer
-*   **Unified Buffer Setup (Local SSD or RAM Fallback)**:
-    Execute `raid0-script.sh` on the target VM, passing the target mount path (from `targets.json`'s `buffer_mount`) as the argument. The script will automatically build a RAID0 array from local SSDs if present. If no local SSDs are found, it will verify that the host has at least 600GB of RAM (minimum 550GB detected due to kernel reservations) and mount a 500GB memory volume (`tmpfs`) at the mount path instead:
+> [!NOTE]
+> For TPU GCE VMs (and any other targets without local SSDs, i.e. `has_ssd: false`), the performance test buffer will be allocated in memory (using a `tmpfs` RAM disk). RAID0 configuration is not required for these targets.
+
+*   **Check for Existing Mount First**:
+    Before creating a new RAID0 mount, check if the GCE VM already has a RAID0 mount or if the configured `buffer_mount` path (from `targets.json`'s `buffer_mount`) is already mounted. If it is already mounted, you can simply reuse that mount and skip copying or running the setup script entirely.
+    
+    To check if the configured path is already a mountpoint:
+    ```bash
+    ssh -S ~/.ssh/sockets/<TARGET_NAME>.sock -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ~/.ssh/google_compute_engine <SSH_USER>@nic0.<VM_NAME>.<ZONE>.c.<PROJECT_ID>.internal.gcpnode.com "mountpoint -q <SSD_MOUNT_PATH> && echo 'Already mounted' || echo 'Not mounted'"
+    ```
+    
+    To check if any RAID0 array is already mounted (e.g., `/dev/md0` or similar):
+    ```bash
+    ssh -S ~/.ssh/sockets/<TARGET_NAME>.sock -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ~/.ssh/google_compute_engine <SSH_USER>@nic0.<VM_NAME>.<ZONE>.c.<PROJECT_ID>.internal.gcpnode.com "df -h | grep -E '^/dev/md'"
+    ```
+
+*   **Unified Buffer Setup (Run only if not already mounted)**:
+    If the path is not already mounted, execute `raid0-script.sh` on the target VM, passing the target mount path as the argument. The script will automatically build a RAID0 array from local SSDs if present. If no local SSDs are found, it will verify that the host has at least 600GB of RAM (minimum 550GB detected due to kernel reservations) and mount a 500GB memory volume (`tmpfs`) at the mount path instead:
     ```bash
     # Copy script to target
     scp -S ~/.ssh/sockets/<TARGET_NAME>.sock -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ~/.ssh/google_compute_engine raid0-script.sh <SSH_USER>@nic0.<VM_NAME>.<ZONE>.c.<PROJECT_ID>.internal.gcpnode.com:~/raid0-script.sh

@@ -10,7 +10,7 @@ This skill guides you through querying benchmark results from BigQuery tables, p
 ## Prerequisites
 
 1.  **GCP/BigQuery Access**: The environment must have access to BigQuery dataset containing the benchmark outputs.
-2.  **Baselines Datasets**: Ensure you know the baseline dataset ID (e.g. `npi_benchmarks_baseline_lro_on` or similar) and the newly generated run's dataset ID.
+2.  **Baselines Datasets (Optional)**: Ensure you know the baseline dataset ID (e.g. `npi_benchmarks_baseline_lro_on` or similar) and the newly generated run's dataset ID, if available. If no baseline dataset is present, the report must still be generated using intra-run comparisons.
 3.  **GCSFuse Source Code**: Access to GCSFuse code is required to inspect `params.yaml` for machine type verification.
 
 ## Step-by-Step Procedure
@@ -39,18 +39,35 @@ GROUP BY 1, 2, 3
 ORDER BY run_timestamp DESC"
 ```
 
-### Step 2: Compare Against Baselines
+### Step 2: Compare Against Baselines & Perform Intra-Run Analysis
 
-Execute comparison scripts (e.g. `query_results.py`) or calculate the percentage difference in throughput/latency between baseline and regression datasets.
+#### 1. Compare Against Baselines (If Baseline Dataset is Available)
+If a baseline dataset is available, execute comparison scripts (e.g. `query_results.py`) or calculate the percentage difference in throughput/latency between baseline and regression datasets.
 
 > [!IMPORTANT]
-> **No Cross-Target Comparisons**: Performance results from different targets (e.g., GKE Node runs vs GCE VM runs) represent distinct platforms and are not directly comparable. Do not compare them against each other, compute cross-target deltas, or label differences between them as regressions. Compare each environment exclusively against its own respective historical baseline.
+> **No Cross-Target Comparisons (Default)**: Performance results from different targets (e.g., GKE Node runs vs GCE VM runs) represent distinct platforms and are not directly comparable by default. Do not compare them against each other, compute cross-target deltas, or label differences between them as regressions, **unless the user explicitly requests a cross-target platform comparison**. If explicitly requested, you may compare the environments and include a dedicated section in the final report.
 
 Example Comparison Matrix:
 | Protocol | Baseline Throughput (MiB/s) | New Run Throughput (MiB/s) | Delta (%) | Status |
 | :--- | :--- | :--- | :--- | :--- |
 | HTTP/1.1 | 1240.5 | 1235.2 | -0.4% | Neutral |
 | gRPC | 3450.0 | 2890.5 | -16.2% | **REGRESSION** |
+
+#### 2. Perform Intra-Run Comparisons (Always Recommended)
+Even when a baseline dataset is present, or if it is not present, you should perform intra-run comparisons to analyze and highlight the relative performance gains under different configurations:
+
+*   **gRPC vs HTTP/1**:
+    - Compare the performance of gRPC against HTTP/1.1 under the same test workload in the run.
+    - Quantify the throughput gain (or loss) and latency delta when using gRPC compared to HTTP/1.1.
+*   **NUMA binding vs non-NUMA binding analysis**:
+    - Compare performance metrics (throughput and latency) between runs executed with NUMA binding enabled versus runs executed without NUMA binding.
+    - Highlight the percentage improvement or degradation introduced by NUMA binding.
+
+Example Intra-Run Comparison Matrix:
+| Comparison Type | Configuration A | Configuration B | Throughput A (MiB/s) | Throughput B (MiB/s) | Delta (%) | Status / Insight |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| Protocol | HTTP/1.1 | gRPC | 1235.2 | 2890.5 | +134.0% | gRPC shows expected scaling |
+| NUMA Binding | Non-NUMA | NUMA-Bound | 2500.0 | 2890.5 | +15.6% | NUMA binding improves throughput |
 
 ### Step 3: Verify Machine Type Configuration
 
@@ -81,11 +98,36 @@ The report must follow this structure:
 ### [TARGET_NAME_1] (Platform Type, e.g., GCE VM)
 - **GCSFuse Version**: [e.g. v3.9.0]
 - **Target Bucket**: [RAPID / Regional]
-- **Performance Metrics vs Baseline**:
+- **Performance Metrics Comparison**:
+
+#### Baseline Performance Comparison (If Baseline is Available)
 | Benchmark / Protocol | Baseline (Version) | Current Run (Version) | Delta (%) | Status |
 |---|---|---|---|---|
 | HTTP1 Read | 1250 MB/s | 1240 MB/s | -0.8% | PASS |
 | gRPC Read | 3500 MB/s | 2800 MB/s | -20.0% | FAIL (Regression) |
+
+#### Intra-Run Performance Analysis (If Applicable)
+Provide these comparisons if the corresponding protocols or NUMA configurations were executed in the run:
+
+##### gRPC vs HTTP/1.1 Protocol Comparison
+| Metric | HTTP/1.1 | gRPC | Delta (%) | Observation |
+|---|---|---|---|---|
+| Read Throughput | 1240 MB/s | 2800 MB/s | +125.8% | gRPC significantly outperforms HTTP/1.1 |
+| Read Latency (mean) | 0.012 ms | 0.005 ms | -58.3% | gRPC shows lower latency |
+
+##### NUMA Binding vs Non-NUMA Binding Analysis
+| Protocol / Workload | Non-NUMA Bound | NUMA Bound | Delta (%) | Observation |
+|---|---|---|---|---|
+| gRPC Read Throughput | 2400 MB/s | 2800 MB/s | +16.7% | NUMA binding improves throughput |
+| gRPC Read Latency | 0.006 ms | 0.005 ms | -16.7% | NUMA binding reduces latency |
+
+### Cross-Target Platform Comparison (Only If Explicitly Requested by User)
+If the user explicitly requested a comparison between different targets (e.g., GCE VM vs GKE Cluster), compile their metrics into a side-by-side comparison table here:
+
+| Metric / Workload | [TARGET_NAME_1] (e.g., GCE VM) | [TARGET_NAME_2] (e.g., GKE Cluster) | Delta (%) | Status / Observation |
+|---|---|---|---|---|
+| gRPC Read Throughput | 2800 MB/s | 3100 MB/s | +10.7% | GKE cluster shows higher peak throughput |
+| gRPC Read Latency | 0.005 ms | 0.004 ms | -20.0% | GKE cluster shows lower latency |
 
 ## High-Performance Machine Type Classification
 - **Machine Type Used**: `c4-standard-96`
