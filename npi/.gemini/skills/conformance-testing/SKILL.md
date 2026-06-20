@@ -44,13 +44,17 @@ Ensure the target bucket is prepared and verify the project configuration:
 ### Step 3: Run the Integration Tests
 
 Navigate to the cloned repository and run the integration tests:
+
+> [!IMPORTANT]
+> **Mandatory Go Flags**: In newer versions of GCSFuse, the integration tests will be silently skipped unless you explicitly pass the `--integrationTest` flag. You must also specify the target bucket using the `--testbucket=<bucket_name>` flag. Without these, the test suite will run zero tests and report a misleading `PASS` status in less than a minute.
+> It is also highly recommended to run the packages sequentially using the `-p 1` flag to avoid concurrent mounting conflicts on the same target VM, and set a long timeout (e.g., `-timeout=60m`).
+
 ```bash
 ssh -S ~/.ssh/sockets/<TARGET_NAME>.sock -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ~/.ssh/google_compute_engine <SSH_USER>@nic0.<VM_NAME>.<ZONE>.c.<PROJECT_ID>.internal.gcpnode.com "bash -s" << 'EOF'
   cd ~/gcsfuse
-  # Run integration tests and redirect output to a file
-  export GCSFUSE_TEST_BUCKET=<TEST_BUCKET_NAME>
-  # Run all integration tests under tools/integration_tests, excluding emulator_tests (which require a local docker emulator running on port 9000)
-  go test -v $(go list ./tools/integration_tests/... | grep -v emulator_tests) > ~/integration_tests.log 2>&1
+  # Run all integration tests under tools/integration_tests, excluding emulator_tests
+  # Pass both the --integrationTest and --testbucket flags.
+  go test -p 1 -v $(go list ./tools/integration_tests/... | grep -v emulator_tests) --integrationTest --testbucket=<TEST_BUCKET_NAME> -timeout=60m > ~/integration_tests.log 2>&1
 EOF
 ```
 
