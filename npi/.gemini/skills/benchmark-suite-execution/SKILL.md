@@ -88,11 +88,22 @@ Observe logs for the following active safety policies enforced by the orchestrat
 
 ## Step 5: Verify BigQuery Results Export
 
-Upon successful completion, the orchestrator uploads FIO and Go Client JSON output to BigQuery.
-Verify the upload:
-1.  Locate the dataset: `<BQ_DATASET_PREFIX>` configured in `targets.json`.
-2.  Query the BQ table using bq tool or Google Cloud Console:
+Upon successful completion, the orchestrator uploads the collected metrics to BigQuery.
+Verify the export status:
+
+1.  **Locate the Dataset**: The dataset ID is constructed dynamically by the orchestrator by appending a suffix based on the bucket type to the `dataset` prefix configured in `targets.json`:
+    *   **Regional Buckets**: `<BQ_DATASET_PREFIX>_regional` (e.g., `npi_gke_orbax_regional`)
+    *   **Zonal/RAPID Buckets**: `<BQ_DATASET_PREFIX>_zonal`
+2.  **Identify the Tables**: The orchestrator creates separate tables for each run type:
+    *   `host_info`: Contains target system hardware profiles (CPU, memory, kernel, disks). This runs automatically as the first job in any suite.
+    *   `fio_<benchmark_name>`: Contains FIO performance metrics (e.g., `fio_read_grpc`, `fio_write_grpc`, `fio_read_parallel`).
+    *   `go_client_read_<config>`: Contains Go SDK client performance metrics.
+3.  **Query Verification**: Verify the upload using the `bq` CLI tool or the Google Cloud Console:
     ```sql
-    SELECT COUNT(*) FROM `<PROJECT_ID>.<BQ_DATASET_PREFIX>_dataset.fio_results` WHERE image_version = '<IMAGE_VERSION>'
+    -- Verify host metadata is recorded
+    SELECT * FROM `<PROJECT_ID>.<BQ_DATASET_ID>.host_info` LIMIT 10;
+
+    -- Verify FIO iteration count matches
+    SELECT COUNT(*) FROM `<PROJECT_ID>.<BQ_DATASET_ID>.fio_read_grpc` WHERE image_version = '<IMAGE_VERSION>';
     ```
-3.  Ensure the count matches the expected number of iterations and test runs.
+4.  Ensure the record count matches the expected number of iterations.
