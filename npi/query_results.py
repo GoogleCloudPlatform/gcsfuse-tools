@@ -6,7 +6,7 @@ import sys
 def get_average_bandwidth(project_id, dataset_id, table_id):
     query = f"""
     SELECT
-      AVG(SAFE_CAST(JSON_VALUE(job.read.bw) AS FLOAT64)) / 1024.0 AS avg_bw_mib
+      AVG(SAFE_CAST(JSON_VALUE(job.read.bw) AS FLOAT64)) * 1024.0 / 1000000.0 AS avg_bw_mb
     FROM
       `{project_id}.{dataset_id}.{table_id}`,
       UNNEST(JSON_EXTRACT_ARRAY(fio_json_output.jobs)) AS job
@@ -22,8 +22,8 @@ def get_average_bandwidth(project_id, dataset_id, table_id):
     try:
         res = subprocess.run(cmd, capture_output=True, text=True, check=True)
         results = json.loads(res.stdout)
-        if results and results[0].get("avg_bw_mib") is not None:
-            return float(results[0]["avg_bw_mib"])
+        if results and results[0].get("avg_bw_mb") is not None:
+            return float(results[0]["avg_bw_mb"])
     except Exception as e:
         pass
     return 0.0
@@ -49,14 +49,9 @@ def main():
         bw_base_off = get_average_bandwidth(project_id, dataset_base_off, table_id)
         bw_reg_on = get_average_bandwidth(project_id, dataset_reg_on, table_id)
         
-        bw_base_on_str = f"{bw_base_on:.2f} MiB/s" if bw_base_on > 0 else "N/A"
-        bw_base_off_str = f"{bw_base_off:.2f} MiB/s" if bw_base_off > 0 else "N/A"
-        bw_reg_on_str = f"{bw_reg_on:.2f} MiB/s" if bw_reg_on > 0 else "FAILED / N/A"
-        
-        # Special case: we know HTTP1 failed on 1.35.3 LRO ON
-        if proto == "http1" and bw_reg_on == 0:
-            bw_reg_on_str = "FAILED (TLS Handshake Error)"
-            
+        bw_base_on_str = f"{bw_base_on:.2f} MB/s" if bw_base_on > 0 else "N/A"
+        bw_base_off_str = f"{bw_base_off:.2f} MB/s" if bw_base_off > 0 else "N/A"
+        bw_reg_on_str = f"{bw_reg_on:.2f} MB/s" if bw_reg_on > 0 else "FAILED / N/A"
         print(f"{proto.upper():<10} | {bw_base_on_str:<25} | {bw_base_off_str:<25} | {bw_reg_on_str:<25}")
 
 if __name__ == "__main__":

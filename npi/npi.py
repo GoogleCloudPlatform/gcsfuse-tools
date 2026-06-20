@@ -144,6 +144,14 @@ class BenchmarkFactory:
             f"{volume_mount} "
         )
 
+        if benchmark_image_suffix == "host-info-collector":
+            base_cmd += (
+                f"us-docker.pkg.dev/{project_id}/gcsfuse-benchmarks/{benchmark_image_suffix}:{self.image_version} "
+                f"--project-id={project_id} "
+                f"--bq-dataset-id={bq_dataset_id} "
+                f"--bq-table-id={bq_table_id}"
+            )
+            return base_cmd, bq_table_id
 
         base_cmd += (
             f"us-docker.pkg.dev/{project_id}/gcsfuse-benchmarks/{benchmark_image_suffix}:{self.image_version} "

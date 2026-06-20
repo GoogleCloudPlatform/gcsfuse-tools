@@ -280,7 +280,7 @@ def monitor_run(target, socket_path, state_lock, state):
 
     last_log_change_time = time.time()
     previous_log_line = ""
-    MAX_INACTIVITY_SECS = 600
+    MAX_INACTIVITY_SECS = 14400
     
     consecutive_ssh_failures = 0
     MAX_SSH_RETRIES = 3
@@ -580,7 +580,8 @@ def validate_colocation(target, project_id):
         if location_type != "zone":
             raise ValueError(f"Bucket '{bucket_name}' is configured as a RAPID bucket, but GCS location type is '{location_type}' (expected 'zone').")
             
-        raw_data_locs = meta.get("dataLocations")
+        custom_placement = meta.get("customPlacementConfig")
+        raw_data_locs = meta.get("dataLocations") or (custom_placement.get("dataLocations") if isinstance(custom_placement, dict) else None)
         data_locs = [loc.lower() for loc in raw_data_locs if isinstance(loc, str)] if isinstance(raw_data_locs, list) else []
         if not data_locs:
             raise ValueError(f"Bucket '{bucket_name}' has no data locations listed in GCS metadata.")

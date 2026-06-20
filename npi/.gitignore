@@ -1,0 +1,7 @@
+# Ephemeral agent execution workspace
+.agents/
+
+# NPI Run output/test results
+conformance_results.json
+npi_remediation_plan.md
+npi_validation_report.md
