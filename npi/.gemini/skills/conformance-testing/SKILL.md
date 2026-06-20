@@ -46,15 +46,20 @@ Ensure the target bucket is prepared and verify the project configuration:
 Navigate to the cloned repository and run the integration tests:
 
 > [!IMPORTANT]
-> **Mandatory Go Flags**: In newer versions of GCSFuse, the integration tests will be silently skipped unless you explicitly pass the `--integrationTest` flag. You must also specify the target bucket using the `--testbucket=<bucket_name>` flag. Without these, the test suite will run zero tests and report a misleading `PASS` status in less than a minute.
-> It is also highly recommended to run the packages sequentially using the `-p 1` flag to avoid concurrent mounting conflicts on the same target VM, and set a long timeout (e.g., `-timeout=60m`).
+> **Makefile Integration**:
+> GCSFuse features a dedicated, standardized `npi-conformance` Makefile target that automatically:
+> 1. Excludes emulator tests.
+> 2. Handles the dual-configuration execution (Phase 1: Without Read-Ahead, and Phase 2: With Read-Ahead).
+> 3. Dynamically resolves target project and bucket locations on the GCE VM.
+> 4. Executes the test packages sequentially to prevent resource contention.
+> 
+> You should always invoke this native Makefile target instead of running raw, manual `go test` commands. You can optionally pass Makefile variables to customize the run, such as `PROJECT`, `BUCKET_LOCATION`, and `READ_AHEAD_KB` (defaults to 128).
 
 ```bash
 ssh -S ~/.ssh/sockets/<TARGET_NAME>.sock -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ~/.ssh/google_compute_engine <SSH_USER>@nic0.<VM_NAME>.<ZONE>.c.<PROJECT_ID>.internal.gcpnode.com "bash -s" << 'EOF'
   cd ~/gcsfuse
-  # Run all integration tests under tools/integration_tests, excluding emulator_tests
-  # Pass both the --integrationTest and --testbucket flags.
-  go test -p 1 -v $(go list ./tools/integration_tests/... | grep -v emulator_tests) --integrationTest --testbucket=<TEST_BUCKET_NAME> -timeout=60m > ~/integration_tests.log 2>&1
+  # Execute the NPI conformance target, forwarding parameters if custom overrides are needed
+  make npi-conformance [PROJECT=<PROJECT_ID>] [BUCKET_LOCATION=<REGION>] [READ_AHEAD_KB=<KB>] > ~/integration_tests.log 2>&1
 EOF
 ```
 

@@ -1,6 +1,6 @@
 # GCSfuse NPI Benchmark Runner
 
-This directory contains the `npi.py` script, a tool for orchestrating and running GCSFuse performance benchmarks for Network Performance Improvement (NPI) analysis.
+This directory contains the `npi.py` script, a tool for orchestrating and running GCSFuse performance benchmarks for New Product Introduction (NPI) analysis.
 
 ## Purpose
 

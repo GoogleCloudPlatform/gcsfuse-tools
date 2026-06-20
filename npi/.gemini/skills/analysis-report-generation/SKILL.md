@@ -27,12 +27,12 @@ Retrieve performance and system metadata from the respective tables:
 > ```sql
 > SELECT
 >   run_timestamp,
->   hostname,
->   kernel_release,
->   cpu_model,
->   cpu_count,
->   total_memory_gb,
->   disk_devices
+>   cpu_arch,
+>   num_cpus,
+>   num_numa_nodes,
+>   kernel_version,
+>   ram_bytes,
+>   num_local_ssds
 > FROM
 >   `<PROJECT_ID>.<DATASET_ID>.host_info`
 > ORDER BY run_timestamp DESC
