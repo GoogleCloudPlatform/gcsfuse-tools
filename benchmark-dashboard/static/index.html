@@ -431,129 +431,12 @@
 
         <!-- ================= RUN HISTORY TAB ================= -->
         <section id="section-history" class="tab-section hidden space-y-8">
-            <!-- Graphing Comparative Workspace -->
-            <div id="chart-workspace" class="hidden bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-6">
-                <div class="flex items-center justify-between border-b border-slate-200 pb-4">
-                    <h3 class="text-lg font-bold flex items-center text-slate-800">
-                        <i class="fa-solid fa-chart-line mr-3 text-blue-600"></i>Performance Comparison Dashboard
-                    </h3>
-                    <div class="flex items-center space-x-4">
-                        <label class="text-xs font-semibold text-slate-500 uppercase">X-Axis:</label>
-                        <select id="chart-x-axis" onchange="replotCharts()" class="bg-white border border-slate-300 rounded px-3 py-1.5 text-sm text-slate-800">
-                            <option value="test-cases">Test Cases (Configs as series)</option>
-                            <option value="configs">Configs (Test Cases as series)</option>
-                        </select>
-                    </div>
-                </div>
-
-                <!-- Unified Legend Panel -->
-                <div id="unified-legend-container" class="hidden bg-slate-50 border border-slate-200 rounded-lg p-4">
-                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-2"><i class="fa-solid fa-tags mr-1"></i> Run Comparison Legend</span>
-                    <div id="unified-chart-legend" class="flex flex-wrap gap-x-6 gap-y-2 text-xs font-semibold text-slate-700"></div>
-                </div>
-
-                <!-- Dual Charts Container (Now 9 charts in compact 3-column grid) -->
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    <!-- Chart 1: Bandwidth / Throughput -->
-                    <div class="bg-slate-50 border border-slate-200 p-4 rounded-xl flex flex-col h-[290px]">
-                        <h4 class="text-xs font-bold text-slate-700 mb-2 flex items-center">
-                            <i class="fa-solid fa-bolt mr-2 text-amber-500"></i>Bandwidth / Throughput (MB/s)
-                        </h4>
-                        <div class="relative flex-grow h-0 w-full">
-                            <canvas id="throughput-chart"></canvas>
-                        </div>
-                    </div>
-
-                    <!-- Chart 2: Average Latency -->
-                    <div class="bg-slate-50 border border-slate-200 p-4 rounded-xl flex flex-col h-[290px]">
-                        <h4 class="text-xs font-bold text-slate-700 mb-2 flex items-center">
-                            <i class="fa-solid fa-stopwatch mr-2 text-rose-500"></i>Average Execution Latency (ms)
-                        </h4>
-                        <div class="relative flex-grow h-0 w-full">
-                            <canvas id="latency-chart"></canvas>
-                        </div>
-                    </div>
-
-                    <!-- Chart 3: Peak Throughput -->
-                    <div class="bg-slate-50 border border-slate-200 p-4 rounded-xl flex flex-col h-[290px]">
-                        <h4 class="text-xs font-bold text-slate-700 mb-2 flex items-center">
-                            <i class="fa-solid fa-arrow-trend-up mr-2 text-emerald-500"></i>Peak Throughput (MB/s)
-                        </h4>
-                        <div class="relative flex-grow h-0 w-full">
-                            <canvas id="peak-bw-chart"></canvas>
-                        </div>
-                    </div>
-
-                    <!-- Chart 4: CPU Usage -->
-                    <div class="bg-slate-50 border border-slate-200 p-4 rounded-xl flex flex-col h-[290px]">
-                        <h4 class="text-xs font-bold text-slate-700 mb-2 flex items-center">
-                            <i class="fa-solid fa-microchip mr-2 text-blue-500"></i>GCSFuse CPU Usage (%)
-                        </h4>
-                        <div class="relative flex-grow h-0 w-full">
-                            <canvas id="cpu-chart"></canvas>
-                        </div>
-                    </div>
-
-                    <!-- Chart 5: Memory Usage -->
-                    <div class="bg-slate-50 border border-slate-200 p-4 rounded-xl flex flex-col h-[290px]">
-                        <h4 class="text-xs font-bold text-slate-700 mb-2 flex items-center">
-                            <i class="fa-solid fa-memory mr-2 text-indigo-500"></i>GCSFuse Memory RSS (MB)
-                        </h4>
-                        <div class="relative flex-grow h-0 w-full">
-                            <canvas id="mem-chart"></canvas>
-                        </div>
-                    </div>
-
-                    <!-- Chart 6: OS Page Cache -->
-                    <div class="bg-slate-50 border border-slate-200 p-4 rounded-xl flex flex-col h-[290px]">
-                        <h4 class="text-xs font-bold text-slate-700 mb-2 flex items-center">
-                            <i class="fa-solid fa-hard-drive mr-2 text-cyan-500"></i>OS Page Cache (GB)
-                        </h4>
-                        <div class="relative flex-grow h-0 w-full">
-                            <canvas id="pgcache-chart"></canvas>
-                        </div>
-                    </div>
-
-                    <!-- Chart 7: Avg Network RX -->
-                    <div class="bg-slate-50 border border-slate-200 p-4 rounded-xl flex flex-col h-[290px]">
-                        <h4 class="text-xs font-bold text-slate-700 mb-2 flex items-center">
-                            <i class="fa-solid fa-cloud-arrow-down mr-2 text-teal-500"></i>Avg Network Ingress (RX) (MB/s)
-                        </h4>
-                        <div class="relative flex-grow h-0 w-full">
-                            <canvas id="net-rx-chart"></canvas>
-                        </div>
-                    </div>
-
-                    <!-- Chart 8: Peak Network RX -->
-                    <div class="bg-slate-50 border border-slate-200 p-4 rounded-xl flex flex-col h-[290px]">
-                        <h4 class="text-xs font-bold text-slate-700 mb-2 flex items-center">
-                            <i class="fa-solid fa-cloud-download mr-2 text-sky-500"></i>Peak Network Ingress (RX) (MB/s)
-                        </h4>
-                        <div class="relative flex-grow h-0 w-full">
-                            <canvas id="peak-net-rx-chart"></canvas>
-                        </div>
-                    </div>
-
-                    <!-- Chart 9: Network TX -->
-                    <div class="bg-slate-50 border border-slate-200 p-4 rounded-xl flex flex-col h-[290px]">
-                        <h4 class="text-xs font-bold text-slate-700 mb-2 flex items-center">
-                            <i class="fa-solid fa-cloud-arrow-up mr-2 text-violet-500"></i>Network Egress (TX) (MB/s)
-                        </h4>
-                        <div class="relative flex-grow h-0 w-full">
-                            <canvas id="net-tx-chart"></canvas>
-                        </div>
-                    </div>
-                </div>
-            </div>
             <!-- Main Historical Runs Table -->
             <div class="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
                 <div class="flex items-center justify-between mb-6 border-b border-slate-100 pb-4">
                     <h2 class="text-lg font-bold text-slate-800 flex items-center">
                         <i class="fa-solid fa-clock-rotate-left mr-3 text-emerald-600"></i>Benchmark Executions
                     </h2>
-                    <button onclick="compareSelected()" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-lg text-sm shadow transition flex items-center space-x-2">
-                        <i class="fa-solid fa-right-left"></i><span>Compare Selected Runs</span>
-                    </button>
                 </div>
                 
                 <!-- Filter bar -->
@@ -578,7 +461,6 @@
                     <table class="w-full text-left border-collapse">
                         <thead>
                             <tr class="bg-slate-50 text-xs font-semibold text-slate-500 uppercase border-b border-slate-200">
-                                <th class="py-3 px-4 w-12 text-center"><input type="checkbox" id="select-all-history" onchange="toggleSelectAll(this)"></th>
                                 <th class="py-3 px-1 w-8"></th>
                                 <th class="py-3 px-4">Benchmark ID</th>
                                 <th class="py-3 px-4">Description</th>
