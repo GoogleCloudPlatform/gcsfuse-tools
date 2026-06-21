@@ -1,8 +1,39 @@
 import sqlite3
 import os
 from datetime import datetime
+from google.cloud import storage
 
 DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "dashboard.db")
+DASHBOARD_BUCKET = os.environ.get("DASHBOARD_BUCKET", "pranjal-bucket-1")
+GCS_DB_BLOB = "dashboard/dashboard.db"
+
+def download_db_from_gcs():
+    """Download dashboard.db from GCS to local path on startup."""
+    try:
+        client = storage.Client()
+        bucket = client.bucket(DASHBOARD_BUCKET)
+        blob = bucket.blob(GCS_DB_BLOB)
+        if blob.exists():
+            print(f"Downloading database from GCS: gs://{DASHBOARD_BUCKET}/{GCS_DB_BLOB}")
+            blob.download_to_filename(DB_PATH)
+            return True
+        else:
+            print(f"No database found on GCS at gs://{DASHBOARD_BUCKET}/{GCS_DB_BLOB}. Initializing a new database.")
+            return False
+    except Exception as e:
+        print(f"Warning: Failed to download database from GCS: {e}. Using local database.")
+        return False
+
+def upload_db_to_gcs():
+    """Upload local dashboard.db to GCS after write operations."""
+    try:
+        client = storage.Client()
+        bucket = client.bucket(DASHBOARD_BUCKET)
+        blob = bucket.blob(GCS_DB_BLOB)
+        print(f"Syncing database to GCS: gs://{DASHBOARD_BUCKET}/{GCS_DB_BLOB}")
+        blob.upload_from_filename(DB_PATH)
+    except Exception as e:
+        print(f"Error: Failed to upload database to GCS: {e}")
 
 def get_db_connection():
     conn = sqlite3.connect(DB_PATH)
@@ -10,6 +41,9 @@ def get_db_connection():
     return conn
 
 def init_db():
+    # Always try to restore state from cloud on initialization
+    download_db_from_gcs()
+    
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("""
@@ -51,8 +85,22 @@ def init_db():
     except sqlite3.OperationalError:
         cursor.execute("ALTER TABLE ui_runs ADD COLUMN is_starred INTEGER DEFAULT 0")
         
+    # Create ui_presets table
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS ui_presets (
+        preset_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name VARCHAR(255) NOT NULL,
+        owner VARCHAR(100) NOT NULL,
+        category VARCHAR(50) NOT NULL,      -- 'test_cases', 'fio_job', 'mount_configs'
+        filename VARCHAR(255) NOT NULL,
+        content TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+    """)
+        
     conn.commit()
     conn.close()
+    upload_db_to_gcs()
 
 def delete_run(benchmark_id):
     conn = get_db_connection()
@@ -60,6 +108,7 @@ def delete_run(benchmark_id):
     cursor.execute("DELETE FROM ui_runs WHERE benchmark_id = ?", (benchmark_id,))
     conn.commit()
     conn.close()
+    upload_db_to_gcs()
 
 def update_run_starred(benchmark_id, is_starred):
     conn = get_db_connection()
@@ -67,6 +116,7 @@ def update_run_starred(benchmark_id, is_starred):
     cursor.execute("UPDATE ui_runs SET is_starred = ? WHERE benchmark_id = ?", (is_starred, benchmark_id))
     conn.commit()
     conn.close()
+    upload_db_to_gcs()
 
 def insert_run(run_data):
     conn = get_db_connection()
@@ -89,6 +139,7 @@ def insert_run(run_data):
     ))
     conn.commit()
     conn.close()
+    upload_db_to_gcs()
 
 def get_runs_by_status(status):
     conn = get_db_connection()
@@ -133,3 +184,41 @@ def update_run_status(benchmark_id, status, started_at=None, completed_at=None):
         cursor.execute("UPDATE ui_runs SET status = ? WHERE benchmark_id = ?", (status, benchmark_id))
     conn.commit()
     conn.close()
+    upload_db_to_gcs()
+
+# --- PRESET HELPER METHODS ---
+
+def insert_preset(name, owner, category, filename, content):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+    INSERT INTO ui_presets (name, owner, category, filename, content)
+    VALUES (?, ?, ?, ?, ?)
+    """, (name, owner, category, filename, content))
+    conn.commit()
+    conn.close()
+    upload_db_to_gcs()
+
+def get_presets():
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM ui_presets ORDER BY created_at DESC")
+    rows = [dict(r) for r in cursor.fetchall()]
+    conn.close()
+    return rows
+
+def get_preset(preset_id):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM ui_presets WHERE preset_id = ?", (preset_id,))
+    row = cursor.fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+def delete_preset(preset_id):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM ui_presets WHERE preset_id = ?", (preset_id,))
+    conn.commit()
+    conn.close()
+    upload_db_to_gcs()

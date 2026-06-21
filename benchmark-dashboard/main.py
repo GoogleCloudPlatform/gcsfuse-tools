@@ -6,7 +6,7 @@ import logging
 import subprocess
 from collections import defaultdict
 from datetime import datetime
-from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Request, Depends
 from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -21,18 +21,54 @@ import db
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
 logger = logging.getLogger("dashboard")
 
+# Shared Password from Environment, default to a secure-looking team password
+SHARED_PASSWORD = os.environ.get("DASHBOARD_PASSWORD", "gcsfuse-team")
+
+async def verify_token_selective(request: Request):
+    path = request.url.path
+    # Allow index, static files, login API, and favicon
+    if path == "/" or path.startswith("/static/") or path == "/api/login" or path == "/favicon.ico":
+        return
+    
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        logger.warning(f"Unauthenticated API access attempt: {path}")
+        raise HTTPException(status_code=401, detail="Missing or invalid authentication token")
+    
+    token = auth_header.split(" ")[1]
+    expected_token = f"token-{SHARED_PASSWORD}"
+    if token != expected_token:
+        logger.warning(f"Failed API authentication attempt: {path}")
+        raise HTTPException(status_code=401, detail="Invalid session token")
+
 # Paths
 BASE_DIR = Path(__file__).resolve().parent
 REPO_ROOT = BASE_DIR.parent
 DMB_DIR = REPO_ROOT / "distributed-micro-benchmark"
 
-app = FastAPI(title="GCSFuse Benchmark Dashboard")
+app = FastAPI(
+    title="GCSFuse Benchmark Dashboard",
+    dependencies=[Depends(verify_token_selective)]
+)
 
 # Initialize SQLite database
 db.init_db()
 
 # Mount static files for UI (created later)
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
+
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+
+class PresetCreateRequest(BaseModel):
+    name: str
+    owner: str
+    category: str
+    filename: str
+    content: str
 
 
 class BenchmarkRunRequest(BaseModel):
@@ -230,6 +266,17 @@ async def shutdown_event():
 
 # --- API ENDPOINTS ---
 
+@app.post("/api/login")
+async def login_api(req: LoginRequest):
+    """Verifies the shared team password and returns a session token."""
+    if req.password == SHARED_PASSWORD:
+        token = f"token-{SHARED_PASSWORD}"
+        logger.info(f"User {req.username} successfully signed in.")
+        return {"status": "success", "token": token, "username": req.username}
+    else:
+        logger.warning(f"Failed sign-in attempt for user {req.username} (incorrect password).")
+        raise HTTPException(status_code=401, detail="Invalid team password")
+
 @app.get("/", response_class=HTMLResponse)
 async def get_index():
     """Serves the single-page application UI."""
@@ -397,6 +444,61 @@ def get_file_preview(path: str):
             return {"content": "".join(lines[:1000])}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to read file: {e}")
+
+
+# --- CONFIG PRESETS MANAGER ENDPOINTS ---
+
+@app.post("/api/presets")
+def create_preset(preset: PresetCreateRequest):
+    """Saves a new config preset in the cloud-synced database."""
+    try:
+        db.insert_preset(
+            name=preset.name,
+            owner=preset.owner,
+            category=preset.category,
+            filename=preset.filename,
+            content=preset.content
+        )
+        logger.info(f"Preset '{preset.name}' ({preset.category}) saved successfully by {preset.owner}")
+        return {"status": "success"}
+    except Exception as e:
+        logger.error(f"Failed to create preset: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to save preset: {e}")
+
+@app.get("/api/presets")
+def list_presets():
+    """Lists all saved presets from the database."""
+    try:
+        return db.get_presets()
+    except Exception as e:
+        logger.error(f"Failed to list presets: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve presets: {e}")
+
+@app.get("/api/presets/{preset_id}")
+def get_preset_detail(preset_id: int):
+    """Retrieves the details/content of a specific preset."""
+    preset = db.get_preset(preset_id)
+    if not preset:
+        raise HTTPException(status_code=404, detail="Preset not found")
+    return preset
+
+@app.delete("/api/presets/{preset_id}")
+def delete_preset(preset_id: int, username: str):
+    """Deletes a preset from the database. Only owner can delete."""
+    preset = db.get_preset(preset_id)
+    if not preset:
+        raise HTTPException(status_code=404, detail="Preset not found")
+    
+    if preset["owner"] != username and preset["owner"] != "system":
+        raise HTTPException(status_code=403, detail="You are not authorized to delete other users' presets!")
+         
+    try:
+        db.delete_preset(preset_id)
+        logger.info(f"Preset '{preset['name']}' deleted by {username}")
+        return {"status": "deleted"}
+    except Exception as e:
+        logger.error(f"Failed to delete preset: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to delete preset: {e}")
 
 
 @app.post("/api/runs")

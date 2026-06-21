@@ -1,3 +1,31 @@
+// Global fetch interceptor to inject auth token and handle 401s
+const originalFetch = window.fetch;
+window.fetch = async function (...args) {
+    let [resource, config] = args;
+    
+    // Only intercept requests to our local API
+    if (typeof resource === 'string' && resource.startsWith('/api/')) {
+        config = config || {};
+        config.headers = config.headers || {};
+        
+        const token = localStorage.getItem("session_token");
+        if (token) {
+            config.headers['Authorization'] = `Bearer ${token}`;
+        }
+    }
+    
+    const response = await originalFetch(resource, config);
+    
+    if (response.status === 401 && typeof resource === 'string' && resource.startsWith('/api/')) {
+        // Token expired or invalid, force logout/sign-in
+        localStorage.removeItem("session_token");
+        localStorage.removeItem("ldap_user");
+        checkAuthentication();
+    }
+    
+    return response;
+};
+
 // State management
 let activeTab = 'launch';
 let activeRuns = [];
@@ -85,32 +113,67 @@ async function detectLocalProject() {
     }
 }
 
-// Authentication System (LDAP)
+// Authentication System (LDAP & Token)
 function checkAuthentication() {
     const ldap = localStorage.getItem("ldap_user");
+    const token = localStorage.getItem("session_token");
     const overlay = document.getElementById("signin-overlay");
-    if (ldap) {
+    if (ldap && token) {
         overlay.classList.add("hidden");
         document.getElementById("nav-ldap-name").innerText = ldap;
-        document.getElementById("nav-ldap-avatar").innerText = ldap.charAt(0);
+        document.getElementById("nav-ldap-avatar").innerText = ldap.charAt(0).toUpperCase();
         document.getElementById("username").value = ldap;
     } else {
         overlay.classList.remove("hidden");
+        // Clear inputs
+        document.getElementById("ldap_input").value = "";
+        document.getElementById("password_input").value = "";
+        document.getElementById("signin-error").classList.add("hidden");
     }
 }
 
-function handleSignIn(event) {
+async function handleSignIn(event) {
     event.preventDefault();
     const ldap = document.getElementById("ldap_input").value.trim().toLowerCase();
-    if (ldap) {
-        localStorage.setItem("ldap_user", ldap);
-        checkAuthentication();
+    const password = document.getElementById("password_input").value;
+    const errorEl = document.getElementById("signin-error");
+    
+    errorEl.classList.add("hidden");
+    
+    if (!ldap || !password) {
+        errorEl.innerText = "LDAP and Password are required.";
+        errorEl.classList.remove("hidden");
+        return;
+    }
+    
+    try {
+        const res = await originalFetch('/api/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username: ldap, password: password })
+        });
+        
+        if (res.ok) {
+            const data = await res.json();
+            localStorage.setItem("ldap_user", data.username);
+            localStorage.setItem("session_token", data.token);
+            checkAuthentication();
+        } else {
+            const err = await res.json();
+            errorEl.innerText = err.detail || "Authentication failed.";
+            errorEl.classList.remove("hidden");
+        }
+    } catch (e) {
+        errorEl.innerText = "Connection to authentication server failed.";
+        errorEl.classList.remove("hidden");
+        console.error("Sign in failed:", e);
     }
 }
 
 function handleSignOut() {
     if (confirm("Are you sure you want to log out?")) {
         localStorage.removeItem("ldap_user");
+        localStorage.removeItem("session_token");
         checkAuthentication();
     }
 }
@@ -159,22 +222,120 @@ function toggleConfigMode() {
 }
 
 // Fetch test configurations from server
+// Fetch test configurations from server and GCS presets database
 async function fetchConfigFiles() {
     try {
-        const res = await fetch('/api/configs/files');
-        const data = await res.json();
-
-        // Populate drop-downs
-        // Filter out mount configs from the main test cases dropdown
-        const testCases = data.test_cases.filter(f => !f.includes('custom_mount_configs') && !f.includes('mount_configs'));
-        populateSelect('test_csv', testCases, 'Select test cases...');
-        populateSelect('fio_job', data.fio_jobs, 'Select FIO job...');
+        // Fetch repo files
+        const filesRes = await fetch('/api/configs/files');
+        const filesData = await filesRes.json();
         
-        // Filter test cases to extract mount config files
-        const mountConfigs = data.test_cases.filter(f => f.includes('mount_config') || f.includes('mount_args') || f.includes('config') || f.includes('custom_mount_configs'));
-        populateSelect('configs_csv', mountConfigs, 'Select mount configs...');
+        // Fetch DB presets
+        const presetsRes = await fetch('/api/presets');
+        const presetsData = await presetsRes.json();
+
+        // Filter repo files
+        const repoTestCases = filesData.test_cases.filter(f => !f.includes('custom_mount_configs') && !f.includes('mount_configs'));
+        const repoFioJobs = filesData.fio_jobs;
+        const repoMountConfigs = filesData.test_cases.filter(f => f.includes('mount_config') || f.includes('mount_args') || f.includes('config') || f.includes('custom_mount_configs'));
+
+        // Populate drop-downs with grouped options
+        populateSelectWithGroups('test_csv', repoTestCases, presetsData, 'test_cases', 'Select test cases...');
+        populateSelectWithGroups('fio_job', repoFioJobs, presetsData, 'fio_job', 'Select FIO job...');
+        populateSelectWithGroups('configs_csv', repoMountConfigs, presetsData, 'mount_configs', 'Select mount configs...');
+        
     } catch (e) {
-        console.error("Failed to load configs:", e);
+        console.error("Failed to load configs and presets:", e);
+    }
+}
+
+function populateSelectWithGroups(selectId, repoFiles, presets, category, placeholder) {
+    const el = document.getElementById(selectId);
+    if (!el) return;
+    
+    const currentValue = el.value;
+    el.innerHTML = `<option value="">-- ${placeholder} --</option>`;
+    
+    const currentUser = localStorage.getItem("ldap_user") || "";
+    
+    // Filter presets for this category
+    const catPresets = presets.filter(p => p.category === category);
+    
+    // Partition presets
+    const commonPresets = catPresets.filter(p => p.owner === 'system' || p.owner === 'common');
+    const myPresets = catPresets.filter(p => p.owner === currentUser);
+    const teammatePresets = catPresets.filter(p => p.owner !== currentUser && p.owner !== 'system' && p.owner !== 'common');
+    
+    // Helper to add group if not empty
+    const addGroup = (label, list, isPreset = true) => {
+        if (list.length === 0) return;
+        const group = document.createElement('optgroup');
+        group.label = label;
+        list.forEach(item => {
+            const opt = document.createElement('option');
+            if (isPreset) {
+                opt.value = `preset:${item.preset_id}`;
+                opt.innerText = `${item.name} (by ${item.owner})`;
+            } else {
+                opt.value = item;
+                opt.innerText = item.split('/').pop(); // Show basename
+            }
+            group.appendChild(opt);
+        });
+        el.appendChild(group);
+    };
+    
+    addGroup("Shared Presets (Common)", commonPresets);
+    addGroup("Your Custom Presets", myPresets);
+    addGroup("Teammates' Presets", teammatePresets);
+    addGroup("Repository Files", repoFiles, false);
+    
+    // Restore value if still exists in the new options
+    if (currentValue) {
+        el.value = currentValue;
+    }
+}
+
+async function saveAsPreset(category, textareaId) {
+    const content = document.getElementById(textareaId).value.trim();
+    if (!content || content === "No file selected." || content === "Loading preview...") {
+        alert("Cannot save empty or loading config as a preset!");
+        return;
+    }
+    
+    const name = prompt("Enter a descriptive name for this preset (e.g., '10G Sequential Reads'):");
+    if (!name || !name.trim()) {
+        return;
+    }
+    
+    const currentUser = localStorage.getItem("ldap_user") || "anonymous";
+    const filename = category === 'fio_job' ? 'job.fio' : 'test_cases.csv';
+    
+    // Ask if this should be a system preset (common for all)
+    const isCommon = confirm("Do you want to make this a Shared Common Preset for all team members?\n(Click Cancel to save it as your personal preset)");
+    const owner = isCommon ? "system" : currentUser;
+    
+    try {
+        const res = await fetch('/api/presets', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                name: name.trim(),
+                owner: owner,
+                category: category,
+                filename: filename,
+                content: content
+            })
+        });
+        
+        if (res.ok) {
+            alert(`Preset '${name.trim()}' saved successfully!`);
+            await fetchConfigFiles();
+        } else {
+            const err = await res.json();
+            alert(`Failed to save preset: ${err.detail}`);
+        }
+    } catch (e) {
+        alert(`Failed to save preset: ${e}`);
     }
 }
 
@@ -468,14 +629,64 @@ async function cancelRun(event, id) {
 }
 
 // Fetch History Table
+let allHistoryRuns = [];
+let currentFilterType = 'all'; // 'all', 'me', 'custom'
+
 async function fetchHistory() {
     try {
         const res = await fetch('/api/runs/history');
         const data = await res.json();
-        renderHistoryRows(data);
+        allHistoryRuns = data;
+        applyHistoryFilters();
     } catch (e) {
         console.error("Failed to fetch history:", e);
     }
+}
+
+function filterHistory(type) {
+    currentFilterType = type;
+    
+    // Update button states
+    const btnAll = document.getElementById('btn-filter-all');
+    const btnMe = document.getElementById('btn-filter-me');
+    
+    btnAll.className = "px-4 py-2 text-xs font-medium rounded-l-lg border border-slate-300 focus:outline-none transition";
+    btnMe.className = "px-4 py-2 text-xs font-medium border-t border-b border-r border-slate-300 focus:outline-none transition";
+    
+    if (type === 'all') {
+        btnAll.classList.add("bg-blue-600", "text-white", "shadow-sm");
+        btnMe.classList.add("bg-white", "text-slate-700", "hover:bg-slate-50");
+        document.getElementById('user-filter-input').value = '';
+    } else if (type === 'me') {
+        btnMe.classList.add("bg-blue-600", "text-white", "shadow-sm");
+        btnAll.classList.add("bg-white", "text-slate-700", "hover:bg-slate-50");
+        document.getElementById('user-filter-input').value = '';
+    } else if (type === 'custom') {
+        btnAll.classList.add("bg-white", "text-slate-700", "hover:bg-slate-50");
+        btnMe.classList.add("bg-white", "text-slate-700", "hover:bg-slate-50");
+    }
+    
+    applyHistoryFilters();
+}
+
+function applyHistoryFilters() {
+    const currentUser = localStorage.getItem("ldap_user") || "";
+    let filtered = [...allHistoryRuns];
+    
+    if (currentFilterType === 'me') {
+        filtered = filtered.filter(run => run.username === currentUser);
+    } else if (currentFilterType === 'custom') {
+        const query = document.getElementById('user-filter-input').value.trim().toLowerCase();
+        if (query) {
+            filtered = filtered.filter(run => run.username.toLowerCase().includes(query));
+        }
+    }
+    
+    // Update counts
+    document.getElementById('history-showing-count').innerText = filtered.length;
+    document.getElementById('history-total-count').innerText = allHistoryRuns.length;
+    
+    renderHistoryRows(filtered);
 }
 
 function renderHistoryRows(runs) {
@@ -1286,7 +1497,13 @@ async function previewConfigFile(path, elementId) {
         if (isTextarea) el.value = "Loading preview...";
         else el.innerText = "Loading preview...";
 
-        const res = await fetch(`/api/configs/preview?path=${encodeURIComponent(path)}`);
+        let res;
+        if (path.startsWith('preset:')) {
+            const presetId = path.replace('preset:', '');
+            res = await fetch(`/api/presets/${presetId}`);
+        } else {
+            res = await fetch(`/api/configs/preview?path=${encodeURIComponent(path)}`);
+        }
         if (res.ok) {
             const data = await res.json();
             if (isTextarea) el.value = data.content;
