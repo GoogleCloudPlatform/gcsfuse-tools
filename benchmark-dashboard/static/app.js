@@ -973,7 +973,7 @@ function renderHistoryRows(runs) {
                         <span class="font-bold text-slate-700 uppercase tracking-wider block mb-1">Timestamps</span>
                         <p>Started: <span class="text-slate-850">${run.started_at ? formatToIST(run.started_at) : 'N/A'}</span></p>
                         <p>Finished: <span class="text-slate-855">${run.completed_at ? formatToIST(run.completed_at) : 'N/A'}</span></p>
-                        <p>Duration: <span class="text-slate-855 font-bold text-slate-700">${run.started_at && run.completed_at ? formatDuration(run.started_at, run.completed_at) : 'N/A'}</span></p>
+                        <p>Duration: <span class="text-slate-855 font-bold text-slate-700">${run.started_at && run.completed_at ? calculateDuration(run.started_at, run.completed_at) : 'N/A'}</span></p>
                     </div>
                 </div>
 
