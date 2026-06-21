@@ -158,9 +158,10 @@ source venv/bin/activate
 pip3 install --upgrade pip
 pip3 install -r benchmark-dashboard/requirements.txt
 
-# 3. Configure the Team Password and GCS Database Bucket
-export DASHBOARD_BUCKET="dmb-db"
-export DASHBOARD_PASSWORD="YourSecureTeamPasswordHere"
+# 3. Configure the Team Password and GCS Database Bucket in your shell profile
+echo 'export DASHBOARD_BUCKET="dmb-db"' >> ~/.bashrc
+echo 'export DASHBOARD_PASSWORD="YourSecureTeamPasswordHere"' >> ~/.bashrc
+source ~/.bashrc
 
 # 4. Make scripts executable and install the systemd daemon
 chmod +x benchmark-dashboard/start_server.sh
