@@ -29,7 +29,7 @@ The dashboard is built on a decoupled, resilient architecture consisting of a **
 ### 🔒 Resilient Team Security & Authentication
 To restrict access to GCSFuse team members without introducing the complexity of full OAuth2 integration, we implemented a custom token-based security layer:
 *   **Selective Global Middleware**: Added a custom FastAPI dependency in `main.py` that intercepts all `/api/` requests and verifies a Bearer token. Static assets (`/static/`), index (`/`), and `/api/login` are automatically exempted.
-*   **Shared Password Authentication**: Verifies against a `DASHBOARD_PASSWORD` environment variable, returning a cryptographically signed team session token on success.
+*   **Shared Password Authentication**: Verifies against a `DASHBOARD_PASSWORD` environment variable, returning an expiring, cryptographically signed **JSON Web Token (JWT)** on success via `PyJWT`.
 *   **Transparent Client-Side Interceptor**: Overrode the global `window.fetch` function in `app.js`. It automatically injects the session token into the `Authorization` header and handles `401 Unauthorized` responses by immediately logging the user out and showing the Sign In modal.
 
 ### ☁️ GCS-Persistent SQLite Database
@@ -126,7 +126,8 @@ To keep the dashboard fast and simple to host on a lightweight VM without the co
 *   **Tailwind CSS**: A utility-first CSS framework used for responsive layout grids, clean cards, modal transitions, and custom scrollbars.
 *   **FontAwesome**: Standard premium icons representing tabs, active status, star, delete, and comparison operations.
 *   **Chart.js**: A high-performance canvas-based graphing library used to render all comparison graphs in the browser.
-*   **Chart.js DataLabels Plugin**: Automatically draws exact numeric throughput and latency values directly on top of bar and line elements, avoiding the need to hover to see metrics.
+*   **DataTables**: A jQuery plugin providing advanced client-side column sorting, pagination, and dynamic child rows for the complex Run History tables.
+*   **Toastify JS**: A lightweight, non-blocking notification library for smooth, premium UI alerts and error handling.
 
 ### 2. Interactive Charting Engine (Browser-side)
 All interactive plotting is handled dynamically in `app.js`:
@@ -155,7 +156,7 @@ git checkout add-benchmark-dashboard
 python3 -m venv venv
 source venv/bin/activate
 pip3 install --upgrade pip
-pip3 install fastapi uvicorn google-cloud-storage google-cloud-bigquery tabulate pandas matplotlib
+pip3 install -r benchmark-dashboard/requirements.txt
 
 # 3. Configure the Team Password and GCS Database Bucket
 export DASHBOARD_BUCKET="dmb-db"
@@ -167,9 +168,10 @@ chmod +x benchmark-dashboard/install_service.sh
 ./benchmark-dashboard/install_service.sh
 ```
 
-### 2. Monitoring the Live Service
+### 3. Monitoring & Managing the Live Service
 *   To check if the service is active: `sudo systemctl status benchmark-dashboard`
-*   To watch live server logs: `journalctl -u benchmark-dashboard -n 50 -f`
+*   To restart the service (e.g., after pulling new code): `sudo systemctl restart benchmark-dashboard`
+*   To watch live server logs or debug crashes: `sudo journalctl -u benchmark-dashboard -n 50 -f`
 *   **Team URL**: Teammates can now open Chrome and go directly to:
     ```
     http://<YOUR_VM_NAME>:8080/
