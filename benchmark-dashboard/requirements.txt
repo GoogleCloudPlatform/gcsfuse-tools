@@ -5,3 +5,4 @@ matplotlib
 google-cloud-bigquery
 google-cloud-storage
 tabulate
+PyJWT
