@@ -1,7 +1,11 @@
 import sqlite3
 import os
 import hashlib
+import threading
 from google.cloud import storage
+
+# Global lock to synchronize sqlite writes and GCS uploads
+db_write_lock = threading.Lock()
 
 DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "dashboard.db")
 DASHBOARD_BUCKET = "dmb-db"
@@ -103,43 +107,46 @@ def init_db():
     upload_db_to_gcs()
 
 def delete_run(benchmark_id):
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("DELETE FROM ui_runs WHERE benchmark_id = ?", (benchmark_id,))
-    conn.commit()
-    conn.close()
-    upload_db_to_gcs()
+    with db_write_lock:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM ui_runs WHERE benchmark_id = ?", (benchmark_id,))
+        conn.commit()
+        conn.close()
+        upload_db_to_gcs()
 
 def update_run_starred(benchmark_id, is_starred):
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("UPDATE ui_runs SET is_starred = ? WHERE benchmark_id = ?", (is_starred, benchmark_id))
-    conn.commit()
-    conn.close()
-    upload_db_to_gcs()
+    with db_write_lock:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("UPDATE ui_runs SET is_starred = ? WHERE benchmark_id = ?", (is_starred, benchmark_id))
+        conn.commit()
+        conn.close()
+        upload_db_to_gcs()
 
 def insert_run(run_data):
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("""
-    INSERT INTO ui_runs (
-        benchmark_id, description, username, status,
-        suite, io_type, executor_vm, zone, project,
-        single_thread_vm_type, multi_thread_vm_type, commit_hash,
-        test_csv_name, configs_csv_name, fio_job_name,
-        mount_args, test_data_bucket, artifacts_bucket, iterations
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """, (
-        run_data["benchmark_id"], run_data["description"], run_data["username"], "queued",
-        run_data["suite"], run_data["io_type"], run_data["executor_vm"], run_data["zone"],
-        run_data["project"], run_data.get("single_thread_vm_type"), run_data.get("multi_thread_vm_type"),
-        run_data["commit_hash"], run_data["test_csv_name"], run_data.get("configs_csv_name"),
-        run_data["fio_job_name"], run_data.get("mount_args"), run_data["test_data_bucket"],
-        run_data["artifacts_bucket"], run_data["iterations"]
-    ))
-    conn.commit()
-    conn.close()
-    upload_db_to_gcs()
+    with db_write_lock:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+        INSERT INTO ui_runs (
+            benchmark_id, description, username, status,
+            suite, io_type, executor_vm, zone, project,
+            single_thread_vm_type, multi_thread_vm_type, commit_hash,
+            test_csv_name, configs_csv_name, fio_job_name,
+            mount_args, test_data_bucket, artifacts_bucket, iterations
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            run_data["benchmark_id"], run_data["description"], run_data["username"], "queued",
+            run_data["suite"], run_data["io_type"], run_data["executor_vm"], run_data["zone"],
+            run_data["project"], run_data.get("single_thread_vm_type"), run_data.get("multi_thread_vm_type"),
+            run_data["commit_hash"], run_data["test_csv_name"], run_data.get("configs_csv_name"),
+            run_data["fio_job_name"], run_data.get("mount_args"), run_data["test_data_bucket"],
+            run_data["artifacts_bucket"], run_data["iterations"]
+        ))
+        conn.commit()
+        conn.close()
+        upload_db_to_gcs()
 
 def get_runs_by_status(status):
     conn = get_db_connection()
@@ -174,30 +181,32 @@ def get_run(benchmark_id):
     return dict(row) if row else None
 
 def update_run_status(benchmark_id, status, started_at=None, completed_at=None):
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    if started_at:
-        cursor.execute("UPDATE ui_runs SET status = ?, started_at = ? WHERE benchmark_id = ?", (status, started_at, benchmark_id))
-    elif completed_at:
-        cursor.execute("UPDATE ui_runs SET status = ?, completed_at = ? WHERE benchmark_id = ?", (status, completed_at, benchmark_id))
-    else:
-        cursor.execute("UPDATE ui_runs SET status = ? WHERE benchmark_id = ?", (status, benchmark_id))
-    conn.commit()
-    conn.close()
-    upload_db_to_gcs()
+    with db_write_lock:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        if started_at:
+            cursor.execute("UPDATE ui_runs SET status = ?, started_at = ? WHERE benchmark_id = ?", (status, started_at, benchmark_id))
+        elif completed_at:
+            cursor.execute("UPDATE ui_runs SET status = ?, completed_at = ? WHERE benchmark_id = ?", (status, completed_at, benchmark_id))
+        else:
+            cursor.execute("UPDATE ui_runs SET status = ? WHERE benchmark_id = ?", (status, benchmark_id))
+        conn.commit()
+        conn.close()
+        upload_db_to_gcs()
 
 # --- PRESET HELPER METHODS ---
 
 def insert_preset(name, owner, category, filename, content):
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("""
-    INSERT INTO ui_presets (name, owner, category, filename, content)
-    VALUES (?, ?, ?, ?, ?)
-    """, (name, owner, category, filename, content))
-    conn.commit()
-    conn.close()
-    upload_db_to_gcs()
+    with db_write_lock:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+        INSERT INTO ui_presets (name, owner, category, filename, content)
+        VALUES (?, ?, ?, ?, ?)
+        """, (name, owner, category, filename, content))
+        conn.commit()
+        conn.close()
+        upload_db_to_gcs()
 
 def get_presets():
     conn = get_db_connection()
@@ -216,12 +225,13 @@ def get_preset(preset_id):
     return dict(row) if row else None
 
 def delete_preset(preset_id):
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("DELETE FROM ui_presets WHERE preset_id = ?", (preset_id,))
-    conn.commit()
-    conn.close()
-    upload_db_to_gcs()
+    with db_write_lock:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM ui_presets WHERE preset_id = ?", (preset_id,))
+        conn.commit()
+        conn.close()
+        upload_db_to_gcs()
 
 # --- TOKEN SIGNATURE HELPERS ---
 

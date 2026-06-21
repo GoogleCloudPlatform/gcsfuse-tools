@@ -26,6 +26,17 @@ window.fetch = async function (...args) {
     return response;
 };
 
+// Utility function to escape HTML to prevent XSS
+function escapeHTML(str) {
+    if (!str) return "";
+    return String(str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
+
 // State management
 let activeTab = 'launch';
 let activeRuns = [];
@@ -538,14 +549,14 @@ function renderActiveList() {
 
         item.innerHTML = `
             <div class="flex justify-between items-start mb-2">
-                <span class="font-mono text-xs text-slate-500 font-bold">${run.benchmark_id}</span>
-                <span class="text-[10px] font-bold px-2 py-0.5 rounded border uppercase tracking-wider ${statusColors[run.status] || 'bg-slate-100'}">${run.status}</span>
+                <span class="font-mono text-xs text-slate-500 font-bold">${escapeHTML(run.benchmark_id)}</span>
+                <span class="text-[10px] font-bold px-2 py-0.5 rounded border uppercase tracking-wider ${statusColors[run.status] || 'bg-slate-100'}">${escapeHTML(run.status)}</span>
             </div>
-            <h4 class="font-bold text-sm text-slate-800 mb-1 truncate">${run.description}</h4>
-            <p class="text-xs text-slate-500 mb-2">VM: <span class="font-mono font-bold text-slate-700">${run.executor_vm}</span></p>
+            <h4 class="font-bold text-sm text-slate-800 mb-1 truncate">${escapeHTML(run.description)}</h4>
+            <p class="text-xs text-slate-500 mb-2">VM: <span class="font-mono font-bold text-slate-700">${escapeHTML(run.executor_vm)}</span></p>
             <div class="flex justify-between items-center text-[10px] text-slate-400">
-                <span>User: ${run.username}</span>
-                <button onclick="cancelRun(event, '${run.benchmark_id}')" class="text-red-600 hover:text-red-800 font-bold uppercase transition"><i class="fa-solid fa-ban mr-1"></i>Cancel</button>
+                <span>User: ${escapeHTML(run.username)}</span>
+                <button onclick="cancelRun(event, '${escapeHTML(run.benchmark_id)}')" class="text-red-600 hover:text-red-800 font-bold uppercase transition"><i class="fa-solid fa-ban mr-1"></i>Cancel</button>
             </div>
         `;
         list.appendChild(item);
@@ -859,29 +870,29 @@ function renderHistoryRows(runs) {
         tr.className = "hover:bg-slate-50 border-b border-slate-200";
         tr.innerHTML = `
             <td class="py-3 px-1 text-center">
-                <button onclick="expandRunDetails(this, '${run.benchmark_id}')" class="text-slate-400 hover:text-slate-600 transition" title="View details">
+                <button onclick="expandRunDetails(this, '${escapeHTML(run.benchmark_id)}')" class="text-slate-400 hover:text-slate-600 transition" title="View details">
                     <i class="fa-solid fa-chevron-down text-sm"></i>
                 </button>
             </td>
             <td class="py-3 px-4 font-mono font-bold text-slate-800">
                 <div class="flex items-center space-x-1.5">
-                    <button onclick="toggleStar('${run.benchmark_id}', ${run.is_starred ? 0 : 1})" class="transition duration-150" title="Star this run">
+                    <button onclick="toggleStar('${escapeHTML(run.benchmark_id)}', ${run.is_starred ? 0 : 1})" class="transition duration-150" title="Star this run">
                         <i class="${starClass} fa-star text-sm"></i>
                     </button>
-                    <span>${run.benchmark_id}</span>
+                    <span>${escapeHTML(run.benchmark_id)}</span>
                 </div>
             </td>
-            <td class="py-3 px-4 font-semibold text-slate-700">${run.description}</td>
-            <td class="py-3 px-4 text-slate-600">${run.username}</td>
-            <td class="py-3 px-4 font-mono text-slate-600 text-xs">${run.executor_vm}</td>
+            <td class="py-3 px-4 font-semibold text-slate-700">${escapeHTML(run.description)}</td>
+            <td class="py-3 px-4 text-slate-600">${escapeHTML(run.username)}</td>
+            <td class="py-3 px-4 font-mono text-slate-600 text-xs">${escapeHTML(run.executor_vm)}</td>
             <td class="py-3 px-4 text-slate-500 text-xs">${dateStr}</td>
-            <td class="py-3 px-4"><span class="text-[10px] font-bold px-2 py-0.5 rounded border uppercase tracking-wider ${statusColors[run.status] || 'bg-slate-100'}">${run.status}</span></td>
+            <td class="py-3 px-4"><span class="text-[10px] font-bold px-2 py-0.5 rounded border uppercase tracking-wider ${statusColors[run.status] || 'bg-slate-100'}">${escapeHTML(run.status)}</span></td>
             <td class="py-3 px-4 text-center space-x-2.5">
-                <button onclick="cloneRun('${run.benchmark_id}')" class="text-blue-600 hover:text-blue-800 transition" title="Clone configurations">
+                <button onclick="cloneRun('${escapeHTML(run.benchmark_id)}')" class="text-blue-600 hover:text-blue-800 transition" title="Clone configurations">
                     <i class="fa-solid fa-copy text-sm"></i>
                 </button>
                 ${isOwner ? `
-                    <button onclick="deleteRun('${run.benchmark_id}')" class="text-rose-500 hover:text-rose-700 transition" title="Delete run">
+                    <button onclick="deleteRun('${escapeHTML(run.benchmark_id)}')" class="text-rose-500 hover:text-rose-700 transition" title="Delete run">
                         <i class="fa-solid fa-trash text-sm"></i>
                     </button>
                 ` : `
@@ -902,20 +913,20 @@ function renderHistoryRows(runs) {
                 <div class="flex flex-wrap gap-x-16 gap-y-6 text-xs text-slate-600 leading-loose justify-start">
                     <div>
                         <span class="font-bold text-slate-700 uppercase tracking-wider block mb-1">GCSFuse Configs</span>
-                        <p>Commit: <span class="font-mono text-slate-850 font-bold">${run.commit_hash}</span></p>
-                        <p>Mount Args: <span class="font-mono text-slate-850">${run.mount_args || 'Used mount configs CSV'}</span></p>
+                        <p>Commit: <span class="font-mono text-slate-850 font-bold">${escapeHTML(run.commit_hash)}</span></p>
+                        <p>Mount Args: <span class="font-mono text-slate-850">${escapeHTML(run.mount_args) || 'Used mount configs CSV'}</span></p>
                     </div>
                     <div>
                         <span class="font-bold text-slate-700 uppercase tracking-wider block mb-1">Files Run</span>
-                        <p>CSV: <span class="font-mono text-slate-850 break-all">${run.test_csv_name}</span></p>
-                        <p>Configs CSV: <span class="font-mono text-slate-850 break-all">${run.configs_csv_name || 'N/A'}</span></p>
-                        <p>FIO Job: <span class="font-mono text-slate-855 break-all">${run.fio_job_name}</span></p>
+                        <p>CSV: <span class="font-mono text-slate-850 break-all">${escapeHTML(run.test_csv_name)}</span></p>
+                        <p>Configs CSV: <span class="font-mono text-slate-850 break-all">${escapeHTML(run.configs_csv_name) || 'N/A'}</span></p>
+                        <p>FIO Job: <span class="font-mono text-slate-855 break-all">${escapeHTML(run.fio_job_name)}</span></p>
                     </div>
                     <div>
                         <span class="font-bold text-slate-700 uppercase tracking-wider block mb-1">Scope Info</span>
-                        <p>Project: <span class="text-slate-850">${run.project}</span></p>
-                        <p>Zone: <span class="text-slate-850">${run.zone}</span></p>
-                        <p>Iterations: <span class="text-slate-855">${run.iterations}</span></p>
+                        <p>Project: <span class="text-slate-850">${escapeHTML(run.project)}</span></p>
+                        <p>Zone: <span class="text-slate-850">${escapeHTML(run.zone)}</span></p>
+                        <p>Iterations: <span class="text-slate-855">${escapeHTML(run.iterations)}</span></p>
                     </div>
                     <div>
                         <span class="font-bold text-slate-700 uppercase tracking-wider block mb-1">Timestamps</span>

@@ -5,7 +5,8 @@ import asyncio
 import logging
 import subprocess
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, timedelta
+import jwt
 from fastapi import FastAPI, HTTPException, BackgroundTasks, Request, Depends
 from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -27,21 +28,24 @@ if not SHARED_PASSWORD:
     raise RuntimeError("DASHBOARD_PASSWORD environment variable must be set.")
 
 def generate_user_token(username: str) -> str:
-    """Generates a secure, signed token for a user using their username and the team password."""
-    signature = db.hash_password(username, SHARED_PASSWORD)
-    return f"utoken-{username}-{signature}"
+    """Generates a secure, expiring JWT for a user."""
+    payload = {
+        "sub": username,
+        "exp": datetime.utcnow() + timedelta(hours=24)
+    }
+    return jwt.encode(payload, SHARED_PASSWORD, algorithm="HS256")
 
 def verify_user_token(token: str) -> bool:
-    """Verifies a signature-based user token."""
-    if not token or not token.startswith("utoken-"):
+    """Verifies a JWT session token."""
+    try:
+        jwt.decode(token, SHARED_PASSWORD, algorithms=["HS256"])
+        return True
+    except jwt.ExpiredSignatureError:
+        logger.warning("Token expired")
         return False
-    parts = token.split("-")
-    if len(parts) < 3:
+    except jwt.InvalidTokenError:
+        logger.warning("Invalid token")
         return False
-    username = parts[1]
-    signature = parts[2]
-    expected_signature = db.hash_password(username, SHARED_PASSWORD)
-    return signature == expected_signature
 
 async def verify_token_selective(request: Request):
     path = request.url.path
@@ -145,16 +149,17 @@ async def run_queue_manager():
             for run in queued_runs:
                 target_vm = run["executor_vm"]
                 if target_vm not in busy_targets:
-                    # Target is free, start the job!
-                    logger.info(f"Starting queued job {run['benchmark_id']} on target '{target_vm}'")
-                    busy_targets.add(target_vm)
-                    
-                    # Update status in DB
-                    db.update_run_status(run["benchmark_id"], "running", started_at=datetime.utcnow().isoformat())
-                    
-                    # Trigger orchestrator process in background task
-                    task = asyncio.create_task(execute_orchestrator(run))
-                    active_processes[run["benchmark_id"]] = task
+                    # Target is free, attempt to claim the job atomically!
+                    started_at = datetime.utcnow().isoformat()
+                    if db.claim_queued_run(run["benchmark_id"], started_at):
+                        logger.info(f"Successfully claimed and starting queued job {run['benchmark_id']} on target '{target_vm}'")
+                        busy_targets.add(target_vm)
+                        
+                        # Trigger orchestrator process in background task
+                        task = asyncio.create_task(execute_orchestrator(run))
+                        active_processes[run["benchmark_id"]] = task
+                    else:
+                        logger.info(f"Failed to claim job {run['benchmark_id']}, likely picked up by another worker.")
                     
         except Exception as e:
             logger.error(f"Error in queue manager loop: {e}", exc_info=True)
@@ -461,9 +466,10 @@ def create_mount_configs(csv: CustomCsvCreateRequest):
 @app.get("/api/configs/preview")
 def get_file_preview(path: str):
     """Reads and returns the contents of a config file relative to the benchmark directory."""
-    # Sanitize path to prevent traversal
-    safe_path = (DMB_DIR / path).resolve()
-    if not str(safe_path).startswith(str(DMB_DIR)):
+    try:
+        safe_path = (DMB_DIR / path).resolve()
+        safe_path.relative_to(DMB_DIR)
+    except ValueError:
         raise HTTPException(status_code=403, detail="Access denied: Path lies outside benchmark directory")
         
     if not safe_path.exists() or not safe_path.is_file():
