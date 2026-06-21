@@ -219,8 +219,17 @@ async def execute_orchestrator(run, resume: bool = False):
                 stderr=subprocess.STDOUT if hasattr(subprocess, 'STDOUT') else log_f
             )
             
-            # Wait for execution to finish
-            exit_code = await process.wait()
+            try:
+                # Wait for execution to finish
+                exit_code = await process.wait()
+            except asyncio.CancelledError:
+                logger.warning(f"Task for {benchmark_id} was cancelled. Terminating subprocess.")
+                try:
+                    process.terminate()
+                    await process.wait()
+                except ProcessLookupError:
+                    pass
+                raise
             
             if exit_code == 0:
                 logger.info(f"Subprocess finished successfully for {benchmark_id}")
@@ -240,7 +249,16 @@ async def execute_orchestrator(run, resume: bool = False):
                             "--project-id", project_id,
                             "--report-name", "combined_report.csv"
                         )
-                        await bq_proc.wait()
+                        try:
+                            await bq_proc.wait()
+                        except asyncio.CancelledError:
+                            logger.warning(f"BQ upload task for {benchmark_id} was cancelled. Terminating.")
+                            try:
+                                bq_proc.terminate()
+                                await bq_proc.wait()
+                            except ProcessLookupError:
+                                pass
+                            raise
                         logger.info(f"BigQuery metrics upload finished for {benchmark_id}.")
                     else:
                         logger.warning(f"BigQuery upload script or results dir missing for {benchmark_id}")
@@ -737,7 +755,10 @@ def get_logs(run_id: str):
 
 
 @app.get("/api/runs/{run_id}/progress")
-def get_progress(run_id: str):
+async def get_progress(run_id: str):
+    return await asyncio.to_thread(_get_progress_sync, run_id)
+
+def _get_progress_sync(run_id: str):
     """Calculates active benchmark progress by matching job configurations with durations stored in GCS."""
     run = db.get_run(run_id)
     if not run:
@@ -1029,7 +1050,10 @@ def fetch_metrics_from_gcs(run_id: str, run_config: dict):
 
 
 @app.get("/api/runs/compare")
-def compare_runs(ids: str, project_id: str = "gcs-fuse-test-ml"):
+async def compare_runs(ids: str, project_id: str = "gcs-fuse-test-ml"):
+    return await asyncio.to_thread(_compare_runs_sync, ids, project_id)
+
+def _compare_runs_sync(ids: str, project_id: str):
     """Fetches and merges metrics for specified benchmark IDs from BigQuery or GCS for plotting."""
     id_list = [i.strip() for i in ids.split(",") if i.strip()]
     if not id_list:

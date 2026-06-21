@@ -194,6 +194,22 @@ def update_run_status(benchmark_id, status, started_at=None, completed_at=None):
         conn.close()
         upload_db_to_gcs()
 
+def claim_queued_run(benchmark_id, started_at):
+    """Atomically attempts to claim a queued run. Returns True if successful."""
+    with db_write_lock:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE ui_runs SET status = 'running', started_at = ? WHERE benchmark_id = ? AND status = 'queued'",
+            (started_at, benchmark_id)
+        )
+        claimed = cursor.rowcount > 0
+        conn.commit()
+        conn.close()
+        if claimed:
+            upload_db_to_gcs()
+        return claimed
+
 # --- PRESET HELPER METHODS ---
 
 def insert_preset(name, owner, category, filename, content):
