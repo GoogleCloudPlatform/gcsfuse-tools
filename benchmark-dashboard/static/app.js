@@ -439,7 +439,7 @@ async function saveAsPreset(category, textareaId) {
         });
         
         if (res.ok) {
-            showToast(`Preset '${name.trim(, false)}' saved successfully!`);
+            showToast(`Preset '${name.trim()}' saved successfully!`);
             await fetchConfigFiles();
         } else {
             const err = await res.json();
