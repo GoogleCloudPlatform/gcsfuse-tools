@@ -644,26 +644,6 @@ def delete_benchmark_run(run_id: str, username: str):
     return {"status": "deleted"}
 
 
-@app.post("/api/runs/{run_id}/resume")
-async def resume_benchmark_run(run_id: str, username: str):
-    """Resumes/re-attaches to a cancelled or failed benchmark run that is still executing on CE."""
-    run = db.get_run(run_id)
-    if not run:
-        raise HTTPException(status_code=404, detail="Run not found")
-    
-    # Verify it is not already running
-    if run_id in active_processes:
-        raise HTTPException(status_code=400, detail="Run is already actively monitored")
-        
-    # Update status back to running
-    db.update_run_status(run_id, "running")
-    
-    run_dict = dict(run)
-    task = asyncio.create_task(execute_orchestrator(run_dict, resume=True))
-    active_processes[run_id] = task
-    logger.info(f"Manually resumed/re-attached benchmark {run_id} by request from {username}")
-    return {"status": "resumed", "benchmark_id": run_id}
-
 
 @app.post("/api/runs/{run_id}/star")
 def toggle_star_run(run_id: str, req: StarRequest):
@@ -685,6 +665,17 @@ def get_active():
 def get_history():
     """Returns historical runs started from the UI."""
     return db.get_history_runs()
+
+
+@app.get("/api/users")
+def get_unique_users():
+    """Returns a list of all unique users who have executed runs, sorted alphabetically."""
+    conn = db.get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT DISTINCT username FROM ui_runs ORDER BY username ASC")
+    users = [row["username"] for row in cursor.fetchall() if row["username"]]
+    conn.close()
+    return {"users": users}
 
 
 @app.get("/api/runs/history-bq")

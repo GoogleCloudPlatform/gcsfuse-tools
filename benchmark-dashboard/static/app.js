@@ -693,25 +693,60 @@ async function cancelRun(event, id) {
 
 // Fetch History Table
 let allHistoryRuns = [];
-let currentFilterType = 'all'; // 'all', 'me', 'custom'
+let currentFilterType = 'all'; // 'all', 'me', 'select'
+let currentPage = 1;
+const runsPerPage = 100;
+let paginatedRuns = []; // Saves the current filtered runs list
 
 async function fetchHistory() {
     try {
         const res = await fetch('/api/runs/history');
         const data = await res.json();
         allHistoryRuns = data;
+        
+        // Populate the unique users dropdown
+        await populateUsersDropdown();
+        
         applyHistoryFilters();
     } catch (e) {
         console.error("Failed to fetch history:", e);
     }
 }
 
+async function populateUsersDropdown() {
+    try {
+        const res = await fetch('/api/users');
+        if (res.ok) {
+            const data = await res.json();
+            const select = document.getElementById('user-filter-select');
+            if (select) {
+                const currentVal = select.value;
+                select.innerHTML = '<option value="">Choose User...</option>';
+                data.users.forEach(user => {
+                    const opt = document.createElement('option');
+                    opt.value = user;
+                    opt.textContent = user;
+                    select.appendChild(opt);
+                });
+                // Restore previous selection if still available
+                if (data.users.includes(currentVal)) {
+                    select.value = currentVal;
+                }
+            }
+        }
+    } catch (e) {
+        console.error("Failed to populate users dropdown:", e);
+    }
+}
+
 function filterHistory(type) {
     currentFilterType = type;
+    currentPage = 1; // Reset to page 1 on filter change
     
     // Update button states
     const btnAll = document.getElementById('btn-filter-all');
     const btnMe = document.getElementById('btn-filter-me');
+    const selectEl = document.getElementById('user-filter-select');
     
     btnAll.className = "px-4 py-2 text-xs font-medium rounded-l-lg border border-slate-300 focus:outline-none transition";
     btnMe.className = "px-4 py-2 text-xs font-medium border-t border-b border-r border-slate-300 focus:outline-none transition";
@@ -719,12 +754,12 @@ function filterHistory(type) {
     if (type === 'all') {
         btnAll.classList.add("bg-blue-600", "text-white", "shadow-sm");
         btnMe.classList.add("bg-white", "text-slate-700", "hover:bg-slate-50");
-        document.getElementById('user-filter-input').value = '';
+        if (selectEl) selectEl.value = '';
     } else if (type === 'me') {
         btnMe.classList.add("bg-blue-600", "text-white", "shadow-sm");
         btnAll.classList.add("bg-white", "text-slate-700", "hover:bg-slate-50");
-        document.getElementById('user-filter-input').value = '';
-    } else if (type === 'custom') {
+        if (selectEl) selectEl.value = '';
+    } else if (type === 'select') {
         btnAll.classList.add("bg-white", "text-slate-700", "hover:bg-slate-50");
         btnMe.classList.add("bg-white", "text-slate-700", "hover:bg-slate-50");
     }
@@ -738,18 +773,65 @@ function applyHistoryFilters() {
     
     if (currentFilterType === 'me') {
         filtered = filtered.filter(run => run.username === currentUser);
-    } else if (currentFilterType === 'custom') {
-        const query = document.getElementById('user-filter-input').value.trim().toLowerCase();
-        if (query) {
-            filtered = filtered.filter(run => run.username.toLowerCase().includes(query));
+    } else if (currentFilterType === 'select') {
+        const selectVal = document.getElementById('user-filter-select').value;
+        if (selectVal) {
+            filtered = filtered.filter(run => run.username === selectVal);
         }
     }
     
-    // Update counts
+    // Save to global list for pagination
+    paginatedRuns = filtered;
+    
+    // Update total count labels
     document.getElementById('history-showing-count').innerText = filtered.length;
     document.getElementById('history-total-count').innerText = allHistoryRuns.length;
     
-    renderHistoryRows(filtered);
+    updatePaginationView();
+}
+
+function updatePaginationView() {
+    const totalRuns = paginatedRuns.length;
+    const totalPages = Math.ceil(totalRuns / runsPerPage) || 1;
+    
+    if (currentPage > totalPages) currentPage = totalPages;
+    if (currentPage < 1) currentPage = 1;
+    
+    const startIdx = (currentPage - 1) * runsPerPage;
+    const endIdx = Math.min(startIdx + runsPerPage, totalRuns);
+    
+    const runsToShow = paginatedRuns.slice(startIdx, endIdx);
+    renderHistoryRows(runsToShow);
+    
+    // Update Pagination Labels
+    document.getElementById('pagination-start-idx').innerText = totalRuns === 0 ? 0 : startIdx + 1;
+    document.getElementById('pagination-end-idx').innerText = endIdx;
+    document.getElementById('pagination-total-count').innerText = totalRuns;
+    document.getElementById('pagination-current-page').innerText = currentPage;
+    document.getElementById('pagination-total-pages').innerText = totalPages;
+    
+    // Disable/Enable buttons
+    document.getElementById('btn-prev-page').disabled = currentPage === 1;
+    document.getElementById('btn-next-page').disabled = currentPage === totalPages;
+}
+
+function prevPage() {
+    if (currentPage > 1) {
+        currentPage--;
+        updatePaginationView();
+        // Smooth scroll table header into view
+        document.getElementById('history-pagination').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+}
+
+function nextPage() {
+    const totalPages = Math.ceil(paginatedRuns.length / runsPerPage) || 1;
+    if (currentPage < totalPages) {
+        currentPage++;
+        updatePaginationView();
+        // Smooth scroll table header into view
+        document.getElementById('history-pagination').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
 }
 
 function renderHistoryRows(runs) {
@@ -798,11 +880,6 @@ function renderHistoryRows(runs) {
                 <button onclick="cloneRun('${run.benchmark_id}')" class="text-blue-600 hover:text-blue-800 transition" title="Clone configurations">
                     <i class="fa-solid fa-copy text-sm"></i>
                 </button>
-                ${(run.status === 'failed' || run.status === 'cancelled') ? `
-                    <button onclick="resumeRun('${run.benchmark_id}')" class="text-emerald-600 hover:text-emerald-800 transition" title="Resume/Re-attach to run">
-                        <i class="fa-solid fa-play text-sm"></i>
-                    </button>
-                ` : ''}
                 ${isOwner ? `
                     <button onclick="deleteRun('${run.benchmark_id}')" class="text-rose-500 hover:text-rose-700 transition" title="Delete run">
                         <i class="fa-solid fa-trash text-sm"></i>
@@ -1715,26 +1792,6 @@ async function fetchFileContent(path) {
     return data.content;
 }
 
-async function resumeRun(runId) {
-    if (!confirm(`Do you want to re-attach and resume monitoring for benchmark run ${runId}?`)) {
-        return;
-    }
-    const currentUser = localStorage.getItem("ldap_user") || "anonymous";
-    try {
-        const res = await fetch(`/api/runs/${runId}/resume?username=${encodeURIComponent(currentUser)}`, {
-            method: 'POST'
-        });
-        if (res.ok) {
-            alert("Resumed/Re-attached successfully! Switch to Active Monitor tab to view logs.");
-            switchTab('active');
-            pollActiveRuns();
-        } else {
-            const err = await res.json();
-            alert(`Failed to resume run: ${err.detail}`);
-        }
-    } catch (e) {
-        alert(`Failed to resume run: ${e}`);
-    }
-}
+
 
 // --- END OF FILE ---
