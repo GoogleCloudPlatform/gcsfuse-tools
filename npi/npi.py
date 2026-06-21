@@ -231,10 +231,14 @@ class BenchmarkFactory:
             "go_read": {"image_suffix": "go-client-read-benchmark"},
         }
 
+        # Define high-performance GCSFuse tuning flags for both protocols
+        http1_flags = "--client-protocol=http1 --max-conns-per-host=256 --max-idle-conns-per-host=256 --max-background=512 --congestion-threshold=512 --max-read-ahead-kb=4096"
+        grpc_flags = "--client-protocol=grpc --experimental-grpc-conn-pool-size=128 --max-background=512 --congestion-threshold=512 --max-read-ahead-kb=4096"
+
         # Define test configurations (protocol, cpu pinning, etc.)
         configs = {
-            "http1": {"gcsfuse_flags": "--client-protocol=http1"},
-            "grpc": {"gcsfuse_flags": "--client-protocol=grpc"},
+            "http1": {"gcsfuse_flags": http1_flags},
+            "grpc": {"gcsfuse_flags": grpc_flags},
         }
 
         # Dynamically add NUMA configurations if possible.
@@ -243,10 +247,10 @@ class BenchmarkFactory:
             if cpu_list:
                 numa_name = f"numa{node_id}"
                 # For NUMA nodes, create 4 configs: http1/grpc with and without binding fio
-                configs[f"http1_{numa_name}_fio_notbound"] = {"cpu_list": cpu_list, "gcsfuse_flags": "--client-protocol=http1", "bind_fio": False}
-                configs[f"http1_{numa_name}_fio_bound"] = {"cpu_list": cpu_list, "gcsfuse_flags": "--client-protocol=http1", "bind_fio": True}
-                configs[f"grpc_{numa_name}_fio_notbound"] = {"cpu_list": cpu_list, "gcsfuse_flags": "--client-protocol=grpc", "bind_fio": False}
-                configs[f"grpc_{numa_name}_fio_bound"] = {"cpu_list": cpu_list, "gcsfuse_flags": "--client-protocol=grpc", "bind_fio": True}
+                configs[f"http1_{numa_name}_fio_notbound"] = {"cpu_list": cpu_list, "gcsfuse_flags": http1_flags, "bind_fio": False}
+                configs[f"http1_{numa_name}_fio_bound"] = {"cpu_list": cpu_list, "gcsfuse_flags": http1_flags, "bind_fio": True}
+                configs[f"grpc_{numa_name}_fio_notbound"] = {"cpu_list": cpu_list, "gcsfuse_flags": grpc_flags, "bind_fio": False}
+                configs[f"grpc_{numa_name}_fio_bound"] = {"cpu_list": cpu_list, "gcsfuse_flags": grpc_flags, "bind_fio": True}
 
 
 
