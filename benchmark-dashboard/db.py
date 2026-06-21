@@ -1,5 +1,6 @@
 import sqlite3
 import os
+import hashlib
 from datetime import datetime
 from google.cloud import storage
 
@@ -97,6 +98,23 @@ def init_db():
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
     """)
+    
+    # Create ui_users table
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS ui_users (
+        username VARCHAR(100) PRIMARY KEY,
+        password_hash VARCHAR(255) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+    """)
+    
+    # Seed default user if empty
+    cursor.execute("SELECT COUNT(*) as cnt FROM ui_users")
+    if cursor.fetchone()["cnt"] == 0:
+        default_password = os.environ.get("DASHBOARD_PASSWORD", "gcsfuse-team")
+        # Hash default password with salt
+        hashed = hashlib.sha256((default_password + "gcsfuse-dashboard-salt").encode('utf-8')).hexdigest()
+        cursor.execute("INSERT INTO ui_users (username, password_hash) VALUES (?, ?)", ("admin", hashed))
         
     conn.commit()
     conn.close()
@@ -222,3 +240,37 @@ def delete_preset(preset_id):
     conn.commit()
     conn.close()
     upload_db_to_gcs()
+
+# --- USER AUTHENTICATION HELPERS ---
+
+def hash_password(password, salt="gcsfuse-dashboard-salt"):
+    return hashlib.sha256((password + salt).encode('utf-8')).hexdigest()
+
+def create_user(username, password):
+    hashed = hash_password(password)
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+    INSERT OR REPLACE INTO ui_users (username, password_hash)
+    VALUES (?, ?)
+    """, (username.strip().toLowerCase() if hasattr(username, 'toLowerCase') else username.strip().lower(), hashed))
+    conn.commit()
+    conn.close()
+    upload_db_to_gcs()
+
+def verify_user(username, password):
+    clean_username = username.strip().lower()
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT password_hash FROM ui_users WHERE username = ?", (clean_username,))
+    row = cursor.fetchone()
+    conn.close()
+    if not row:
+        return False
+    return row["password_hash"] == hash_password(password)
+
+def change_user_password(username, old_password, new_password):
+    if not verify_user(username, old_password):
+        return False
+    create_user(username, new_password)
+    return True

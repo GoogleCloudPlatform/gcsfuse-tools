@@ -87,6 +87,57 @@
         </div>
     </div>
 
+    <!-- ================= CHANGE PASSWORD OVERLAY ================= -->
+    <div id="changepassword-overlay" class="hidden fixed inset-0 z-40 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-white border border-slate-200 rounded-2xl max-w-sm w-full p-8 shadow-2xl space-y-6">
+            <div class="text-center">
+                <div class="flex justify-center text-blue-600 mb-2">
+                    <i class="fa-solid fa-key text-4xl"></i>
+                </div>
+                <h2 class="text-lg font-bold text-slate-800 tracking-tight">Change Your Password</h2>
+                <p class="text-xs text-slate-500 mt-1">Set a private password for your account</p>
+            </div>
+            
+            <form id="changepassword-form" onsubmit="handleChangePassword(event)" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Current Password *</label>
+                    <div class="relative">
+                        <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400"><i class="fa-solid fa-lock"></i></span>
+                        <input type="password" id="old_password_input" required placeholder="••••••••" class="w-full bg-white border border-slate-300 rounded-lg pl-9 pr-4 py-2.5 text-slate-850 focus:outline-none focus:border-blue-500 transition text-sm">
+                    </div>
+                </div>
+                
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">New Password *</label>
+                    <div class="relative">
+                        <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400"><i class="fa-solid fa-lock-open"></i></span>
+                        <input type="password" id="new_password_input" required placeholder="••••••••" class="w-full bg-white border border-slate-300 rounded-lg pl-9 pr-4 py-2.5 text-slate-850 focus:outline-none focus:border-blue-500 transition text-sm">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Confirm New Password *</label>
+                    <div class="relative">
+                        <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400"><i class="fa-solid fa-shield-halved"></i></span>
+                        <input type="password" id="new_password_confirm" required placeholder="••••••••" class="w-full bg-white border border-slate-300 rounded-lg pl-9 pr-4 py-2.5 text-slate-855 focus:outline-none focus:border-blue-500 transition text-sm">
+                    </div>
+                </div>
+                
+                <p id="changepassword-error" class="hidden text-xs text-red-600 font-semibold text-center"></p>
+                <p id="changepassword-success" class="hidden text-xs text-green-600 font-semibold text-center"></p>
+                
+                <div class="flex space-x-3 mt-4">
+                    <button type="button" onclick="closeChangePasswordModal()" class="flex-1 py-2 border border-slate-300 hover:bg-slate-50 text-slate-700 rounded-lg font-bold transition text-sm text-center">
+                        Cancel
+                    </button>
+                    <button type="submit" class="flex-1 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold shadow-md transition text-sm text-center">
+                        Submit
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- TOP HEADER -->
     <header class="border-b border-slate-200 bg-white sticky top-0 z-40 shadow-sm">
         <div class="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
@@ -114,6 +165,8 @@
                 <div class="flex items-center space-x-3 border-l border-slate-200 pl-6">
                     <div class="text-right">
                         <div id="nav-ldap-name" class="text-sm font-bold text-slate-800">Guest</div>
+                        <button onclick="openChangePasswordModal()" class="text-[10px] text-slate-500 hover:text-blue-600 uppercase font-bold transition">Password</button>
+                        <span class="text-slate-300 mx-1">|</span>
                         <button onclick="handleSignOut()" class="text-[10px] text-slate-500 hover:text-red-600 uppercase font-bold transition">Logout</button>
                     </div>
                     <div class="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-sm uppercase" id="nav-ldap-avatar">G</div>

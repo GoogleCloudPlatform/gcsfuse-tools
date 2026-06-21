@@ -39,13 +39,12 @@ let charts = {}; // references to Chart.js instances
 let comparedData = null;
 let localProject = null;
 
+// State to track if initial APIs have been loaded
+let initialDataLoaded = false;
+
 // Initialize on page load
 document.addEventListener("DOMContentLoaded", () => {
     checkAuthentication();
-    fetchConfigFiles();
-    detectLocalProject();
-    startPollingActiveRuns();
-    fetchHistory();
 
     const execVmEl = document.getElementById('executor_vm');
     if (execVmEl) {
@@ -123,12 +122,44 @@ function checkAuthentication() {
         document.getElementById("nav-ldap-name").innerText = ldap;
         document.getElementById("nav-ldap-avatar").innerText = ldap.charAt(0).toUpperCase();
         document.getElementById("username").value = ldap;
+        
+        // Start background polling and fetch data ONLY if authenticated and not loaded yet
+        if (!initialDataLoaded) {
+            fetchConfigFiles();
+            detectLocalProject();
+            startPollingActiveRuns();
+            fetchHistory();
+            initialDataLoaded = true;
+        }
     } else {
+        const wasHidden = !overlay.classList.contains("hidden");
         overlay.classList.remove("hidden");
-        // Clear inputs
-        document.getElementById("ldap_input").value = "";
-        document.getElementById("password_input").value = "";
+        
+        // Stop all background requests
+        clearAllIntervals();
+        initialDataLoaded = false;
+        
+        // Clear inputs only if the overlay was previously hidden (i.e. we just transitioned to logged-out)
+        if (wasHidden) {
+            document.getElementById("ldap_input").value = "";
+            document.getElementById("password_input").value = "";
+        }
         document.getElementById("signin-error").classList.add("hidden");
+    }
+}
+
+function clearAllIntervals() {
+    if (activeRunsPollInterval) {
+        clearInterval(activeRunsPollInterval);
+        activeRunsPollInterval = null;
+    }
+    if (logPollInterval) {
+        clearInterval(logPollInterval);
+        logPollInterval = null;
+    }
+    if (progressPollInterval) {
+        clearInterval(progressPollInterval);
+        progressPollInterval = null;
     }
 }
 
@@ -2020,5 +2051,81 @@ async function resumeRun(runId) {
         }
     } catch (e) {
         alert(`Failed to resume run: ${e}`);
+    }
+}
+
+// --- PASSWORD CHANGE FLOWS ---
+
+function openChangePasswordModal() {
+    const overlay = document.getElementById("changepassword-overlay");
+    if (!overlay) return;
+    overlay.classList.remove("hidden");
+    
+    // Reset values
+    document.getElementById("old_password_input").value = "";
+    document.getElementById("new_password_input").value = "";
+    document.getElementById("new_password_confirm").value = "";
+    document.getElementById("changepassword-error").classList.add("hidden");
+    document.getElementById("changepassword-success").classList.add("hidden");
+}
+
+function closeChangePasswordModal() {
+    const overlay = document.getElementById("changepassword-overlay");
+    if (overlay) overlay.classList.add("hidden");
+}
+
+async function handleChangePassword(event) {
+    event.preventDefault();
+    const ldap = localStorage.getItem("ldap_user");
+    const oldPassword = document.getElementById("old_password_input").value;
+    const newPassword = document.getElementById("new_password_input").value;
+    const confirmPassword = document.getElementById("new_password_confirm").value;
+    
+    const errorEl = document.getElementById("changepassword-error");
+    const successEl = document.getElementById("changepassword-success");
+    
+    errorEl.classList.add("hidden");
+    successEl.classList.add("hidden");
+    
+    if (newPassword !== confirmPassword) {
+        errorEl.innerText = "New passwords do not match.";
+        errorEl.classList.remove("hidden");
+        return;
+    }
+    
+    if (newPassword.length < 6) {
+        errorEl.innerText = "New password must be at least 6 characters long.";
+        errorEl.classList.remove("hidden");
+        return;
+    }
+    
+    try {
+        const res = await fetch('/api/users/change-password', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                username: ldap,
+                old_password: oldPassword,
+                new_password: newPassword
+            })
+        });
+        
+        if (res.ok) {
+            successEl.innerText = "Password changed successfully! Closing in 2 seconds...";
+            successEl.classList.remove("hidden");
+            
+            // Auto-close modal after 2 seconds
+            setTimeout(() => {
+                closeChangePasswordModal();
+            }, 2000);
+        } else {
+            const err = await res.json();
+            errorEl.innerText = err.detail || "Failed to change password.";
+            errorEl.classList.remove("hidden");
+        }
+    } catch (e) {
+        errorEl.innerText = "Failed to communicate with server.";
+        errorEl.classList.remove("hidden");
+        console.error("Password change failed:", e);
     }
 }

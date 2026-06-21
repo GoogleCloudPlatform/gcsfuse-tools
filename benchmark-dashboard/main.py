@@ -24,6 +24,23 @@ logger = logging.getLogger("dashboard")
 # Shared Password from Environment, default to a secure-looking team password
 SHARED_PASSWORD = os.environ.get("DASHBOARD_PASSWORD", "gcsfuse-team")
 
+def generate_user_token(username: str) -> str:
+    """Generates a secure, signed token for a user using their username and the team password."""
+    signature = db.hash_password(username, SHARED_PASSWORD)
+    return f"utoken-{username}-{signature}"
+
+def verify_user_token(token: str) -> bool:
+    """Verifies a signature-based user token."""
+    if not token or not token.startswith("utoken-"):
+        return False
+    parts = token.split("-")
+    if len(parts) < 3:
+        return False
+    username = parts[1]
+    signature = parts[2]
+    expected_signature = db.hash_password(username, SHARED_PASSWORD)
+    return signature == expected_signature
+
 async def verify_token_selective(request: Request):
     path = request.url.path
     # Allow index, static files, login API, and favicon
@@ -36,10 +53,9 @@ async def verify_token_selective(request: Request):
         raise HTTPException(status_code=401, detail="Missing or invalid authentication token")
     
     token = auth_header.split(" ")[1]
-    expected_token = f"token-{SHARED_PASSWORD}"
-    if token != expected_token:
-        logger.warning(f"Failed API authentication attempt: {path}")
-        raise HTTPException(status_code=401, detail="Invalid session token")
+    if not verify_user_token(token):
+        logger.warning(f"Failed API authentication attempt (invalid token): {path}")
+        raise HTTPException(status_code=401, detail="Invalid or expired session token")
 
 # Paths
 BASE_DIR = Path(__file__).resolve().parent
@@ -69,6 +85,12 @@ class PresetCreateRequest(BaseModel):
     category: str
     filename: str
     content: str
+
+
+class ChangePasswordRequest(BaseModel):
+    username: str
+    old_password: str
+    new_password: str
 
 
 class BenchmarkRunRequest(BaseModel):
@@ -268,14 +290,44 @@ async def shutdown_event():
 
 @app.post("/api/login")
 async def login_api(req: LoginRequest):
-    """Verifies the shared team password and returns a session token."""
-    if req.password == SHARED_PASSWORD:
-        token = f"token-{SHARED_PASSWORD}"
-        logger.info(f"User {req.username} successfully signed in.")
-        return {"status": "success", "token": token, "username": req.username}
-    else:
-        logger.warning(f"Failed sign-in attempt for user {req.username} (incorrect password).")
-        raise HTTPException(status_code=401, detail="Invalid team password")
+    """Verifies user credentials with frictionless auto-registration support."""
+    username = req.username.strip().lower()
+    password = req.password
+    
+    # 1. Verify if user already exists and credentials are correct
+    if db.verify_user(username, password):
+        token = generate_user_token(username)
+        logger.info(f"User '{username}' successfully signed in.")
+        return {"status": "success", "token": token, "username": username}
+        
+    # 2. Frictionless auto-registration: check if this is a new user using the default team password
+    if password == SHARED_PASSWORD:
+        try:
+            db.create_user(username, password)
+            token = generate_user_token(username)
+            logger.info(f"Auto-registered and signed in new user '{username}' via default team password.")
+            return {"status": "success", "token": token, "username": username}
+        except Exception as e:
+            logger.error(f"Failed to auto-register user '{username}': {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail="Failed to register user account.")
+            
+    # 3. Failed
+    logger.warning(f"Failed sign-in attempt for user '{username}' (incorrect password).")
+    raise HTTPException(status_code=401, detail="Invalid username or password.")
+
+
+@app.post("/api/users/change-password")
+async def change_password_api(req: ChangePasswordRequest):
+    """Allows authenticated users to change their account password."""
+    username = req.username.strip().lower()
+    
+    success = db.change_user_password(username, req.old_password, req.new_password)
+    if not success:
+        logger.warning(f"Failed password change attempt for user '{username}' (incorrect current password).")
+        raise HTTPException(status_code=400, detail="Invalid current password.")
+        
+    logger.info(f"Password changed successfully for user '{username}'.")
+    return {"status": "success", "message": "Password changed successfully."}
 
 @app.get("/", response_class=HTMLResponse)
 async def get_index():
