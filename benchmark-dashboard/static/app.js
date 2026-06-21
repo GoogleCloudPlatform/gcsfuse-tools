@@ -850,7 +850,10 @@ function applyHistoryFilters() {
         historyDataTable = $('#history-table').DataTable({
             data: filtered,
             pageLength: 100,
-            order: [[5, 'desc']], // Sort by Date / Time
+            searching: false,     // Disable search bar
+            lengthChange: false,  // Disable "Show 100 entries" dropdown
+            ordering: false,      // Disable column sorting and remove all up/down arrows
+            info: false,          // Disable default info summary text
             columns: [
                 {
                     className: 'dt-control',
