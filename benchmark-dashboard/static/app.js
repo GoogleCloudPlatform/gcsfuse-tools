@@ -1,3 +1,21 @@
+
+// Toastify helper
+function showToast(message, isError = false) {
+    if (typeof Toastify !== 'undefined') {
+        Toastify({
+            text: message,
+            duration: 3000,
+            close: true,
+            gravity: "top",
+            position: "right",
+            style: {
+                background: isError ? "#ef4444" : "#10b981",
+            }
+        }).showToast();
+    } else {
+        console.log((isError ? "ERROR: " : "INFO: ") + message);
+    }
+}
 // Global fetch interceptor to inject auth token and handle 401s
 const originalFetch = window.fetch;
 window.fetch = async function (...args) {
@@ -55,6 +73,25 @@ let initialDataLoaded = false;
 
 // State for Google SSO detected identity
 let googleUser = null;
+
+// Background polling memory leak fix
+document.addEventListener("visibilitychange", () => {
+    if (document.hidden) {
+        clearAllIntervals();
+    } else {
+        if (localStorage.getItem("session_token")) {
+            if (activeTab === 'active') {
+                startPollingActiveRuns();
+                if (selectedActiveRunId) {
+                    startPollingLogs(selectedActiveRunId);
+                    startPollingProgress(selectedActiveRunId);
+                }
+            } else if (activeTab === 'launch') {
+                // maybe poll nothing
+            }
+        }
+    }
+});
 
 // Initialize on page load
 document.addEventListener("DOMContentLoaded", async () => {
@@ -372,7 +409,7 @@ function populateSelectWithGroups(selectId, repoFiles, presets, category, placeh
 async function saveAsPreset(category, textareaId) {
     const content = document.getElementById(textareaId).value.trim();
     if (!content || content === "No file selected." || content === "Loading preview...") {
-        alert("Cannot save empty or loading config as a preset!");
+        showToast("Cannot save empty or loading config as a preset!", true);
         return;
     }
     
@@ -402,14 +439,14 @@ async function saveAsPreset(category, textareaId) {
         });
         
         if (res.ok) {
-            alert(`Preset '${name.trim()}' saved successfully!`);
+            showToast(`Preset '${name.trim(, false)}' saved successfully!`);
             await fetchConfigFiles();
         } else {
             const err = await res.json();
-            alert(`Failed to save preset: ${err.detail}`);
+            showToast(`Failed to save preset: ${err.detail}`, true);
         }
     } catch (e) {
-        alert(`Failed to save preset: ${e}`);
+        showToast(`Failed to save preset: ${e}`, true);
     }
 }
 
@@ -484,15 +521,15 @@ async function submitRun(event) {
         });
 
         if (res.ok) {
-            alert("Benchmark run enqueued successfully!");
+            showToast("Benchmark run enqueued successfully!", false);
             switchTab('active');
             pollActiveRuns();
         } else {
             const error = await res.json();
-            alert(`Error enqueuing run: ${error.detail}`);
+            showToast(`Error enqueuing run: ${error.detail}`, true);
         }
     } catch (e) {
-        alert(`Failed to submit: ${e}`);
+        showToast(`Failed to submit: ${e}`, true);
     }
 }
 
@@ -693,12 +730,12 @@ async function cancelRun(event, id) {
     try {
         const res = await fetch(`/api/runs/${id}/cancel`, { method: 'POST' });
         if (res.ok) {
-            alert(`Cancellation signal sent for ${id}`);
+            showToast(`Cancellation signal sent for ${id}`, false);
             pollActiveRuns();
             fetchHistory();
         }
     } catch (e) {
-        alert(`Failed to cancel: ${e}`);
+        showToast(`Failed to cancel: ${e}`, true);
     }
 }
 
@@ -778,6 +815,9 @@ function filterHistory(type) {
     applyHistoryFilters();
 }
 
+
+let historyDataTable = null;
+
 function applyHistoryFilters() {
     const currentUser = localStorage.getItem("ldap_user") || "";
     let filtered = [...allHistoryRuns];
@@ -798,118 +838,115 @@ function applyHistoryFilters() {
     document.getElementById('history-showing-count').innerText = filtered.length;
     document.getElementById('history-total-count').innerText = allHistoryRuns.length;
     
-    updatePaginationView();
-}
+    // Hide manual pagination wrapper
+    const paginationEl = document.getElementById('history-pagination');
+    if (paginationEl) paginationEl.classList.add('hidden');
 
-function updatePaginationView() {
-    const totalRuns = paginatedRuns.length;
-    const totalPages = Math.ceil(totalRuns / runsPerPage) || 1;
-    
-    if (currentPage > totalPages) currentPage = totalPages;
-    if (currentPage < 1) currentPage = 1;
-    
-    const startIdx = (currentPage - 1) * runsPerPage;
-    const endIdx = Math.min(startIdx + runsPerPage, totalRuns);
-    
-    const runsToShow = paginatedRuns.slice(startIdx, endIdx);
-    renderHistoryRows(runsToShow);
-    
-    // Update Pagination Labels
-    document.getElementById('pagination-start-idx').innerText = totalRuns === 0 ? 0 : startIdx + 1;
-    document.getElementById('pagination-end-idx').innerText = endIdx;
-    document.getElementById('pagination-total-count').innerText = totalRuns;
-    document.getElementById('pagination-current-page').innerText = currentPage;
-    document.getElementById('pagination-total-pages').innerText = totalPages;
-    
-    // Disable/Enable buttons
-    document.getElementById('btn-prev-page').disabled = currentPage === 1;
-    document.getElementById('btn-next-page').disabled = currentPage === totalPages;
-}
+    if (historyDataTable) {
+        historyDataTable.clear();
+        historyDataTable.rows.add(filtered);
+        historyDataTable.draw();
+    } else {
+        historyDataTable = $('#history-table').DataTable({
+            data: filtered,
+            pageLength: 100,
+            order: [[5, 'desc']], // Sort by Date / Time
+            columns: [
+                {
+                    className: 'dt-control',
+                    orderable: false,
+                    data: null,
+                    defaultContent: '<button class="text-slate-400 hover:text-slate-600 transition" title="View details"><i class="fa-solid fa-chevron-down text-sm"></i></button>'
+                },
+                { 
+                    data: 'benchmark_id',
+                    render: function(data, type, row) {
+                        const starClass = row.is_starred ? 'fa-solid text-amber-500' : 'fa-regular text-slate-350 hover:text-amber-500';
+                        return `<div class="flex items-center space-x-1.5">
+                                    <button onclick="toggleStar('${escapeHTML(data)}', ${row.is_starred ? 0 : 1})" class="transition duration-150" title="Star this run">
+                                        <i class="${starClass} fa-star text-sm"></i>
+                                    </button>
+                                    <span>${escapeHTML(data)}</span>
+                                </div>`;
+                    }
+                },
+                { data: 'description', render: escapeHTML },
+                { data: 'username', render: escapeHTML },
+                { data: 'executor_vm', render: escapeHTML },
+                { 
+                    data: 'created_at',
+                    render: function(data) {
+                        return formatToIST(data);
+                    }
+                },
+                { 
+                    data: 'status',
+                    render: function(data) {
+                        const statusColors = {
+                            'completed': 'bg-emerald-100 text-emerald-700 border-emerald-250',
+                            'failed': 'bg-rose-100 text-rose-700 border-rose-200',
+                            'cancelled': 'bg-slate-100 text-slate-500 border-slate-200'
+                        };
+                        return `<span class="text-[10px] font-bold px-2 py-0.5 rounded border uppercase tracking-wider ${statusColors[data] || 'bg-slate-100'}">${escapeHTML(data)}</span>`;
+                    }
+                },
+                {
+                    data: null,
+                    orderable: false,
+                    className: 'text-center space-x-2.5',
+                    render: function(data, type, row) {
+                        const isOwner = row.username === currentUser;
+                        return `<button onclick="cloneRun('${escapeHTML(row.benchmark_id)}')" class="text-blue-600 hover:text-blue-800 transition" title="Clone configurations">
+                                    <i class="fa-solid fa-copy text-sm"></i>
+                                </button>
+                                ${isOwner ? `
+                                    <button onclick="deleteRun('${escapeHTML(row.benchmark_id)}')" class="text-rose-500 hover:text-rose-700 transition" title="Delete run">
+                                        <i class="fa-solid fa-trash text-sm"></i>
+                                    </button>
+                                ` : `
+                                    <button class="text-slate-200 cursor-not-allowed" title="Only the owner can delete this run" disabled>
+                                        <i class="fa-solid fa-trash text-sm"></i>
+                                    </button>
+                                `}`;
+                    }
+                }
+            ],
+            createdRow: function(row, data, dataIndex) {
+                $(row).addClass("hover:bg-slate-50 border-b border-slate-200 text-sm");
+                $('td:eq(1)', row).addClass("font-mono font-bold text-slate-800");
+                $('td:eq(2)', row).addClass("font-semibold text-slate-700");
+                $('td:eq(3)', row).addClass("text-slate-600");
+                $('td:eq(4)', row).addClass("font-mono text-slate-600 text-xs");
+                $('td:eq(5)', row).addClass("text-slate-500 text-xs");
+                $('td:eq(0)', row).addClass("text-center");
+            }
+        });
 
-function prevPage() {
-    if (currentPage > 1) {
-        currentPage--;
-        updatePaginationView();
-        // Smooth scroll table header into view
-        document.getElementById('history-pagination').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        // Add event listener for opening and closing details
+        $('#history-table tbody').on('click', 'td.dt-control', function () {
+            var tr = $(this).closest('tr');
+            var row = historyDataTable.row(tr);
+            var icon = $(this).find('i');
+
+            if (row.child.isShown()) {
+                row.child.hide();
+                tr.removeClass('bg-slate-50 border-blue-200');
+                icon.removeClass('fa-chevron-up').addClass('fa-chevron-down');
+            } else {
+                row.child(formatDetailsRow(row.data())).show();
+                tr.addClass('bg-slate-50 border-blue-200');
+                icon.removeClass('fa-chevron-down').addClass('fa-chevron-up');
+                
+                const id = row.data().benchmark_id;
+                fetchHistoryLogs(id);
+                fetchHistoryTestOutputs(id);
+            }
+        });
     }
 }
 
-function nextPage() {
-    const totalPages = Math.ceil(paginatedRuns.length / runsPerPage) || 1;
-    if (currentPage < totalPages) {
-        currentPage++;
-        updatePaginationView();
-        // Smooth scroll table header into view
-        document.getElementById('history-pagination').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    }
-}
-
-function renderHistoryRows(runs) {
-    const tbody = document.getElementById('history-rows');
-    if (runs.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="9" class="text-center py-6 text-slate-400 italic">No historical runs found.</td></tr>`;
-        return;
-    }
-
-    const currentUser = localStorage.getItem("ldap_user") || "anonymous";
-
-    tbody.innerHTML = '';
-    runs.forEach(run => {
-        const dateStr = formatToIST(run.created_at);
-        const statusColors = {
-            'completed': 'bg-emerald-100 text-emerald-700 border-emerald-250',
-            'failed': 'bg-rose-100 text-rose-700 border-rose-200',
-            'cancelled': 'bg-slate-100 text-slate-500 border-slate-200'
-        };
-
-        const starClass = run.is_starred ? 'fa-solid text-amber-500' : 'fa-regular text-slate-350 hover:text-amber-500';
-        const isOwner = run.username === currentUser;
-
-        const tr = document.createElement('tr');
-        tr.className = "hover:bg-slate-50 border-b border-slate-200";
-        tr.innerHTML = `
-            <td class="py-3 px-1 text-center">
-                <button onclick="expandRunDetails(this, '${escapeHTML(run.benchmark_id)}')" class="text-slate-400 hover:text-slate-600 transition" title="View details">
-                    <i class="fa-solid fa-chevron-down text-sm"></i>
-                </button>
-            </td>
-            <td class="py-3 px-4 font-mono font-bold text-slate-800">
-                <div class="flex items-center space-x-1.5">
-                    <button onclick="toggleStar('${escapeHTML(run.benchmark_id)}', ${run.is_starred ? 0 : 1})" class="transition duration-150" title="Star this run">
-                        <i class="${starClass} fa-star text-sm"></i>
-                    </button>
-                    <span>${escapeHTML(run.benchmark_id)}</span>
-                </div>
-            </td>
-            <td class="py-3 px-4 font-semibold text-slate-700">${escapeHTML(run.description)}</td>
-            <td class="py-3 px-4 text-slate-600">${escapeHTML(run.username)}</td>
-            <td class="py-3 px-4 font-mono text-slate-600 text-xs">${escapeHTML(run.executor_vm)}</td>
-            <td class="py-3 px-4 text-slate-500 text-xs">${dateStr}</td>
-            <td class="py-3 px-4"><span class="text-[10px] font-bold px-2 py-0.5 rounded border uppercase tracking-wider ${statusColors[run.status] || 'bg-slate-100'}">${escapeHTML(run.status)}</span></td>
-            <td class="py-3 px-4 text-center space-x-2.5">
-                <button onclick="cloneRun('${escapeHTML(run.benchmark_id)}')" class="text-blue-600 hover:text-blue-800 transition" title="Clone configurations">
-                    <i class="fa-solid fa-copy text-sm"></i>
-                </button>
-                ${isOwner ? `
-                    <button onclick="deleteRun('${escapeHTML(run.benchmark_id)}')" class="text-rose-500 hover:text-rose-700 transition" title="Delete run">
-                        <i class="fa-solid fa-trash text-sm"></i>
-                    </button>
-                ` : `
-                    <button class="text-slate-200 cursor-not-allowed" title="Only the owner can delete this run" disabled>
-                        <i class="fa-solid fa-trash text-sm"></i>
-                    </button>
-                `}
-            </td>
-        `;
-        tbody.appendChild(tr);
-
-        // Add hidden expandable row
-        const detailsTr = document.createElement('tr');
-        detailsTr.id = `details-${run.benchmark_id}`;
-        detailsTr.className = "hidden bg-slate-50 border-b border-slate-200";
-        detailsTr.innerHTML = `
-            <td colspan="9" class="py-4 px-6 max-w-full overflow-hidden">
+function formatDetailsRow(run) {
+    return `<div class="p-6 bg-slate-50 border-b border-slate-200">
                 <div class="flex flex-wrap gap-x-16 gap-y-6 text-xs text-slate-600 leading-loose justify-start">
                     <div>
                         <span class="font-bold text-slate-700 uppercase tracking-wider block mb-1">GCSFuse Configs</span>
@@ -947,7 +984,7 @@ function renderHistoryRows(runs) {
                     </a>
                 </div>
 
-                <!-- Run Level Charts Container (Now 9 compact charts in 3-column grid) -->
+                <!-- Run Level Charts Container -->
                 <div class="mt-4 pt-4 border-t border-slate-200 grid grid-cols-1 md:grid-cols-3 gap-4 hidden" id="charts-container-${run.benchmark_id}">
                     <div class="h-48 bg-white p-3 border border-slate-250 rounded-lg shadow-sm">
                         <canvas id="throughput-chart-${run.benchmark_id}"></canvas>
@@ -991,10 +1028,7 @@ function renderHistoryRows(runs) {
                     <span class="font-bold text-slate-700 uppercase tracking-wider block mb-2"><i class="fa-solid fa-terminal mr-1.5 text-blue-600"></i>Orchestrator Logs</span>
                     <pre class="w-full bg-slate-900 text-emerald-400 p-4 rounded-lg font-mono text-[11px] overflow-x-auto max-h-[600px] whitespace-pre" id="logs-history-${run.benchmark_id}">Loading logs...</pre>
                 </div>
-            </td>
-        `;
-        tbody.appendChild(detailsTr);
-    });
+            </div>`;
 }
 
 function expandRunDetails(btn, id) {
@@ -1163,7 +1197,7 @@ async function cloneRun(id) {
 
         switchTab('launch');
     } catch (e) {
-        alert(`Failed to clone configuration: ${e}`);
+        showToast(`Failed to clone configuration: ${e}`, true);
     }
 }
 
@@ -1171,6 +1205,8 @@ async function cloneRun(id) {
 
 function renderChart(canvasId, type, labels, datasets, yLabel, showLegend = true) {
     if (charts[canvasId]) {
+        charts[canvasId].data.datasets = [];
+        charts[canvasId].update();
         charts[canvasId].destroy();
     }
 
@@ -1343,7 +1379,7 @@ async function submitFioConfig(event) {
 
         if (res.ok) {
             const data = await res.json();
-            alert("Custom FIO template saved successfully!");
+            showToast("Custom FIO template saved successfully!", false);
             closeFioModal();
             // Reload select options to show new FIO file
             await fetchConfigFiles();
@@ -1352,10 +1388,10 @@ async function submitFioConfig(event) {
             previewConfigFile(data.path, 'fio-job-preview');
         } else {
             const err = await res.json();
-            alert(`Error saving FIO config: ${err.detail}`);
+            showToast(`Error saving FIO config: ${err.detail}`, true);
         }
     } catch (e) {
-        alert(`Failed to save: ${e}`);
+        showToast(`Failed to save: ${e}`, true);
     }
 }
 
@@ -1406,7 +1442,7 @@ async function submitCsvConfig(event) {
         
         if (res.ok) {
             const data = await res.json();
-            alert("Custom CSV file saved successfully!");
+            showToast("Custom CSV file saved successfully!", false);
             closeCsvModal();
             
             // Reload selects
@@ -1422,10 +1458,10 @@ async function submitCsvConfig(event) {
             }
         } else {
             const err = await res.json();
-            alert(`Error saving CSV file: ${err.detail}`);
+            showToast(`Error saving CSV file: ${err.detail}`, true);
         }
     } catch (e) {
-        alert(`Failed to save CSV: ${e}`);
+        showToast(`Failed to save CSV: ${e}`, true);
     }
 }
 
@@ -1485,7 +1521,7 @@ async function plotOnDemand(runId) {
         const data = await res.json();
         
         if (!data[runId] || data[runId].length === 0) {
-            alert("No FIO performance data found for this run yet. Ensure at least one test case successfully finished.");
+            showToast("No FIO performance data found for this run yet. Ensure at least one test case successfully finished.", false);
             btn.innerHTML = `<i class="fa-solid fa-chart-line mr-1.5"></i> Analyse & Plot Graphs`;
             btn.disabled = false;
             return;
@@ -1495,7 +1531,7 @@ async function plotOnDemand(runId) {
         renderRowCharts(runId, data);
         btn.innerHTML = `<i class="fa-solid fa-check mr-1.5 text-emerald-500"></i> Plotted Successfully`;
     } catch (e) {
-        alert(`Failed to plot graphs: ${e}`);
+        showToast(`Failed to plot graphs: ${e}`, true);
         btn.innerHTML = `<i class="fa-solid fa-chart-line mr-1.5"></i> Analyse & Plot Graphs`;
         btn.disabled = false;
     }
@@ -1696,10 +1732,10 @@ async function toggleStar(runId, starredState) {
             fetchHistory();
         } else {
             const err = await res.json();
-            alert(`Failed to toggle star: ${err.detail}`);
+            showToast(`Failed to toggle star: ${err.detail}`, true);
         }
     } catch (e) {
-        alert(`Failed to toggle star: ${e}`);
+        showToast(`Failed to toggle star: ${e}`, true);
     }
 }
 
@@ -1713,14 +1749,14 @@ async function deleteRun(runId) {
             method: 'DELETE'
         });
         if (res.ok) {
-            alert("Benchmark run deleted successfully.");
+            showToast("Benchmark run deleted successfully.", false);
             fetchHistory();
         } else {
             const err = await res.json();
-            alert(`Failed to delete run: ${err.detail}`);
+            showToast(`Failed to delete run: ${err.detail}`, true);
         }
     } catch (e) {
-        alert(`Failed to delete run: ${e}`);
+        showToast(`Failed to delete run: ${e}`, true);
     }
 }
 
@@ -1792,7 +1828,7 @@ async function applyPreset(presetKey) {
         document.getElementById('configs-csv-preview').value = configsCsvContent;
 
     } catch (e) {
-        alert(`Failed to load preset configurations: ${e.message}`);
+        showToast(`Failed to load preset configurations: ${e.message}`, true);
     }
 }
 
