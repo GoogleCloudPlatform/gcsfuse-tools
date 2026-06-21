@@ -43,8 +43,8 @@ def verify_user_token(token: str) -> bool:
 
 async def verify_token_selective(request: Request):
     path = request.url.path
-    # Allow index, static files, login API, and favicon
-    if path == "/" or path.startswith("/static/") or path == "/api/login" or path == "/favicon.ico":
+    # Allow index, static files, login API, auth status check, and favicon
+    if path == "/" or path.startswith("/static/") or path == "/api/login" or path == "/api/auth/me" or path == "/favicon.ico":
         return
     
     auth_header = request.headers.get("Authorization")
@@ -85,12 +85,6 @@ class PresetCreateRequest(BaseModel):
     category: str
     filename: str
     content: str
-
-
-class ChangePasswordRequest(BaseModel):
-    username: str
-    old_password: str
-    new_password: str
 
 
 class BenchmarkRunRequest(BaseModel):
@@ -288,46 +282,29 @@ async def shutdown_event():
 
 # --- API ENDPOINTS ---
 
+@app.get("/api/auth/me")
+async def get_current_user(request: Request):
+    """Checks if Google IAP has authenticated the user and returns their LDAP."""
+    # This endpoint is exempt from verify_token_selective in verify_token_selective()!
+    # Let's verify we added it to the exempt list.
+    email_header = request.headers.get("X-Goog-Authenticated-User-Email")
+    if email_header:
+        email = email_header.split(":")[-1]
+        username = email.split("@")[0]
+        return {"authenticated": True, "username": username, "source": "google"}
+    return {"authenticated": False, "username": None, "source": "none"}
+
 @app.post("/api/login")
 async def login_api(req: LoginRequest):
-    """Verifies user credentials with frictionless auto-registration support."""
+    """Verifies the shared team password and returns a secure signed session token."""
     username = req.username.strip().lower()
-    password = req.password
-    
-    # 1. Verify if user already exists and credentials are correct
-    if db.verify_user(username, password):
+    if req.password == SHARED_PASSWORD:
         token = generate_user_token(username)
-        logger.info(f"User '{username}' successfully signed in.")
+        logger.info(f"User '{username}' successfully signed in using the team password.")
         return {"status": "success", "token": token, "username": username}
-        
-    # 2. Frictionless auto-registration: check if this is a new user using the default team password
-    if password == SHARED_PASSWORD:
-        try:
-            db.create_user(username, password)
-            token = generate_user_token(username)
-            logger.info(f"Auto-registered and signed in new user '{username}' via default team password.")
-            return {"status": "success", "token": token, "username": username}
-        except Exception as e:
-            logger.error(f"Failed to auto-register user '{username}': {e}", exc_info=True)
-            raise HTTPException(status_code=500, detail="Failed to register user account.")
-            
-    # 3. Failed
-    logger.warning(f"Failed sign-in attempt for user '{username}' (incorrect password).")
-    raise HTTPException(status_code=401, detail="Invalid username or password.")
-
-
-@app.post("/api/users/change-password")
-async def change_password_api(req: ChangePasswordRequest):
-    """Allows authenticated users to change their account password."""
-    username = req.username.strip().lower()
-    
-    success = db.change_user_password(username, req.old_password, req.new_password)
-    if not success:
-        logger.warning(f"Failed password change attempt for user '{username}' (incorrect current password).")
-        raise HTTPException(status_code=400, detail="Invalid current password.")
-        
-    logger.info(f"Password changed successfully for user '{username}'.")
-    return {"status": "success", "message": "Password changed successfully."}
+    else:
+        logger.warning(f"Failed sign-in attempt for user '{username}' (incorrect team password).")
+        raise HTTPException(status_code=401, detail="Invalid team password")
 
 @app.get("/", response_class=HTMLResponse)
 async def get_index():
