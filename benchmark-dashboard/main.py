@@ -53,12 +53,18 @@ async def verify_token_selective(request: Request):
     if path == "/" or path.startswith("/static/") or path == "/api/login" or path == "/api/auth/me" or path == "/favicon.ico":
         return
     
+    token = None
     auth_header = request.headers.get("Authorization")
-    if not auth_header or not auth_header.startswith("Bearer "):
+    if auth_header and auth_header.startswith("Bearer "):
+        token = auth_header.split(" ")[1]
+    else:
+        # Fallback to query parameter (e.g., for report-view link in new tab)
+        token = request.query_params.get("token")
+        
+    if not token:
         logger.warning(f"Unauthenticated API access attempt: {path}")
         raise HTTPException(status_code=401, detail="Missing or invalid authentication token")
     
-    token = auth_header.split(" ")[1]
     if not verify_user_token(token):
         logger.warning(f"Failed API authentication attempt (invalid token): {path}")
         raise HTTPException(status_code=401, detail="Invalid or expired session token")

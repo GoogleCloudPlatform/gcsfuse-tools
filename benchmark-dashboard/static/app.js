@@ -981,38 +981,38 @@ function renderHistoryRows(runs) {
                     <button onclick="plotOnDemand('${escapeHTML(run.benchmark_id)}')" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg text-xs shadow flex items-center transition-colors" id="btn-plot-${run.benchmark_id}">
                         <i class="fa-solid fa-chart-line mr-1.5"></i> Analyse & Plot Graphs
                     </button>
-                    <a href="/api/runs/${run.benchmark_id}/report-view" target="_blank" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-xs shadow flex items-center transition-colors">
+                    <a href="/api/runs/${run.benchmark_id}/report-view?token=${encodeURIComponent(localStorage.getItem('session_token') || '')}" target="_blank" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-xs shadow flex items-center transition-colors">
                         <i class="fa-solid fa-file-pdf mr-1.5"></i> Export PDF Report
                     </a>
                 </div>
 
-                <!-- Run Level Charts Container -->
-                <div class="mt-4 pt-4 border-t border-slate-200 grid grid-cols-1 md:grid-cols-3 gap-4 hidden" id="charts-container-${run.benchmark_id}">
-                    <div class="h-48 bg-white p-3 border border-slate-250 rounded-lg shadow-sm">
+                <!-- Run Level Charts Container (Horizontal Scrollable Row for Large, Legible Charts!) -->
+                <div class="mt-4 pt-4 border-t border-slate-200 flex space-x-4 overflow-x-auto pb-4 scrollbar-thin hidden" id="charts-container-${run.benchmark_id}">
+                    <div class="w-[450px] h-[320px] flex-shrink-0 bg-white p-4 border border-slate-250 rounded-lg shadow-sm">
                         <canvas id="throughput-chart-${run.benchmark_id}"></canvas>
                     </div>
-                    <div class="h-48 bg-white p-3 border border-slate-250 rounded-lg shadow-sm">
+                    <div class="w-[450px] h-[320px] flex-shrink-0 bg-white p-4 border border-slate-250 rounded-lg shadow-sm">
                         <canvas id="latency-chart-${run.benchmark_id}"></canvas>
                     </div>
-                    <div class="h-48 bg-white p-3 border border-slate-250 rounded-lg shadow-sm">
+                    <div class="w-[450px] h-[320px] flex-shrink-0 bg-white p-4 border border-slate-250 rounded-lg shadow-sm">
                         <canvas id="peak-bw-chart-${run.benchmark_id}"></canvas>
                     </div>
-                    <div class="h-48 bg-white p-3 border border-slate-250 rounded-lg shadow-sm">
+                    <div class="w-[450px] h-[320px] flex-shrink-0 bg-white p-4 border border-slate-250 rounded-lg shadow-sm">
                         <canvas id="cpu-chart-${run.benchmark_id}"></canvas>
                     </div>
-                    <div class="h-48 bg-white p-3 border border-slate-250 rounded-lg shadow-sm">
+                    <div class="w-[450px] h-[320px] flex-shrink-0 bg-white p-4 border border-slate-250 rounded-lg shadow-sm">
                         <canvas id="mem-chart-${run.benchmark_id}"></canvas>
                     </div>
-                    <div class="h-48 bg-white p-3 border border-slate-250 rounded-lg shadow-sm">
+                    <div class="w-[450px] h-[320px] flex-shrink-0 bg-white p-4 border border-slate-250 rounded-lg shadow-sm">
                         <canvas id="pgcache-chart-${run.benchmark_id}"></canvas>
                     </div>
-                    <div class="h-48 bg-white p-3 border border-slate-250 rounded-lg shadow-sm">
+                    <div class="w-[450px] h-[320px] flex-shrink-0 bg-white p-4 border border-slate-250 rounded-lg shadow-sm">
                         <canvas id="net-rx-chart-${run.benchmark_id}"></canvas>
                     </div>
-                    <div class="h-48 bg-white p-3 border border-slate-250 rounded-lg shadow-sm">
+                    <div class="w-[450px] h-[320px] flex-shrink-0 bg-white p-4 border border-slate-250 rounded-lg shadow-sm">
                         <canvas id="peak-net-rx-chart-${run.benchmark_id}"></canvas>
                     </div>
-                    <div class="h-48 bg-white p-3 border border-slate-250 rounded-lg shadow-sm">
+                    <div class="w-[450px] h-[320px] flex-shrink-0 bg-white p-4 border border-slate-250 rounded-lg shadow-sm">
                         <canvas id="net-tx-chart-${run.benchmark_id}"></canvas>
                     </div>
                 </div>
