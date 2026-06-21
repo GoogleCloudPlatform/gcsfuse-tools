@@ -763,7 +763,7 @@ function renderHistoryRows(runs) {
 
     tbody.innerHTML = '';
     runs.forEach(run => {
-        const dateStr = run.created_at ? new Date(run.created_at).toLocaleString() : 'N/A';
+        const dateStr = formatToIST(run.created_at);
         const statusColors = {
             'completed': 'bg-emerald-100 text-emerald-700 border-emerald-250',
             'failed': 'bg-rose-100 text-rose-700 border-rose-200',
@@ -843,9 +843,9 @@ function renderHistoryRows(runs) {
                     </div>
                     <div>
                         <span class="font-bold text-slate-700 uppercase tracking-wider block mb-1">Timestamps</span>
-                        <p>Created: <span class="text-slate-850">${run.created_at}</span></p>
-                        <p>Started: <span class="text-slate-850">${run.started_at || 'N/A'}</span></p>
-                        <p>Finished: <span class="text-slate-850">${run.completed_at || 'N/A'}</span></p>
+                        <p>Created: <span class="text-slate-850">${formatToIST(run.created_at)}</span></p>
+                        <p>Started: <span class="text-slate-850">${formatToIST(run.started_at)}</span></p>
+                        <p>Finished: <span class="text-slate-850">${formatToIST(run.completed_at)}</span></p>
                         <p>Duration: <span class="font-bold text-slate-850">${calculateDuration(run.started_at, run.completed_at)}</span></p>
                     </div>
                 </div>
@@ -1713,8 +1713,11 @@ async function submitCsvConfig(event) {
 function calculateDuration(start, end) {
     if (!start || !end || start === 'N/A' || end === 'N/A') return 'N/A';
     try {
-        const sDate = new Date(start);
-        const eDate = new Date(end);
+        // Force parsing relative to UTC by appending Z if naive
+        const sStr = start.endsWith('Z') || start.includes('+') ? start : start + 'Z';
+        const eStr = end.endsWith('Z') || end.includes('+') ? end : end + 'Z';
+        const sDate = new Date(sStr);
+        const eDate = new Date(eStr);
         const diffMs = eDate - sDate;
         if (diffMs < 0 || isNaN(diffMs)) return 'N/A';
         
@@ -1730,6 +1733,23 @@ function calculateDuration(start, end) {
         return str.trim();
     } catch {
         return 'N/A';
+    }
+}
+
+function formatToIST(dateNaivelyUTC) {
+    if (!dateNaivelyUTC || dateNaivelyUTC === 'N/A') return 'N/A';
+    // Append Z to force JS to treat it as UTC if it doesn't already have a timezone suffix
+    const utcStr = dateNaivelyUTC.endsWith('Z') || dateNaivelyUTC.includes('+') ? dateNaivelyUTC : dateNaivelyUTC + 'Z';
+    try {
+        const date = new Date(utcStr);
+        return date.toLocaleString('en-IN', {
+            timeZone: 'Asia/Kolkata',
+            dateStyle: 'medium',
+            timeStyle: 'medium'
+        });
+    } catch (e) {
+        console.error("Failed to format date to IST:", dateNaivelyUTC, e);
+        return dateNaivelyUTC;
     }
 }
 

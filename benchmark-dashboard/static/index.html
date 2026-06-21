@@ -431,59 +431,6 @@
 
         <!-- ================= RUN HISTORY TAB ================= -->
         <section id="section-history" class="tab-section hidden space-y-8">
-            <!-- Main Historical Runs Table -->
-            <div class="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
-                <div class="flex items-center justify-between mb-6 border-b border-slate-100 pb-4">
-                    <h2 class="text-lg font-bold text-slate-800 flex items-center">
-                        <i class="fa-solid fa-clock-rotate-left mr-3 text-emerald-600"></i>Benchmark Executions
-                    </h2>
-                    <button onclick="compareSelected()" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-lg text-sm shadow transition flex items-center space-x-2">
-                        <i class="fa-solid fa-right-left"></i><span>Compare Selected Runs</span>
-                    </button>
-                </div>
-                
-                <!-- Filter bar -->
-                <div class="flex flex-wrap items-center justify-between gap-4 mb-4 bg-slate-50 p-4 rounded-lg border border-slate-200">
-                    <div class="flex items-center space-x-3">
-                        <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Filter By User:</span>
-                        <div class="flex rounded-md shadow-sm">
-                            <button onclick="filterHistory('all')" id="btn-filter-all" class="px-4 py-2 text-xs font-medium rounded-l-lg border border-slate-300 bg-blue-600 text-white shadow-sm focus:outline-none transition">All Users</button>
-                            <button onclick="filterHistory('me')" id="btn-filter-me" class="px-4 py-2 text-xs font-medium border-t border-b border-r border-slate-300 bg-white text-slate-700 hover:bg-slate-50 focus:outline-none transition">My Runs Only</button>
-                        </div>
-                        <div class="relative">
-                            <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400"><i class="fa-solid fa-magnifying-glass text-xs"></i></span>
-                            <input type="text" id="user-filter-input" oninput="filterHistory('custom')" placeholder="Search LDAP username..." class="bg-white border border-slate-300 rounded-lg pl-8 pr-4 py-1.5 text-xs text-slate-800 focus:outline-none focus:border-blue-500 w-48">
-                        </div>
-                    </div>
-                    <div class="text-xs text-slate-500 font-medium">
-                        Showing <span id="history-showing-count" class="font-bold">0</span> of <span id="history-total-count" class="font-bold">0</span> runs
-                    </div>
-                </div>
-
-                <div class="overflow-x-auto rounded-lg border border-slate-200">
-                    <table class="w-full text-left border-collapse">
-                        <thead>
-                            <tr class="bg-slate-50 text-xs font-semibold text-slate-500 uppercase border-b border-slate-200">
-                                <th class="py-3 px-4 w-12 text-center"><input type="checkbox" id="select-all-history" onchange="toggleSelectAll(this)"></th>
-                                <th class="py-3 px-1 w-8"></th>
-                                <th class="py-3 px-4">Benchmark ID</th>
-                                <th class="py-3 px-4">Description</th>
-                                <th class="py-3 px-4">User</th>
-                                <th class="py-3 px-4">Target Machine</th>
-                                <th class="py-3 px-4">Date / Time</th>
-                                <th class="py-3 px-4">Status</th>
-                                <th class="py-3 px-4 text-center">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody id="history-rows" class="divide-y divide-slate-100 text-sm">
-                            <tr>
-                                <td colspan="9" class="text-center py-6 text-slate-400 italic">Loading benchmark history...</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
             <!-- Graphing Comparative Workspace -->
             <div id="chart-workspace" class="hidden bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-6">
                 <div class="flex items-center justify-between border-b border-slate-200 pb-4">
@@ -596,6 +543,58 @@
                             <canvas id="net-tx-chart"></canvas>
                         </div>
                     </div>
+                </div>
+            </div>
+            <!-- Main Historical Runs Table -->
+            <div class="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
+                <div class="flex items-center justify-between mb-6 border-b border-slate-100 pb-4">
+                    <h2 class="text-lg font-bold text-slate-800 flex items-center">
+                        <i class="fa-solid fa-clock-rotate-left mr-3 text-emerald-600"></i>Benchmark Executions
+                    </h2>
+                    <button onclick="compareSelected()" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-lg text-sm shadow transition flex items-center space-x-2">
+                        <i class="fa-solid fa-right-left"></i><span>Compare Selected Runs</span>
+                    </button>
+                </div>
+                
+                <!-- Filter bar -->
+                <div class="flex flex-wrap items-center justify-between gap-4 mb-4 bg-slate-50 p-4 rounded-lg border border-slate-200">
+                    <div class="flex items-center space-x-3">
+                        <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Filter By User:</span>
+                        <div class="flex rounded-md shadow-sm">
+                            <button onclick="filterHistory('all')" id="btn-filter-all" class="px-4 py-2 text-xs font-medium rounded-l-lg border border-slate-300 bg-blue-600 text-white shadow-sm focus:outline-none transition">All Users</button>
+                            <button onclick="filterHistory('me')" id="btn-filter-me" class="px-4 py-2 text-xs font-medium border-t border-b border-r border-slate-300 bg-white text-slate-700 hover:bg-slate-50 focus:outline-none transition">My Runs Only</button>
+                        </div>
+                        <div class="relative">
+                            <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400"><i class="fa-solid fa-magnifying-glass text-xs"></i></span>
+                            <input type="text" id="user-filter-input" oninput="filterHistory('custom')" placeholder="Search LDAP username..." class="bg-white border border-slate-300 rounded-lg pl-8 pr-4 py-1.5 text-xs text-slate-800 focus:outline-none focus:border-blue-500 w-48">
+                        </div>
+                    </div>
+                    <div class="text-xs text-slate-500 font-medium">
+                        Showing <span id="history-showing-count" class="font-bold">0</span> of <span id="history-total-count" class="font-bold">0</span> runs
+                    </div>
+                </div>
+
+                <div class="overflow-x-auto rounded-lg border border-slate-200">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="bg-slate-50 text-xs font-semibold text-slate-500 uppercase border-b border-slate-200">
+                                <th class="py-3 px-4 w-12 text-center"><input type="checkbox" id="select-all-history" onchange="toggleSelectAll(this)"></th>
+                                <th class="py-3 px-1 w-8"></th>
+                                <th class="py-3 px-4">Benchmark ID</th>
+                                <th class="py-3 px-4">Description</th>
+                                <th class="py-3 px-4">User</th>
+                                <th class="py-3 px-4">Target Machine</th>
+                                <th class="py-3 px-4">Date / Time</th>
+                                <th class="py-3 px-4">Status</th>
+                                <th class="py-3 px-4 text-center">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="history-rows" class="divide-y divide-slate-100 text-sm">
+                            <tr>
+                                <td colspan="9" class="text-center py-6 text-slate-400 italic">Loading benchmark history...</td>
+                            </tr>
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </section>

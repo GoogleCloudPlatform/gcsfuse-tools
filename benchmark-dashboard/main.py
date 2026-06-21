@@ -536,10 +536,14 @@ def create_run(run: BenchmarkRunRequest):
     # Resolve project context from GCE Metadata
     local_project = get_gce_project_id()
 
-    # Generate benchmark ID
+    # Generate benchmark ID: {username}-{YYYYMMDD}-{HHMMSS}-{random} in IST (UTC+5:30)
     import random
-    timestamp = int(datetime.utcnow().timestamp())
-    benchmark_id = f"web-run-{timestamp}-{random.randint(10, 99)}"
+    from datetime import timezone, timedelta
+    ist_tz = timezone(timedelta(hours=5, minutes=30))
+    now_ist = datetime.utcnow().replace(tzinfo=timezone.utc).astimezone(ist_tz)
+    date_str = now_ist.strftime("%Y%m%d-%H%M%S")
+    username = run.username.strip().lower()
+    benchmark_id = f"{username}-{date_str}-{random.randint(10, 99)}"
 
     # Setup directories
     results_dir = DMB_DIR / "results" / benchmark_id
