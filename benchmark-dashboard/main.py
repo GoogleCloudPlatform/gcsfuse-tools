@@ -1315,7 +1315,9 @@ def get_report_view(run_id: str):
                 document.getElementById("duration-container").innerHTML = `<strong class="text-slate-800 uppercase tracking-wider text-[10px]">Total Duration:</strong> ` + durationStr;
  
                 try {{
-                    const res = await fetch(`/api/runs/compare?ids=` + runId);
+                    const urlParams = new URLSearchParams(window.location.search);
+                    const token = urlParams.get("token") || "";
+                    const res = await fetch(`/api/runs/compare?ids=` + runId + `&token=` + encodeURIComponent(token));
                     const metrics = await res.json();
                     
                     const runData = metrics[runId] || [];

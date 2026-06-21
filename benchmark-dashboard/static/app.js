@@ -986,33 +986,33 @@ function renderHistoryRows(runs) {
                     </a>
                 </div>
 
-                <!-- Run Level Charts Container (Horizontal Scrollable Row for Large, Legible Charts!) -->
-                <div class="mt-4 pt-4 border-t border-slate-200 flex space-x-4 overflow-x-auto pb-4 scrollbar-thin hidden" id="charts-container-${run.benchmark_id}">
-                    <div class="w-[450px] h-[320px] flex-shrink-0 bg-white p-4 border border-slate-250 rounded-lg shadow-sm">
+                <!-- Run Level Charts Container (3 Columns, 3 Rows of Double-Sized Charts!) -->
+                <div class="mt-4 pt-4 border-t border-slate-200 grid grid-cols-1 md:grid-cols-3 gap-6 hidden" id="charts-container-${run.benchmark_id}">
+                    <div class="h-96 bg-white p-4 border border-slate-250 rounded-lg shadow-sm">
                         <canvas id="throughput-chart-${run.benchmark_id}"></canvas>
                     </div>
-                    <div class="w-[450px] h-[320px] flex-shrink-0 bg-white p-4 border border-slate-250 rounded-lg shadow-sm">
+                    <div class="h-96 bg-white p-4 border border-slate-250 rounded-lg shadow-sm">
                         <canvas id="latency-chart-${run.benchmark_id}"></canvas>
                     </div>
-                    <div class="w-[450px] h-[320px] flex-shrink-0 bg-white p-4 border border-slate-250 rounded-lg shadow-sm">
+                    <div class="h-96 bg-white p-4 border border-slate-250 rounded-lg shadow-sm">
                         <canvas id="peak-bw-chart-${run.benchmark_id}"></canvas>
                     </div>
-                    <div class="w-[450px] h-[320px] flex-shrink-0 bg-white p-4 border border-slate-250 rounded-lg shadow-sm">
+                    <div class="h-96 bg-white p-4 border border-slate-250 rounded-lg shadow-sm">
                         <canvas id="cpu-chart-${run.benchmark_id}"></canvas>
                     </div>
-                    <div class="w-[450px] h-[320px] flex-shrink-0 bg-white p-4 border border-slate-250 rounded-lg shadow-sm">
+                    <div class="h-96 bg-white p-4 border border-slate-250 rounded-lg shadow-sm">
                         <canvas id="mem-chart-${run.benchmark_id}"></canvas>
                     </div>
-                    <div class="w-[450px] h-[320px] flex-shrink-0 bg-white p-4 border border-slate-250 rounded-lg shadow-sm">
+                    <div class="h-96 bg-white p-4 border border-slate-250 rounded-lg shadow-sm">
                         <canvas id="pgcache-chart-${run.benchmark_id}"></canvas>
                     </div>
-                    <div class="w-[450px] h-[320px] flex-shrink-0 bg-white p-4 border border-slate-250 rounded-lg shadow-sm">
+                    <div class="h-96 bg-white p-4 border border-slate-250 rounded-lg shadow-sm">
                         <canvas id="net-rx-chart-${run.benchmark_id}"></canvas>
                     </div>
-                    <div class="w-[450px] h-[320px] flex-shrink-0 bg-white p-4 border border-slate-250 rounded-lg shadow-sm">
+                    <div class="h-96 bg-white p-4 border border-slate-250 rounded-lg shadow-sm">
                         <canvas id="peak-net-rx-chart-${run.benchmark_id}"></canvas>
                     </div>
-                    <div class="w-[450px] h-[320px] flex-shrink-0 bg-white p-4 border border-slate-250 rounded-lg shadow-sm">
+                    <div class="h-96 bg-white p-4 border border-slate-250 rounded-lg shadow-sm">
                         <canvas id="net-tx-chart-${run.benchmark_id}"></canvas>
                     </div>
                 </div>
