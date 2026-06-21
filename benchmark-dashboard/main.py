@@ -21,8 +21,10 @@ import db
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
 logger = logging.getLogger("dashboard")
 
-# Shared Password from Environment, default to a secure-looking team password
-SHARED_PASSWORD = os.environ.get("DASHBOARD_PASSWORD", "gcsfuse-team")
+SHARED_PASSWORD = os.environ.get("DASHBOARD_PASSWORD")
+if not SHARED_PASSWORD:
+    logger.critical("DASHBOARD_PASSWORD environment variable is not set! Server cannot start.")
+    raise RuntimeError("DASHBOARD_PASSWORD environment variable must be set.")
 
 def generate_user_token(username: str) -> str:
     """Generates a secure, signed token for a user using their username and the team password."""

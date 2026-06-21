@@ -1,11 +1,10 @@
 import sqlite3
 import os
 import hashlib
-from datetime import datetime
 from google.cloud import storage
 
 DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "dashboard.db")
-DASHBOARD_BUCKET = os.environ.get("DASHBOARD_BUCKET", "pranjal-bucket-1")
+DASHBOARD_BUCKET = "dmb-db"
 GCS_DB_BLOB = "dashboard/dashboard.db"
 
 def download_db_from_gcs():
