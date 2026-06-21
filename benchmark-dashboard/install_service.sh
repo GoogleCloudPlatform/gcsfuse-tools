@@ -10,6 +10,16 @@ CURRENT_USER=$(whoami)
 echo "Setting permissions on startup script..."
 chmod +x "${SCRIPT_DIR}/start_server.sh"
 
+# Detect and propagate active environment variables
+ENV_LINES=""
+if [ -n "$DASHBOARD_BUCKET" ]; then
+    ENV_LINES="Environment=\"DASHBOARD_BUCKET=${DASHBOARD_BUCKET}\"
+"
+fi
+if [ -n "$DASHBOARD_PASSWORD" ]; then
+    ENV_LINES="${ENV_LINES}Environment=\"DASHBOARD_PASSWORD=${DASHBOARD_PASSWORD}\""
+fi
+
 echo "Creating systemd service file at ${SERVICE_FILE}..."
 sudo bash -c "cat > ${SERVICE_FILE}" <<EOF
 [Unit]
@@ -23,6 +33,7 @@ WorkingDirectory=${SCRIPT_DIR}
 ExecStart=${SCRIPT_DIR}/start_server.sh
 Restart=always
 RestartSec=5
+${ENV_LINES}
 StandardOutput=append:${SCRIPT_DIR}/server.log
 StandardError=append:${SCRIPT_DIR}/server.log
 

@@ -1839,6 +1839,18 @@ async function fetchFileContent(path) {
     return data.content;
 }
 
-
+function togglePasswordVisibility() {
+    const passwordInput = document.getElementById('password_input');
+    const toggleIcon = document.getElementById('password-toggle-icon');
+    if (passwordInput && toggleIcon) {
+        if (passwordInput.type === 'password') {
+            passwordInput.type = 'text';
+            toggleIcon.className = 'fa-solid fa-eye-slash text-sm';
+        } else {
+            passwordInput.type = 'password';
+            toggleIcon.className = 'fa-solid fa-eye text-sm';
+        }
+    }
+}
 
 // --- END OF FILE ---
