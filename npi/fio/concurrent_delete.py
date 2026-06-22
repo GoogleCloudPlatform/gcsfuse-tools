@@ -42,22 +42,19 @@ def parallel_delete_recursive(root_path):
     failed_dirs_count = 0
 
     if all_files:
-        logging.info(f"Deleting {len(all_files)} files concurrently via GCSFuse in chunks...")
+        logging.info(f"Deleting {len(all_files)} files concurrently via GCSFuse...")
         start_time = time.time()
-        chunk_size = 10000
         with ThreadPoolExecutor(max_workers=64) as executor:
-            for i in range(0, len(all_files), chunk_size):
-                chunk = all_files[i:i + chunk_size]
-                futures = {executor.submit(os.remove, f): f for f in chunk}
-                for future in as_completed(futures):
-                    f_path = futures[future]
-                    try:
-                        future.result()
-                    except FileNotFoundError:
-                        pass
-                    except Exception as e:
-                        logging.error(f"Failed to delete file {f_path} via GCSFuse: {e}")
-                        failed_files_count += 1
+            futures = {executor.submit(os.remove, f): f for f in all_files}
+            for future in as_completed(futures):
+                f_path = futures[future]
+                try:
+                    future.result()
+                except FileNotFoundError:
+                    pass
+                except Exception as e:
+                    logging.error(f"Failed to delete file {f_path} via GCSFuse: {e}")
+                    failed_files_count += 1
         logging.info(f"Deleted files in {time.time() - start_time:.2f} seconds (failures: {failed_files_count}).")
 
     if all_dirs:
