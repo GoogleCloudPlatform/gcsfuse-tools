@@ -168,9 +168,11 @@ def wait_for_job_completion(job_name, timeout_seconds=None):
         if res_status.returncode != 0:
             if "not found" in res_status.stderr.lower():
                 print(f"Job {job_name} not found (possibly deleted). Exiting wait loop.", file=sys.stderr)
+                return False
             else:
-                print(f"Error querying job status: {res_status.stderr.strip()}", file=sys.stderr)
-            return False
+                print(f"Error querying job status: {res_status.stderr.strip()}. Retrying in 5 seconds...", file=sys.stderr)
+                time.sleep(5)
+                continue
 
         status_type = res_status.stdout.strip()
         if status_type == "Complete":
