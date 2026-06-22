@@ -1590,7 +1590,8 @@ def get_report_view(run_id: str):
                                     display: 'auto',
                                     anchor: 'end',
                                     align: 'top',
-                                    offset: 1,
+                                    offset: 2,
+                                    rotation: -90, // Rotate labels vertically so they never overlap and hide!
                                     formatter: (value) => {{
                                         if (!value || value === 0) return '';
                                         if (value < 0.001) return value.toFixed(4);
@@ -1601,7 +1602,7 @@ def get_report_view(run_id: str):
                                     }},
                                     font: {{
                                         weight: 'bold',
-                                        size: 8
+                                        size: 7.5 // Slightly smaller size for clean vertical fit
                                     }},
                                     color: '#64748b'
                                 }}

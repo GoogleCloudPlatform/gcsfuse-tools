@@ -588,6 +588,18 @@ value1,value2,value3" class="w-full bg-white border border-slate-300 rounded-lg 
         </div>
     </div>
 
+    <!-- ================= ZOOMED CHART MODAL ================= -->
+    <div id="chart-zoom-modal" class="hidden fixed inset-0 z-50 bg-slate-950/80 flex items-center justify-center p-6 backdrop-blur-md">
+        <div class="bg-white rounded-xl w-full max-w-6xl h-[85vh] p-6 shadow-2xl relative flex flex-col">
+            <button onclick="closeChartZoomModal()" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600 hover:scale-110 transition duration-150 z-10">
+                <i class="fa-solid fa-times text-xl"></i>
+            </button>
+            <div class="flex-1 w-full h-full min-h-0 relative">
+                <canvas id="zoom-chart-canvas" class="w-full h-full"></canvas>
+            </div>
+        </div>
+    </div>
+
     <!-- FOOTER -->
     <footer class="max-w-7xl mx-auto px-6 py-8 border-t border-slate-200 mt-12 text-center text-xs text-slate-400">
         <p class="flex items-center justify-center space-x-1.5">

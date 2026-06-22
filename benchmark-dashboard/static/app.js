@@ -988,31 +988,40 @@ function renderHistoryRows(runs) {
 
                 <!-- Run Level Charts Container (3 Columns, 3 Rows of Double-Sized Charts!) -->
                 <div class="mt-4 pt-4 border-t border-slate-200 grid grid-cols-1 md:grid-cols-3 gap-6 hidden" id="charts-container-${run.benchmark_id}">
-                    <div class="h-96 bg-white p-4 border border-slate-250 rounded-lg shadow-sm">
+                    <div onclick="zoomChart('${escapeHTML(run.benchmark_id)}', 'throughput-chart-${run.benchmark_id}')" class="h-96 bg-white p-4 border border-slate-250 rounded-lg shadow-sm cursor-pointer hover:shadow-md hover:border-blue-350 transition duration-150 relative group" title="Click to zoom chart">
+                        <div class="absolute top-2.5 right-2.5 opacity-0 group-hover:opacity-100 text-slate-400 hover:text-slate-600 transition"><i class="fa-solid fa-expand text-xs"></i></div>
                         <canvas id="throughput-chart-${run.benchmark_id}"></canvas>
                     </div>
-                    <div class="h-96 bg-white p-4 border border-slate-250 rounded-lg shadow-sm">
+                    <div onclick="zoomChart('${escapeHTML(run.benchmark_id)}', 'latency-chart-${run.benchmark_id}')" class="h-96 bg-white p-4 border border-slate-250 rounded-lg shadow-sm cursor-pointer hover:shadow-md hover:border-blue-350 transition duration-150 relative group" title="Click to zoom chart">
+                        <div class="absolute top-2.5 right-2.5 opacity-0 group-hover:opacity-100 text-slate-400 hover:text-slate-600 transition"><i class="fa-solid fa-expand text-xs"></i></div>
                         <canvas id="latency-chart-${run.benchmark_id}"></canvas>
                     </div>
-                    <div class="h-96 bg-white p-4 border border-slate-250 rounded-lg shadow-sm">
+                    <div onclick="zoomChart('${escapeHTML(run.benchmark_id)}', 'peak-bw-chart-${run.benchmark_id}')" class="h-96 bg-white p-4 border border-slate-250 rounded-lg shadow-sm cursor-pointer hover:shadow-md hover:border-blue-350 transition duration-150 relative group" title="Click to zoom chart">
+                        <div class="absolute top-2.5 right-2.5 opacity-0 group-hover:opacity-100 text-slate-400 hover:text-slate-600 transition"><i class="fa-solid fa-expand text-xs"></i></div>
                         <canvas id="peak-bw-chart-${run.benchmark_id}"></canvas>
                     </div>
-                    <div class="h-96 bg-white p-4 border border-slate-250 rounded-lg shadow-sm">
+                    <div onclick="zoomChart('${escapeHTML(run.benchmark_id)}', 'cpu-chart-${run.benchmark_id}')" class="h-96 bg-white p-4 border border-slate-250 rounded-lg shadow-sm cursor-pointer hover:shadow-md hover:border-blue-350 transition duration-150 relative group" title="Click to zoom chart">
+                        <div class="absolute top-2.5 right-2.5 opacity-0 group-hover:opacity-100 text-slate-400 hover:text-slate-600 transition"><i class="fa-solid fa-expand text-xs"></i></div>
                         <canvas id="cpu-chart-${run.benchmark_id}"></canvas>
                     </div>
-                    <div class="h-96 bg-white p-4 border border-slate-250 rounded-lg shadow-sm">
+                    <div onclick="zoomChart('${escapeHTML(run.benchmark_id)}', 'mem-chart-${run.benchmark_id}')" class="h-96 bg-white p-4 border border-slate-250 rounded-lg shadow-sm cursor-pointer hover:shadow-md hover:border-blue-350 transition duration-150 relative group" title="Click to zoom chart">
+                        <div class="absolute top-2.5 right-2.5 opacity-0 group-hover:opacity-100 text-slate-400 hover:text-slate-600 transition"><i class="fa-solid fa-expand text-xs"></i></div>
                         <canvas id="mem-chart-${run.benchmark_id}"></canvas>
                     </div>
-                    <div class="h-96 bg-white p-4 border border-slate-250 rounded-lg shadow-sm">
+                    <div onclick="zoomChart('${escapeHTML(run.benchmark_id)}', 'pgcache-chart-${run.benchmark_id}')" class="h-96 bg-white p-4 border border-slate-250 rounded-lg shadow-sm cursor-pointer hover:shadow-md hover:border-blue-350 transition duration-150 relative group" title="Click to zoom chart">
+                        <div class="absolute top-2.5 right-2.5 opacity-0 group-hover:opacity-100 text-slate-400 hover:text-slate-600 transition"><i class="fa-solid fa-expand text-xs"></i></div>
                         <canvas id="pgcache-chart-${run.benchmark_id}"></canvas>
                     </div>
-                    <div class="h-96 bg-white p-4 border border-slate-250 rounded-lg shadow-sm">
+                    <div onclick="zoomChart('${escapeHTML(run.benchmark_id)}', 'net-rx-chart-${run.benchmark_id}')" class="h-96 bg-white p-4 border border-slate-250 rounded-lg shadow-sm cursor-pointer hover:shadow-md hover:border-blue-350 transition duration-150 relative group" title="Click to zoom chart">
+                        <div class="absolute top-2.5 right-2.5 opacity-0 group-hover:opacity-100 text-slate-400 hover:text-slate-600 transition"><i class="fa-solid fa-expand text-xs"></i></div>
                         <canvas id="net-rx-chart-${run.benchmark_id}"></canvas>
                     </div>
-                    <div class="h-96 bg-white p-4 border border-slate-250 rounded-lg shadow-sm">
+                    <div onclick="zoomChart('${escapeHTML(run.benchmark_id)}', 'peak-net-rx-chart-${run.benchmark_id}')" class="h-96 bg-white p-4 border border-slate-250 rounded-lg shadow-sm cursor-pointer hover:shadow-md hover:border-blue-350 transition duration-150 relative group" title="Click to zoom chart">
+                        <div class="absolute top-2.5 right-2.5 opacity-0 group-hover:opacity-100 text-slate-400 hover:text-slate-600 transition"><i class="fa-solid fa-expand text-xs"></i></div>
                         <canvas id="peak-net-rx-chart-${run.benchmark_id}"></canvas>
                     </div>
-                    <div class="h-96 bg-white p-4 border border-slate-250 rounded-lg shadow-sm">
+                    <div onclick="zoomChart('${escapeHTML(run.benchmark_id)}', 'net-tx-chart-${run.benchmark_id}')" class="h-96 bg-white p-4 border border-slate-250 rounded-lg shadow-sm cursor-pointer hover:shadow-md hover:border-blue-350 transition duration-150 relative group" title="Click to zoom chart">
+                        <div class="absolute top-2.5 right-2.5 opacity-0 group-hover:opacity-100 text-slate-400 hover:text-slate-600 transition"><i class="fa-solid fa-expand text-xs"></i></div>
                         <canvas id="net-tx-chart-${run.benchmark_id}"></canvas>
                     </div>
                 </div>
@@ -1270,10 +1279,11 @@ function renderChart(canvasId, type, labels, datasets, yLabel, showLegend = true
                     borderWidth: 1
                 },
                 datalabels: {
-                    display: 'auto', // Auto-hide overlapping labels!
+                    display: 'auto', 
                     anchor: 'end',
                     align: 'top',
-                    offset: 1,
+                    offset: 2,
+                    rotation: -90, // Rotate labels vertically so they never overlap and hide!
                     formatter: (value) => {
                         if (!value || value === 0) return '';
                         if (value < 0.001) return value.toFixed(4);
@@ -1284,7 +1294,7 @@ function renderChart(canvasId, type, labels, datasets, yLabel, showLegend = true
                     },
                     font: {
                         weight: 'bold',
-                        size: 8
+                        size: 7.5 // Slightly smaller size for clean fit
                     },
                     color: '#64748b'
                 }
@@ -1855,6 +1865,83 @@ function togglePasswordVisibility() {
             passwordInput.type = 'password';
             toggleIcon.className = 'fa-solid fa-eye text-sm';
         }
+    }
+}
+
+let zoomChartInstance = null;
+function zoomChart(runId, canvasId) {
+    const sourceChart = charts[canvasId];
+    if (!sourceChart) return;
+    
+    document.getElementById('chart-zoom-modal').classList.remove('hidden');
+    
+    const zoomCanvas = document.getElementById('zoom-chart-canvas');
+    const ctx = zoomCanvas.getContext('2d');
+    
+    if (zoomChartInstance) {
+        zoomChartInstance.destroy();
+    }
+    
+    // Copy type, data, and options cleanly using spread
+    const config = {
+        type: sourceChart.config.type,
+        data: sourceChart.config.data,
+        plugins: [ChartDataLabels],
+        options: {
+            ...sourceChart.config.options,
+            maintainAspectRatio: false,
+            responsive: true,
+            layout: {
+                padding: {
+                    top: 25, // More padding for larger rotated labels
+                    bottom: 10
+                }
+            },
+            plugins: {
+                ...sourceChart.config.options.plugins,
+                legend: {
+                    ...sourceChart.config.options.plugins.legend,
+                    labels: {
+                        color: '#334155',
+                        font: { size: 11, weight: 'bold' },
+                        boxWidth: 16
+                    }
+                },
+                datalabels: {
+                    ...sourceChart.config.options.plugins.datalabels,
+                    font: {
+                        weight: 'bold',
+                        size: 9.5 // Larger labels for zoomed-in view
+                    },
+                    offset: 4
+                }
+            }
+        }
+    };
+    
+    // Make scales font larger and cleaner in zoom view
+    if (config.options.scales) {
+        if (config.options.scales.x && config.options.scales.x.ticks) {
+            config.options.scales.x.ticks.font = { size: 10.5, weight: 'bold' };
+        }
+        if (config.options.scales.y) {
+            if (config.options.scales.y.ticks) {
+                config.options.scales.y.ticks.font = { size: 11, weight: 'bold' };
+            }
+            if (config.options.scales.y.title) {
+                config.options.scales.y.title.font = { size: 12, weight: 'bold' };
+            }
+        }
+    }
+    
+    zoomChartInstance = new Chart(ctx, config);
+}
+
+function closeChartZoomModal() {
+    document.getElementById('chart-zoom-modal').classList.add('hidden');
+    if (zoomChartInstance) {
+        zoomChartInstance.destroy();
+        zoomChartInstance = null;
     }
 }
 
