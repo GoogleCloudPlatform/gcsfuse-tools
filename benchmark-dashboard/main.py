@@ -1628,6 +1628,8 @@ def get_report_view(run_id: str):
                         options: {{
                             responsive: true,
                             maintainAspectRatio: false,
+                            barPercentage: 0.8,
+                            categoryPercentage: 0.85,
                             animation: false,
                             layout: {{
                                 padding: {{
@@ -1641,7 +1643,7 @@ def get_report_view(run_id: str):
                             plugins: {{
                                 legend: {{ display: showLegend, position: 'bottom' }},
                                 datalabels: {{
-                                    display: 'auto',
+                                    display: true, // Force all labels to display!
                                     anchor: 'end',
                                     align: 'top',
                                     offset: 2,
