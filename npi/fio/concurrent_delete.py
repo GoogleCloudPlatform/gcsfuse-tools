@@ -95,17 +95,18 @@ def main():
 
         # Path: target_dir/FILE_SIZE/BLOCK_SIZE/NR_FILES/
         current_conf_path = os.path.join(target_dir, file_size, block_size, nr_files)
-        logging.info(f"Pre-creating 112 job subdirectories under: {current_conf_path}")
+        logging.info(f"Pre-creating 112 job subdirectories (job_1 to job_112) under: {current_conf_path}")
 
         try:
             os.makedirs(current_conf_path, exist_ok=True)
 
             def precreate_dir(i):
-                job_dir = os.path.join(current_conf_path, f"job_dir_{i}")
+                job_dir = os.path.join(current_conf_path, f"job_{i}")
                 os.makedirs(job_dir, exist_ok=True)
 
             with ThreadPoolExecutor(max_workers=32) as executor:
-                executor.map(precreate_dir, range(112))
+                # Wrap in list() to consume the generator and propagate exceptions immediately
+                list(executor.map(precreate_dir, range(1, 113)))
             logging.info("Successfully pre-created all 112 job directories.")
         except Exception as e:
             logging.error(f"Failed to pre-create job directories via GCSFuse: {e}")
