@@ -8,6 +8,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(me
 
 def parallel_delete_recursive(root_path):
     """Recursively deletes all files and folders under root_path in parallel via GCSFuse."""
+    root_path = os.path.normpath(root_path)
     if not os.path.exists(root_path):
         logging.info(f"Target directory {root_path} does not exist. Skipping deletion.")
         return
@@ -19,9 +20,9 @@ def parallel_delete_recursive(root_path):
     # Walk the directory tree to gather all files and directories
     for root, dirs, files in os.walk(root_path):
         for f in files:
-            all_files.append(os.path.join(root, f))
+            all_files.append(os.path.normpath(os.path.join(root, f)))
         for d in dirs:
-            all_dirs.append(os.path.join(root, d))
+            all_dirs.append(os.path.normpath(os.path.join(root, d)))
 
     # Sort directories by depth in descending order so that leaf directories
     # are deleted first (preventing "Directory not empty" errors)

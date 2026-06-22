@@ -181,31 +181,55 @@ def wait_for_job_completion(job_name, timeout_seconds=None):
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True
         )
         
-        import os
-        # Set stdout pipe to non-blocking mode to prevent buffering delays in TextIOWrapper
-        os.set_blocking(log_proc.stdout.fileno(), False)
+        import queue
+        import threading
+        
+        log_queue = queue.Queue()
+        
+        def enqueue_output(out, q):
+            try:
+                for line in iter(out.readline, ''):
+                    q.put(line)
+            except Exception:
+                pass
+            finally:
+                out.close()
+                
+        # Start a background daemon thread to read logs using safe, blocking I/O
+        t = threading.Thread(target=enqueue_output, args=(log_proc.stdout, log_queue))
+        t.daemon = True
+        t.start()
+        
         while True:
             # Periodically check timeout during log streaming to prevent infinite hangs on deadlocks
             if timeout_seconds is not None and time.time() - start_time > timeout_seconds:
                 print(f"--- Job {job_name} TIMED OUT during log streaming ---", file=sys.stderr)
                 log_proc.terminate()
                 log_proc.wait()
+                t.join(timeout=2.0)
                 return False
 
-            line = log_proc.stdout.readline()
-            if line:
+            try:
+                # Retrieve logs from queue with a brief timeout to keep the loop active for timeout checks
+                line = log_queue.get(timeout=0.1)
                 print(line.strip())
                 sys.stdout.flush()
-            elif line is None:
-                # No logs available in pipe/buffer yet, check if process has exited
+            except queue.Empty:
+                # No logs available in queue yet, check if process has exited
                 if log_proc.poll() is not None:
                     break
-                time.sleep(0.1)  # Sleep briefly to prevent busy-waiting
-            else:
-                # EOF reached (empty string "")
-                break
-                
+                    
         log_proc.wait()
+        t.join(timeout=2.0)
+        
+        # Flush any remaining logs sitting in the queue after process completion
+        while not log_queue.empty():
+            try:
+                line = log_queue.get_nowait()
+                print(line.strip())
+                sys.stdout.flush()
+            except queue.Empty:
+                break
         first_run = False
         
         # Sleep briefly before checking status or attempting to resume log stream
