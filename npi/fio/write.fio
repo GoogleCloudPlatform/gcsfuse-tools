@@ -51,5 +51,5 @@ ioengine=null
 size=1
 bs=1
 directory=${DIR}
-exec_prerun=python3 /concurrent_delete.py ${DIR}/write ${FILE_SIZE} ${BLOCK_SIZE} ${NR_FILES}
+exec_prerun=python3 /concurrent_delete.py ${DIR}/write
 
