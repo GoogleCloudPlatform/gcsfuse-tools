@@ -1211,14 +1211,22 @@ def get_report_view(run_id: str):
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
         <style>
             @media print {{
-                body {{ background: white; color: black; }}
+                body {{ background: white; color: black; padding: 0 !important; margin: 0 !important; }}
                 .no-print {{ display: none !important; }}
                 .page-break {{ page-break-before: always; }}
+                .print-container {{
+                    max-width: 100% !important;
+                    width: 100% !important;
+                    padding: 0 !important;
+                    margin: 0 !important;
+                    border: none !important;
+                    box-shadow: none !important;
+                }}
             }}
         </style>
     </head>
     <body class="bg-slate-50 text-slate-800 p-8 min-h-screen">
-        <div class="max-w-4xl mx-auto bg-white p-8 rounded-xl shadow border border-slate-200">
+        <div class="max-w-4xl mx-auto bg-white p-8 rounded-xl shadow border border-slate-200 print-container">
             <!-- Header -->
             <div class="flex items-center justify-between border-b-2 border-slate-800 pb-6 mb-6">
                 <div>
@@ -1258,14 +1266,14 @@ def get_report_view(run_id: str):
                     <table class="w-full text-left border-collapse text-xs">
                         <thead>
                             <tr class="bg-slate-800 text-white font-bold">
-                                <th class="py-2.5 px-3 border border-slate-200">ID</th>
-                                <th class="py-2.5 px-3 border border-slate-200">FIO Parameters</th>
-                                <th class="py-2.5 px-3 border border-slate-200">Config Label</th>
-                                <th class="py-2.5 px-3 border border-slate-200 text-right">Avg Throughput</th>
-                                <th class="py-2.5 px-3 border border-slate-200 text-right">Peak Throughput</th>
-                                <th class="py-2.5 px-3 border border-slate-200 text-right">Latency</th>
-                                <th class="py-2.5 px-3 border border-slate-200 text-right">Avg CPU %</th>
-                                <th class="py-2.5 px-3 border border-slate-200 text-right">Memory RSS</th>
+                                <th class="py-1.5 px-2 border border-slate-200 text-[10px]">ID</th>
+                                <th class="py-1.5 px-2 border border-slate-200 text-[10px]">FIO Parameters</th>
+                                <th class="py-1.5 px-2 border border-slate-200 text-[10px]">Config Label</th>
+                                <th class="py-1.5 px-2 border border-slate-200 text-right text-[10px]">Avg Throughput</th>
+                                <th class="py-1.5 px-2 border border-slate-200 text-right text-[10px]">Peak Throughput</th>
+                                <th class="py-1.5 px-2 border border-slate-200 text-right text-[10px]">Latency</th>
+                                <th class="py-1.5 px-2 border border-slate-200 text-right text-[10px]">Avg CPU %</th>
+                                <th class="py-1.5 px-2 border border-slate-200 text-right text-[10px]">Memory RSS</th>
                             </tr>
                         </thead>
                         <tbody id="report-table-body">
@@ -1396,14 +1404,14 @@ def get_report_view(run_id: str):
                         
                         tableHtml += `
                             <tr class="${{index % 2 === 0 ? 'bg-white' : 'bg-slate-50'}} border-b border-slate-200">
-                                <td class="py-2 px-3 font-mono font-bold text-slate-800 border-r border-slate-200">${{index + 1}}</td>
-                                <td class="py-2 px-3 border-r border-slate-200">${{paramFmt}}</td>
-                                <td class="py-2 px-3 font-mono text-slate-700 border-r border-slate-200">${{row.config}}</td>
-                                <td class="py-2 px-3 text-right font-mono font-bold text-slate-800 border-r border-slate-200">${{avgBw}}</td>
-                                <td class="py-2 px-3 text-right font-mono font-bold text-slate-800 border-r border-slate-200">${{peakBw}}</td>
-                                <td class="py-2 px-3 text-right font-mono text-slate-850 border-r border-slate-200">${{lat}}</td>
-                                <td class="py-2 px-3 text-right font-mono text-slate-650 border-r border-slate-200">${{row.cpu.toFixed(2)}}%</td>
-                                <td class="py-2 px-3 text-right font-mono text-slate-650">${{row.mem.toFixed(2)}} MB</td>
+                                <td class="py-1.5 px-2 font-mono font-bold text-slate-800 border-r border-slate-200 text-[10px]">${{index + 1}}</td>
+                                <td class="py-1.5 px-2 border-r border-slate-200 text-[10px] leading-tight break-all">${{paramFmt}}</td>
+                                <td class="py-1.5 px-2 font-mono text-slate-700 border-r border-slate-200 text-[10px] break-all leading-tight">${{row.config}}</td>
+                                <td class="py-1.5 px-2 text-right font-mono font-bold text-slate-800 border-r border-slate-200 text-[10px]">${{avgBw}}</td>
+                                <td class="py-1.5 px-2 text-right font-mono font-bold text-slate-800 border-r border-slate-200 text-[10px]">${{peakBw}}</td>
+                                <td class="py-1.5 px-2 text-right font-mono text-slate-850 border-r border-slate-200 text-[10px]">${{lat}}</td>
+                                <td class="py-1.5 px-2 text-right font-mono text-slate-650 border-r border-slate-200 text-[10px]">${{row.cpu.toFixed(1)}}%</td>
+                                <td class="py-1.5 px-2 text-right font-mono text-slate-650 text-[10px]">${{row.mem.toFixed(1)}} MB</td>
                             </tr>
                         `;
                     }});
