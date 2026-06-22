@@ -186,7 +186,7 @@ def wait_for_job_completion(job_name, timeout_seconds=None):
 
         cmd = ["kubectl", "logs", "-f", "-l", f"job-name={job_name}", "-c", "benchmark"]
         if not first_run:
-            cmd.append("--tail=0")
+            cmd.append("--tail=50")
             
         log_proc = subprocess.Popen(
             cmd,
