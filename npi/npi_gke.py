@@ -219,7 +219,7 @@ def wait_for_job_completion(job_name, timeout_seconds=None):
                 try:
                     # Retrieve logs from queue with a brief timeout to keep the loop active for timeout checks
                     line = log_queue.get(timeout=0.1)
-                    print(line.strip())
+                    print(line, end="")
                     sys.stdout.flush()
                 except queue.Empty:
                     # No logs available in queue yet, check if process has exited
@@ -235,7 +235,7 @@ def wait_for_job_completion(job_name, timeout_seconds=None):
         while not log_queue.empty():
             try:
                 line = log_queue.get_nowait()
-                print(line.strip())
+                print(line, end="")
                 sys.stdout.flush()
             except queue.Empty:
                 break

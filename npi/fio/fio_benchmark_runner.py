@@ -232,8 +232,9 @@ def upload_results_to_bq(
     """Uploads the full FIO JSON output to a BigQuery table."""
     try:
         fio_json_content = _read_fio_json(fio_json_path)
-    except (IOError, FileNotFoundError) as e:
-        logging.error(f"Could not read FIO JSON file {fio_json_path}: {e}")
+        json.loads(fio_json_content)
+    except (IOError, FileNotFoundError, json.JSONDecodeError) as e:
+        logging.error(f"Could not read or parse FIO JSON file {fio_json_path}: {e}")
         return
 
     try:
