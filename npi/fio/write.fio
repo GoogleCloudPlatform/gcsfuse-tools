@@ -15,10 +15,21 @@ rw=write
 thread=1
 time_based=0
 verify=0
-filename_format=write/${FILE_SIZE}/${BLOCK_SIZE}/${NR_FILES}/experiment.$jobnum.$filenum
-exec_prerun=rm -rf ${DIR}/write
+filename_format=write/${FILE_SIZE}/${BLOCK_SIZE}/${NR_FILES}/job_$jobnum/experiment.$filenum
 
- 
+# --- DUMMY CLEANUP JOB ---
+# This runs first in a single thread (numjobs=1) to safely execute the deletion once.
+[cleanup]
+numjobs=1
+ioengine=null
+size=1
+bs=1
+directory=${DIR}
+exec_prerun=python3 /concurrent_delete.py ${DIR}/write ${FILE_SIZE} ${BLOCK_SIZE} ${NR_FILES}
+
+# --- ACTUAL WRITE JOB ---
+# The 'stonewall' flag tells FIO to wait until all preceding jobs (cleanup)
+# have fully completed before starting this job.
 [write]
 stonewall
 directory=${DIR}
@@ -29,3 +40,16 @@ nrfiles=${NR_FILES}
 filesize=${FILE_SIZE}
 # Update the block size value from the table for different experiments.
 bs=${BLOCK_SIZE}
+
+# --- DUMMY POST-CLEANUP JOB ---
+# This runs after the write job is fully complete (stonewall) in a single thread (numjobs=1)
+# to safely and cleanly delete all benchmark files exactly once.
+[post_cleanup]
+stonewall
+numjobs=1
+ioengine=null
+size=1
+bs=1
+directory=${DIR}
+exec_prerun=python3 /concurrent_delete.py ${DIR}/write ${FILE_SIZE} ${BLOCK_SIZE} ${NR_FILES}
+

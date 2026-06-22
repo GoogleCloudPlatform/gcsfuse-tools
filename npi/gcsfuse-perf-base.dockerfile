@@ -15,6 +15,6 @@ FROM python:3.13
 RUN apt-get update && apt-get install -y fuse3 fio \
 --no-install-recommends && \
 rm -rf /var/lib/apt/lists/* && \
-pip install --no-cache-dir google-cloud-bigquery
+pip install --no-cache-dir google-cloud-bigquery google-cloud-storage
 COPY --from=builder /app/gcsfuse/gcsfuse /gcsfuse/gcsfuse
 ENTRYPOINT ["/bin/bash"]

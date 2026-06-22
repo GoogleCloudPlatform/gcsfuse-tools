@@ -102,7 +102,7 @@ def create_job_spec(job_name, image, args, bucket_name, service_account, extra_f
 
 
 def wait_for_job_completion(job_name, timeout_seconds=None):
-    """Waits for a Kubernetes Job to complete, streaming its pod logs in real-time."""
+    """Waits for a Kubernetes Job to complete, streaming its pod logs in real-time with automatic reconnection."""
     print(f"Waiting for Job {job_name} to start...")
     start_time = time.time()
     
@@ -142,32 +142,44 @@ def wait_for_job_completion(job_name, timeout_seconds=None):
         
     print(f"--- Job {job_name} pod started, streaming logs ---")
     
-    # 2. Stream logs from the pod container 'benchmark'
-    log_proc = subprocess.Popen(
-        ["kubectl", "logs", "-f", "-l", f"job-name={job_name}", "-c", "benchmark"],
-        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True
-    )
-    
+    # 2. Main loop: stream logs and check job status until complete or failed
     while True:
-        line = log_proc.stdout.readline()
-        if not line:
-            break
-        print(line.strip())
-        sys.stdout.flush()
+        # Check if the Job has completed successfully
+        res_complete = subprocess.run(
+            ["kubectl", "get", f"job/{job_name}", "-o", "jsonpath={.status.conditions[?(@.type=='Complete')].status}"],
+            capture_output=True, text=True
+        )
+        if res_complete.stdout.strip() == "True":
+            print(f"--- Job {job_name} finished successfully ---")
+            return True
+            
+        # Check if the Job has failed
+        res_failed = subprocess.run(
+            ["kubectl", "get", f"job/{job_name}", "-o", "jsonpath={.status.conditions[?(@.type=='Failed')].status}"],
+            capture_output=True, text=True
+        )
+        if res_failed.stdout.strip() == "True":
+            print(f"--- Job {job_name} failed ---", file=sys.stderr)
+            return False
+            
+        # If the job is still active, stream logs
+        log_proc = subprocess.Popen(
+            ["kubectl", "logs", "-f", "-l", f"job-name={job_name}", "-c", "benchmark"],
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True
+        )
         
-    log_proc.wait()
-    
-    # 3. Wait up to 15 seconds for Job object to finalize state
-    wait_res = subprocess.run(
-        ["kubectl", "wait", f"job/{job_name}", "--for=condition=complete", "--timeout=15s"],
-        capture_output=True
-    )
-    if wait_res.returncode == 0:
-        print(f"--- Job {job_name} finished successfully ---")
-        return True
-    else:
-        print(f"--- Job {job_name} FAILED or timed out finalizing ---", file=sys.stderr)
-        return False
+        while True:
+            line = log_proc.stdout.readline()
+            if not line:
+                break
+            print(line.strip())
+            sys.stdout.flush()
+            
+        log_proc.wait()
+        
+        # Sleep briefly before checking status or attempting to resume log stream
+        time.sleep(5)
+
 
 
 def run_benchmark_job(job_name, image, args_list, project_id, dataset_id, table_id, bucket_name, service_account, extra_flag=None, use_memory_volumes=False, is_go_client=False, node_selector=None, resources_limits=None):

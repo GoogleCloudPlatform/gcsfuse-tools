@@ -103,7 +103,12 @@ def parse_fio_output(filename):
     """Parses FIO JSON output to extract key metrics."""
     try:
         with open(filename, "r") as f:
-            data = json.load(f)
+            content = f.read()
+            # Find the first '{' to strip any leading non-JSON warnings or status text
+            first_brace = content.find('{')
+            if first_brace != -1:
+                content = content[first_brace:]
+            data = json.loads(content)
     except (json.JSONDecodeError, FileNotFoundError) as e:
         logging.error(f"Could not read or parse FIO output {filename}: {e}")
         return []
@@ -222,6 +227,10 @@ def upload_results_to_bq(
     try:
         with open(fio_json_path, "r") as f:
             fio_json_content = f.read()
+            # Find the first '{' to strip any leading non-JSON warnings or status text
+            first_brace = fio_json_content.find('{')
+            if first_brace != -1:
+                fio_json_content = fio_json_content[first_brace:]
     except (IOError, FileNotFoundError) as e:
         logging.error(f"Could not read FIO JSON file {fio_json_path}: {e}")
         return
@@ -303,7 +312,6 @@ def clear_cache_dir(gcsfuse_flags):
         shutil.rmtree(cache_dir)
     except Exception as e:
         logging.error(f"Failed to clear cache directory {cache_dir}: {e}")
-
 
 def run_benchmark(
     gcsfuse_flags, bucket_name, iterations, fio_config, work_dir, output_dir, project_id, 

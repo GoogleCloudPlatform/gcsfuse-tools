@@ -11,4 +11,5 @@ COPY fio_benchmark_runner.py /fio_benchmark_runner.py
 COPY run_fio_matrix.py /run_fio_matrix.py
 COPY write_matrix.csv /write_matrix.csv
 COPY write.fio /write.fio
+COPY concurrent_delete.py /concurrent_delete.py
 ENTRYPOINT ["/run_fio_matrix.py", "--matrix-config", "/write_matrix.csv", "--fio-template", "/write.fio"]

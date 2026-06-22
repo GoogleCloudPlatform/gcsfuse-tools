@@ -135,9 +135,9 @@ class BenchmarkFactory:
 
         if gcsfuse_flags:
             # Prepend default flags. This allows user-provided flags to override defaults if needed.
-            gcsfuse_flags = f"{default_gcsfuse_flags} {gcsfuse_flags}"
+            gcsfuse_flags = f"{default_gcsfuse_flags} {gcsfuse_flags} --log-file=/gcsfuse-buffer/gcsfuse.log --log-format=json"
         else:
-            gcsfuse_flags = default_gcsfuse_flags
+            gcsfuse_flags = f"{default_gcsfuse_flags} --log-file=/gcsfuse-buffer/gcsfuse.log --log-format=json"
 
         base_cmd = (
             "docker run --pull=always --network=host --privileged --rm "
