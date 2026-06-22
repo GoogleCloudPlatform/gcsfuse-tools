@@ -202,27 +202,27 @@ def wait_for_job_completion(job_name, timeout_seconds=None):
         t.daemon = True
         t.start()
         
-        while True:
-            # Periodically check timeout during log streaming to prevent infinite hangs on deadlocks
-            if timeout_seconds is not None and time.time() - start_time > timeout_seconds:
-                print(f"--- Job {job_name} TIMED OUT during log streaming ---", file=sys.stderr)
-                log_proc.terminate()
-                log_proc.wait()
-                t.join(timeout=2.0)
-                return False
+        try:
+            while True:
+                # Periodically check timeout during log streaming to prevent infinite hangs on deadlocks
+                if timeout_seconds is not None and time.time() - start_time > timeout_seconds:
+                    print(f"--- Job {job_name} TIMED OUT during log streaming ---", file=sys.stderr)
+                    return False
 
-            try:
-                # Retrieve logs from queue with a brief timeout to keep the loop active for timeout checks
-                line = log_queue.get(timeout=0.1)
-                print(line.strip())
-                sys.stdout.flush()
-            except queue.Empty:
-                # No logs available in queue yet, check if process has exited
-                if log_proc.poll() is not None:
-                    break
-                    
-        log_proc.wait()
-        t.join(timeout=2.0)
+                try:
+                    # Retrieve logs from queue with a brief timeout to keep the loop active for timeout checks
+                    line = log_queue.get(timeout=0.1)
+                    print(line.strip())
+                    sys.stdout.flush()
+                except queue.Empty:
+                    # No logs available in queue yet, check if process has exited
+                    if log_proc.poll() is not None:
+                        break
+        finally:
+            if log_proc.poll() is None:
+                log_proc.terminate()
+            log_proc.wait()
+            t.join(timeout=2.0)
         
         # Flush any remaining logs sitting in the queue after process completion
         while not log_queue.empty():
