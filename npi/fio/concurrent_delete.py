@@ -52,13 +52,15 @@ def resolve_bucket_and_prefix(target_path):
     except Exception as e:
         logging.warning(f"Failed to parse /proc/mounts: {e}")
         
-    if not mount_point or not bucket_name:
+    # Treat generic device name 'gcsfuse' as invalid to prevent accidental deletes
+    if not mount_point or not bucket_name or bucket_name == "gcsfuse":
         return None, None
         
     # Calculate relative GCS prefix from mount point
     rel_path = os.path.relpath(target_path, mount_point)
+    # Safely prevent accidental bucket-wide deletions (empty prefix)
     if rel_path == "." or rel_path == "..":
-        prefix = ""
+        return None, None
     else:
         prefix = rel_path.rstrip('/') + '/'
         
@@ -90,7 +92,8 @@ def main():
                 
                 def delete_chunk(chunk):
                     try:
-                        bucket.delete_blobs(chunk)
+                        # Ignore missing blobs to ensure idempotency and prevent NotFound crashes
+                        bucket.delete_blobs(chunk, on_missing=lambda x: None)
                         return True
                     except Exception as e:
                         logging.error(f"Failed to delete batch: {e}")
@@ -101,8 +104,8 @@ def main():
                     results = list(executor.map(delete_chunk, chunks))
                 
                 if not all(results):
-                    logging.error("Failed to delete one or more batches via GCS API. Exiting with error.")
-                    sys.exit(1)
+                    # Raise RuntimeError to allow graceful fallback to FUSE deletion in the except block
+                    raise RuntimeError("Failed to delete one or more batches via GCS API.")
                     
                 logging.info("Successfully deleted all GCS objects via API.")
             else:

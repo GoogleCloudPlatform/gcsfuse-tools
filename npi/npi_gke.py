@@ -145,11 +145,19 @@ def wait_for_job_completion(job_name, timeout_seconds=None):
     # 2. Main loop: stream logs and check job status until complete or failed
     first_run = True
     while True:
+        if timeout_seconds is not None and time.time() - start_time > timeout_seconds:
+            print(f"--- Job {job_name} TIMED OUT during execution ---", file=sys.stderr)
+            return False
+
         # Check if the Job has completed successfully
         res_complete = subprocess.run(
             ["kubectl", "get", f"job/{job_name}", "-o", "jsonpath={.status.conditions[?(@.type=='Complete')].status}"],
             capture_output=True, text=True
         )
+        if res_complete.returncode != 0 and "not found" in res_complete.stderr.lower():
+            print(f"Job {job_name} not found (possibly deleted). Exiting wait loop.", file=sys.stderr)
+            return False
+
         if res_complete.stdout.strip() == "True":
             print(f"--- Job {job_name} finished successfully ---")
             return True
