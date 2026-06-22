@@ -1155,7 +1155,9 @@ def get_report_view(run_id: str):
             storage_client = storage.Client(project=proj)
             bucket_name = run.get("artifacts_bucket") or "dmb-db"
             bucket = storage_client.bucket(bucket_name)
-            blob = bucket.blob(f"{run_id}/configs.csv")
+            import os
+            configs_base_name = os.path.basename(run.get("configs_csv_name"))
+            blob = bucket.blob(f"{run_id}/{configs_base_name}")
             if blob.exists():
                 configs_content = blob.download_as_text()
         except Exception as e:
