@@ -17,6 +17,17 @@ import time
 import yaml
 import os
 import datetime
+import queue
+import threading
+
+def enqueue_output(out, q):
+    try:
+        for line in iter(out.readline, ''):
+            q.put(line)
+    except Exception:
+        pass
+    finally:
+        out.close()
 
 def create_job_spec(job_name, image, args, bucket_name, service_account, extra_flag=None, use_memory_volumes=False, is_go_client=False, node_selector=None, resources_limits=None, project_id=None):
     """Creates a Kubernetes Job spec dictionary from the template yaml."""
@@ -172,6 +183,9 @@ def wait_for_job_completion(job_name, timeout_seconds=None):
             return False
             
         # If the job is still active, stream logs
+        if not first_run:
+            time.sleep(5)
+
         cmd = ["kubectl", "logs", "-f", "-l", f"job-name={job_name}", "-c", "benchmark"]
         if not first_run:
             cmd.append("--tail=0")
@@ -181,20 +195,8 @@ def wait_for_job_completion(job_name, timeout_seconds=None):
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True
         )
         
-        import queue
-        import threading
-        
         log_queue = queue.Queue()
         
-        def enqueue_output(out, q):
-            try:
-                for line in iter(out.readline, ''):
-                    q.put(line)
-            except Exception:
-                pass
-            finally:
-                out.close()
-                
         # Start a background daemon thread to read logs using safe, blocking I/O
         t = threading.Thread(target=enqueue_output, args=(log_proc.stdout, log_queue))
         t.daemon = True
@@ -231,9 +233,6 @@ def wait_for_job_completion(job_name, timeout_seconds=None):
             except queue.Empty:
                 break
         first_run = False
-        
-        # Sleep briefly before checking status or attempting to resume log stream
-        time.sleep(5)
 
 
 

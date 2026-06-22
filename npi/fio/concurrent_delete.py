@@ -9,8 +9,8 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(me
 def parallel_delete_recursive(root_path):
     """Recursively deletes all files and folders under root_path in parallel via GCSFuse."""
     root_path = os.path.normpath(root_path)
-    if not os.path.exists(root_path):
-        logging.info(f"Target directory {root_path} does not exist. Skipping deletion.")
+    if not os.path.isdir(root_path):
+        logging.info(f"Target directory {root_path} does not exist or is not a directory. Skipping deletion.")
         return
 
     logging.info(f"Scanning directory tree under: {root_path}")
@@ -63,6 +63,10 @@ def parallel_delete_recursive(root_path):
             raise RuntimeError("Failed to delete one or more directories via GCSFuse.")
 
     # Finally, delete the root path itself
+    if os.path.ismount(root_path):
+        logging.info(f"Root path {root_path} is a mount point. Skipping deletion of the root directory itself.")
+        return
+
     try:
         os.rmdir(root_path)
         logging.info(f"Deleted root directory: {root_path}")
@@ -88,30 +92,7 @@ def main():
         logging.error(f"Parallel GCSFuse deletion failed: {e}")
         sys.exit(1)
 
-    # 2. Pre-create the 112 job directories for the upcoming run configuration (via FUSE)
-    if len(sys.argv) >= 5:
-        file_size = sys.argv[2]
-        block_size = sys.argv[3]
-        nr_files = sys.argv[4]
 
-        # Path: target_dir/FILE_SIZE/BLOCK_SIZE/NR_FILES/
-        current_conf_path = os.path.join(target_dir, file_size, block_size, nr_files)
-        logging.info(f"Pre-creating 112 job subdirectories (job_1 to job_112) under: {current_conf_path}")
-
-        try:
-            os.makedirs(current_conf_path, exist_ok=True)
-
-            def precreate_dir(i):
-                job_dir = os.path.join(current_conf_path, f"job_{i}")
-                os.makedirs(job_dir, exist_ok=True)
-
-            with ThreadPoolExecutor(max_workers=32) as executor:
-                # Wrap in list() to consume the generator and propagate exceptions immediately
-                list(executor.map(precreate_dir, range(1, 113)))
-            logging.info("Successfully pre-created all 112 job directories.")
-        except Exception as e:
-            logging.error(f"Failed to pre-create job directories via GCSFuse: {e}")
-            sys.exit(1)
 
 
 if __name__ == "__main__":
