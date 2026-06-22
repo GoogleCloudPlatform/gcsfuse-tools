@@ -314,22 +314,44 @@ def clear_cache_dir(gcsfuse_flags):
     except Exception as e:
         logging.error(f"Failed to clear cache directory {cache_dir}: {e}")
 
+
 def precreate_benchmark_directories(mount_point, fio_env):
-    """Pre-creates FIO job directories on the mount point before FIO runs to prevent startup deadlocks."""
-    if fio_env and "FILE_SIZE" in fio_env and "BLOCK_SIZE" in fio_env and "NR_FILES" in fio_env:
-        target_write_dir = os.path.join(mount_point, "write")
-        logging.info(f"Pre-creating FIO directories under {target_write_dir} before FIO launch...")
+    """Pre-creates FIO job directories sequentially on the mount point before FIO runs to prevent deadlocks."""
+    if not (fio_env and "FILE_SIZE" in fio_env and "BLOCK_SIZE" in fio_env and "NR_FILES" in fio_env):
+        return
+
+    target_write_dir = os.path.join(mount_point, "write")
+    
+    # 1. Clean up old files via parallel GCSFuse deletion
+    script_path = "/concurrent_delete.py"
+    if os.path.exists(script_path):
+        logging.info(f"Cleaning up old FIO files under {target_write_dir}...")
         try:
-            run_command([
-                "python3", "/concurrent_delete.py",
-                target_write_dir,
-                fio_env["FILE_SIZE"],
-                fio_env["BLOCK_SIZE"],
-                fio_env["NR_FILES"]
-            ])
+            subprocess.run(["python3", script_path, target_write_dir], check=True)
         except Exception as e:
-            logging.error(f"Failed to pre-create directories before FIO launch: {e}")
+            logging.error(f"Failed to clean up old directories: {e}")
             raise
+    else:
+        logging.info("concurrent_delete.py not found. Skipping parallel cleanup.")
+
+    # 2. Pre-create nested parent directory and 112 job directories sequentially
+    file_size = fio_env["FILE_SIZE"]
+    block_size = fio_env["BLOCK_SIZE"]
+    nr_files = fio_env["NR_FILES"]
+    num_jobs = int(fio_env.get("NUM_JOBS", 112))
+
+    nested_dir = os.path.join(target_write_dir, file_size, block_size, nr_files)
+    logging.info(f"Sequentially pre-creating {num_jobs} job directories under {nested_dir}...")
+    try:
+        os.makedirs(nested_dir, exist_ok=True)
+        for job_num in range(1, num_jobs + 1):
+            job_dir = os.path.join(nested_dir, f"job_{job_num}")
+            os.makedirs(job_dir, exist_ok=True)
+        logging.info(f"Successfully pre-created {num_jobs} job directories.")
+    except Exception as e:
+        logging.error(f"Failed to pre-create job directories: {e}")
+        raise
+
 
 def run_benchmark(
     gcsfuse_flags, bucket_name, iterations, fio_config, work_dir, output_dir, project_id, 
@@ -392,8 +414,7 @@ def run_benchmark(
                     mount_gcsfuse(gcsfuse_bin, gcsfuse_flags, bucket_name, mount_point, cpu_limit_list=cpu_limit_list)
                     is_mounted_locally = True
 
-                # Pre-create FIO job directories on the mount point before FIO runs to prevent startup deadlocks.
-                # This must run unconditionally to support external mounts (GKE) as well as local mounts.
+                # Pre-create benchmark directories sequentially to avoid GCSFuse deadlocks on startup
                 precreate_benchmark_directories(mount_point, fio_run_env)
 
                 fio_cpu_list = cpu_limit_list if bind_fio else None
