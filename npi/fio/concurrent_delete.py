@@ -9,6 +9,9 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(me
 def parallel_delete_recursive(root_path):
     """Recursively deletes all files and folders under root_path in parallel via GCSFuse."""
     root_path = os.path.normpath(root_path)
+    if root_path in ("/", "", "."):
+        raise ValueError(f"Safe guard: Deletion of root_path '{root_path}' is not allowed.")
+
     if not os.path.isdir(root_path):
         logging.info(f"Target directory {root_path} does not exist or is not a directory. Skipping deletion.")
         return
