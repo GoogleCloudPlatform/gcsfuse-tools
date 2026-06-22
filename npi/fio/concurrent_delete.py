@@ -1,70 +1,76 @@
-#!/usr/bin/env python3
-# Copyright 2026 Google LLC
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-
 import os
 import sys
-import shutil
 import logging
-from concurrent.futures import ThreadPoolExecutor
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
-# Import the Google Cloud Storage client
-try:
-    from google.cloud import storage
-    GCS_SDK_AVAILABLE = True
-except ImportError:
-    GCS_SDK_AVAILABLE = False
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+def parallel_delete_recursive(root_path):
+    """Recursively deletes all files and folders under root_path in parallel via GCSFuse."""
+    if not os.path.exists(root_path):
+        logging.info(f"Target directory {root_path} does not exist. Skipping deletion.")
+        return
 
-def resolve_bucket_and_prefix(target_path):
-    """Parses /proc/mounts to find the GCS bucket name and relative prefix for the target path."""
-    target_path = os.path.realpath(target_path)
-    mount_point = None
-    bucket_name = None
-    
+    logging.info(f"Scanning directory tree under: {root_path}")
+    all_files = []
+    all_dirs = []
+
+    # Walk the directory tree to gather all files and directories
+    for root, dirs, files in os.walk(root_path):
+        for f in files:
+            all_files.append(os.path.join(root, f))
+        for d in dirs:
+            all_dirs.append(os.path.join(root, d))
+
+    # Sort directories by depth in descending order so that leaf directories
+    # are deleted first (preventing "Directory not empty" errors)
+    all_dirs.sort(key=lambda x: x.count(os.sep), reverse=True)
+
+    if all_files:
+        logging.info(f"Deleting {len(all_files)} files concurrently via GCSFuse...")
+        start_time = time.time()
+        with ThreadPoolExecutor(max_workers=64) as executor:
+            futures = {executor.submit(os.remove, f): f for f in all_files}
+            success = True
+            for future in as_completed(futures):
+                f_path = futures[future]
+                try:
+                    future.result()
+                except FileNotFoundError:
+                    # Ignore files that might have been deleted concurrently
+                    pass
+                except Exception as e:
+                    logging.error(f"Failed to delete file {f_path} via GCSFuse: {e}")
+                    success = False
+            if not success:
+                raise RuntimeError("Failed to delete one or more files via GCSFuse.")
+        logging.info(f"Successfully deleted all files in {time.time() - start_time:.2f} seconds.")
+
+    if all_dirs:
+        logging.info(f"Deleting {len(all_dirs)} empty directories sequentially via GCSFuse...")
+        success = True
+        for d in all_dirs:
+            try:
+                os.rmdir(d)
+            except FileNotFoundError:
+                pass
+            except Exception as e:
+                logging.error(f"Failed to delete directory {d} via GCSFuse: {e}")
+                success = False
+        if not success:
+            raise RuntimeError("Failed to delete one or more directories via GCSFuse.")
+
+    # Finally, delete the root path itself
     try:
-        with open("/proc/mounts", "r") as f:
-            for line in f:
-                parts = line.split()
-                if len(parts) >= 3:
-                    dev, mnt, fstype = parts[0], parts[1], parts[2]
-                    # GCSFuse mounts are identified by fuse.gcsfuse fstype or gcsfuse in dev name
-                    if "gcsfuse" in fstype or "gcsfuse" in dev:
-                        real_mnt = os.path.realpath(mnt)
-                        # Check if the target path is inside this GCSFuse mount point
-                        if target_path == real_mnt or target_path.startswith(real_mnt + "/"):
-                            mount_point = real_mnt
-                            # Extract bucket name (strip any prefix like gcsfuse# if present)
-                            bucket_name = dev.split('#')[-1]
-                            break
+        os.rmdir(root_path)
+        logging.info(f"Deleted root directory: {root_path}")
+    except FileNotFoundError:
+        pass
     except Exception as e:
-        logging.warning(f"Failed to parse /proc/mounts: {e}")
-        
-    # Treat generic device name 'gcsfuse' as invalid to prevent accidental deletes
-    if not mount_point or not bucket_name or bucket_name == "gcsfuse":
-        return None, None
-        
-    # Calculate relative GCS prefix from mount point
-    rel_path = os.path.relpath(target_path, mount_point)
-    # Safely prevent accidental bucket-wide deletions (empty prefix)
-    if rel_path == "." or rel_path == "..":
-        return None, None
-    else:
-        prefix = rel_path.rstrip('/') + '/'
-        
-    return bucket_name, prefix
+        logging.error(f"Failed to delete root directory {root_path} via GCSFuse: {e}")
+        raise
+
 
 def main():
     # Usage: concurrent_delete.py <target_directory> [<file_size> <block_size> <nr_files>]
@@ -73,82 +79,38 @@ def main():
         sys.exit(1)
 
     target_dir = sys.argv[1]
-    
-    # 1. Clean up old files via high-speed GCS Batch API if SDK is available
-    bucket_name, prefix = resolve_bucket_and_prefix(target_dir)
-    
-    if GCS_SDK_AVAILABLE and bucket_name and prefix:
-        logging.info(f"Resolved GCS Bucket: {bucket_name}, Prefix: {prefix}")
-        try:
-            client = storage.Client()
-            bucket = client.bucket(bucket_name)
-            # List all blobs under the prefix (including empty directory objects)
-            blobs = list(bucket.list_blobs(prefix=prefix))
-            
-            if blobs:
-                logging.info(f"Deleting {len(blobs)} GCS objects concurrently via GCS API...")
-                # Chunk into batches of 100 for GCS batch delete API limit
-                chunks = [blobs[i:i + 100] for i in range(0, len(blobs), 100)]
-                
-                def delete_chunk(chunk):
-                    try:
-                        # Ignore missing blobs to ensure idempotency and prevent NotFound crashes
-                        bucket.delete_blobs(chunk, on_missing=lambda x: None)
-                        return True
-                    except Exception as e:
-                        logging.error(f"Failed to delete batch: {e}")
-                        return False
-                        
-                # Delete concurrently using a ThreadPoolExecutor
-                with ThreadPoolExecutor(max_workers=16) as executor:
-                    results = list(executor.map(delete_chunk, chunks))
-                
-                if not all(results):
-                    # Raise RuntimeError to allow graceful fallback to FUSE deletion in the except block
-                    raise RuntimeError("Failed to delete one or more batches via GCS API.")
-                    
-                logging.info("Successfully deleted all GCS objects via API.")
-            else:
-                logging.info("No GCS objects found to delete under prefix.")
-        except Exception as e:
-            logging.error(f"Failed to delete via GCS API: {e}. Falling back to FUSE deletion...")
-            if os.path.exists(target_dir):
-                try:
-                    shutil.rmtree(target_dir)
-                except Exception as ex:
-                    logging.error(f"FUSE recursive deletion failed: {ex}")
-                    sys.exit(1)
-    else:
-        # Fallback to local FUSE deletion if GCS API/SDK is not available
-        logging.warning(f"GCS SDK not available or bucket could not be resolved for {target_dir}. Falling back to FUSE deletion...")
-        if os.path.exists(target_dir):
-            logging.info(f"Starting legacy FUSE recursive deletion under: {target_dir}")
-            try:
-                shutil.rmtree(target_dir)
-            except Exception as ex:
-                logging.error(f"FUSE recursive deletion failed: {ex}")
-                sys.exit(1)
 
-    # 2. Pre-create the 112 job directories for the current run configuration (via FUSE)
+    # 1. Clean up old files via parallel GCSFuse deletion
+    try:
+        parallel_delete_recursive(target_dir)
+    except Exception as e:
+        logging.error(f"Parallel GCSFuse deletion failed: {e}")
+        sys.exit(1)
+
+    # 2. Pre-create the 112 job directories for the upcoming run configuration (via FUSE)
     if len(sys.argv) >= 5:
         file_size = sys.argv[2]
         block_size = sys.argv[3]
         nr_files = sys.argv[4]
-        
+
         # Path: target_dir/FILE_SIZE/BLOCK_SIZE/NR_FILES/
         current_conf_path = os.path.join(target_dir, file_size, block_size, nr_files)
         logging.info(f"Pre-creating 112 job subdirectories under: {current_conf_path}")
-        
+
         try:
-            for i in range(112):
-                os.makedirs(os.path.join(current_conf_path, f"job_{i}"), exist_ok=True)
-            logging.info("Successfully pre-created all 112 job subdirectories.")
+            os.makedirs(current_conf_path, exist_ok=True)
+
+            def precreate_dir(i):
+                job_dir = os.path.join(current_conf_path, f"job_dir_{i}")
+                os.makedirs(job_dir, exist_ok=True)
+
+            with ThreadPoolExecutor(max_workers=32) as executor:
+                executor.map(precreate_dir, range(112))
+            logging.info("Successfully pre-created all 112 job directories.")
         except Exception as e:
-            logging.error(f"Failed to pre-create job subdirectories: {e}")
+            logging.error(f"Failed to pre-create job directories via GCSFuse: {e}")
             sys.exit(1)
 
-    logging.info("Cleanup and pre-creation completed successfully.")
-    sys.exit(0)
 
 if __name__ == "__main__":
     main()
