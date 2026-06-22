@@ -160,28 +160,23 @@ def wait_for_job_completion(job_name, timeout_seconds=None):
             print(f"--- Job {job_name} TIMED OUT during execution ---", file=sys.stderr)
             return False
 
-        # Check if the Job has completed successfully
-        res_complete = subprocess.run(
-            ["kubectl", "get", f"job/{job_name}", "-o", "jsonpath={.status.conditions[?(@.type=='Complete')].status}"],
+        # Check if the Job has completed or failed in a single kubectl call to reduce API load
+        res_status = subprocess.run(
+            ["kubectl", "get", f"job/{job_name}", "-o", "jsonpath={.status.conditions[?(@.status=='True')].type}"],
             capture_output=True, text=True
         )
-        if res_complete.returncode != 0:
-            if "not found" in res_complete.stderr.lower():
+        if res_status.returncode != 0:
+            if "not found" in res_status.stderr.lower():
                 print(f"Job {job_name} not found (possibly deleted). Exiting wait loop.", file=sys.stderr)
             else:
-                print(f"Error querying job status: {res_complete.stderr.strip()}", file=sys.stderr)
+                print(f"Error querying job status: {res_status.stderr.strip()}", file=sys.stderr)
             return False
 
-        if res_complete.stdout.strip() == "True":
+        status_type = res_status.stdout.strip()
+        if status_type == "Complete":
             print(f"--- Job {job_name} finished successfully ---")
             return True
-            
-        # Check if the Job has failed
-        res_failed = subprocess.run(
-            ["kubectl", "get", f"job/{job_name}", "-o", "jsonpath={.status.conditions[?(@.type=='Failed')].status}"],
-            capture_output=True, text=True
-        )
-        if res_failed.stdout.strip() == "True":
+        elif status_type == "Failed":
             print(f"--- Job {job_name} failed ---", file=sys.stderr)
             return False
             
