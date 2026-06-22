@@ -1194,7 +1194,7 @@ def get_report_view(run_id: str):
             <!-- Mount Options -->
             <div class="mb-8">
                 <h3 class="text-sm font-bold text-slate-900 border-b border-slate-200 pb-2 mb-3 uppercase tracking-wide">Mount Options</h3>
-                <pre class="bg-slate-50 p-4 rounded border border-slate-200 text-xs font-mono whitespace-pre-wrap leading-relaxed text-slate-700">{run.get("mount_args", "Used mount configs CSV")}</pre>
+                <pre class="bg-slate-50 p-4 rounded border border-slate-200 text-xs font-mono whitespace-pre-wrap leading-relaxed text-slate-700">{run.get("mount_args") or "Used mount configs CSV"}</pre>
             </div>
  
             <!-- Performance Table -->
