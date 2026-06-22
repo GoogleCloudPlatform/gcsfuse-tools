@@ -184,6 +184,13 @@ def wait_for_job_completion(job_name, timeout_seconds=None):
             
         # If the job is still active, stream logs
         if not first_run:
+            pod_check = subprocess.run(
+                ["kubectl", "get", "pods", "-l", f"job-name={job_name}", "-o", "jsonpath={.items[*].status.phase}"],
+                capture_output=True, text=True
+            )
+            if "Running" not in pod_check.stdout:
+                time.sleep(2)
+                continue
             time.sleep(5)
 
         cmd = ["kubectl", "logs", "-f", "-l", f"job-name={job_name}", "-c", "benchmark"]

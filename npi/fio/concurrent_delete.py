@@ -14,7 +14,7 @@ def parallel_delete_recursive(root_path):
     root_path = os.path.realpath(root_path)
     # Prevent deletion of system directories, user home directories, or root
     if (
-        root_path in ("/", "/root", "/home", "/boot", "/dev", "/etc", "/lib", "/lib64", "/media", "/mnt", "/opt", "/proc", "/run", "/srv", "/sys", "/usr", "/var")
+        root_path in ("/", "/root", "/home", "/boot", "/dev", "/etc", "/lib", "/lib64", "/media", "/mnt", "/opt", "/proc", "/run", "/srv", "/sys", "/usr", "/var", "/tmp")
         or (root_path.startswith(("/home/", "/root/")) and len(root_path.split(os.sep)) <= 3)
     ):
         raise ValueError(f"Safe guard: Deletion of root_path '{root_path}' is not allowed.")
