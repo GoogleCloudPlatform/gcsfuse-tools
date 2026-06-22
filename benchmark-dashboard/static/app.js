@@ -1253,6 +1253,7 @@ function renderChart(canvasId, type, labels, datasets, yLabel, showLegend = true
                 y: {
                     grid: { color: '#e2e8f0' },
                     ticks: { color: '#475569' },
+                    grace: '15%', // Add 15% extra headroom to prevent vertical datalabels clipping!
                     title: {
                         display: true,
                         text: yLabel,

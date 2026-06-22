@@ -1146,6 +1146,60 @@ def get_report_view(run_id: str):
     if not run:
         raise HTTPException(status_code=404, detail="Run not found")
     
+    # Resolve configs.csv content if it's a multi-config run
+    configs_content = ""
+    if not run.get("mount_args") and run.get("configs_csv_name"):
+        try:
+            from google.cloud import storage
+            proj = run.get("project") or "gcs-fuse-test-ml"
+            storage_client = storage.Client(project=proj)
+            bucket_name = run.get("artifacts_bucket") or "dmb-db"
+            bucket = storage_client.bucket(bucket_name)
+            blob = bucket.blob(f"{run_id}/configs.csv")
+            if blob.exists():
+                configs_content = blob.download_as_text()
+        except Exception as e:
+            logger.warning(f"Failed to fetch configs.csv from GCS for report: {e}")
+            
+    # Build Mount Options HTML
+    mount_options_html = ""
+    if run.get("mount_args"):
+        mount_options_html = f'<pre class="bg-slate-50 p-4 rounded border border-slate-200 text-xs font-mono whitespace-pre-wrap leading-relaxed text-slate-700">{run.get("mount_args")}</pre>'
+    elif configs_content:
+        import csv
+        import io
+        try:
+            reader = csv.reader(io.StringIO(configs_content))
+            headers = next(reader, None)
+            if headers:
+                table_rows = ""
+                for row in reader:
+                    if not row:
+                        continue
+                    row_cols = "".join([f'<td class="py-1.5 px-2.5 border-b border-slate-200 font-mono text-[10px] text-slate-700">{col}</td>' for col in row])
+                    table_rows += f'<tr class="hover:bg-slate-50">{row_cols}</tr>'
+                
+                header_cols = "".join([f'<th class="py-2 px-2.5 bg-slate-100 text-slate-800 font-bold border-b border-slate-200 text-left text-[10px] uppercase tracking-wider">{h}</th>' for h in headers])
+                
+                mount_options_html = f"""
+                <div class="overflow-x-auto border border-slate-200 rounded-lg shadow-sm">
+                    <table class="w-full text-left border-collapse text-xs">
+                        <thead>
+                            <tr>{header_cols}</tr>
+                        </thead>
+                        <tbody>
+                            {table_rows}
+                        </tbody>
+                    </table>
+                </div>
+                """
+            else:
+                mount_options_html = '<p class="text-slate-500 italic text-xs">Configs CSV was empty.</p>'
+        except Exception as parse_e:
+            mount_options_html = f'<p class="text-rose-500 font-bold text-xs">Failed to parse configs CSV: {parse_e}</p>'
+    else:
+        mount_options_html = '<pre class="bg-slate-50 p-4 rounded border border-slate-200 text-xs font-mono text-slate-500 italic">No mount options or configs CSV found.</pre>'
+
     html_content = f"""
     <!DOCTYPE html>
     <html>
@@ -1194,7 +1248,7 @@ def get_report_view(run_id: str):
             <!-- Mount Options -->
             <div class="mb-8">
                 <h3 class="text-sm font-bold text-slate-900 border-b border-slate-200 pb-2 mb-3 uppercase tracking-wide">Mount Options</h3>
-                <pre class="bg-slate-50 p-4 rounded border border-slate-200 text-xs font-mono whitespace-pre-wrap leading-relaxed text-slate-700">{run.get("mount_args") or "Used mount configs CSV"}</pre>
+                {mount_options_html}
             </div>
  
             <!-- Performance Table -->
@@ -1582,7 +1636,7 @@ def get_report_view(run_id: str):
                             }},
                             scales: {{
                                 x: {{ grid: {{ color: '#e2e8f0' }}, ticks: {{ font: {{ size: 8 }} }} }},
-                                y: {{ grid: {{ color: '#e2e8f0' }}, title: {{ display: true, text: yLabel }} }}
+                                y: {{ grid: {{ color: '#e2e8f0' }}, grace: '15%', title: {{ display: true, text: yLabel }} }}
                             }},
                             plugins: {{
                                 legend: {{ display: showLegend, position: 'bottom' }},
