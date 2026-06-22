@@ -91,25 +91,40 @@ def main():
                 def delete_chunk(chunk):
                     try:
                         bucket.delete_blobs(chunk)
+                        return True
                     except Exception as e:
                         logging.error(f"Failed to delete batch: {e}")
+                        return False
                         
                 # Delete concurrently using a ThreadPoolExecutor
                 with ThreadPoolExecutor(max_workers=16) as executor:
-                    executor.map(delete_chunk, chunks)
+                    results = list(executor.map(delete_chunk, chunks))
+                
+                if not all(results):
+                    logging.error("Failed to delete one or more batches via GCS API. Exiting with error.")
+                    sys.exit(1)
+                    
                 logging.info("Successfully deleted all GCS objects via API.")
             else:
                 logging.info("No GCS objects found to delete under prefix.")
         except Exception as e:
             logging.error(f"Failed to delete via GCS API: {e}. Falling back to FUSE deletion...")
             if os.path.exists(target_dir):
-                shutil.rmtree(target_dir, ignore_errors=True)
+                try:
+                    shutil.rmtree(target_dir)
+                except Exception as ex:
+                    logging.error(f"FUSE recursive deletion failed: {ex}")
+                    sys.exit(1)
     else:
         # Fallback to local FUSE deletion if GCS API/SDK is not available
         logging.warning(f"GCS SDK not available or bucket could not be resolved for {target_dir}. Falling back to FUSE deletion...")
         if os.path.exists(target_dir):
             logging.info(f"Starting legacy FUSE recursive deletion under: {target_dir}")
-            shutil.rmtree(target_dir, ignore_errors=True)
+            try:
+                shutil.rmtree(target_dir)
+            except Exception as ex:
+                logging.error(f"FUSE recursive deletion failed: {ex}")
+                sys.exit(1)
 
     # 2. Pre-create the 112 job directories for the current run configuration (via FUSE)
     if len(sys.argv) >= 5:

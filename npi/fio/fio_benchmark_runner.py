@@ -99,17 +99,23 @@ def run_fio_test(fio_config, mount_point, iteration, output_dir, fio_env=None, c
     logging.info(f"FIO test iteration {iteration} complete. Results: {output_filename}")
 
 
+def _read_fio_json(filepath):
+    """Reads FIO output file and strips leading non-JSON text."""
+    with open(filepath, "r") as f:
+        content = f.read()
+        # Find the first '{' to strip any leading non-JSON warnings or status text
+        first_brace = content.find('{')
+        if first_brace != -1:
+            content = content[first_brace:]
+        return content
+
+
 def parse_fio_output(filename):
     """Parses FIO JSON output to extract key metrics."""
     try:
-        with open(filename, "r") as f:
-            content = f.read()
-            # Find the first '{' to strip any leading non-JSON warnings or status text
-            first_brace = content.find('{')
-            if first_brace != -1:
-                content = content[first_brace:]
-            data = json.loads(content)
-    except (json.JSONDecodeError, FileNotFoundError) as e:
+        content = _read_fio_json(filename)
+        data = json.loads(content)
+    except (json.JSONDecodeError, FileNotFoundError, IOError) as e:
         logging.error(f"Could not read or parse FIO output {filename}: {e}")
         return []
 
@@ -225,12 +231,7 @@ def upload_results_to_bq(
 ):
     """Uploads the full FIO JSON output to a BigQuery table."""
     try:
-        with open(fio_json_path, "r") as f:
-            fio_json_content = f.read()
-            # Find the first '{' to strip any leading non-JSON warnings or status text
-            first_brace = fio_json_content.find('{')
-            if first_brace != -1:
-                fio_json_content = fio_json_content[first_brace:]
+        fio_json_content = _read_fio_json(fio_json_path)
     except (IOError, FileNotFoundError) as e:
         logging.error(f"Could not read FIO JSON file {fio_json_path}: {e}")
         return

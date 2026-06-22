@@ -143,6 +143,7 @@ def wait_for_job_completion(job_name, timeout_seconds=None):
     print(f"--- Job {job_name} pod started, streaming logs ---")
     
     # 2. Main loop: stream logs and check job status until complete or failed
+    first_run = True
     while True:
         # Check if the Job has completed successfully
         res_complete = subprocess.run(
@@ -163,8 +164,12 @@ def wait_for_job_completion(job_name, timeout_seconds=None):
             return False
             
         # If the job is still active, stream logs
+        cmd = ["kubectl", "logs", "-f", "-l", f"job-name={job_name}", "-c", "benchmark"]
+        if not first_run:
+            cmd.append("--tail=0")
+            
         log_proc = subprocess.Popen(
-            ["kubectl", "logs", "-f", "-l", f"job-name={job_name}", "-c", "benchmark"],
+            cmd,
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True
         )
         
@@ -176,6 +181,7 @@ def wait_for_job_completion(job_name, timeout_seconds=None):
             sys.stdout.flush()
             
         log_proc.wait()
+        first_run = False
         
         # Sleep briefly before checking status or attempting to resume log stream
         time.sleep(5)
