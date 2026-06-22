@@ -323,7 +323,7 @@ def precreate_benchmark_directories(mount_point, fio_env):
     target_write_dir = os.path.join(mount_point, "write")
     
     # 1. Clean up old files via parallel GCSFuse deletion
-    script_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "concurrent_delete.py")
+    script_path = fio_env.get("DELETE_SCRIPT", "/concurrent_delete.py")
     if os.path.exists(script_path):
         logging.info(f"Cleaning up old FIO files under {target_write_dir}...")
         try:
@@ -387,6 +387,11 @@ def run_benchmark(
     fio_run_env = {"DIR": mount_point}
     if fio_env:
         fio_run_env.update(fio_env)
+
+    # Resolve the concurrent_delete.py script path dynamically for portability
+    script_dir = os.path.dirname(os.path.realpath(__file__))
+    local_delete_script = os.path.join(script_dir, "concurrent_delete.py")
+    fio_run_env["DELETE_SCRIPT"] = local_delete_script if os.path.exists(local_delete_script) else "/concurrent_delete.py"
 
     all_results = []
 
