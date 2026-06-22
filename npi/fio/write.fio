@@ -1,7 +1,7 @@
 [global]
 allrandrepeat=1
-# By default fio creates all files first and then starts writing to them. This option is to disable that behavior. 
-create_on_open=1
+# By default fio creates all files first and then starts writing to them.
+create_on_open=0
 direct=1
 fadvise_hint=0
 file_append=0
@@ -18,22 +18,7 @@ verify=0
 filename_format=write/${FILE_SIZE}/${BLOCK_SIZE}/${NR_FILES}/job_$jobnum/experiment.$filenum
 disk_util=0
 
-# --- DUMMY CLEANUP JOB ---
-# This runs first in a single thread (numjobs=1) to safely execute the deletion once.
-[cleanup]
-numjobs=1
-ioengine=null
-size=1
-bs=1
-filename=/dev/null
-directory=${DIR}
-exec_prerun=python3 /concurrent_delete.py ${DIR}/write ${FILE_SIZE} ${BLOCK_SIZE} ${NR_FILES}
-
-# --- ACTUAL WRITE JOB ---
-# The 'stonewall' flag tells FIO to wait until all preceding jobs (cleanup)
-# have fully completed before starting this job.
 [write]
-stonewall
 directory=${DIR}
 # Every file is written only once. Set nrfiles per thread in such a way that the test runs for 1-2 min. 
 # This will vary based on file size. 
