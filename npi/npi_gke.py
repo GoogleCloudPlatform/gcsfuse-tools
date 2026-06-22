@@ -24,8 +24,8 @@ def enqueue_output(out, q):
     try:
         for line in iter(out.readline, ''):
             q.put(line)
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"Warning: Exception in log enqueueing thread: {e}", file=sys.stderr)
     finally:
         out.close()
 

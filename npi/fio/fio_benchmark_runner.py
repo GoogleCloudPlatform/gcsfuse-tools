@@ -323,7 +323,7 @@ def precreate_benchmark_directories(mount_point, fio_env):
     target_write_dir = os.path.join(mount_point, "write")
     
     # 1. Clean up old files via parallel GCSFuse deletion
-    script_path = "/concurrent_delete.py"
+    script_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "concurrent_delete.py")
     if os.path.exists(script_path):
         logging.info(f"Cleaning up old FIO files under {target_write_dir}...")
         try:
