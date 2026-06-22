@@ -314,6 +314,23 @@ def clear_cache_dir(gcsfuse_flags):
     except Exception as e:
         logging.error(f"Failed to clear cache directory {cache_dir}: {e}")
 
+def precreate_benchmark_directories(mount_point, fio_env):
+    """Pre-creates FIO job directories on the mount point before FIO runs to prevent startup deadlocks."""
+    if fio_env and "FILE_SIZE" in fio_env and "BLOCK_SIZE" in fio_env and "NR_FILES" in fio_env:
+        target_write_dir = os.path.join(mount_point, "write")
+        logging.info(f"Pre-creating FIO directories under {target_write_dir} before FIO launch...")
+        try:
+            run_command([
+                "python3", "/concurrent_delete.py",
+                target_write_dir,
+                fio_env["FILE_SIZE"],
+                fio_env["BLOCK_SIZE"],
+                fio_env["NR_FILES"]
+            ])
+        except Exception as e:
+            logging.error(f"Failed to pre-create directories before FIO launch: {e}")
+            raise
+
 def run_benchmark(
     gcsfuse_flags, bucket_name, iterations, fio_config, work_dir, output_dir, project_id, 
     fio_env=None, summary_file=None, cpu_limit_list=None, bind_fio=False, bq_dataset_id=None, bq_table_id=None, mount_path=None,
@@ -360,6 +377,7 @@ def run_benchmark(
         if keep_mount and not mount_path:
             mount_gcsfuse(gcsfuse_bin, gcsfuse_flags, bucket_name, mount_point, cpu_limit_list=cpu_limit_list)
             is_mounted_locally = True
+            precreate_benchmark_directories(mount_point, fio_run_env)
 
         for i in range(1, iterations + 1):
             logging.info(f"--- Starting Iteration {i}/{iterations} ---")
@@ -374,6 +392,7 @@ def run_benchmark(
                 if not mount_path and not keep_mount:
                     mount_gcsfuse(gcsfuse_bin, gcsfuse_flags, bucket_name, mount_point, cpu_limit_list=cpu_limit_list)
                     is_mounted_locally = True
+                    precreate_benchmark_directories(mount_point, fio_run_env)
 
                 fio_cpu_list = cpu_limit_list if bind_fio else None
 
