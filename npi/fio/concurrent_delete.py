@@ -78,9 +78,9 @@ def parallel_delete_recursive(root_path):
 
 
 def main():
-    # Usage: concurrent_delete.py <target_directory> [<file_size> <block_size> <nr_files>]
+    # Usage: concurrent_delete.py <target_directory>
     if len(sys.argv) < 2:
-        logging.error("Usage: concurrent_delete.py <target_directory> [<file_size> <block_size> <nr_files>]")
+        logging.error("Usage: concurrent_delete.py <target_directory>")
         sys.exit(1)
 
     target_dir = sys.argv[1]

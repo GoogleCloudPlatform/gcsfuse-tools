@@ -165,8 +165,11 @@ def wait_for_job_completion(job_name, timeout_seconds=None):
             ["kubectl", "get", f"job/{job_name}", "-o", "jsonpath={.status.conditions[?(@.type=='Complete')].status}"],
             capture_output=True, text=True
         )
-        if res_complete.returncode != 0 and "not found" in res_complete.stderr.lower():
-            print(f"Job {job_name} not found (possibly deleted). Exiting wait loop.", file=sys.stderr)
+        if res_complete.returncode != 0:
+            if "not found" in res_complete.stderr.lower():
+                print(f"Job {job_name} not found (possibly deleted). Exiting wait loop.", file=sys.stderr)
+            else:
+                print(f"Error querying job status: {res_complete.stderr.strip()}", file=sys.stderr)
             return False
 
         if res_complete.stdout.strip() == "True":
