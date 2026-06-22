@@ -1,0 +1,5 @@
+io_type,num_jobs,file_size,block_size,io_depth,nr_files,direct
+randread,1,200m,4k,1,1,0
+randread,1,200m,4k,4,1,0
+randread,48,200m,4k,1,1,0
+randread,48,200m,4k,4,1,0
