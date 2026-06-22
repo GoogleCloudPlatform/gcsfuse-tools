@@ -377,7 +377,6 @@ def run_benchmark(
         if keep_mount and not mount_path:
             mount_gcsfuse(gcsfuse_bin, gcsfuse_flags, bucket_name, mount_point, cpu_limit_list=cpu_limit_list)
             is_mounted_locally = True
-            precreate_benchmark_directories(mount_point, fio_run_env)
 
         for i in range(1, iterations + 1):
             logging.info(f"--- Starting Iteration {i}/{iterations} ---")
@@ -392,7 +391,10 @@ def run_benchmark(
                 if not mount_path and not keep_mount:
                     mount_gcsfuse(gcsfuse_bin, gcsfuse_flags, bucket_name, mount_point, cpu_limit_list=cpu_limit_list)
                     is_mounted_locally = True
-                    precreate_benchmark_directories(mount_point, fio_run_env)
+
+                # Pre-create FIO job directories on the mount point before FIO runs to prevent startup deadlocks.
+                # This must run unconditionally to support external mounts (GKE) as well as local mounts.
+                precreate_benchmark_directories(mount_point, fio_run_env)
 
                 fio_cpu_list = cpu_limit_list if bind_fio else None
 
