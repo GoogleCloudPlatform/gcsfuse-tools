@@ -1237,6 +1237,10 @@ function renderChart(canvasId, type, labels, datasets, yLabel, showLegend = true
             maintainAspectRatio: false,
             barPercentage: 0.8,
             categoryPercentage: 0.85,
+            interaction: {
+                mode: 'index',
+                intersect: false
+            },
             layout: {
                 padding: {
                     top: 15 // Add padding at the top so labels don't get clipped by the chart border!
@@ -1282,7 +1286,7 @@ function renderChart(canvasId, type, labels, datasets, yLabel, showLegend = true
                     borderWidth: 1
                 },
                 datalabels: {
-                    display: true, // Force all labels to display!
+                    display: (context) => type !== 'line', // Only show static labels on bar charts!
                     anchor: 'end',
                     align: 'top',
                     offset: 2,

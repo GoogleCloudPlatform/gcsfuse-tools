@@ -1630,6 +1630,10 @@ def get_report_view(run_id: str):
                             maintainAspectRatio: false,
                             barPercentage: 0.8,
                             categoryPercentage: 0.85,
+                            interaction: {{
+                                mode: 'index',
+                                intersect: false
+                            }},
                             animation: false,
                             layout: {{
                                 padding: {{
@@ -1643,7 +1647,7 @@ def get_report_view(run_id: str):
                             plugins: {{
                                 legend: {{ display: showLegend, position: 'bottom' }},
                                 datalabels: {{
-                                    display: true, // Force all labels to display!
+                                    display: (context) => type !== 'line', // Only show static labels on bar charts!
                                     anchor: 'end',
                                     align: 'top',
                                     offset: 2,
