@@ -101,7 +101,7 @@ def run_fio_test(fio_config, mount_point, iteration, output_dir, fio_env=None, c
 
 def _read_fio_json(filepath):
     """Reads FIO output file and strips leading non-JSON text."""
-    with open(filepath, "r") as f:
+    with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
         content = f.read()
         # Find the first '{' to strip any leading non-JSON warnings or status text
         first_brace = content.find('{')

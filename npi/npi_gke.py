@@ -181,24 +181,28 @@ def wait_for_job_completion(job_name, timeout_seconds=None):
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True
         )
         
-        import select
+        import os
+        # Set stdout pipe to non-blocking mode to prevent buffering delays in TextIOWrapper
+        os.set_blocking(log_proc.stdout.fileno(), False)
         while True:
             # Periodically check timeout during log streaming to prevent infinite hangs on deadlocks
             if timeout_seconds is not None and time.time() - start_time > timeout_seconds:
                 print(f"--- Job {job_name} TIMED OUT during log streaming ---", file=sys.stderr)
                 log_proc.terminate()
+                log_proc.wait()
                 return False
 
-            # Wait up to 1.0 second for log output to ensure we don't block indefinitely on readline()
-            ready, _, _ = select.select([log_proc.stdout], [], [], 1.0)
-            if ready:
-                line = log_proc.stdout.readline()
-                if not line:
-                    break
+            line = log_proc.stdout.readline()
+            if line:
                 print(line.strip())
                 sys.stdout.flush()
-            elif log_proc.poll() is not None:
-                # If no log output but process has exited, break out
+            elif line is None:
+                # No logs available in pipe/buffer yet, check if process has exited
+                if log_proc.poll() is not None:
+                    break
+                time.sleep(0.1)  # Sleep briefly to prevent busy-waiting
+            else:
+                # EOF reached (empty string "")
                 break
                 
         log_proc.wait()
