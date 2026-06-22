@@ -114,7 +114,7 @@ def parse_fio_output(filename):
     """Parses FIO JSON output to extract key metrics."""
     try:
         content = _read_fio_json(filename)
-        data = json.loads(content)
+        data, _ = json.JSONDecoder().raw_decode(content.strip())
     except (json.JSONDecodeError, FileNotFoundError, IOError) as e:
         logging.error(f"Could not read or parse FIO output {filename}: {e}")
         return []
@@ -231,8 +231,9 @@ def upload_results_to_bq(
 ):
     """Uploads the full FIO JSON output to a BigQuery table."""
     try:
-        fio_json_content = _read_fio_json(fio_json_path)
-        json.loads(fio_json_content)
+        content = _read_fio_json(fio_json_path)
+        data, _ = json.JSONDecoder().raw_decode(content.strip())
+        fio_json_content = json.dumps(data)
     except (IOError, FileNotFoundError, json.JSONDecodeError) as e:
         logging.error(f"Could not read or parse FIO JSON file {fio_json_path}: {e}")
         return
@@ -316,8 +317,11 @@ def clear_cache_dir(gcsfuse_flags):
         logging.error(f"Failed to clear cache directory {cache_dir}: {e}")
 
 
-def precreate_benchmark_directories(mount_point, fio_env):
+def precreate_benchmark_directories(mount_point, fio_env, fio_config):
     """Pre-creates FIO job directories sequentially on the mount point before FIO runs to prevent deadlocks."""
+    if "write" not in os.path.basename(fio_config):
+        return
+
     if not (fio_env and "FILE_SIZE" in fio_env and "BLOCK_SIZE" in fio_env and "NR_FILES" in fio_env):
         return
 
@@ -421,7 +425,7 @@ def run_benchmark(
                     is_mounted_locally = True
 
                 # Pre-create benchmark directories sequentially to avoid GCSFuse deadlocks on startup
-                precreate_benchmark_directories(mount_point, fio_run_env)
+                precreate_benchmark_directories(mount_point, fio_run_env, fio_config)
 
                 fio_cpu_list = cpu_limit_list if bind_fio else None
 

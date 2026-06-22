@@ -5,7 +5,7 @@ ARG PROJECT=gcs-fuse-test
 ARG IMAGE_VERSION=latest
 
 # Builder stage to compile the Go benchmark binary
-FROM golang:1.26.4 AS builder
+FROM golang:${GO_VERSION} AS builder
 WORKDIR /app
 COPY go.mod go.sum ./
 RUN go mod download
