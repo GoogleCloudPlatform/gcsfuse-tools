@@ -99,12 +99,23 @@ def run_fio_test(fio_config, mount_point, iteration, output_dir, fio_env=None, c
     logging.info(f"FIO test iteration {iteration} complete. Results: {output_filename}")
 
 
+def _read_fio_json(filepath):
+    """Reads FIO output file and strips leading non-JSON text."""
+    with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
+        content = f.read()
+        # Find the first '{' to strip any leading non-JSON warnings or status text
+        first_brace = content.find('{')
+        if first_brace != -1:
+            content = content[first_brace:]
+        return content
+
+
 def parse_fio_output(filename):
     """Parses FIO JSON output to extract key metrics."""
     try:
-        with open(filename, "r") as f:
-            data = json.load(f)
-    except (json.JSONDecodeError, FileNotFoundError) as e:
+        content = _read_fio_json(filename)
+        data, _ = json.JSONDecoder().raw_decode(content.strip())
+    except (json.JSONDecodeError, FileNotFoundError, IOError) as e:
         logging.error(f"Could not read or parse FIO output {filename}: {e}")
         return []
 
@@ -220,10 +231,11 @@ def upload_results_to_bq(
 ):
     """Uploads the full FIO JSON output to a BigQuery table."""
     try:
-        with open(fio_json_path, "r") as f:
-            fio_json_content = f.read()
-    except (IOError, FileNotFoundError) as e:
-        logging.error(f"Could not read FIO JSON file {fio_json_path}: {e}")
+        content = _read_fio_json(fio_json_path)
+        data, _ = json.JSONDecoder().raw_decode(content.strip())
+        fio_json_content = json.dumps(data)
+    except (IOError, FileNotFoundError, json.JSONDecodeError) as e:
+        logging.error(f"Could not read or parse FIO JSON file {fio_json_path}: {e}")
         return
 
     try:
@@ -305,6 +317,47 @@ def clear_cache_dir(gcsfuse_flags):
         logging.error(f"Failed to clear cache directory {cache_dir}: {e}")
 
 
+def precreate_benchmark_directories(mount_point, fio_env, fio_config):
+    """Pre-creates FIO job directories sequentially on the mount point before FIO runs to prevent deadlocks."""
+    if "write" not in os.path.basename(fio_config):
+        return
+
+    if not (fio_env and "FILE_SIZE" in fio_env and "BLOCK_SIZE" in fio_env and "NR_FILES" in fio_env):
+        return
+
+    target_write_dir = os.path.join(mount_point, "write")
+    
+    # 1. Clean up old files via parallel GCSFuse deletion
+    script_path = fio_env.get("DELETE_SCRIPT", "/concurrent_delete.py")
+    if os.path.exists(script_path):
+        logging.info(f"Cleaning up old FIO files under {target_write_dir}...")
+        try:
+            subprocess.run(["python3", script_path, target_write_dir], check=True)
+        except Exception as e:
+            logging.error(f"Failed to clean up old directories: {e}")
+            raise
+    else:
+        logging.info("concurrent_delete.py not found. Skipping parallel cleanup.")
+
+    # 2. Pre-create nested parent directory and 112 job directories sequentially
+    file_size = fio_env["FILE_SIZE"]
+    block_size = fio_env["BLOCK_SIZE"]
+    nr_files = fio_env["NR_FILES"]
+    num_jobs = int(fio_env.get("NUM_JOBS", 112))
+
+    nested_dir = os.path.join(target_write_dir, file_size, block_size, nr_files)
+    logging.info(f"Sequentially pre-creating {num_jobs} job directories under {nested_dir}...")
+    try:
+        os.makedirs(nested_dir, exist_ok=True)
+        for job_num in range(1, num_jobs + 1):
+            job_dir = os.path.join(nested_dir, f"job_{job_num}")
+            os.makedirs(job_dir, exist_ok=True)
+        logging.info(f"Successfully pre-created {num_jobs} job directories.")
+    except Exception as e:
+        logging.error(f"Failed to pre-create job directories: {e}")
+        raise
+
+
 def run_benchmark(
     gcsfuse_flags, bucket_name, iterations, fio_config, work_dir, output_dir, project_id, 
     fio_env=None, summary_file=None, cpu_limit_list=None, bind_fio=False, bq_dataset_id=None, bq_table_id=None, mount_path=None,
@@ -340,6 +393,11 @@ def run_benchmark(
     if fio_env:
         fio_run_env.update(fio_env)
 
+    # Resolve the concurrent_delete.py script path dynamically for portability
+    script_dir = os.path.dirname(os.path.realpath(__file__))
+    local_delete_script = os.path.join(script_dir, "concurrent_delete.py")
+    fio_run_env["DELETE_SCRIPT"] = local_delete_script if os.path.exists(local_delete_script) else "/concurrent_delete.py"
+
     all_results = []
 
     # Keep track of local mount state
@@ -365,6 +423,9 @@ def run_benchmark(
                 if not mount_path and not keep_mount:
                     mount_gcsfuse(gcsfuse_bin, gcsfuse_flags, bucket_name, mount_point, cpu_limit_list=cpu_limit_list)
                     is_mounted_locally = True
+
+                # Pre-create benchmark directories sequentially to avoid GCSFuse deadlocks on startup
+                precreate_benchmark_directories(mount_point, fio_run_env, fio_config)
 
                 fio_cpu_list = cpu_limit_list if bind_fio else None
 

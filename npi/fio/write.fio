@@ -1,6 +1,6 @@
 [global]
 allrandrepeat=1
-# By default fio creates all files first and then starts writing to them. This option is to disable that behavior. 
+# By default fio creates all files first and then starts writing to them.
 create_on_open=1
 direct=1
 fadvise_hint=0
@@ -15,12 +15,10 @@ rw=write
 thread=1
 time_based=0
 verify=0
-filename_format=write/${FILE_SIZE}/${BLOCK_SIZE}/${NR_FILES}/experiment.$jobnum.$filenum
-exec_prerun=rm -rf ${DIR}/write
+filename_format=write/${FILE_SIZE}/${BLOCK_SIZE}/${NR_FILES}/job_$jobnum/experiment.$filenum
+disk_util=0
 
- 
 [write]
-stonewall
 directory=${DIR}
 # Every file is written only once. Set nrfiles per thread in such a way that the test runs for 1-2 min. 
 # This will vary based on file size. 
@@ -29,3 +27,17 @@ nrfiles=${NR_FILES}
 filesize=${FILE_SIZE}
 # Update the block size value from the table for different experiments.
 bs=${BLOCK_SIZE}
+
+# --- DUMMY POST-CLEANUP JOB ---
+# This runs after the write job is fully complete (stonewall) in a single thread (numjobs=1)
+# to safely and cleanly delete all benchmark files exactly once.
+[post_cleanup]
+stonewall
+numjobs=1
+ioengine=null
+size=1
+bs=1
+filename=/dev/null
+directory=${DIR}
+exec_prerun=python3 "${DELETE_SCRIPT:-/concurrent_delete.py}" "${DIR}/write"
+

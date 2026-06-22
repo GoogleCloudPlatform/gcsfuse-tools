@@ -138,6 +138,7 @@ class BenchmarkFactory:
             gcsfuse_flags = f"{default_gcsfuse_flags} {gcsfuse_flags}"
         else:
             gcsfuse_flags = default_gcsfuse_flags
+        gcsfuse_flags += " --log-file=/gcsfuse-buffer/gcsfuse.log --log-format=json"
 
         base_cmd = (
             "docker run --pull=always --network=host --privileged --rm "

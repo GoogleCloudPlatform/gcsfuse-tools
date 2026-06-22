@@ -15,6 +15,7 @@ openfiles=1
 rw=${READ_TYPE} 
 thread=1
 filename_format=read/${FILE_SIZE}/${NR_FILES}/experiment.$jobnum.$filenum
+disk_util=0
 
 [read]
 stonewall
