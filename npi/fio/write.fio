@@ -39,5 +39,5 @@ size=1
 bs=1
 filename=/dev/null
 directory=${DIR}
-exec_prerun=python3 /concurrent_delete.py ${DIR}/write
+exec_prerun=python3 $([ -f /concurrent_delete.py ] && echo /concurrent_delete.py || echo concurrent_delete.py) ${DIR}/write
 

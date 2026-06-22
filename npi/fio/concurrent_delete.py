@@ -9,7 +9,12 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(me
 def parallel_delete_recursive(root_path):
     """Recursively deletes all files and folders under root_path in parallel via GCSFuse."""
     root_path = os.path.realpath(root_path)
-    if root_path in ("/", "/root", "/home") or not root_path:
+    # Prevent deletion of system directories, user home directories, or root
+    if (
+        root_path in ("/", "/root", "/home", "/boot", "/dev", "/etc", "/lib", "/lib64", "/media", "/mnt", "/opt", "/proc", "/run", "/srv", "/sys", "/usr", "/var")
+        or (root_path.startswith(("/home/", "/root/")) and len(root_path.split(os.sep)) <= 3)
+        or not root_path
+    ):
         raise ValueError(f"Safe guard: Deletion of root_path '{root_path}' is not allowed.")
 
     if not os.path.isdir(root_path):
@@ -32,23 +37,25 @@ def parallel_delete_recursive(root_path):
     all_dirs.sort(key=lambda x: x.count(os.sep), reverse=True)
 
     if all_files:
-        logging.info(f"Deleting {len(all_files)} files concurrently via GCSFuse...")
+        logging.info(f"Deleting {len(all_files)} files concurrently via GCSFuse in chunks...")
         start_time = time.time()
+        chunk_size = 10000
+        success = True
         with ThreadPoolExecutor(max_workers=64) as executor:
-            futures = {executor.submit(os.remove, f): f for f in all_files}
-            success = True
-            for future in as_completed(futures):
-                f_path = futures[future]
-                try:
-                    future.result()
-                except FileNotFoundError:
-                    # Ignore files that might have been deleted concurrently
-                    pass
-                except Exception as e:
-                    logging.error(f"Failed to delete file {f_path} via GCSFuse: {e}")
-                    success = False
-            if not success:
-                raise RuntimeError("Failed to delete one or more files via GCSFuse.")
+            for i in range(0, len(all_files), chunk_size):
+                chunk = all_files[i:i + chunk_size]
+                futures = {executor.submit(os.remove, f): f for f in chunk}
+                for future in as_completed(futures):
+                    f_path = futures[future]
+                    try:
+                        future.result()
+                    except FileNotFoundError:
+                        pass
+                    except Exception as e:
+                        logging.error(f"Failed to delete file {f_path} via GCSFuse: {e}")
+                        success = False
+        if not success:
+            raise RuntimeError("Failed to delete one or more files via GCSFuse.")
         logging.info(f"Successfully deleted all files in {time.time() - start_time:.2f} seconds.")
 
     if all_dirs:
