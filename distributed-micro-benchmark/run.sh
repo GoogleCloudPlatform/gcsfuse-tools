@@ -31,6 +31,8 @@ TIMEOUT=14400 # 4 hours
 GCSFUSE_COMMIT=master 
 RUN_READ=false
 RUN_WRITE=false
+NO_AUTO_PLOT=false
+PLOT_METRIC_GROUP="default"
 
 # Parse command line arguments
 while [[ "$#" -gt 0 ]]; do
@@ -38,6 +40,8 @@ while [[ "$#" -gt 0 ]]; do
         --commit) GCSFUSE_COMMIT="$2"; shift ;;
         --read) RUN_READ=true ;;
         --write) RUN_WRITE=true ;;
+        --no-auto-plot) NO_AUTO_PLOT=true ;;
+        --plot-metric-group) PLOT_METRIC_GROUP="$2"; shift ;;
         *) ;; # Ignore other arguments or handle them as needed
     esac
     shift
@@ -176,6 +180,14 @@ run_benchmark() {
 
     if [ -n "$CONFIGS_CSV" ] && [ -f "$CONFIGS_CSV" ]; then
      ORCHESTRATOR_CMD="$ORCHESTRATOR_CMD --configs-csv $CONFIGS_CSV"
+    fi
+
+    if [ "$NO_AUTO_PLOT" = true ]; then
+     ORCHESTRATOR_CMD="$ORCHESTRATOR_CMD --no-auto-plot"
+    fi
+
+    if [ -n "$PLOT_METRIC_GROUP" ]; then
+     ORCHESTRATOR_CMD="$ORCHESTRATOR_CMD --plot-metric-group $PLOT_METRIC_GROUP"
     fi
 
     echo "Starting Orchestrator..."

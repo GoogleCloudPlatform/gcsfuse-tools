@@ -173,11 +173,12 @@ def wait_for_completion(vms, benchmark_id, artifacts_bucket, poll_interval=30, t
     """
     print(f"Waiting for {len(vms)} VMs to complete...")
     
-    deadline = datetime.now() + timedelta(seconds=timeout)
+    has_timeout = timeout > 0
+    deadline = datetime.now() + timedelta(seconds=timeout) if has_timeout else None
     completed_vms = set()
     failed_vms = set()
     
-    while datetime.now() < deadline:
+    while not has_timeout or datetime.now() < deadline:
         # Get granular progress by counting uploaded result files
         progress_counts = _get_vm_test_progress(benchmark_id, artifacts_bucket)
 
