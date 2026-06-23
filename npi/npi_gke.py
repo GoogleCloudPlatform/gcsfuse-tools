@@ -29,7 +29,7 @@ def enqueue_output(out, q):
     finally:
         out.close()
 
-def create_job_spec(job_name, image, args, bucket_name, service_account, extra_flag=None, use_memory_volumes=False, is_go_client=False, node_selector=None, resources_limits=None, project_id=None):
+def create_job_spec(job_name, image, args, bucket_name, service_account, extra_flag=None, use_memory_volumes=False, is_go_client=False, node_selector=None, resources_limits=None, project_id=None, gcsfuse_sidecar_image=None):
     """Creates a Kubernetes Job spec dictionary from the template yaml."""
     script_dir = os.path.dirname(os.path.realpath(__file__))
     template_path = os.path.join(script_dir, "npi_job_spec.yaml")
@@ -58,6 +58,12 @@ def create_job_spec(job_name, image, args, bucket_name, service_account, extra_f
         if "annotations" in job_spec["spec"]["template"]["metadata"]:
             job_spec["spec"]["template"]["metadata"]["annotations"].pop("gke-gcsfuse/volumes", None)
     else:
+        # Inject custom sidecar image override annotation if specified
+        if gcsfuse_sidecar_image:
+            if "annotations" not in job_spec["spec"]["template"]["metadata"] or not job_spec["spec"]["template"]["metadata"]["annotations"]:
+                job_spec["spec"]["template"]["metadata"]["annotations"] = {}
+            job_spec["spec"]["template"]["metadata"]["annotations"]["gke-gcsfuse/sidecar-image"] = gcsfuse_sidecar_image
+            
         # Replace bucket name in CSI volume
         for vol in pod_spec.get("volumes", []):
             if "csi" in vol and vol["csi"].get("driver") == "gcsfuse.csi.storage.gke.io":
@@ -175,10 +181,10 @@ def wait_for_job_completion(job_name, timeout_seconds=None):
                 continue
 
         status_type = res_status.stdout.strip()
-        if status_type == "Complete":
+        if "Complete" in status_type:
             print(f"--- Job {job_name} finished successfully ---")
             return True
-        elif status_type == "Failed":
+        elif "Failed" in status_type:
             print(f"--- Job {job_name} failed ---", file=sys.stderr)
             return False
             
@@ -243,13 +249,13 @@ def wait_for_job_completion(job_name, timeout_seconds=None):
 
 
 
-def run_benchmark_job(job_name, image, args_list, project_id, dataset_id, table_id, bucket_name, service_account, extra_flag=None, use_memory_volumes=False, is_go_client=False, node_selector=None, resources_limits=None):
+def run_benchmark_job(job_name, image, args_list, project_id, dataset_id, table_id, bucket_name, service_account, extra_flag=None, use_memory_volumes=False, is_go_client=False, node_selector=None, resources_limits=None, gcsfuse_sidecar_image=None):
     """Runs a benchmark job on GKE and waits for its completion."""
     # 1. Cleanup any existing job with the same name
     subprocess.run(["kubectl", "delete", "job", job_name, "--ignore-not-found=true", "--wait=true"], capture_output=True)
 
     # 2. Create Job Spec and Apply
-    job_spec = create_job_spec(job_name, image, args_list, bucket_name, service_account, extra_flag, use_memory_volumes, is_go_client, node_selector, resources_limits, project_id=project_id)
+    job_spec = create_job_spec(job_name, image, args_list, bucket_name, service_account, extra_flag, use_memory_volumes, is_go_client, node_selector, resources_limits, project_id=project_id, gcsfuse_sidecar_image=gcsfuse_sidecar_image)
     yaml_data = yaml.dump(job_spec)
 
     print(f"--- Submitting Kubernetes Job: {job_name} ---")
@@ -377,6 +383,21 @@ def main():
         default=None,
         help="Comma-separated list of key-value pairs for resource limits, e.g., 'google.com/tpu=4'"
     )
+    parser.add_argument(
+        "--extra-mount-options",
+        default=None,
+        help="Extra mount options to append to the GCSFuse CSI volume."
+    )
+    parser.add_argument(
+        "--gcsfuse-sidecar-image",
+        default=None,
+        help="Overriding GCSFuse sidecar container image."
+    )
+    parser.add_argument(
+        "--bq-table-suffix",
+        default=None,
+        help="Suffix to append to the BigQuery table ID."
+    )
     
     args = parser.parse_args()
 
@@ -467,6 +488,9 @@ def main():
             bq_table_id = f"go_client_read_{config_name}"
         else:
             bq_table_id = f"fio_{full_bench_name}"
+            
+        if args.bq_table_suffix:
+            bq_table_id = f"{bq_table_id}_{args.bq_table_suffix}"
         
         target_iterations = iter_override if iter_override is not None else args.iterations
         image = f"us-docker.pkg.dev/{args.project_id}/gcsfuse-benchmarks/{image_suffix}:{args.image_version}"
@@ -497,8 +521,16 @@ def main():
         if runner_args:
             cmd_args.append(runner_args)
 
+        # Merge extra mount options
+        combined_extra_flag = extra_flag
+        if args.extra_mount_options:
+            if combined_extra_flag:
+                combined_extra_flag += "," + args.extra_mount_options
+            else:
+                combined_extra_flag = args.extra_mount_options
+
         if args.dry_run:
-            job_spec = create_job_spec(job_name, image, cmd_args, args.bucket_name, args.kubernetes_service_account, extra_flag, args.use_memory_volumes, is_go_client, node_selector, resources_limits)
+            job_spec = create_job_spec(job_name, image, cmd_args, args.bucket_name, args.kubernetes_service_account, combined_extra_flag, args.use_memory_volumes, is_go_client, node_selector, resources_limits, gcsfuse_sidecar_image=args.gcsfuse_sidecar_image)
             print(f" - {full_bench_name}")
             print(f"   Job Name: {job_name}")
             print(f"   Image: {image}")
@@ -518,11 +550,12 @@ def main():
                 table_id=bq_table_id,
                 bucket_name=args.bucket_name,
                 service_account=args.kubernetes_service_account,
-                extra_flag=extra_flag,
+                extra_flag=combined_extra_flag,
                 use_memory_volumes=args.use_memory_volumes,
                 is_go_client=is_go_client,
                 node_selector=node_selector,
-                resources_limits=resources_limits
+                resources_limits=resources_limits,
+                gcsfuse_sidecar_image=args.gcsfuse_sidecar_image
             )
 
             if not success:
