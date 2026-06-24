@@ -1254,6 +1254,12 @@ function renderChart(canvasId, type, labels, datasets, yLabel, showLegend = true
                         font: { size: 9 },
                         maxRotation: 45,
                         minRotation: 20
+                    },
+                    title: {
+                        display: true,
+                        text: 'FIO Format: io_type,num_jobs,file_size,block_size,io_depth,nr_files,direct',
+                        color: '#475569',
+                        font: { size: 9, weight: 'bold' }
                     }
                 },
                 y: {
@@ -1573,8 +1579,7 @@ function renderRowCharts(runId, data) {
     const sortedConfigs = Array.from(allConfigs).sort();
     
     const labels = sortedParams.map(p => {
-        const parts = p.split('|');
-        return `${parts[0]} (${parts[3]}) - depth ${parts[4]} (${parts[1]} jobs)`;
+        return p.split('|').join(',');
     });
     
     const datasetsBw = [];

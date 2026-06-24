@@ -1396,8 +1396,7 @@ def get_report_view(run_id: str):
                     
                     let tableHtml = "";
                     runData.forEach((row, index) => {{
-                        const paramParts = row.param_str.split('|');
-                        const paramFmt = paramParts[0] + " (" + paramParts[3] + ") - depth " + paramParts[4] + " (" + paramParts[1] + " jobs)";
+                        const paramFmt = row.param_str.split('|').join(',');
                         const readBw = row.read_bw ? row.read_bw.toFixed(2) + " MB/s" : "-";
                         const writeBw = row.write_bw ? row.write_bw.toFixed(2) + " MB/s" : "-";
                         const avgBw = row.read_bw ? readBw : writeBw;
@@ -1443,8 +1442,7 @@ def get_report_view(run_id: str):
                 const sortedConfigs = Array.from(allConfigs).sort();
                 
                 const labels = sortedParams.map(p => {{
-                    const parts = p.split('|');
-                    return parts[0] + " (" + parts[3] + ") - depth " + parts[4] + " (" + parts[1] + " jobs)";
+                    return p.split('|').join(',');
                 }});
                 
                 const datasetsBw = [];
@@ -1651,7 +1649,15 @@ def get_report_view(run_id: str):
                                 }}
                             }},
                             scales: {{
-                                x: {{ grid: {{ color: '#e2e8f0' }}, ticks: {{ font: {{ size: 8 }} }} }},
+                                x: {{ 
+                                    grid: {{ color: '#e2e8f0' }}, 
+                                    ticks: {{ font: {{ size: 8 }} }},
+                                    title: {{
+                                        display: true,
+                                        text: 'FIO Format: io_type,num_jobs,file_size,block_size,io_depth,nr_files,direct',
+                                        font: {{ size: 8, weight: 'bold' }}
+                                    }}
+                                }},
                                 y: {{ grid: {{ color: '#e2e8f0' }}, grace: '15%', title: {{ display: true, text: yLabel }} }}
                             }},
                             plugins: {{
