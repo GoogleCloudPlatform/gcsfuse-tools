@@ -328,9 +328,20 @@ def setup_kubernetes_service_account(project_id, ksa_name, namespace, buckets, d
     ]
     res = subprocess.run(bq_cmd, capture_output=True, text=True)
     if res.returncode != 0:
-        print(f"Failed to bind BigQuery permission on project {project_id}: {res.stderr}", file=sys.stderr)
+        print(f"Failed to bind BigQuery dataEditor permission on project {project_id}: {res.stderr}", file=sys.stderr)
         return False
-        
+
+    # 5. Grant roles/bigquery.jobUser on the GCP project (for job/query execution)
+    print(f"--- Granting bigquery.jobUser role to {ksa_name} on project {project_id} ---")
+    bq_job_cmd = [
+        "gcloud", "projects", "add-iam-policy-binding", project_id,
+        f"--member={member_principal}", "--role=roles/bigquery.jobUser", "--condition=None", "--quiet"
+    ]
+    res = subprocess.run(bq_job_cmd, capture_output=True, text=True)
+    if res.returncode != 0:
+        print(f"Failed to bind BigQuery jobUser permission on project {project_id}: {res.stderr}", file=sys.stderr)
+        return False
+
     return True
 
 

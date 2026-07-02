@@ -339,6 +339,59 @@ def run_benchmark(benchmark_name, command_str, project_id, dataset_id, table_id)
 
     return success
 
+
+def verify_permissions(project_id, bq_dataset_id, bucket_name=None):
+    """Pre-flight check to verify required GCP permissions before benchmark execution on GCE/local VM.
+
+    Checks:
+    1. bigquery.jobs.create (roles/bigquery.jobUser) via a 0-byte dry-run query.
+    2. GCS bucket access (roles/storage.objectUser or roles/storage.admin).
+
+    Returns:
+        bool: True if all permissions are valid, False otherwise.
+    """
+    print(f"--- Running Pre-flight Permission Checks (Project: {project_id}) ---")
+    all_ok = True
+
+    # 1. Verify BigQuery Job Creation (roles/bigquery.jobUser)
+    bq_job_cmd = ["bq", "query", f"--project_id={project_id}", "--use_legacy_sql=false", "--dry_run", "SELECT 1"]
+    res = subprocess.run(bq_job_cmd, capture_output=True, text=True)
+    if res.returncode != 0:
+        all_ok = False
+        print(
+            f"\n[PRE-FLIGHT ERROR] Missing BigQuery job permission 'bigquery.jobs.create' on project '{project_id}'.\n"
+            f"Error output: {res.stderr.strip()}\n"
+            f"Fix: Grant 'roles/bigquery.jobUser' to your GCE VM Service Account or active gcloud account:\n"
+            f"  gcloud projects add-iam-policy-binding {project_id} \\\n"
+            f"    --member=\"serviceAccount:<VM_SERVICE_ACCOUNT_EMAIL>\" \\\n"
+            f"    --role=\"roles/bigquery.jobUser\"\n",
+            file=sys.stderr
+        )
+    else:
+        print("✓ BigQuery Job creation (roles/bigquery.jobUser) verified.")
+
+    # 2. Verify GCS Bucket Access if bucket_name is provided
+    if bucket_name:
+        b_name = bucket_name[5:] if bucket_name.startswith("gs://") else bucket_name
+        gcs_cmd = ["gcloud", "storage", "ls", f"gs://{b_name}"]
+        res = subprocess.run(gcs_cmd, capture_output=True, text=True)
+        if res.returncode != 0:
+            all_ok = False
+            print(
+                f"\n[PRE-FLIGHT ERROR] Cannot access GCS bucket 'gs://{b_name}'.\n"
+                f"Error output: {res.stderr.strip()}\n"
+                f"Fix: Grant 'roles/storage.objectUser' or 'roles/storage.admin' on bucket gs://{b_name}:\n"
+                f"  gcloud storage buckets add-iam-policy-binding gs://{b_name} \\\n"
+                f"    --member=\"serviceAccount:<VM_SERVICE_ACCOUNT_EMAIL>\" \\\n"
+                f"    --role=\"roles/storage.objectUser\"\n",
+                file=sys.stderr
+            )
+        else:
+            print(f"✓ GCS bucket access (gs://{b_name}) verified.")
+
+    return all_ok
+
+
 def main():
     """Parses command-line arguments and orchestrates benchmark runs.
 
@@ -448,7 +501,10 @@ def main():
                     parser.error(f"Benchmark '{b}' is not supported for RAPID buckets (only gRPC benchmarks are allowed).")
         benchmarks_to_run = [b for b in benchmarks_to_run if "http1" not in b]
             
-    # Validations for missing file-cache requirements are now obsolete.
+    if not args.dry_run:
+        if not verify_permissions(args.project_id, args.bq_dataset_id, args.bucket_name):
+            print("Aborting benchmark orchestration due to pre-flight permission check failure.", file=sys.stderr)
+            sys.exit(1)
 
     print(f"Starting benchmark orchestration...")
     print(f"Benchmarks to run: {', '.join(benchmarks_to_run)}")
