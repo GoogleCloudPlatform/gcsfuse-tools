@@ -113,7 +113,8 @@ class TestMain(unittest.TestCase):
     @patch('os.makedirs')
     @patch('argparse.ArgumentParser.parse_args')
     @patch('npi.BenchmarkFactory')
-    def test_main_success(self, mock_factory_class, mock_parse_args, mock_makedirs):
+    @patch('npi.verify_permissions', return_value=True)
+    def test_main_success(self, mock_verify_perms, mock_factory_class, mock_parse_args, mock_makedirs):
         mock_args = MagicMock()
         mock_args.benchmarks = ["read_http1"]
         mock_args.bucket_name = "test-bucket"
@@ -141,7 +142,8 @@ class TestMain(unittest.TestCase):
     @patch('os.makedirs')
     @patch('argparse.ArgumentParser.parse_args')
     @patch('npi.BenchmarkFactory')
-    def test_main_failure(self, mock_factory_class, mock_parse_args, mock_makedirs):
+    @patch('npi.verify_permissions', return_value=True)
+    def test_main_failure(self, mock_verify_perms, mock_factory_class, mock_parse_args, mock_makedirs):
         mock_args = MagicMock()
         mock_args.benchmarks = ["read_http1"]
         mock_args.bucket_name = "test-bucket"
@@ -223,7 +225,8 @@ class TestMain(unittest.TestCase):
     @patch('os.makedirs')
     @patch('argparse.ArgumentParser.parse_args')
     @patch('npi.BenchmarkFactory')
-    def test_main_clears_buffer_mount_path_when_not_empty(self, mock_factory_class, mock_parse_args, mock_makedirs, mock_exists, mock_listdir, mock_unlink, mock_rmtree):
+    @patch('npi.verify_permissions', return_value=True)
+    def test_main_clears_buffer_mount_path_when_not_empty(self, mock_verify_perms, mock_factory_class, mock_parse_args, mock_makedirs, mock_exists, mock_listdir, mock_unlink, mock_rmtree):
         mock_args = MagicMock()
         mock_args.benchmarks = ["read_http1"]
         mock_args.bucket_name = "test-bucket"
@@ -255,6 +258,21 @@ class TestMain(unittest.TestCase):
                 
                 mock_unlink.assert_called_once_with("/mnt/buffer/file1.txt")
                 mock_rmtree.assert_called_once_with("/mnt/buffer/dir1")
+
+
+class TestVerifyPermissions(unittest.TestCase):
+
+    @patch('subprocess.run')
+    def test_verify_permissions_success(self, mock_run):
+        mock_run.return_value = MagicMock(returncode=0)
+        ok = npi.verify_permissions("test-project", "test-dataset", "test-bucket")
+        self.assertTrue(ok)
+
+    @patch('subprocess.run')
+    def test_verify_permissions_failure(self, mock_run):
+        mock_run.return_value = MagicMock(returncode=1, stderr="Permission denied")
+        ok = npi.verify_permissions("test-project", "test-dataset", "test-bucket")
+        self.assertFalse(ok)
 
 
 if __name__ == '__main__':
