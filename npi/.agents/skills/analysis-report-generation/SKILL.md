@@ -1,48 +1,71 @@
 ---
 name: analysis-report-generation
-description: Guides on querying benchmark results from BigQuery, comparing performance metrics (throughput/latency) against baselines, and generating a structured validation report.
+description: Guides on querying benchmark results from BigQuery tables via bq query or query_results.py, evaluating throughput and latency metrics against baselines or intra-run configurations, verifying params.yaml machine type classification, assessing the strict 20 GB/s SLA gate on non-pinned runs, and generating the structured npi_validation_report.md deliverable while handling JSON key spacing errors and missing baseline fallbacks.
 ---
 
 # GCSFuse NPI Analysis & Report Generation
 
-This skill guides you through querying benchmark results from BigQuery tables, performing analysis on throughput and latency trends against historical baselines, verifying machine type configuration optimizations, and compiling the findings into a standard `npi_validation_report.md`.
+This skill guides you through querying benchmark results from BigQuery tables, performing analysis on throughput and latency trends against historical baselines, verifying machine type configuration optimizations in `params.yaml`, evaluating the strict 20 GB/s SLA performance gate, and compiling the findings into a standardized `npi_validation_report.md`.
 
-## Prerequisites
+## Prerequisites & Trigger Conditions
 
-1.  **GCP/BigQuery Access**: The environment must have access to BigQuery dataset containing the benchmark outputs.
-2.  **Baselines Datasets (Optional)**: Ensure you know the baseline dataset ID (e.g. `npi_benchmarks_baseline_lro_on` or similar) and the newly generated run's dataset ID, if available. If no baseline dataset is present, the report must still be generated using intra-run comparisons.
-3.  **GCSFuse Source Code**: Access to GCSFuse code is required to inspect `params.yaml` for machine type verification.
+### Prerequisites
+1. **GCP / BigQuery Access**: The environment must have access rights and `bq` CLI credentials to query the BigQuery datasets containing benchmark run outputs.
+2. **Baselines Datasets (Optional)**: Access to baseline dataset IDs (e.g., `npi_benchmarks_baseline_lro_on`) if performing historical baseline comparisons. If baselines are unavailable, intra-run comparative analysis is required.
+3. **GCSFuse Source Code**: Access to the local GCSFuse repository checkout to inspect `params.yaml` for machine type classification.
+
+### Trigger Conditions
+- Benchmark execution (`npi_orchestrator.py`) has completed and metrics are exported to BigQuery.
+- Requesting an official validation report (`npi_validation_report.md`) for GCSFuse NPI release or platform qualification.
+- Evaluating whether a target machine type and protocol meet the strict 20 GB/s SLA gate requirements.
+
+## Input/Output Contract
+
+### Inputs
+- **BigQuery Datasets & Tables**:
+  - `<PROJECT_ID>.<DATASET_ID>.host_info` (System specifications and hardware profile)
+  - `<PROJECT_ID>.<DATASET_ID>.fio_<benchmark>` (e.g., `fio_read_grpc`, `fio_write_grpc`, `fio_read_parallel`)
+  - `<PROJECT_ID>.<DATASET_ID>.go_client_read_<config>` (Go SDK client benchmark metrics)
+- **Baseline Dataset ID** (Optional): Historical BigQuery dataset for regression comparison.
+- **`params.yaml`**: GCSFuse repository file located at `params.yaml` for machine type verification.
+- **Target Metadata**: `targets.json` specifying platform type (GCE VM vs GKE Cluster) and target names.
+
+### Outputs
+- **`npi_validation_report.md`**: Main validation report containing:
+  - Executive Summary with explicit **PASS / FAIL / REJECTED** verdict for the 20 GB/s SLA gate.
+  - System Specifications & Hardware Profiles table populated from `host_info`.
+  - Baseline and Intra-Run Performance Comparison tables (HTTP/1.1 vs gRPC, NUMA vs non-NUMA).
+  - Machine Type Classification Status and PR Action items.
+  - Failure Observations & Issue Log.
 
 ## Step-by-Step Procedure
 
 ### Step 1: Query BigQuery Results
 
-Retrieve performance and system metadata from the respective tables:
-*   **`host_info`**: Query to extract target system specs and hardware profiles (e.g. CPU, RAM, kernel version, disk layout).
-*   **`fio_<benchmark>` / `go_client_read_<config>`**: Query to extract raw performance data.
+Retrieve system hardware metadata and performance metrics from the respective BigQuery tables.
 
-> [!NOTE]
-> **Querying Host Specifications**:
-> To retrieve the host hardware profile for your report, run:
-> ```sql
-> SELECT
->   run_timestamp,
->   cpu_arch,
->   num_cpus,
->   num_numa_nodes,
->   kernel_version,
->   ram_bytes,
->   num_local_ssds
-> FROM
->   `<PROJECT_ID>.<DATASET_ID>.host_info`
-> ORDER BY run_timestamp DESC
-> LIMIT 1
-> ```
+#### 1. Query Host Specifications
+Run the following SQL query against the `host_info` table to retrieve system hardware specs:
+```sql
+SELECT
+  run_timestamp,
+  cpu_arch,
+  num_cpus,
+  num_numa_nodes,
+  kernel_version,
+  ram_bytes,
+  num_local_ssds
+FROM
+  `<PROJECT_ID>.<DATASET_ID>.host_info`
+ORDER BY run_timestamp DESC
+LIMIT 1
+```
 
+#### 2. Query Performance Metrics (FIO JSON Handling)
 > [!IMPORTANT]
-> **JSON Key Spacing**: In the FIO JSON output, the version is stored under the key `"fio version"` (with a space). Always query it using the quoted format: `JSON_VALUE(fio_json_output, '$."fio version"')` to avoid returning `NULL`.
+> **JSON Key Spacing**: In FIO JSON output, the version is stored under the key `"fio version"` (with a space). Always query it using the quoted format `JSON_VALUE(fio_json_output, '$."fio version"')` to avoid returning `NULL`.
 
-Run queries using the `bq` CLI or a python BigQuery client:
+Execute the performance query via the `bq` CLI tool:
 ```bash
 bq query --project_id=<PROJECT_ID> --use_legacy_sql=false \
 "SELECT
@@ -61,116 +84,109 @@ ORDER BY run_timestamp DESC"
 
 ### Step 2: Compare Against Baselines & Perform Intra-Run Analysis
 
-#### 1. Compare Against Baselines (If Baseline Dataset is Available)
-If a baseline dataset is available, execute comparison scripts (e.g. `query_results.py`) or calculate the percentage difference in throughput/latency between baseline and regression datasets.
+#### 1. Baseline Performance Comparison
+If a baseline BigQuery dataset is available, calculate the percentage throughput and latency deltas (`(New - Baseline) / Baseline * 100`).
 
 > [!IMPORTANT]
-> **No Cross-Target Comparisons (Default)**: Performance results from different targets (e.g., GKE Node runs vs GCE VM runs) represent distinct platforms and are not directly comparable by default. Do not compare them against each other, compute cross-target deltas, or label differences between them as regressions, **unless the user explicitly requests a cross-target platform comparison**. If explicitly requested, you may compare the environments and include a dedicated section in the final report.
+> **No Cross-Target Comparisons (Default)**: Performance results from different target platforms (e.g., GKE Node runs vs GCE VM runs) represent distinct environments and MUST NOT be directly compared or labeled as regressions against each other unless explicitly requested by the user.
 
-Example Comparison Matrix:
-| Protocol | Baseline Throughput (MiB/s) | New Run Throughput (MiB/s) | Delta (%) | Status |
+Example Baseline Table:
+| Benchmark / Protocol | Baseline Throughput (MiB/s) | Current Run Throughput (MiB/s) | Delta (%) | Status |
 | :--- | :--- | :--- | :--- | :--- |
-| HTTP/1.1 | 1240.5 | 1235.2 | -0.4% | Neutral |
-| gRPC | 3450.0 | 2890.5 | -16.2% | **REGRESSION** |
+| HTTP/1.1 Read | 1240.5 | 1235.2 | -0.4% | PASS |
+| gRPC Read | 3450.0 | 2890.5 | -16.2% | **FAIL (Regression)** |
 
-#### 2. Perform Intra-Run Comparisons (Always Recommended)
-Even when a baseline dataset is present, or if it is not present, you should perform intra-run comparisons to analyze and highlight the relative performance gains under different configurations:
+#### 2. Intra-Run Performance Analysis
+Perform intra-run comparisons across protocols and NUMA configurations:
+- **gRPC vs HTTP/1.1**: Quantify the throughput gain and latency reduction of gRPC relative to HTTP/1.1.
+- **NUMA Binding vs Non-NUMA Binding**: Calculate the performance impact of CPU/NUMA node pinning compared to unpinned runs.
 
-*   **gRPC vs HTTP/1**:
-    - Compare the performance of gRPC against HTTP/1.1 under the same test workload in the run.
-    - Quantify the throughput gain (or loss) and latency delta when using gRPC compared to HTTP/1.1.
-*   **NUMA binding vs non-NUMA binding analysis**:
-    - Compare performance metrics (throughput and latency) between runs executed with NUMA binding enabled versus runs executed without NUMA binding.
-    - Highlight the percentage improvement or degradation introduced by NUMA binding.
-
-Example Intra-Run Comparison Matrix:
+Example Intra-Run Table:
 | Comparison Type | Configuration A | Configuration B | Throughput A (MiB/s) | Throughput B (MiB/s) | Delta (%) | Status / Insight |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | Protocol | HTTP/1.1 | gRPC | 1235.2 | 2890.5 | +134.0% | gRPC shows expected scaling |
 | NUMA Binding | Non-NUMA | NUMA-Bound | 2500.0 | 2890.5 | +15.6% | NUMA binding improves throughput |
 
 #### 3. Strict NPI Performance Pass/Fail Gate (SLA Gate)
-To ensure the New Platform Integration (NPI) meets the required high-performance standards, you MUST evaluate the results against the following strict performance gate:
-*   **Target Workload**: Sequential reads of a **1 GiB file size**, with a **1M block size**, using **128 numjobs** and **10 files** (NR_FILES) concurrently, without enabling GCSFuse-specific caches.
-*   **Performance Threshold**: The maximum throughput achieved for this workload MUST be **>= 20 GB/s** (or 20 GiB/s) **for both HTTP/1.1 and gRPC protocols**.
-*   **NUMA Pinning Constraint**: This `20 GB/s` throughput target **MUST be achieved in the standard, non-NUMA-pinned configurations** (i.e. where neither GCSFuse nor FIO are pinned to NUMA nodes or specific CPU lists). If the non-pinned configurations fail to achieve 20 GB/s, the NPI validation MUST be marked as **FAIL / REJECTED**, even if the NUMA-pinned configurations achieve or exceed the target.
-*   **Verdict Rule**:
-    - If the maximum throughput achieved in the **non-pinned configurations** is **>= 20 GB/s** for both protocols, this gate passes (mark as **PASS**).
-    - If the maximum throughput achieved for **either** HTTP/1.1 or gRPC in the **non-pinned configurations** is **< 20 GB/s**, you MUST mark the overall NPI validation as **FAIL / REJECTED** in the Executive Summary, and the platform integration has failed.
-    - In the performance comparison table, the status for any non-pinned protocol configuration falling below 20 GB/s must be marked as **FAIL (Below SLA)**.
+Evaluate the run results against the strict NPI performance gate:
+- **Target Workload**: Sequential reads of **1 GiB file size**, **1M block size**, **128 numjobs**, **10 files** (NR_FILES), without GCSFuse caches.
+- **Performance Threshold**: Maximum throughput MUST be **>= 20 GB/s** for BOTH HTTP/1.1 and gRPC protocols.
+- **NUMA Pinning Constraint**: The 20 GB/s target **MUST be achieved in standard, non-NUMA-pinned configurations**. If non-pinned runs fail to reach 20 GB/s, the overall verdict MUST be **FAIL / REJECTED**, even if NUMA-pinned runs exceed 20 GB/s.
 
 ### Step 3: Verify Machine Type Configuration
-
-Verify if the GCE VM or GKE node machine type (e.g., `c4-standard-96`) is classified under the high-performance machine types in the main GCSFuse repository:
-1.  Locate `params.yaml` in the cloned GCSFuse repository.
-2.  Search for the machine family or type.
-3.  If missing, note it in the validation report as a required follow-up task (PR creation to add family).
+Check if the GCE VM or GKE node machine type (e.g., `c4-standard-96`) is registered in `params.yaml` in the GCSFuse repository:
+1. Open `params.yaml`.
+2. Search for the machine family/type under high-performance machine listings.
+3. If missing, record a required follow-up action to open a PR adding the machine type.
 
 ### Step 4: Generate `npi_validation_report.md`
+Write the validation report using the standard template:
 
-Compile the queried results, baselines comparison, and machine family configuration verification into `npi_validation_report.md`.
-
-For each target validation environment executed (GCE VM or GKE Cluster), create a separate section and performance table to isolate their metrics and prevent incorrect direct comparisons.
-
-The report must follow this structure:
 ```markdown
 # GCSFuse NPI Validation Report
 
 ## Executive Summary
-[Brief description of whether the run meets performance criteria. CRITICAL: You MUST explicitly state the PASS/FAIL verdict for the 20 GB/s SLA gate (sequential reads, 1G file size, 1M block size, 128 numjobs, 10 files) for BOTH HTTP/1.1 and gRPC in the **non-NUMA-pinned** configurations. If the maximum throughput for either protocol without pinning is less than 20 GB/s, the overall verdict is a FAIL / REJECTED, and the platform integration has failed.]
+[Explicit PASS/FAIL verdict for 20 GB/s SLA gate on 1G file size, 1M block size, 128 numjobs non-NUMA-pinned runs for BOTH HTTP/1.1 and gRPC. If non-pinned throughput < 20 GB/s for either protocol, mark as FAIL / REJECTED.]
 
 ## Run Details
 - **Timestamp**: [ISO 8601 Timestamp]
-- **Target Platforms**: [List of all target names, e.g. GCE VM target-1, GKE Cluster target-2, etc.]
+- **Target Platforms**: [e.g., GCE VM kislayk-npi2, GKE Cluster gke-orbax-benchmark-cluster]
 
 ## System Specifications (Hardware Profile)
-Query the `host_info` table for each target to populate this hardware profile:
-| Target Name | Platform Type | OS & Kernel | CPU (Model & Cores) | Total RAM (GB) | Disk Buffer / Cache (Type & Size) | TPU Accelerator (Topology) |
+| Target Name | Platform Type | OS & Kernel | CPU (Model & Cores) | Total RAM (GB) | Disk Buffer / Cache (Type & Size) | TPU Accelerator |
 |---|---|---|---|---|---|---|
 | `kislayk-npi2` | GCE VM | Linux 6.1.0 | Intel Xeon (96 cores) | 360 GB | RAID0 SSD (/mnt/lssd, 2.9TB) | N/A |
-| `gke-orbax-benchmark-cluster` | GKE Cluster | Linux 6.1.0 | AMD EPYC (64 cores) | 600 GB | Memory Volume (tmpfs, 500GB) | TPU v6e (2x2 topology, 4 chips) |
 
 ## Target Performance Results
 
-### [TARGET_NAME_1] (Platform Type, e.g., GCE VM)
+### [TARGET_NAME_1] (Platform Type)
 - **GCSFuse Version**: [e.g. v3.9.0]
 - **Target Bucket**: [RAPID / Regional]
-- **Performance Metrics Comparison**:
 
-#### Baseline Performance Comparison (If Baseline is Available)
+#### Baseline Performance Comparison (If Available)
 | Benchmark / Protocol | Baseline (Version) | Current Run (Version) | Delta (%) | Status |
 |---|---|---|---|---|
 | HTTP1 Read | 1250 MB/s | 1240 MB/s | -0.8% | PASS |
 | gRPC Read | 3500 MB/s | 2800 MB/s | -20.0% | FAIL (Regression) |
 
-#### Intra-Run Performance Analysis (If Applicable)
-Provide these comparisons if the corresponding protocols or NUMA configurations were executed in the run:
-
+#### Intra-Run Performance Analysis
 ##### gRPC vs HTTP/1.1 Protocol Comparison
 | Metric | HTTP/1.1 | gRPC | Delta (%) | Observation |
 |---|---|---|---|---|
-| Read Throughput | 1240 MB/s | 2800 MB/s | +125.8% | gRPC significantly outperforms HTTP/1.1 |
-| Read Latency (mean) | 0.012 ms | 0.005 ms | -58.3% | gRPC shows lower latency |
+| Read Throughput | 1240 MB/s | 2800 MB/s | +125.8% | gRPC outperforms HTTP/1.1 |
 
 ##### NUMA Binding vs Non-NUMA Binding Analysis
 | Protocol / Workload | Non-NUMA Bound | NUMA Bound | Delta (%) | Observation |
 |---|---|---|---|---|
 | gRPC Read Throughput | 2400 MB/s | 2800 MB/s | +16.7% | NUMA binding improves throughput |
-| gRPC Read Latency | 0.006 ms | 0.005 ms | -16.7% | NUMA binding reduces latency |
-
-### Cross-Target Platform Comparison (Only If Explicitly Requested by User)
-If the user explicitly requested a comparison between different targets (e.g., GCE VM vs GKE Cluster), compile their metrics into a side-by-side comparison table here:
-
-| Metric / Workload | [TARGET_NAME_1] (e.g., GCE VM) | [TARGET_NAME_2] (e.g., GKE Cluster) | Delta (%) | Status / Observation |
-|---|---|---|---|---|
-| gRPC Read Throughput | 2800 MB/s | 3100 MB/s | +10.7% | GKE cluster shows higher peak throughput |
-| gRPC Read Latency | 0.005 ms | 0.004 ms | -20.0% | GKE cluster shows lower latency |
 
 ## High-Performance Machine Type Classification
 - **Machine Type Used**: `c4-standard-96`
 - **Configured in `params.yaml`?**: [Yes/No]
-- **Action Required**: [None / Create PR in GCSFuse repo to add the machine type]
+- **Action Required**: [None / Create PR in GCSFuse repo to add machine type]
 
 ## Observations & Issues
-- [Detail any errors observed, e.g., TLS Handshake Errors, GKE OOMs, Direct Path fallback issues.]
+- [Detail errors, e.g., TLS Handshake Errors, GKE OOMs, Direct Path fallback issues.]
 ```
+
+## Failure Modes & Edge Cases
+
+| Failure Scenario | Root Cause | Remediation / Recovery Action |
+|---|---|---|
+| **Non-Pinned Throughput < 20 GB/s** | CPU/Network saturation or missing host OS offloads in standard run | Mark overall NPI validation as **FAIL / REJECTED** in Executive Summary, even if NUMA-pinned runs pass. Dispatch `remediation-advisor`. |
+| **JSON Query Returns `NULL`** | Unquoted spacing in key `"fio version"` in FIO JSON output | Modify SQL query to use `JSON_VALUE(fio_json_output, '$."fio version"')` with escape quotes. |
+| **Missing Baseline Dataset** | Baseline BQ table does not exist or dataset path is invalid | Fall back gracefully to intra-run comparisons (gRPC vs HTTP/1.1, NUMA vs non-NUMA). Document absence of baseline in report. |
+| **Invalid Cross-Target Comparison** | Attempting to compare GCE VM vs GKE Cluster directly | Do NOT perform cross-target comparison or flag deltas as regressions unless explicitly requested by user. Keep target performance tables isolated. |
+| **Machine Family Missing in `params.yaml`** | New GCE machine type (e.g., `c4`) not registered in GCSFuse repo | Document item under High-Performance Machine Type Classification section of report as a required PR task. |
+
+## Verification Checks
+
+1. **File Existence Check**: Verify that `npi_validation_report.md` exists and is non-empty:
+   ```bash
+   test -s npi_validation_report.md && echo "Report generated successfully"
+   ```
+2. **SLA Verdict Verification**: Confirm that Executive Summary explicitly contains a PASS or FAIL / REJECTED statement regarding the 20 GB/s non-pinned SLA gate:
+   ```bash
+   grep -E "(PASS|FAIL|REJECTED)" npi_validation_report.md
+   ```
+3. **Hardware Specs Verification**: Ensure system specification table fields (CPU, RAM, OS, Disk Buffer) are fully populated from BigQuery `host_info` without missing `N/A` placeholders for valid metrics.

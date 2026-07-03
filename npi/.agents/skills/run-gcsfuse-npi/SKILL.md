@@ -1,17 +1,188 @@
 ---
 name: run-gcsfuse-npi
-description: High-level entrypoint and index for GCSFuse NPI validation and benchmarking skills.
+description: Master entrypoint and orchestration skill for running the end-to-end GCSFuse Network Performance Improvement (NPI) pipeline across 6 modular skills, coordinating SSH socket setup, target buffer mounting via raid0-script.sh, image building via build_images.py, POSIX conformance testing via make npi-conformance, benchmark suite execution via npi_orchestrator.py, analysis and validation report generation in npi_validation_report.md, and remediation planning in npi_remediation_plan.md.
 ---
 
-# GCSFuse NPI Validation and Benchmarking Skill Index
+# GCSFuse NPI Master Orchestration Entrypoint
 
-This index references the modularized, agent-specific skills for running GCSFuse Network Performance Improvement (NPI) verification, conformance testing, performance benchmarking, analysis, and remediation planning.
+This skill serves as the primary master entrypoint for executing and orchestrating the complete end-to-end GCSFuse Network Performance Improvement (NPI) validation, benchmarking, POSIX conformance testing, analysis, and remediation pipeline across all 6 modular skills.
 
-## Modular Skills Index
+---
 
-1.  **[SSH Connection Management](../ssh-connection-management/SKILL.md)**: Focuses on persistent SSH socket multiplexing, checking and cleaning up stale socket files, establishing the master SSH connection, verifying status, and handling target-specific socket paths.
-2.  **[Conformance Testing](../conformance-testing/SKILL.md)**: Guides on cloning the official GCSFuse repository, executing integration and conformance tests on target GCE VMs, and generating a structured `conformance_results_<TARGET_NAME>.json`.
-3.  **[Benchmark Build & Setup](../benchmark-build-setup/SKILL.md)**: Focuses on checking out the GCSFuse repository, building Docker/GKE benchmark images locally or on the target, configuring registry access, pushing built images to Artifact Registry, and verifying image availability.
-4.  **[Benchmark Suite Execution](../benchmark-suite-execution/SKILL.md)**: Focuses on executing benchmarking workflows (GCE VM FIO tests, GKE container tests) using `npi_orchestrator.py`, parameterizing VM/cluster names dynamically from configured inputs like `targets.json`, handling parameters, verifying BQ table exports, and monitoring job states.
-5.  **[Analysis & Report Generation](../analysis-report-generation/SKILL.md)**: Focuses on querying BigQuery tables for throughput/latency metrics, comparing results against baseline runs, and generating a standardized `npi_validation_report.md`.
-6.  **[Remediation Advisor](../remediation-advisor/SKILL.md)**: Focuses on debugging regressions, errors (e.g. Direct Path fallbacks, TLS handshake errors), or resource constraints (e.g. GKE TPU OOMs), and outlining a structured `npi_remediation_plan.md`.
+## Prerequisites & Trigger Conditions
+
+### Prerequisites
+1. **GCP Project Access & Credentials**: Local environment configured with `gcloud`, `kubectl`, and `bq` CLI tools with permissions to create storage resources, push container images, run GKE workloads, and write to BigQuery.
+2. **GCSFuse Source Checkout**: Local repository clone of GCSFuse.
+3. **Target Specifications (`targets.json`)**: Pre-populated `targets.json` defining target GCE VMs, GKE clusters, storage buffer paths, node selectors, and GCP buckets.
+4. **SSH Access**: Configured SSH key at `~/.ssh/google_compute_engine` for connecting to target GCE VMs and GKE intermediate controller nodes.
+
+### Trigger Conditions
+- Initiating end-to-end GCSFuse NPI qualification for a new software release or platform target.
+- Dispatched when requested to execute full pipeline: SSH Connection -> Target Setup -> Conformance Testing -> Benchmark Suite Execution -> Analysis & Validation Report -> Remediation Advisory.
+
+---
+
+## Input/Output Contract
+
+### Inputs
+- **`targets.json`**: Target configurations schema defining target names, VM names, zones, bucket names, BigQuery dataset prefixes, buffer mount paths, and machine configurations.
+- **Workflow Parameters**: Image tag version (`<IMAGE_VERSION>`), GCSFuse version tag (`<GCSFUSE_VERSION>`), iteration count, benchmark selection (`read_parallel`, `write_parallel`, `all`).
+- **Baseline Dataset ID** (Optional): Historical BigQuery dataset ID for regression comparison.
+
+### Outputs
+- **Lifecycle Artifacts**:
+  1. Active master SSH sockets at `~/.ssh/sockets/<TARGET_NAME>.sock` (via `ssh-connection-management`).
+  2. Mounted target storage buffers (RAID0 or `tmpfs` RAM disk) and pushed container image `us-docker.pkg.dev/<PROJECT_ID>/gcsfuse-npi-images:<IMAGE_VERSION>` (via `benchmark-build-setup`).
+  3. `conformance_results_<TARGET_NAME>.json` for GCE VM targets (via `conformance-testing`).
+  4. BigQuery benchmark datasets (`<prefix>_regional` or `_zonal`) containing `host_info` and `fio_*` metrics (via `benchmark-suite-execution`).
+  5. `npi_validation_report.md` with explicit PASS/FAIL verdict for the 20 GB/s non-pinned SLA gate (via `analysis-report-generation`).
+  6. `npi_remediation_plan.md` outlining tuning recommendations if SLA gate fails or regressions >5% occur (via `remediation-advisor`).
+
+---
+
+## Step-by-Step Procedure
+
+The end-to-end pipeline executes sequentially through 6 modular phases:
+
+```
++-----------------------------------------------------------------------------------+
+| Phase 1: SSH Connection Management                                               |
+| Establish persistent SSH master multiplexing sockets for all targets             |
++-----------------------------------------------------------------------------------+
+                                         |
+                                         v
++-----------------------------------------------------------------------------------+
+| Phase 2: Benchmark Build & Target Setup                                          |
+| Mount RAID0 / tmpfs RAM disks, configure Docker, build & push container images   |
++-----------------------------------------------------------------------------------+
+                                         |
+                                         v
++-----------------------------------------------------------------------------------+
+| Phase 3: POSIX Conformance & Integration Testing                                  |
+| Execute `make npi-conformance` on GCE VMs (skip GKE) & export JSON results        |
++-----------------------------------------------------------------------------------+
+                                         |
+                                         v
++-----------------------------------------------------------------------------------+
+| Phase 4: Benchmark Suite Execution                                                |
+| Execute `npi_orchestrator.py` across targets, monitor safety rules, export to BQ|
++-----------------------------------------------------------------------------------+
+                                         |
+                                         v
++-----------------------------------------------------------------------------------+
+| Phase 5: Analysis & Validation Report Generation                                  |
+| Query BQ, verify 20 GB/s non-pinned SLA gate, generate `npi_validation_report.md` |
++-----------------------------------------------------------------------------------+
+                                         |
+                                         v
++-----------------------------------------------------------------------------------+
+| Phase 6: Remediation Advisory (Conditional)                                      |
+| If SLA gate fails or regressions >5% occur, compile `npi_remediation_plan.md`    |
++-----------------------------------------------------------------------------------+
+```
+
+### Phase 1: Establish Persistent SSH Connections
+*Skill Reference*: **[SSH Connection Management](../ssh-connection-management/SKILL.md)**
+1. Create socket directory `mkdir -p ~/.ssh/sockets`.
+2. Clean stale socket files `rm -f ~/.ssh/sockets/*.sock`.
+3. Establish master connections for each target in `targets.json`:
+   ```bash
+   ssh -N -M -S ~/.ssh/sockets/<TARGET_NAME>.sock -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ~/.ssh/google_compute_engine <SSH_USER>@nic0.<VM_NAME>.<ZONE>.c.<PROJECT_ID>.internal.gcpnode.com
+   ```
+4. Verify connection liveness with `echo 'Connection Alive'`.
+
+### Phase 2: Target Buffer Setup & Image Build
+*Skill Reference*: **[Benchmark Build & Setup](../benchmark-build-setup/SKILL.md)**
+1. Check if target buffer is already mounted (`mountpoint -q <SSD_MOUNT_PATH>`). If not, execute `raid0-script.sh` on target.
+2. Install Docker, add user to `docker` group (`usermod -aG docker`).
+3. **CRITICAL**: Recreate SSH multiplexing socket (`rm -f ~/.ssh/sockets/<TARGET_NAME>.sock` + relaunch Phase 1 master command) to apply docker group session changes.
+4. Configure Artifact Registry credentials locally and remotely (`gcloud auth configure-docker us-docker.pkg.dev`).
+5. Execute image build script:
+   ```bash
+   python3 build_images.py --project <PROJECT_ID> --image-version <IMAGE_VERSION> --gcsfuse-version <GCSFUSE_VERSION>
+   ```
+6. Restore matrix files if smoke-test matrices were edited (`git restore fio/read_matrix.csv fio/write_matrix.csv`).
+
+### Phase 3: POSIX Conformance Testing (GCE VMs Only)
+*Skill Reference*: **[Conformance Testing](../conformance-testing/SKILL.md)**
+1. **GKE Target Check**: If target is a GKE cluster, skip conformance testing (document skip policy).
+2. For GCE VM targets, clone GCSFuse repo on target VM (`~/gcsfuse`).
+3. Execute standardized Makefile target:
+   ```bash
+   ssh -S ~/.ssh/sockets/<TARGET_NAME>.sock ... "cd ~/gcsfuse && make npi-conformance PROJECT=<PROJECT_ID> BUCKET_LOCATION=<REGION> READ_AHEAD_KB=128 > ~/integration_tests.log 2>&1"
+   ```
+4. Monitor remote log growth. If log size stalls for >5 minutes, kill processes (`pkill -9`), force unmount (`umount -f`), clean temp files, and record stall.
+5. Parse `~/integration_tests.log` and copy `conformance_results_<TARGET_NAME>.json` back to local orchestrator. Enforce non-blocking policy on permission failures.
+
+### Phase 4: Benchmark Suite Execution
+*Skill Reference*: **[Benchmark Suite Execution](../benchmark-suite-execution/SKILL.md)**
+1. Verify host-level OS tuning (LRO/GRO offloads, RFS/RPS packet steering) on target VMs.
+2. For fresh runs, clean run state file: `rm -f ~/.npi/npi_run_state.json`.
+3. Launch benchmark orchestrator:
+   ```bash
+   python3 npi_orchestrator.py --benchmarks "<BENCHMARK_LIST>" --image-version <IMAGE_VERSION> --iterations <ITERATION_COUNT>
+   ```
+4. Active monitoring during run: enforce 4-hour inactivity log timeout, 85% buffer disk space limit, and TPU memory volume RAM disk flags (`--use-memory-volumes`).
+
+### Phase 5: Analysis & Validation Report Generation
+*Skill Reference*: **[Analysis & Report Generation](../analysis-report-generation/SKILL.md)**
+1. Query host metadata from BigQuery `<DATASET_PREFIX>_regional.host_info`.
+2. Query performance metrics from `<DATASET_PREFIX>_regional.fio_*` using quoted JSON keys (`JSON_VALUE(fio_json_output, '$."fio version"')`).
+3. Evaluate baseline comparisons (if baseline dataset available) and intra-run comparisons (gRPC vs HTTP/1.1, NUMA vs non-NUMA).
+4. Evaluate strict **20 GB/s SLA Gate**: 1G file size, 1M block size, 128 numjobs, 10 files sequential reads without caches in **standard, non-NUMA-pinned runs**. Mark as **FAIL / REJECTED** if non-pinned throughput < 20 GB/s.
+5. Inspect `params.yaml` for machine type classification (`c4-standard-96`).
+6. Compile findings into `npi_validation_report.md`.
+
+### Phase 6: Remediation Advisory Plan (Conditional)
+*Skill Reference*: **[Remediation Advisor](../remediation-advisor/SKILL.md)**
+1. If SLA gate fails (< 20 GB/s non-pinned), performance regresses >5%, or conformance tests fail:
+   - Analyze root causes across FUSE queue depths (`--max-background=512`), gRPC connection pools (`--experimental-grpc-conn-pool-size=128`), HTTP max connections, OS LRO/GRO offloads (`ethtool`), and RFS/RPS packet steering (`sysctl`).
+2. Generate structured advisory document `npi_remediation_plan.md`. Enforce Advisory-Only policy (do NOT auto-execute remediation commands).
+
+---
+
+## Failure Modes & Edge Cases
+
+| Pipeline Phase | Failure Scenario | Detection Criteria | Recovery / Remediation Action |
+|---|---|---|---|
+| **Phase 1: SSH** | Stale control socket | `Control socket connect failed: Connection refused` | Run `rm -f ~/.ssh/sockets/*.sock` and re-establish SSH master connection. |
+| **Phase 2: Setup** | Docker permission denied | `permission denied while trying to connect to Docker daemon` | Close socket (`rm -f ~/.ssh/sockets/<TARGET_NAME>.sock`) and recreate master SSH connection to refresh user group IDs. |
+| **Phase 2: Setup** | No local SSDs on VM | `has_ssd: false` or `lsblk` shows no NVMe SSDs | `raid0-script.sh` falls back automatically to verify >=550GB RAM and mount 500GB `tmpfs` RAM disk. |
+| **Phase 3: Conformance** | 5-Minute Log Inactivity Stall | `~/integration_tests.log` file size unchanged for >5 min | Execute process kill (`pkill -9 -f 'go test'`), force unmount (`umount -f`), clean `/tmp/gcsfuse_*`, and document stall in JSON deliverable. |
+| **Phase 3: Conformance** | Permission Test Failures | `PermissionDenied` error in integration log | Non-blocking policy: do NOT halt pipeline. Log errors in JSON deliverable and continue to Phase 4. |
+| **Phase 4: Benchmark** | 4-Hour Inactivity Timeout | Orchestrator log shows 14,400s without output | Abort run, clean state file (`rm -f ~/.npi/npi_run_state.json`), check socket connection, and retrigger. |
+| **Phase 4: Benchmark** | Disk Buffer Usage > 85% | Storage buffer disk usage exceeds 85% threshold | Abort GCE runs, purge test output directory `/mnt/lssd/*` or increase buffer disk size. |
+| **Phase 5: Analysis** | Non-pinned Throughput < 20 GB/s | Non-pinned 1G sequential read throughput < 20 GB/s | Mark overall NPI validation as **FAIL / REJECTED** in Executive Summary. Auto-trigger Phase 6 Remediation Advisor. |
+| **Phase 6: Remediation** | Unrequested System Edit | Attempting to run `sysctl` or `ethtool` on remote host | Enforce Advisory-Only policy. Never auto-execute system configuration changes. Output recommended commands to `npi_remediation_plan.md`. |
+
+---
+
+## Verification Checks
+
+Verify complete end-to-end pipeline deliverables upon completion:
+
+1. **Phase 1 Socket Check**:
+   ```bash
+   ls -la ~/.ssh/sockets/
+   ```
+2. **Phase 2 Image Check**:
+   ```bash
+   gcloud artifacts docker images list us-docker.pkg.dev/<PROJECT_ID>/gcsfuse-npi-images --image-format='value(format("{0}:{1}",package,tag))' | grep "<IMAGE_VERSION>"
+   ```
+3. **Phase 3 Conformance JSON Check** (for GCE VM targets):
+   ```bash
+   test -s ./conformance_results_<TARGET_NAME>.json && jq .summary ./conformance_results_<TARGET_NAME>.json
+   ```
+4. **Phase 4 BigQuery Metrics Check**:
+   ```sql
+   SELECT run_timestamp, cpu_arch, num_cpus FROM `<PROJECT_ID>.<BQ_DATASET_ID>.host_info` LIMIT 5;
+   ```
+5. **Phase 5 Validation Report Check**:
+   ```bash
+   test -s npi_validation_report.md && grep -E "(PASS|FAIL|REJECTED)" npi_validation_report.md
+   ```
+6. **Phase 6 Remediation Plan Check** (if SLA failed or regressions detected):
+   ```bash
+   test -s npi_remediation_plan.md && grep -E "(Identified Issues|Phase 1|Phase 2)" npi_remediation_plan.md
+   ```
