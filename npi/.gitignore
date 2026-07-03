@@ -1,5 +1,7 @@
 # Ephemeral agent execution workspace
-.agents/
+.agents/*
+!.agents/skills/
+!.agents/agents/
 
 # NPI Run output/test results
 conformance_results.json
