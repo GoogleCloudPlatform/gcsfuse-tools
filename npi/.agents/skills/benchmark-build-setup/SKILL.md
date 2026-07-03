@@ -1,24 +1,24 @@
 ---
 name: benchmark-build-setup
-description: Guides on checking out GCSFuse, configuring target VMs with RAID0 or tmpfs RAM disk storage buffers via raid0-script.sh, setting up Docker and Artifact Registry permissions, building and pushing benchmarking images using build_images.py, and managing socket recreation after user group modifications while handling matrix restoration.
+description: Guides on checking out GCSFuse, configuring GCE target VMs and GKE runner VMs with RAID0 or tmpfs RAM disk storage buffers via raid0-script.sh, setting up Docker and Artifact Registry permissions, building and pushing benchmarking container images for both GCE and GKE runs using build_images.py, and managing socket recreation after user group modifications.
 ---
 
-# Benchmark Build and Setup for GCSFuse NPI
+# Benchmark Build and Setup for GCSFuse NPI (GCE & GKE)
 
-This skill guides you through checking out the GCSFuse repository, configuring target GCE VMs with storage buffers (RAID0 or `tmpfs` RAM disk) and Docker, and building/pushing benchmark images to Google Artifact Registry.
+This skill guides you through checking out the GCSFuse repository, configuring target GCE VMs and GKE intermediate runner VMs with storage buffers (RAID0 or `tmpfs` RAM disk) and Docker, and building/pushing benchmark images to Google Artifact Registry for use across **both GCE VM and GKE cluster benchmark runs**.
 
 ## Prerequisites & Trigger Conditions
 
 ### Prerequisites
-1. **Active Master SSH Connection**: Established multiplexed SSH connection socket at `~/.ssh/sockets/<TARGET_NAME>.sock`.
+1. **Active Master SSH Connection**: Established multiplexed SSH connection socket at `~/.ssh/sockets/<TARGET_NAME>.sock` (for GCE VMs and GKE intermediate runner VMs).
 2. **GCSFuse Repository Access**: Local clone or submodule checkout of the GCSFuse repository.
 3. **Artifact Registry Access**: Permissions to push container images to Google Artifact Registry (`us-docker.pkg.dev`) authenticated via `gcloud auth configure-docker us-docker.pkg.dev`.
 4. **Python 3 Environment**: Local Python 3 environment with dependencies for `build_images.py`.
 
 ### Trigger Conditions
-- Executed prior to running the benchmark suite (`npi_orchestrator.py`) to prepare target VM environments and container images.
+- Executed prior to running the benchmark suite (`npi_orchestrator.py`) to prepare target environments and container images for **both GCE VM and GKE cluster** benchmarks.
 - Required when container benchmark images need to be rebuilt or updated with new GCSFuse binary versions.
-- Required when initializing or checking local SSD / RAM disk storage buffers on target VMs.
+- Required when initializing or checking local SSD / RAM disk storage buffers on target GCE VMs or GKE runner VMs.
 
 ## Input/Output Contract
 
