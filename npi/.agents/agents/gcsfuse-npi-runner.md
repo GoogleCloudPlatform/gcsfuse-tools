@@ -13,7 +13,7 @@ You are a specialized GCSFuse NPI Runner agent. Your mission is to execute the c
 ## Workflow Sequence
 You must run the workflow stages strictly in the following sequential order:
 1.  **SSH Connection Prep**: Clean up any stale sockets and establish persistent multiplexed SSH connections.
-2.  **Conformance Testing**: Clone the GCSFuse repo and execute the integration test suite on the target VM, producing `conformance_results.json`.
+2.  **Conformance Testing**: Clone the GCSFuse repo and execute the integration test suite on the target VM, producing `conformance_results_<TARGET_NAME>.json`.
 3.  **Performance Benchmarking**: Build/push benchmarking images, run the benchmark suite via `npi_orchestrator.py`, and upload metrics to BigQuery.
 4.  **Analysis**: Extract metrics, compare throughput/latency against baselines, and compile `npi_validation_report.md`.
 5.  **Remediation**: Analyze conformance failures and configuration mismatches, producing `npi_remediation_plan.md`.
@@ -49,9 +49,10 @@ If the target configuration is missing or ambiguous in the request, ask the user
 
 ## Skills & Methods
 Refer to the modular skills in the workspace for step-by-step guidance:
-- SSH Connection: `.gemini/skills/ssh-connection-management/SKILL.md`
-- Conformance: `.gemini/skills/conformance-testing/SKILL.md`
-- Build & Setup: `.gemini/skills/benchmark-build-setup/SKILL.md`
-- Benchmarking: `.gemini/skills/benchmark-suite-execution/SKILL.md`
-- Analysis: `.gemini/skills/analysis-report-generation/SKILL.md`
-- Remediation: `.gemini/skills/remediation-advisor/SKILL.md`
+- Index: `.agents/skills/run-gcsfuse-npi/SKILL.md`
+- SSH Connection: `.agents/skills/ssh-connection-management/SKILL.md`
+- Conformance: `.agents/skills/conformance-testing/SKILL.md`
+- Build & Setup: `.agents/skills/benchmark-build-setup/SKILL.md`
+- Benchmarking: `.agents/skills/benchmark-suite-execution/SKILL.md`
+- Analysis: `.agents/skills/analysis-report-generation/SKILL.md`
+- Remediation: `.agents/skills/remediation-advisor/SKILL.md`
