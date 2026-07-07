@@ -15,7 +15,8 @@ build_gcsfuse_for_commit() {
     
     # Clone if not exists
     if [ ! -d "$BUILD_DIR" ]; then
-        git clone https://github.com/GoogleCloudPlatform/gcsfuse.git "$BUILD_DIR" >&2
+        GCSFUSE_REPO="${GCSFUSE_REPO:-https://github.com/GoogleCloudPlatform/gcsfuse.git}"
+        git clone "$GCSFUSE_REPO" "$BUILD_DIR" >&2
     fi
     
     cd "$BUILD_DIR"
@@ -31,14 +32,26 @@ build_gcsfuse_for_commit() {
     export GO111MODULE=auto
     mkdir -p "$BUILD_DIR/bin" "$BUILD_DIR/sbin"
     
+    local MOD_FLAG=""
+    # Sync vendor directory with go mod vendor to prevent Go 1.25 inconsistent vendoring errors across all branches
+    if [ -d "vendor" ]; then
+        echo "Syncing vendor directory with go mod vendor..." >&2
+        if ! go mod vendor >&2; then
+            echo "WARNING: go mod vendor failed on existing directory. Cleaning vendor/ and retrying..." >&2
+            rm -rf vendor
+            go mod vendor >&2
+        fi
+        MOD_FLAG="-mod=vendor"
+    fi
+    
     # Build binaries using -C and -o
     # -C tells Go to run the build inside the source directory
     # -o specifies the exact path for the resulting binary
-    go build -C "$BUILD_DIR" -o "$BUILD_DIR/bin/gcsfuse" \
+    go build -C "$BUILD_DIR" $MOD_FLAG -o "$BUILD_DIR/bin/gcsfuse" \
         -ldflags "-X github.com/googlecloudplatform/gcsfuse/v3/common.gcsfuseVersion=$COMMIT" \
         github.com/googlecloudplatform/gcsfuse/v3 >&2
         
-    go build -C "$BUILD_DIR" -o "$BUILD_DIR/sbin/mount.gcsfuse" \
+    go build -C "$BUILD_DIR" $MOD_FLAG -o "$BUILD_DIR/sbin/mount.gcsfuse" \
         github.com/googlecloudplatform/gcsfuse/v3/tools/mount_gcsfuse >&2
     
     # Output the final path
