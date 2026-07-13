@@ -8,7 +8,7 @@ from google.cloud import storage
 db_write_lock = threading.Lock()
 
 DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "dashboard.db")
-DASHBOARD_BUCKET = "dmb-db"
+DASHBOARD_BUCKET = os.environ.get("DASHBOARD_BUCKET", "dmb-db")
 GCS_DB_BLOB = "dashboard/dashboard.db"
 
 def download_db_from_gcs():
@@ -88,6 +88,12 @@ def init_db():
         cursor.execute("SELECT is_starred FROM ui_runs LIMIT 1")
     except sqlite3.OperationalError:
         cursor.execute("ALTER TABLE ui_runs ADD COLUMN is_starred INTEGER DEFAULT 0")
+        
+    # Auto-migrate: Add metrics_json column if it doesn't exist
+    try:
+        cursor.execute("SELECT metrics_json FROM ui_runs LIMIT 1")
+    except sqlite3.OperationalError:
+        cursor.execute("ALTER TABLE ui_runs ADD COLUMN metrics_json TEXT")
         
     # Create ui_presets table
     cursor.execute("""
@@ -190,6 +196,15 @@ def update_run_status(benchmark_id, status, started_at=None, completed_at=None):
             cursor.execute("UPDATE ui_runs SET status = ?, completed_at = ? WHERE benchmark_id = ?", (status, completed_at, benchmark_id))
         else:
             cursor.execute("UPDATE ui_runs SET status = ? WHERE benchmark_id = ?", (status, benchmark_id))
+        conn.commit()
+        conn.close()
+        upload_db_to_gcs()
+
+def update_run_metrics(benchmark_id, metrics_json_str):
+    with db_write_lock:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("UPDATE ui_runs SET metrics_json = ? WHERE benchmark_id = ?", (metrics_json_str, benchmark_id))
         conn.commit()
         conn.close()
         upload_db_to_gcs()

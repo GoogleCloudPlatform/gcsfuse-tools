@@ -276,9 +276,21 @@ async def execute_orchestrator(run, resume: bool = False):
                 logger.error(f"Subprocess failed with exit code {exit_code} for {benchmark_id}")
                 db.update_run_status(benchmark_id, "failed", completed_at=datetime.utcnow().isoformat())
                 
+            # Pre-cache metrics
+            try:
+                logger.info(f"Pre-calculating and caching metrics for finished run {benchmark_id}...")
+                _compare_runs_sync(benchmark_id, run.get("project", "gcs-fuse-test-ml"))
+            except Exception as cache_err:
+                logger.error(f"Failed to pre-cache metrics for {benchmark_id}: {cache_err}")
+                
     except Exception as e:
         logger.error(f"Failed to execute orchestrator process for {benchmark_id}: {e}", exc_info=True)
         db.update_run_status(benchmark_id, "failed", completed_at=datetime.utcnow().isoformat())
+        try:
+            logger.info(f"Pre-calculating and caching metrics for failed run {benchmark_id}...")
+            _compare_runs_sync(benchmark_id, run.get("project", "gcs-fuse-test-ml"))
+        except Exception as cache_err:
+            logger.error(f"Failed to pre-cache metrics for {benchmark_id}: {cache_err}")
     finally:
         active_processes.pop(benchmark_id, None)
 
@@ -369,11 +381,13 @@ def GCE_lookup_project_and_zone(resource_name: str):
                 "--filter", f"name={resource_name}",
                 "--format", "value(zone.basename())"
             ]
-            output = subprocess.check_output(cmd, stderr=subprocess.DEVNULL).decode("utf-8").strip()
+            output = subprocess.check_output(cmd, stderr=subprocess.PIPE).decode("utf-8").strip()
             if output:
                 return proj, output
-        except Exception:
-            pass
+        except subprocess.CalledProcessError as e:
+            logger.warning(f"gcloud instances list failed for project {proj}: {e.stderr.decode('utf-8').strip()}")
+        except Exception as e:
+            logger.warning(f"gcloud instances list failed for project {proj}: {e}")
             
     # Try looking for an instance group (MIG)
     for proj in projects:
@@ -384,11 +398,13 @@ def GCE_lookup_project_and_zone(resource_name: str):
                 "--filter", f"name={resource_name}",
                 "--format", "value(zone.basename())"
             ]
-            output = subprocess.check_output(cmd, stderr=subprocess.DEVNULL).decode("utf-8").strip()
+            output = subprocess.check_output(cmd, stderr=subprocess.PIPE).decode("utf-8").strip()
             if output:
                 return proj, output
-        except Exception:
-            pass
+        except subprocess.CalledProcessError as e:
+            logger.warning(f"gcloud instance-groups list failed for project {proj}: {e.stderr.decode('utf-8').strip()}")
+        except Exception as e:
+            logger.warning(f"gcloud instance-groups list failed for project {proj}: {e}")
             
     return None, None
 
@@ -1066,9 +1082,20 @@ def _compare_runs_sync(ids: str, project_id: str):
         raise HTTPException(status_code=400, detail="No run IDs specified")
 
     try:
+        import json
         data = {}
         for rid in id_list:
             run_config = db.get_run(rid)
+            
+            # Check cached metrics in DB first
+            if run_config and run_config.get("metrics_json"):
+                try:
+                    logger.info(f"Using cached metrics from SQLite DB for {rid}")
+                    data[rid] = json.loads(run_config["metrics_json"])
+                    continue
+                except Exception as cache_err:
+                    logger.error(f"Failed to parse cached metrics JSON for {rid}: {cache_err}. Re-fetching.")
+            
             proj = run_config.get("project", project_id) if run_config else project_id
             
             # 1. Try resolving table in BigQuery first
@@ -1089,6 +1116,14 @@ def _compare_runs_sync(ids: str, project_id: str):
                     data[rid] = fetch_metrics_from_gcs(rid, run_config)
                 else:
                     data[rid] = []
+                
+                # Cache GCS results in DB if the run is finalized
+                if run_config and run_config.get("status") not in ["running", "queued"] and data[rid]:
+                    try:
+                        logger.info(f"Caching GCS metrics to DB for finished run {rid}")
+                        db.update_run_metrics(rid, json.dumps(data[rid]))
+                    except Exception as save_err:
+                        logger.error(f"Failed to cache GCS metrics to DB for {rid}: {save_err}")
                 continue
                 
             query = f"""
@@ -1123,6 +1158,14 @@ def _compare_runs_sync(ids: str, project_id: str):
                     "peak_bw": max(row.read_bw_mbs or 0.0, row.write_bw_mbs or 0.0)
                 })
             data[rid] = rows
+            
+            # Cache BigQuery results in DB if the run is finalized
+            if run_config and run_config.get("status") not in ["running", "queued"] and data[rid]:
+                try:
+                    logger.info(f"Caching BigQuery metrics to DB for finished run {rid}")
+                    db.update_run_metrics(rid, json.dumps(data[rid]))
+                except Exception as save_err:
+                    logger.error(f"Failed to cache BigQuery metrics to DB for {rid}: {save_err}")
             
         return data
         

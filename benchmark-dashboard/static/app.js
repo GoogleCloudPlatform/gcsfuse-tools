@@ -1053,6 +1053,7 @@ function expandRunDetails(btn, id) {
         icon.className = "fa-solid fa-chevron-up text-sm";
         fetchHistoryLogs(id);
         fetchHistoryTestOutputs(id);
+        plotOnDemand(id);
     } else {
         row.classList.add('hidden');
         icon.className = "fa-solid fa-chevron-down text-sm";
