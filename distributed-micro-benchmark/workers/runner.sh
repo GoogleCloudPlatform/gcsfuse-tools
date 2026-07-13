@@ -180,6 +180,8 @@ execute_test() {
     jq ".tests += [{\"matrix_id\":$MATRIX_ID,\"test_id\":$TEST_ID,\"config_id\":$CONFIG_ID,\"status\":\"success\",\"params\":$TEST_PARAMS}]" manifest.json > manifest_tmp.json
     mv manifest_tmp.json manifest.json
     
+    # Upload progress manifest and results to GCS
+    gcloud storage cp manifest.json "${RESULT_BASE}/manifest.json"
     gcloud storage cp -r "$TEST_DIR" "${RESULT_BASE}/"
     return 0
 }

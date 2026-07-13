@@ -94,16 +94,23 @@ def run_worker_script(vm_name, zone, project, script_path, benchmark_id, artifac
                 print(f"Failed to upload script to {vm_name}: {e}")
                 raise
     
-    log_file = f"worker_{benchmark_id}.log"
-    remote_script = f"./{os.path.basename(script_path)}"
-
-    # Use shlex.quote to prevent command injection vulnerabilities
-    quoted_script = shlex.quote(remote_script)
+    script_filename = os.path.basename(script_path)
+    quoted_script_filename = shlex.quote(script_filename)
     quoted_id = shlex.quote(benchmark_id)
     quoted_bucket = shlex.quote(artifacts_bucket)
-    quoted_log = shlex.quote(log_file)
     
-    exec_command = f'nohup bash {quoted_script} {quoted_id} {quoted_bucket} > {quoted_log} 2>&1 &'
+    skip_vendor_env = os.environ.get("SKIP_VENDOR_SYNC", "false").lower()
+    exec_command = (
+        f'sudo systemd-run '
+        f'--uid=$(id -u) '
+        f'--gid=$(id -g) '
+        f'--setenv=HOME=$HOME '
+        f'--setenv=PATH=$PATH '
+        f'--setenv=SKIP_VENDOR_SYNC={skip_vendor_env} '
+        f'--unit=dmb-worker-{benchmark_id} '
+        f'--remain-after-exit '
+        f'bash $HOME/{quoted_script_filename} {quoted_id} {quoted_bucket}'
+    )
 
     try:
         gcloud_utils.gcloud_compute_ssh(
@@ -173,11 +180,12 @@ def wait_for_completion(vms, benchmark_id, artifacts_bucket, poll_interval=30, t
     """
     print(f"Waiting for {len(vms)} VMs to complete...")
     
-    deadline = datetime.now() + timedelta(seconds=timeout)
+    has_timeout = timeout > 0
+    deadline = datetime.now() + timedelta(seconds=timeout) if has_timeout else None
     completed_vms = set()
     failed_vms = set()
     
-    while datetime.now() < deadline:
+    while not has_timeout or datetime.now() < deadline:
         # Get granular progress by counting uploaded result files
         progress_counts = _get_vm_test_progress(benchmark_id, artifacts_bucket)
 

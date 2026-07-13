@@ -22,26 +22,36 @@ from . import gcloud_utils
 
 def upload_json(data, gcs_path):
     """Upload JSON data to GCS json path"""
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=True) as f:
+    f = tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False)
+    try:
         json.dump(data, f, indent=2)
         f.flush()
-        
+        f.close()
+        gcloud_utils.gcloud_storage_cp(f.name, gcs_path, retries=3, check=True)
+    except Exception as e:
+        raise RuntimeError(f"Failed to upload to {gcs_path} after 3 attempts: {e}")
+    finally:
         try:
-            gcloud_utils.gcloud_storage_cp(f.name, gcs_path, retries=3, check=True)
-        except Exception as e:
-            raise RuntimeError(f"Failed to upload to {gcs_path} after 3 attempts: {e}")
+            os.remove(f.name)
+        except OSError:
+            pass
 
 
 def download_json(gcs_path):
     """Download the JSON file and returns as dictionary"""
-    with tempfile.NamedTemporaryFile(mode='r', suffix='.json', delete=True) as f:
+    f = tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False)
+    f.close()
+    try:
         result = gcloud_utils.gcloud_storage_cp(gcs_path, f.name, retries=1, check=False)
-        
         if result.returncode != 0:
             return None
-        
         with open(f.name, 'r') as rf:
             return json.load(rf)
+    finally:
+        try:
+            os.remove(f.name)
+        except OSError:
+            pass
 
 
 def upload_test_cases(csv_path, gcs_path):

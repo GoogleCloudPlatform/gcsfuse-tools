@@ -34,3 +34,10 @@ crash.*.log
 .venv/
 .pytest_cache/
 __pycache__/
+
+# GCSFuse Benchmark Dashboard
+benchmark-dashboard/dashboard.db
+benchmark-dashboard/venv/
+distributed-micro-benchmark/test_suites/custom_fio_configs/
+distributed-micro-benchmark/test_suites/custom_test_cases/
+distributed-micro-benchmark/test_suites/custom_mount_configs/

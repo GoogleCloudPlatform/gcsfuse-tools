@@ -1,0 +1,4 @@
+commit,mount_args,label
+v3.9.0_release,"--client-protocol=grpc --metadata-cache-ttl-secs=-1",V3.9.0_release
+autoscale-mrd-connection-pool,"--client-protocol=grpc --metadata-cache-ttl-secs=-1 --mrd-target-pending-ranges=20 --mrd-target-pending-bytes=10485760",PR_Ranges_20_PendingBytes_10MB
+autoscale-mrd-connection-pool,"--client-protocol=grpc --metadata-cache-ttl-secs=-1 --mrd-min-connections=4 --mrd-max-connections=4",PR_Min_Max_4_connections
