@@ -94,17 +94,15 @@ def run_worker_script(vm_name, zone, project, script_path, benchmark_id, artifac
                 print(f"Failed to upload script to {vm_name}: {e}")
                 raise
     
-    log_file = f"worker_{benchmark_id}.log"
     remote_script = f"./{os.path.basename(script_path)}"
 
     # Use shlex.quote to prevent command injection vulnerabilities
     quoted_script = shlex.quote(remote_script)
     quoted_id = shlex.quote(benchmark_id)
     quoted_bucket = shlex.quote(artifacts_bucket)
-    quoted_log = shlex.quote(log_file)
     
     skip_vendor_env = os.environ.get("SKIP_VENDOR_SYNC", "false").lower()
-    exec_command = f'nohup SKIP_VENDOR_SYNC={skip_vendor_env} bash {quoted_script} {quoted_id} {quoted_bucket} > {quoted_log} 2>&1 &'
+    exec_command = f'nohup SKIP_VENDOR_SYNC={skip_vendor_env} bash {quoted_script} {quoted_id} {quoted_bucket} &'
 
     try:
         gcloud_utils.gcloud_compute_ssh(
