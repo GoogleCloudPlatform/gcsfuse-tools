@@ -35,13 +35,17 @@ build_gcsfuse_for_commit() {
     local MOD_FLAG=""
     # Sync vendor directory with go mod vendor to prevent Go 1.25 inconsistent vendoring errors across all branches
     if [ -d "vendor" ]; then
-        echo "Running go mod tidy..." >&2
-        go mod tidy >&2
-        echo "Syncing vendor directory with go mod vendor..." >&2
-        if ! go mod vendor >&2; then
-            echo "WARNING: go mod vendor failed on existing directory. Cleaning vendor/ and retrying..." >&2
-            rm -rf vendor
-            go mod vendor >&2
+        if [ "$SKIP_VENDOR_SYNC" = "true" ]; then
+            echo "SKIP_VENDOR_SYNC is set to true. Skipping go mod vendor sync and using existing tracked vendor directory." >&2
+        else
+            echo "Running go mod tidy..." >&2
+            go mod tidy >&2
+            echo "Syncing vendor directory with go mod vendor..." >&2
+            if ! go mod vendor >&2; then
+                echo "WARNING: go mod vendor failed on existing directory. Cleaning vendor/ and retrying..." >&2
+                rm -rf vendor
+                go mod vendor >&2
+            fi
         fi
         MOD_FLAG="-mod=vendor"
     fi

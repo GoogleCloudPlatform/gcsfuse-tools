@@ -480,7 +480,8 @@ async function submitRun(event) {
         test_data_bucket: document.getElementById('test_data_bucket').value.trim(),
         test_csv: document.getElementById('test_csv').value,
         fio_job: document.getElementById('fio_job').value,
-        iterations: parseInt(document.getElementById('iterations').value) || 2
+        iterations: parseInt(document.getElementById('iterations').value) || 2,
+        skip_vendor_sync: document.getElementById('skip_vendor_sync').checked
     };
 
     if (document.getElementById('enable_mig_templates').checked) {
@@ -1203,6 +1204,7 @@ async function cloneRun(id) {
 
         document.getElementById('artifacts_bucket').value = run.artifacts_bucket;
         document.getElementById('test_data_bucket').value = run.test_data_bucket;
+        document.getElementById('skip_vendor_sync').checked = !!run.skip_vendor_sync;
 
         if (run.single_thread_vm_type || run.multi_thread_vm_type) {
             document.getElementById('enable_mig_templates').checked = true;

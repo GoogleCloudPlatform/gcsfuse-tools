@@ -120,6 +120,7 @@ class BenchmarkRunRequest(BaseModel):
     test_csv_content: Optional[str] = None
     fio_job_content: Optional[str] = None
     configs_csv_content: Optional[str] = None
+    skip_vendor_sync: bool = False
 
 
 class FioJobCreateRequest(BaseModel):
@@ -216,13 +217,18 @@ async def execute_orchestrator(run, resume: bool = False):
     logger.info(f"Executing: python3 {' '.join(args)} in {DMB_DIR}")
     
     try:
+        child_env = os.environ.copy()
+        if run.get("skip_vendor_sync"):
+            child_env["SKIP_VENDOR_SYNC"] = "true"
+
         # Open local log file in append mode so resumed logs append
         with open(log_file_path, "a") as log_f:
             process = await asyncio.create_subprocess_exec(
                 "python3", "-u", *args,
                 cwd=str(DMB_DIR),
                 stdout=log_f,
-                stderr=subprocess.STDOUT if hasattr(subprocess, 'STDOUT') else log_f
+                stderr=subprocess.STDOUT if hasattr(subprocess, 'STDOUT') else log_f,
+                env=child_env
             )
             
             try:
@@ -671,7 +677,8 @@ def create_run(run: BenchmarkRunRequest):
         "mount_args": run.mount_args,
         "test_data_bucket": test_data_bucket,
         "artifacts_bucket": artifacts_bucket,
-        "iterations": run.iterations
+        "iterations": run.iterations,
+        "skip_vendor_sync": 1 if run.skip_vendor_sync else 0
     }
 
     db.insert_run(run_record)

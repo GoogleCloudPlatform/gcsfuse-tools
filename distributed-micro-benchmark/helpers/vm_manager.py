@@ -103,7 +103,8 @@ def run_worker_script(vm_name, zone, project, script_path, benchmark_id, artifac
     quoted_bucket = shlex.quote(artifacts_bucket)
     quoted_log = shlex.quote(log_file)
     
-    exec_command = f'nohup bash {quoted_script} {quoted_id} {quoted_bucket} > {quoted_log} 2>&1 &'
+    skip_vendor_env = os.environ.get("SKIP_VENDOR_SYNC", "false").lower()
+    exec_command = f'nohup SKIP_VENDOR_SYNC={skip_vendor_env} bash {quoted_script} {quoted_id} {quoted_bucket} > {quoted_log} 2>&1 &'
 
     try:
         gcloud_utils.gcloud_compute_ssh(

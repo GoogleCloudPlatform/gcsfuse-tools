@@ -95,6 +95,12 @@ def init_db():
     except sqlite3.OperationalError:
         cursor.execute("ALTER TABLE ui_runs ADD COLUMN metrics_json TEXT")
         
+    # Auto-migrate: Add skip_vendor_sync column if it doesn't exist
+    try:
+        cursor.execute("SELECT skip_vendor_sync FROM ui_runs LIMIT 1")
+    except sqlite3.OperationalError:
+        cursor.execute("ALTER TABLE ui_runs ADD COLUMN skip_vendor_sync INTEGER DEFAULT 0")
+        
     # Create ui_presets table
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS ui_presets (
@@ -140,15 +146,16 @@ def insert_run(run_data):
             suite, io_type, executor_vm, zone, project,
             single_thread_vm_type, multi_thread_vm_type, commit_hash,
             test_csv_name, configs_csv_name, fio_job_name,
-            mount_args, test_data_bucket, artifacts_bucket, iterations
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            mount_args, test_data_bucket, artifacts_bucket, iterations,
+            skip_vendor_sync
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             run_data["benchmark_id"], run_data["description"], run_data["username"], "queued",
             run_data["suite"], run_data["io_type"], run_data["executor_vm"], run_data["zone"],
             run_data["project"], run_data.get("single_thread_vm_type"), run_data.get("multi_thread_vm_type"),
             run_data["commit_hash"], run_data["test_csv_name"], run_data.get("configs_csv_name"),
             run_data["fio_job_name"], run_data.get("mount_args"), run_data["test_data_bucket"],
-            run_data["artifacts_bucket"], run_data["iterations"]
+            run_data["artifacts_bucket"], run_data["iterations"], run_data.get("skip_vendor_sync", 0)
         ))
         conn.commit()
         conn.close()
