@@ -1164,6 +1164,30 @@ function viewGcsFile(runId, vm, testDir, filename) {
         });
 }
 
+// Helper to select an option in a dropdown or dynamically add it if it doesn't exist (e.g. ad-hoc/custom files)
+function selectOrAddDropdownOption(selectId, value, label) {
+    const select = document.getElementById(selectId);
+    if (!select) return;
+    
+    // Check if option already exists
+    let exists = false;
+    for (let i = 0; i < select.options.length; i++) {
+        if (select.options[i].value === value) {
+            exists = true;
+            break;
+        }
+    }
+    
+    if (!exists && value) {
+        const opt = document.createElement('option');
+        opt.value = value;
+        opt.innerText = label || `Custom File (${value.split('/').pop()})`;
+        select.appendChild(opt);
+    }
+    
+    select.value = value;
+}
+
 // Clone configurations to launch panel
 async function cloneRun(id) {
     try {
@@ -1192,16 +1216,17 @@ async function cloneRun(id) {
             document.getElementById('multi_thread_vm_type').value = '';
         }
 
-        // Force dropdown options selection
-        document.getElementById('test_csv').value = run.test_csv_name;
+        // Force dropdown options selection, adding ad-hoc paths if missing
+        selectOrAddDropdownOption('test_csv', run.test_csv_name, 'Ad-hoc Test Cases (Cloned)');
         previewConfigFile(run.test_csv_name, 'test-csv-preview');
-        document.getElementById('fio_job').value = run.fio_job_name;
+        
+        selectOrAddDropdownOption('fio_job', run.fio_job_name, 'Ad-hoc FIO Job (Cloned)');
         previewConfigFile(run.fio_job_name, 'fio-job-preview');
 
         if (run.configs_csv_name) {
             document.querySelector('input[name="config_mode"][value="multi"]').checked = true;
             toggleConfigMode();
-            document.getElementById('configs_csv').value = run.configs_csv_name;
+            selectOrAddDropdownOption('configs_csv', run.configs_csv_name, 'Ad-hoc Mount Configs (Cloned)');
             previewConfigFile(run.configs_csv_name, 'configs-csv-preview');
         } else {
             document.querySelector('input[name="config_mode"][value="single"]').checked = true;
@@ -1370,9 +1395,19 @@ async function previewConfigFile(path, elementId) {
 // Custom FIO Config Modal Controls
 function openFioModal() {
     document.getElementById('fio-modal').classList.remove('hidden');
-    // Pre-populate template to guide user
-    if (!document.getElementById('fio_content').value) {
-        document.getElementById('fio_content').value = `[global]
+    
+    const contentText = document.getElementById('fio_content');
+    const filenameInput = document.getElementById('fio_filename');
+    
+    filenameInput.value = '';
+    
+    const currentSelectVal = document.getElementById('fio_job').value;
+    const currentPreviewVal = document.getElementById('fio-job-preview').value.trim();
+    
+    if (currentPreviewVal && currentPreviewVal !== "No file selected." && currentPreviewVal !== "Loading preview...") {
+        contentText.value = currentPreviewVal;
+    } else {
+        contentText.value = `[global]
 ioengine=libaio
 direct=1
 fdatasync=1
@@ -1386,6 +1421,13 @@ time_based=0
 [job1]
 filename=test_file_0
 `;
+    }
+    
+    if (currentSelectVal && currentSelectVal.includes('/custom_fio_jobs/')) {
+        const parts = currentSelectVal.split('/');
+        filenameInput.value = parts[parts.length - 1];
+    } else {
+        filenameInput.placeholder = 'e.g. randwrite_4m_direct.fio';
     }
 }
 
@@ -1435,16 +1477,39 @@ function openCsvModal(type) {
     
     filenameInput.value = '';
     
+    const selectId = type === 'test_cases' ? 'test_csv' : 'configs_csv';
+    const previewId = type === 'test_cases' ? 'test-csv-preview' : 'configs-csv-preview';
+    
+    const currentSelectVal = document.getElementById(selectId).value;
+    const currentPreviewVal = document.getElementById(previewId).value.trim();
+    
+    if (currentPreviewVal && currentPreviewVal !== "No file selected." && currentPreviewVal !== "Loading preview...") {
+        contentText.value = currentPreviewVal;
+    } else {
+        if (type === 'test_cases') {
+            contentText.value = 'IOType,Jobs,FSize,BS,IOD,NrFiles,Direct\nread,1,1g,1m,1,1,0\n';
+        } else {
+            contentText.value = 'config,gcsfuse-commit,gcsfuse-mount-args\ngrpc,master,--client-protocol=grpc --implicit-dirs\n';
+        }
+    }
+    
+    if (currentSelectVal && (currentSelectVal.includes('/custom_test_cases/') || currentSelectVal.includes('/custom_mount_configs/'))) {
+        const parts = currentSelectVal.split('/');
+        filenameInput.value = parts[parts.length - 1];
+    } else {
+        if (type === 'test_cases') {
+            filenameInput.placeholder = 'e.g. read_custom_tests.csv';
+        } else {
+            filenameInput.placeholder = 'e.g. grpc_and_kernel_mounts.csv';
+        }
+    }
+    
     if (type === 'test_cases') {
         title.innerHTML = '<i class="fa-solid fa-file-csv mr-2.5 text-emerald-600"></i>Create Custom Test Cases CSV';
-        filenameInput.placeholder = 'e.g. read_custom_tests.csv';
         contentText.placeholder = 'IOType,Jobs,FSize,BS,IOD,NrFiles,Direct\nread,1,1g,1m,1,1,0\nread,4,1g,256k,8,4,1';
-        contentText.value = 'IOType,Jobs,FSize,BS,IOD,NrFiles,Direct\nread,1,1g,1m,1,1,0\n';
     } else {
         title.innerHTML = '<i class="fa-solid fa-file-shield mr-2.5 text-indigo-650"></i>Create Custom GCSFuse Mount Configs CSV';
-        filenameInput.placeholder = 'e.g. grpc_and_kernel_mounts.csv';
         contentText.placeholder = 'config,gcsfuse-commit,gcsfuse-mount-args\ngrpc,master,--client-protocol=grpc --implicit-dirs\nkernel,master,--implicit-dirs';
-        contentText.value = 'config,gcsfuse-commit,gcsfuse-mount-args\ngrpc,master,--client-protocol=grpc --implicit-dirs\n';
     }
 }
 
