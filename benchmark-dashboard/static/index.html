@@ -101,7 +101,7 @@
 
     <!-- TOP HEADER -->
     <header class="border-b border-slate-200 bg-white sticky top-0 z-40 shadow-sm">
-        <div class="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+        <div class="max-w-[1700px] mx-auto px-6 h-16 flex items-center justify-between">
             <div class="flex items-center space-x-3">
                 <i class="fa-solid fa-gauge-high text-blue-600 text-2xl"></i>
                 <span class="font-bold text-xl tracking-tight bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">GCSFuse Micro-Benchmark</span>
@@ -134,7 +134,7 @@
         </div>
     </header>
 
-    <main class="max-w-7xl mx-auto px-6 py-8">
+    <main class="max-w-[1700px] mx-auto px-6 py-8">
 
         <!-- ================= LAUNCH TAB ================= -->
         <section id="section-launch" class="tab-section">
@@ -147,9 +147,9 @@
                 </div>
             </div>
 
-            <div class="grid grid-cols-1 lg:grid-cols-5 gap-8">
-                <!-- Left Column: Config Form (3/5 width) -->
-                <div class="lg:col-span-3 bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-6">
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                <!-- Left Column: Config Form (7/12 width) -->
+                <div class="lg:col-span-7 bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-6">
                     <h2 class="text-lg font-bold text-slate-800 flex items-center border-b border-slate-100 pb-3">
                         <i class="fa-solid fa-sliders mr-3 text-blue-600"></i>Configure Benchmark Run
                     </h2>
@@ -327,8 +327,8 @@
                     </form>
                 </div>
 
-                <!-- Right Column: Previews and Storage Documentation (2/5 width) -->
-                <div class="lg:col-span-2 space-y-6">
+                <!-- Right Column: Previews and Storage Documentation (5/12 width) -->
+                <div class="lg:col-span-5 space-y-6">
                     <!-- Files Previewer Box -->
                     <div class="bg-white border border-slate-200 rounded-xl p-5 shadow-sm space-y-4">
                         <h3 class="text-md font-bold text-slate-800 flex items-center">
@@ -340,11 +340,11 @@
                             <div class="space-y-1">
                                 <div class="flex items-center justify-between">
                                     <span class="font-bold text-slate-500 uppercase block">Test Cases CSV</span>
-                                    <button type="button" onclick="saveAsPreset('test_cases', 'test-csv-preview')" class="text-[10px] text-blue-600 hover:text-blue-750 font-bold transition flex items-center space-x-1">
+                                    <button type="button" onclick="saveAsPreset('test_cases', 'test-csv-preview')" class="text-[10px] text-blue-600 hover:text-blue-755 font-bold transition flex items-center space-x-1">
                                         <i class="fa-solid fa-cloud-arrow-up"></i><span>Save as Preset</span>
                                     </button>
                                 </div>
-                                <textarea id="test-csv-preview" class="w-full bg-white border border-slate-300 text-slate-755 p-3 rounded font-mono text-[11px] h-48 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/80 resize-y" placeholder="Select a file or edit/paste test cases CSV content here..."></textarea>
+                                <textarea id="test-csv-preview" class="w-full bg-white border border-slate-300 text-slate-755 p-3 rounded font-mono text-[11px] h-72 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/80 resize-y" placeholder="Select a file or edit/paste test cases CSV content here..."></textarea>
                             </div>
 
                             <!-- FIO Job Preview -->
@@ -355,7 +355,7 @@
                                         <i class="fa-solid fa-cloud-arrow-up"></i><span>Save as Preset</span>
                                     </button>
                                 </div>
-                                <textarea id="fio-job-preview" class="w-full bg-white border border-slate-300 text-slate-755 p-3 rounded font-mono text-[11px] h-48 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/80 resize-y" placeholder="Select a file or edit/paste FIO job template content here..."></textarea>
+                                <textarea id="fio-job-preview" class="w-full bg-white border border-slate-300 text-slate-755 p-3 rounded font-mono text-[11px] h-[440px] focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/80 resize-y" placeholder="Select a file or edit/paste FIO job template content here..."></textarea>
                             </div>
 
                             <!-- Mount Configs Preview -->
@@ -608,7 +608,7 @@ value1,value2,value3" class="w-full bg-white border border-slate-300 rounded-lg 
     </div>
 
     <!-- FOOTER -->
-    <footer class="max-w-7xl mx-auto px-6 py-8 border-t border-slate-200 mt-12 text-center text-xs text-slate-400">
+    <footer class="max-w-[1700px] mx-auto px-6 py-8 border-t border-slate-200 mt-12 text-center text-xs text-slate-400">
         <p class="flex items-center justify-center space-x-1.5">
             <i class="fa-solid fa-code-pull-request text-blue-500"></i>
             <span>Want to help improve this dashboard? Feel free to </span>
