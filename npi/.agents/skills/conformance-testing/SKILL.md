@@ -67,11 +67,10 @@ Verify environmental parameters on the target VM (e.g., `GCSFUSE_TEST_BUCKET`).
 >
 > Always invoke this Makefile target instead of running manual `go test` commands.
 
-Execute the conformance test target remotely:
+Execute the conformance test suite remotely using `run_conformance.sh` (which incorporates an automated log size watchdog loop that monitors `~/integration_tests.log` for 5-minute inactivity stalls, terminates deadlocked processes, and cleans up FUSE mounts automatically):
 ```bash
 ssh -S ~/.ssh/sockets/<TARGET_NAME>.sock -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ~/.ssh/google_compute_engine <SSH_USER>@nic0.<VM_NAME>.<ZONE>.c.<PROJECT_ID>.internal.gcpnode.com "bash -s" << 'EOF'
-  cd ~/gcsfuse
-  make npi-conformance PROJECT=<PROJECT_ID> BUCKET_LOCATION=<REGION> READ_AHEAD_KB=128 > ~/integration_tests.log 2>&1
+  PROJECT=<PROJECT_ID> BUCKET_LOCATION=<REGION> READ_AHEAD_KB=128 bash ~/gcsfuse-tools/npi/run_conformance.sh
 EOF
 ```
 

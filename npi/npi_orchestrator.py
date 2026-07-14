@@ -17,12 +17,7 @@ COMMAND_LOG = os.path.join(HOME_DIR, ".npi/npi_commands.log")
 log_lock = threading.Lock()
 
 # Dynamic SSH socket directory resolution:
-# Reuse ~/.ssh/sockets if active socket files exist, otherwise fallback to shorter /tmp/ssh-<user>
-default_socket_dir = os.path.join(HOME_DIR, ".ssh/sockets")
-if os.path.isdir(default_socket_dir) and any(f.endswith(".sock") for f in os.listdir(default_socket_dir)):
-    SOCKET_DIR = default_socket_dir
-else:
-    SOCKET_DIR = os.path.join("/tmp", f"ssh-{local_user}")
+SOCKET_DIR = os.path.join(HOME_DIR, ".ssh/sockets")
 
 # Ensure parent directories for state files, sockets, and logs exist
 os.makedirs(os.path.dirname(STATE_FILE), exist_ok=True)
@@ -232,6 +227,12 @@ def get_last_log_line(socket_path, vm_name, zone, log_path):
         return out.strip()
     return ""
 
+def get_log_file_stat(socket_path, vm_name, zone, log_path):
+    code, out, _ = run_ssh_cmd(socket_path, vm_name, zone, f"stat -c '%Y %s' {log_path} 2>/dev/null", timeout=10)
+    if code == 0 and out.strip():
+        return out.strip()
+    return ""
+
 def get_disk_utilization(socket_path, vm_name, zone, path):
     quoted_path = shlex.quote(path)
     code, out, _ = run_ssh_cmd(socket_path, vm_name, zone, f"df -P {quoted_path}", timeout=10)
@@ -279,7 +280,7 @@ def monitor_run(target, socket_path, state_lock, state):
         save_state(state)
 
     last_log_change_time = time.time()
-    previous_log_line = ""
+    previous_log_stat = ""
     MAX_INACTIVITY_SECS = 14400
     
     consecutive_ssh_failures = 0
@@ -306,27 +307,27 @@ def monitor_run(target, socket_path, state_lock, state):
         running = (running_code == 0)
         
         last_line = get_last_log_line(socket_path, vm_name, zone, log_file)
+        log_stat = get_log_file_stat(socket_path, vm_name, zone, log_file)
         
         with state_lock:
             state[target_name]["last_line"] = last_line
 
-        # Monitor disk space if a buffer mount path is specified
-        buffer_mount = target.get("buffer_mount")
-        if buffer_mount:
-            disk_used = get_disk_utilization(socket_path, vm_name, zone, buffer_mount)
-            if disk_used > 85:
-                print(f"[{target_name}] WARNING: Disk space utilization of {buffer_mount} exceeded 85% ({disk_used}%). Aborting run...")
-                cleanup_remote_run(target, socket_path)
-                with state_lock:
-                    state[target_name]["status"] = "FAILED"
-                    state[target_name]["last_line"] = f"[ABORTED] Disk usage high: {disk_used}%"
-                    save_state(state)
-                break
+        # Monitor disk space on buffer mount path or fallback to root volume '/'
+        disk_check_path = target.get("buffer_mount") or "/"
+        disk_used = get_disk_utilization(socket_path, vm_name, zone, disk_check_path)
+        if disk_used > 85:
+            print(f"[{target_name}] WARNING: Disk space utilization of {disk_check_path} exceeded 85% ({disk_used}%). Aborting run...")
+            cleanup_remote_run(target, socket_path)
+            with state_lock:
+                state[target_name]["status"] = "FAILED"
+                state[target_name]["last_line"] = f"[ABORTED] Disk usage high: {disk_used}%"
+                save_state(state)
+            break
 
-        # Check for log progress/activity
-        if last_line != previous_log_line:
+        # Check for log progress/activity using mtime / size stat change
+        if log_stat and log_stat != previous_log_stat:
             last_log_change_time = time.time()
-            previous_log_line = last_line
+            previous_log_stat = log_stat
         elif running and (time.time() - last_log_change_time > MAX_INACTIVITY_SECS):
             print(f"[{target_name}] WARNING: Log inactivity timeout of {MAX_INACTIVITY_SECS} seconds exceeded. Aborting run...")
             cleanup_remote_run(target, socket_path)
@@ -419,7 +420,10 @@ def execute_target(target, args, state_lock, state):
     zone = target["zone"]
     socket_path = os.path.join(SOCKET_DIR, f"{target_name}.sock")
     
-    if state[target_name]["status"] in ["PENDING", "FAILED"]:
+    with state_lock:
+        target_status = state[target_name]["status"]
+    
+    if target_status in ["PENDING", "FAILED"]:
         try:
             cleanup_remote_run(target, socket_path)
             prep_vm(target, socket_path)
@@ -452,12 +456,21 @@ def execute_target(target, args, state_lock, state):
                     save_state(state)
                 return
 
+            raw_dataset = target["dataset"]
+            if raw_dataset.endswith("_regional"):
+                base_dataset = raw_dataset[:-len("_regional")]
+            elif raw_dataset.endswith("_zonal"):
+                base_dataset = raw_dataset[:-len("_zonal")]
+            else:
+                base_dataset = raw_dataset
+            dataset_id = f"{base_dataset}_regional"
+
             if target["type"] == "gce":
                 python_args = [
                     "python3", "-u", f"/home/{SSH_USER}/gcsfuse-tools/npi/npi.py",
                     "--bucket-name", target["bucket"],
                     "--project-id", args.project,
-                    "--bq-dataset-id", f"{target['dataset']}_regional",
+                    "--bq-dataset-id", dataset_id,
                     "--image-version", args.image_version,
                     "--iterations", str(args.iterations),
                 ]
@@ -483,7 +496,7 @@ def execute_target(target, args, state_lock, state):
                     "--location", location,
                     "--bucket-name", target["bucket"],
                     "--project-id", args.project,
-                    "--bq-dataset-id", f"{target['dataset']}_regional",
+                    "--bq-dataset-id", dataset_id,
                     "--image-version", args.image_version,
                     "--node-selector", node_sel,
                     "--resources-limits", res_lim,
@@ -519,7 +532,7 @@ def execute_target(target, args, state_lock, state):
                 state[target_name]["status"] = "FAILED"
                 save_state(state)
                 
-    elif state[target_name]["status"] == "RUNNING":
+    elif target_status == "RUNNING":
         print(f"[{target_name}] Resuming monitoring of active run on {vm_name}...")
         try:
             monitor_run(target, socket_path, state_lock, state)

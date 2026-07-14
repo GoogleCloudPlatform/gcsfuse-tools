@@ -345,6 +345,23 @@ def setup_kubernetes_service_account(project_id, ksa_name, namespace, buckets, d
     return True
 
 
+def get_host_total_ram_mb():
+    try:
+        with open('/proc/meminfo', 'r') as f:
+            for line in f:
+                if line.startswith('MemTotal:'):
+                    kb = int(line.split()[1])
+                    return kb // 1024
+    except Exception:
+        pass
+    try:
+        pages = os.sysconf('SC_PHYS_PAGES')
+        page_size = os.sysconf('SC_PAGE_SIZE')
+        return (pages * page_size) // (1024 * 1024)
+    except Exception:
+        return 65536
+
+
 def main():
     parser = argparse.ArgumentParser(description="GKE benchmark runner for GCSFuse NPI.")
     parser.add_argument("--bucket-name", required=True, help="Name of the GCS bucket to use.")
@@ -378,7 +395,6 @@ def main():
         action="store_true",
         help="If set, indicates that the bucket is a RAPID bucket. Only gRPC benchmarks will be run."
     )
-    
     parser.add_argument(
         "--use-memory-volumes",
         action="store_true",
@@ -411,6 +427,13 @@ def main():
     )
     
     args = parser.parse_args()
+
+    if args.use_memory_volumes:
+        host_ram_mb = get_host_total_ram_mb()
+        max_allowed_cache_mb = host_ram_mb // 2
+        if args.file_cache_size_mb > max_allowed_cache_mb:
+            print(f"Warning: file_cache_size_mb ({args.file_cache_size_mb} MB) exceeds 50% of physical RAM ({host_ram_mb} MB). Capping file_cache_size_mb to {max_allowed_cache_mb} MB on memory volumes.", file=sys.stderr)
+            args.file_cache_size_mb = max_allowed_cache_mb
 
     node_selector = parse_key_value_pairs(args.node_selector)
     resources_limits = parse_key_value_pairs(args.resources_limits)

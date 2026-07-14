@@ -66,7 +66,7 @@ Configure the storage buffer and Docker workspace on each target VM using the es
    ```
 
 2. **Unified Buffer Setup (Run only if not already mounted)**:
-   If not mounted, copy and execute `raid0-script.sh` on the target VM. The script builds a RAID0 array from local SSDs if present. If no local SSDs exist, it verifies host memory (>= 550GB available) and mounts a 500GB `tmpfs` RAM disk:
+   If not mounted, copy and execute `raid0-script.sh` on the target VM. The script builds a RAID0 array from local SSDs if present. If no local SSDs exist, it dynamically allocates a `tmpfs` RAM disk (sizing up to 50% of physical host RAM when RAM < 550GB, e.g., 64GB on a 128GB VM, or 500GB when RAM >= 550GB):
    ```bash
    # Copy script to target
    scp -S ~/.ssh/sockets/<TARGET_NAME>.sock -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ~/.ssh/google_compute_engine raid0-script.sh <SSH_USER>@nic0.<VM_NAME>.<ZONE>.c.<PROJECT_ID>.internal.gcpnode.com:~/raid0-script.sh
@@ -116,7 +116,7 @@ Build and push benchmarking container images (with FIO and Go-Client) to Google 
 |---|---|---|
 | **Docker Permission Denied on Target** | User added to `docker` group, but SSH session retains stale group ID token | Close active socket (`rm -f ~/.ssh/sockets/<TARGET_NAME>.sock`) and recreate master SSH connection (`ssh -N -M -S ...`). |
 | **RAID0 Setup Fails (`has_ssd: true`)** | Local SSD NVMe devices not detected or busy | Check `lsblk`. If no SSDs exist, update `targets.json` to set `has_ssd: false` and re-run `raid0-script.sh` to use RAM disk. |
-| **Insufficient RAM for RAM Disk (`has_ssd: false`)** | Machine RAM < 550GB | RAM disk buffer requires >=550GB RAM. Change VM machine type to high-memory instance or attach Local SSD. |
+| **Insufficient RAM for 500GB RAM Disk (`has_ssd: false`)** | Machine RAM < 550GB | Dynamically allocate `tmpfs` RAM disk up to 50% of host physical RAM (and cap test dataset sizes accordingly), or attach Local SSDs to host VM. |
 | **Matrix Customizations Left Dirty** | Smoke-test matrix edits accidentally committed or left un-restored | Execute `git restore fio/read_matrix.csv fio/write_matrix.csv` immediately after `build_images.py` finishes. |
 | **Artifact Registry Authentication Denied** | Missing `roles/artifactregistry.writer` role or expired `gcloud` auth token | Run `gcloud auth login` and `gcloud auth configure-docker us-docker.pkg.dev`. Ensure GCP account has Artifact Registry permissions. |
 

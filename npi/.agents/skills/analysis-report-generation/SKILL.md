@@ -72,12 +72,14 @@ bq query --project_id=<PROJECT_ID> --use_legacy_sql=false \
   run_timestamp,
   iteration,
   JSON_VALUE(fio_json_output, '\$.\"fio version\"') AS fio_version,
-  AVG(SAFE_CAST(JSON_VALUE(job.read.bw) AS FLOAT64)) * 1024.0 / 1000000.0 AS avg_read_bw_mb,
-  AVG(SAFE_CAST(JSON_VALUE(job.write.bw) AS FLOAT64)) * 1024.0 / 1000000.0 AS avg_write_bw_mb,
+  AVG(SAFE_CAST(JSON_VALUE(job.read.bw) AS FLOAT64)) * 1024.0 / 1000000.0 AS avg_read_bw_mbs,
+  AVG(SAFE_CAST(JSON_VALUE(job.write.bw) AS FLOAT64)) * 1024.0 / 1000000.0 AS avg_write_bw_mbs,
   AVG(SAFE_CAST(JSON_VALUE(job.read.clat_ns.mean) AS FLOAT64)) / 1000000.0 AS avg_read_clat_ms
 FROM
   \`<PROJECT_ID>.<DATASET_ID>.<TABLE_ID>\`,
   UNNEST(JSON_EXTRACT_ARRAY(fio_json_output.jobs)) AS job
+WHERE
+  block_size = '1m' AND numjobs = 128 AND nr_files = 10 AND file_size = '1G'
 GROUP BY 1, 2, 3
 ORDER BY run_timestamp DESC"
 ```
@@ -91,7 +93,7 @@ If a baseline BigQuery dataset is available, calculate the percentage throughput
 > **No Cross-Target Comparisons (Default)**: Performance results from different target platforms (e.g., GKE Node runs vs GCE VM runs) represent distinct environments and MUST NOT be directly compared or labeled as regressions against each other unless explicitly requested by the user.
 
 Example Baseline Table:
-| Benchmark / Protocol | Baseline Throughput (MiB/s) | Current Run Throughput (MiB/s) | Delta (%) | Status |
+| Benchmark / Protocol | Baseline Throughput (MB/s) | Current Run Throughput (MB/s) | Delta (%) | Status |
 | :--- | :--- | :--- | :--- | :--- |
 | HTTP/1.1 Read | 1240.5 | 1235.2 | -0.4% | PASS |
 | gRPC Read | 3450.0 | 2890.5 | -16.2% | **FAIL (Regression)** |
@@ -102,7 +104,7 @@ Perform intra-run comparisons across protocols and NUMA configurations:
 - **NUMA Binding vs Non-NUMA Binding**: Calculate the performance impact of CPU/NUMA node pinning compared to unpinned runs.
 
 Example Intra-Run Table:
-| Comparison Type | Configuration A | Configuration B | Throughput A (MiB/s) | Throughput B (MiB/s) | Delta (%) | Status / Insight |
+| Comparison Type | Configuration A | Configuration B | Throughput A (MB/s) | Throughput B (MB/s) | Delta (%) | Status / Insight |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | Protocol | HTTP/1.1 | gRPC | 1235.2 | 2890.5 | +134.0% | gRPC shows expected scaling |
 | NUMA Binding | Non-NUMA | NUMA-Bound | 2500.0 | 2890.5 | +15.6% | NUMA binding improves throughput |

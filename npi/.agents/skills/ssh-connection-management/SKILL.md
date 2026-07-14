@@ -46,8 +46,9 @@ mkdir -p ~/.ssh/sockets
 
 ### Step 2: Clean Up Stale Sockets
 
-Before starting a master connection, remove any pre-existing or broken socket file for the target:
+Before starting a master connection, gracefully terminate any existing master process and remove stale socket files for the target:
 ```bash
+ssh -O exit -S ~/.ssh/sockets/<TARGET_NAME>.sock 2>/dev/null || pkill -f "ssh -N -M -S ~/.ssh/sockets/<TARGET_NAME>.sock"
 rm -f ~/.ssh/sockets/<TARGET_NAME>.sock
 ```
 
@@ -74,8 +75,9 @@ ssh -S ~/.ssh/sockets/<TARGET_NAME>.sock -o StrictHostKeyChecking=no -o UserKnow
 ### Step 5: Refreshing / Recreating Sockets
 
 If user permissions change on the remote VM (e.g., after adding the user to the `docker` group via `usermod -aG docker`):
-1. Terminate/remove the master socket:
+1. Gracefully terminate and remove the master socket:
    ```bash
+   ssh -O exit -S ~/.ssh/sockets/<TARGET_NAME>.sock 2>/dev/null || pkill -f "ssh -N -M -S ~/.ssh/sockets/<TARGET_NAME>.sock"
    rm -f ~/.ssh/sockets/<TARGET_NAME>.sock
    ```
 2. Re-establish the master connection by repeating Step 3.
@@ -84,9 +86,9 @@ If user permissions change on the remote VM (e.g., after adding the user to the 
 
 | Failure Scenario | Root Cause | Remediation / Recovery Action |
 |---|---|---|
-| **`Control socket connect failed: Connection refused`** | Master SSH process died unexpectedly, leaving a dead socket file | Delete stale socket file (`rm -f ~/.ssh/sockets/<TARGET_NAME>.sock`) and re-run master connection command. |
+| **`Control socket connect failed: Connection refused`** | Master SSH process died unexpectedly, leaving a dead socket file | Terminate master process and delete stale socket file (`ssh -O exit -S ~/.ssh/sockets/<TARGET_NAME>.sock 2>/dev/null || pkill -f "ssh -N -M -S ~/.ssh/sockets/<TARGET_NAME>.sock" ; rm -f ~/.ssh/sockets/<TARGET_NAME>.sock`) and re-run master connection command. |
 | **`Permission Denied (publickey)`** | SSH key `~/.ssh/google_compute_engine` missing or expired GCP IAM SSH login credentials | Run `gcloud compute config-default-ssh-keys` or `gcloud compute ssh <VM_NAME> --zone=<ZONE>` to refresh SSH keys. |
-| **Permission Group Refresh Delay (Docker)** | Added user to `docker` group, but commands fail with `permission denied while trying to connect to Docker daemon` | Active SSH master session retains original group IDs. Remove socket (`rm -f ~/.ssh/sockets/*.sock`) and start new master SSH socket. |
+| **Permission Group Refresh Delay (Docker)** | Added user to `docker` group, but commands fail with `permission denied while trying to connect to Docker daemon` | Active SSH master session retains original group IDs. Terminate processes and remove sockets (`pkill -f "ssh -N -M -S ~/.ssh/sockets/" ; rm -f ~/.ssh/sockets/*.sock`) and start new master SSH socket. |
 | **Connection Drop / Network Disconnect** | Remote VM rebooted or network path reset | Remove stale socket and re-establish master SSH connection. |
 
 ## Verification Checks

@@ -5,14 +5,14 @@ import re
 from datetime import datetime
 
 def parse_log(log_path, gcsfuse_version, target_vm):
-    tests = []
+    raw_tests = []
     summary = {"total_tests": 0, "passed": 0, "failed": 0, "skipped": 0}
     
-    current_test = None
-    current_test_buffer = []
+    test_buffers = {}
+    active_tests = set()
     
     # Regexes for test outcomes
-    outcome_re = re.compile(r'^--- (PASS|FAIL|SKIP): (\S+) \((\d+\.\d+)s\)')
+    outcome_re = re.compile(r'^--- (PASS|FAIL|SKIP): (\S+) \((\d+(?:\.\d+)?)s\)')
     run_re = re.compile(r'^=== RUN\s+(\S+)')
     
     try:
@@ -23,13 +23,14 @@ def parse_log(log_path, gcsfuse_version, target_vm):
                 # Check for RUN start
                 run_match = run_re.match(line_str)
                 if run_match:
-                    current_test = run_match.group(1)
-                    current_test_buffer = []
+                    test_name = run_match.group(1)
+                    test_buffers[test_name] = []
+                    active_tests.add(test_name)
                     continue
                 
-                # Capture log lines for the active test
-                if current_test:
-                    current_test_buffer.append(line)
+                # Capture log lines for all active tests
+                for t in list(active_tests):
+                    test_buffers[t].append(line)
                     
                 # Check for outcome
                 outcome_match = outcome_re.match(line_str)
@@ -44,24 +45,27 @@ def parse_log(log_path, gcsfuse_version, target_vm):
                         "duration_seconds": duration
                     }
                     
-                    summary["total_tests"] += 1
-                    if status == "PASS":
-                        summary["passed"] += 1
-                    elif status == "FAIL":
-                        summary["failed"] += 1
+                    if status == "FAIL":
                         # Join the captured buffer as the error log
-                        test_entry["error"] = "".join(current_test_buffer).strip()
-                    elif status == "SKIP":
-                        summary["skipped"] += 1
+                        test_entry["error"] = "".join(test_buffers.get(name, [])).strip()
                         
-                    tests.append(test_entry)
-                    current_test = None
-                    current_test_buffer = []
+                    raw_tests.append(test_entry)
+                    active_tests.discard(name)
                     
     except Exception as e:
         print(f"Error reading log file {log_path}: {e}", file=sys.stderr)
         sys.exit(1)
         
+    # Filter parent test suite outcomes from double counting.
+    # A test is a parent suite if another test's name starts with `test_name + '/'`.
+    parent_suites = {t['name'] for t in raw_tests if any(o['name'].startswith(t['name'] + '/') for o in raw_tests)}
+    tests = [t for t in raw_tests if t['name'] not in parent_suites]
+
+    summary["total_tests"] = len(tests)
+    summary["passed"] = sum(1 for t in tests if t["status"] == "PASS")
+    summary["failed"] = sum(1 for t in tests if t["status"] == "FAIL")
+    summary["skipped"] = sum(1 for t in tests if t["status"] == "SKIP")
+
     report = {
         "timestamp": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
         "gcsfuse_version": gcsfuse_version,

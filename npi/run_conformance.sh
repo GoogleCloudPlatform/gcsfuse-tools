@@ -45,7 +45,40 @@ if [ -n "${READ_AHEAD_KB}" ]; then
   MAKE_ARGS+=("READ_AHEAD_KB=${READ_AHEAD_KB}")
 fi
 
-# Execute GCSFuse Makefile target
-make npi-conformance "${MAKE_ARGS[@]}" > ~/integration_tests.log 2>&1
-echo $? > ~/conformance.exit
-echo "NPI Conformance Suite finished with exit code $(cat ~/conformance.exit)"
+# Execute GCSFuse Makefile target with watchdog monitoring for 5-minute inactivity stalls
+make npi-conformance "${MAKE_ARGS[@]}" > ~/integration_tests.log 2>&1 &
+MAKE_PID=$!
+
+LAST_SIZE=-1
+LAST_CHANGE_TIME=$(date +%s)
+STALL_TIMEOUT=300
+
+while kill -0 "$MAKE_PID" 2>/dev/null; do
+  CURRENT_SIZE=$(stat -c %s ~/integration_tests.log 2>/dev/null || echo 0)
+  CURRENT_TIME=$(date +%s)
+  
+  if [ "$CURRENT_SIZE" -ne "$LAST_SIZE" ]; then
+    LAST_SIZE=$CURRENT_SIZE
+    LAST_CHANGE_TIME=$CURRENT_TIME
+  else
+    ELAPSED=$((CURRENT_TIME - LAST_CHANGE_TIME))
+    if [ "$ELAPSED" -ge "$STALL_TIMEOUT" ]; then
+      echo "ERROR: Conformance test stalled for ${STALL_TIMEOUT}s without log output. Terminating..." >> ~/integration_tests.log
+      kill -9 "$MAKE_PID" 2>/dev/null || true
+      pkill -9 -f 'go test' 2>/dev/null || true
+      pkill -9 -f 'gcsfuse' 2>/dev/null || true
+      fusermount -u /tmp/gcsfuse* 2>/dev/null || umount -l /tmp/gcsfuse* 2>/dev/null || true
+      fusermount -u /mnt/gcsfuse* 2>/dev/null || umount -l /mnt/gcsfuse* 2>/dev/null || true
+      echo 124 > ~/conformance.exit
+      echo "NPI Conformance Suite aborted due to 5-minute stall."
+      exit 124
+    fi
+  fi
+  sleep 10
+done
+
+wait "$MAKE_PID"
+EXIT_CODE=$?
+echo "$EXIT_CODE" > ~/conformance.exit
+echo "NPI Conformance Suite finished with exit code ${EXIT_CODE}"
+

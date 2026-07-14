@@ -99,7 +99,9 @@ Example `npi_remediation_plan.md` template:
    ```bash
    sudo sysctl -w net.core.rps_sock_flow_entries=32768
    for f in /sys/class/net/<interface>/queues/rx-*/rps_flow_cnt; do echo 2048 | sudo tee $f; done
-   for f in /sys/class/net/<interface>/queues/rx-*/rps_cpus; do echo "fff" | sudo tee $f; done
+   # Calculate dynamic hex core bitmask based on nproc core count
+   RPS_MASK=$(python3 -c "print(hex((1<<$(nproc))-1)[2:])")
+   for f in /sys/class/net/<interface>/queues/rx-*/rps_cpus; do echo "$RPS_MASK" | sudo tee $f; done
    ```
 
 ### Phase 2: Medium/Low Priority (System / Infrastructure Optimizations)
@@ -108,6 +110,8 @@ Example `npi_remediation_plan.md` template:
    ```bash
    sudo sysctl -w net.core.rmem_max=134217728
    sudo sysctl -w net.core.wmem_max=134217728
+   sudo sysctl -w net.ipv4.tcp_rmem="4096 87380 67108864"
+   sudo sysctl -w net.ipv4.tcp_wmem="4096 65536 67108864"
    sudo sysctl -w net.netfilter.nf_conntrack_max=1048576
    ```
 
