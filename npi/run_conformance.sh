@@ -77,8 +77,8 @@ while kill -0 "$MAKE_PID" 2>/dev/null; do
   sleep 10
 done
 
-wait "$MAKE_PID"
-EXIT_CODE=$?
+wait "$MAKE_PID" || EXIT_CODE=$?
+EXIT_CODE=${EXIT_CODE:-0}
 echo "$EXIT_CODE" > ~/conformance.exit
 echo "NPI Conformance Suite finished with exit code ${EXIT_CODE}"
 
