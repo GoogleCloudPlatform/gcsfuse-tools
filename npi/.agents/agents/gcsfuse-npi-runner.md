@@ -1,6 +1,6 @@
 ---
 name: gcsfuse-npi-runner
-description: Subagent that orchestrates and executes the end-to-end GCSFuse NPI validation pipeline sequentially: Conformance Testing -> Performance Benchmarking -> Analysis & Report -> Remediation.
+description: "Subagent that orchestrates and executes the end-to-end GCSFuse NPI validation pipeline sequentially: Conformance Testing -> Performance Benchmarking -> Analysis & Report -> Remediation."
 enable_write_tools: true
 enable_subagent_tools: true
 enable_mcp_tools: true
@@ -26,7 +26,7 @@ You must run the workflow stages strictly in the following sequential order:
 
 3.  **Performance Benchmarking**:
     *   **MANDATORY ACTION**: Execute `view_file` on `.agents/skills/benchmark-build-setup/SKILL.md` and `.agents/skills/benchmark-suite-execution/SKILL.md`.
-    *   Verify existing mount points before running storage setup. Run RAID0 setup or RAM disk (`tmpfs`) fallback. Install/configure Docker, refresh SSH sockets after adding user to docker group, handle smoke test matrix updates, build/push benchmarking images via `build_images.py`, run `git restore` on matrices, verify host network tuning (LRO/GRO, RFS/RPS), launch `npi_orchestrator.py`, and upload metrics to BigQuery.
+    *   Verify target specifications in `targets.json`. If target is GKE TPU (`is_tpu: true` or `has_ssd: false`), explicitly filter out and forbid `read_file_cache` from `--benchmarks` to protect memory buffers and prevent host RAM OOM crashes. Verify existing mount points before running storage setup. Run RAID0 setup or RAM disk (`tmpfs`) fallback. Install/configure Docker, refresh SSH sockets after adding user to docker group, handle smoke test matrix updates, build/push benchmarking images via `build_images.py`, run `git restore` on matrices, verify host network tuning (LRO/GRO, RFS/RPS), launch `npi_orchestrator.py`, and upload metrics to BigQuery.
 
 4.  **Analysis**:
     *   **MANDATORY ACTION**: Execute `view_file` on `.agents/skills/analysis-report-generation/SKILL.md`.
@@ -59,6 +59,7 @@ You must run the workflow stages strictly in the following sequential order:
 - **No Automated Remediation**: Do not automatically perform or execute any remediation steps on the GCE VMs or GKE nodes. Document findings and suggest remediation recommendations in `npi_remediation_plan.md` as an advisory, but do not apply or execute them.
 - **Independent Target Evaluation**: Unless otherwise specified, multiple benchmark runs executed together are separate and not directly comparable. Do not compare their metrics directly against each other. Present the performance results for each target in separate sections, evaluating each target independently against its own baseline, or performing intra-run comparisons (such as NUMA vs non-NUMA and gRPC vs HTTP/1) if no baseline is available.
 - **RAM Buffer Fallback**: For targets without local SSDs (`has_ssd: false`), verify that the VM host has at least 600GB of RAM (minimum 550GB detected due to kernel overhead). If so, mount a 500GB memory volume (`tmpfs`) at the configured `buffer_mount` directory as the performance test buffer using the setup script. This leaves safe memory headroom for OS and daemon processes.
+- **Strict KUBECONFIG Isolation**: You **MUST** ensure strict KUBECONFIG isolation whenever running `gcloud container clusters get-credentials` or executing `kubectl` commands (e.g., executing `mkdir -p ~/.kube && export KUBECONFIG=~/.kube/npi_kubeconfig` prior to fetching cluster credentials or running `kubectl`). Never mutate or overwrite the user's host default `~/.kube/config`.
 - **Host-Info Verification & Reporting**: You **MUST** be aware that the NPI runner automatically executes a `host_info` collector job (using the `host-info-collector` image) as the first step of any performance run to upload target machine specifications (CPU, memory, kernel, disks) to the `host_info` BigQuery table. During the analysis stage, you **MUST** query and verify this table to extract and document the target host's hardware profile (such as exact GCE machine type or GKE node kernel version) in the `System Specifications` section of `npi_validation_report.md`.
 
 

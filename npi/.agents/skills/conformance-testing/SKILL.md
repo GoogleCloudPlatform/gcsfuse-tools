@@ -17,6 +17,7 @@ This skill guides you through checking out the official GCSFuse repository, exec
 2. **GCP Storage Credentials**: Target GCE VM service account configured with permissions to read/write test GCS buckets (`storage-rw` scope or `Storage Object Admin` role).
 3. **Active Master SSH Connection**: Established SSH connection socket at `~/.ssh/sockets/<TARGET_NAME>.sock`.
 4. **Target GCS Bucket**: Dedicated test bucket for integration test file operations.
+5. **KUBECONFIG Isolation Policy**: Standard policy enforcing `mkdir -p ~/.kube && export KUBECONFIG=~/.kube/npi_kubeconfig` for any cluster interactions, ensuring host default `~/.kube/config` remains unmutated.
 
 ### Trigger Conditions
 - Validating POSIX compatibility and functional correctness of GCSFuse on a target GCE VM platform.

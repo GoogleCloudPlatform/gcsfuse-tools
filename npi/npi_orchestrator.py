@@ -19,6 +19,12 @@ log_lock = threading.Lock()
 # Dynamic SSH socket directory resolution:
 SOCKET_DIR = os.path.join(HOME_DIR, ".ssh/sockets")
 
+# Strict KUBECONFIG isolation setup to protect host ~/.kube/config
+KUBE_DIR = os.path.join(HOME_DIR, ".kube")
+ISOLATED_KUBECONFIG = os.path.join(KUBE_DIR, "npi_kubeconfig")
+os.makedirs(KUBE_DIR, exist_ok=True)
+os.environ["KUBECONFIG"] = ISOLATED_KUBECONFIG
+
 # Ensure parent directories for state files, sockets, and logs exist
 os.makedirs(os.path.dirname(STATE_FILE), exist_ok=True)
 os.makedirs(os.path.dirname(COMMAND_LOG), exist_ok=True)
@@ -184,31 +190,35 @@ def prep_vm(target, socket_path):
     print(f"[{target_name}] VM prepared successfully.")
 
 def validate_gke_nodes(socket_path, vm_name, zone, target):
-    print(f"[{target['name']}] Validating GKE cluster node requirements on remote VM...")
+    print(f"[{target['name']}] Validating GKE cluster node requirements...")
     cluster_name = target.get("cluster_name", "gke-orbax-benchmark-cluster")
     location = target.get("location", target.get("zone", "europe-west4-a"))
     
-    # Fetch credentials on the remote VM first
-    cred_cmd = f"gcloud container clusters get-credentials {shlex.quote(cluster_name)} --location {shlex.quote(location)} --project {shlex.quote(PROJECT_ID)}"
-    code, _, err = run_ssh_cmd(socket_path, vm_name, zone, cred_cmd, timeout=60)
-    if code != 0:
-        raise RuntimeError(f"Failed to fetch GKE credentials on remote VM: {err}")
-        
-    code_cpu, out_cpu, err_cpu = run_ssh_cmd(
-        socket_path, vm_name, zone,
-        "kubectl get nodes -l '!cloud.google.com/gke-tpu-accelerator' -o jsonpath='{.items[*].metadata.name}'",
-        timeout=30
-    )
-    code_tpu, out_tpu, err_tpu = run_ssh_cmd(
-        socket_path, vm_name, zone,
-        "kubectl get nodes -l 'cloud.google.com/gke-tpu-accelerator' -o jsonpath='{.items[*].metadata.name}'",
-        timeout=30
-    )
+    cred_cmd = f"mkdir -p ~/.kube && export KUBECONFIG=~/.kube/npi_kubeconfig && gcloud container clusters get-credentials {shlex.quote(cluster_name)} --location {shlex.quote(location)} --project {shlex.quote(PROJECT_ID)}"
+    code, _, err = run_ssh_cmd(socket_path, vm_name, zone, cred_cmd, timeout=30)
     
-    if code_cpu != 0:
-        raise RuntimeError(f"GKE Validation Error: Failed to list GKE CPU nodes on remote VM: {err_cpu.strip()}")
-    if code_tpu != 0:
-        raise RuntimeError(f"GKE Validation Error: Failed to list GKE TPU nodes on remote VM: {err_tpu.strip()}")
+    if code != 0:
+        print(f"[{target['name']}] Remote VM lacks gcloud/kubectl. Validating GKE cluster using local kubectl...")
+        local_cred_cmd = ["gcloud", "container", "clusters", "get-credentials", cluster_name, "--location", location, "--project", PROJECT_ID]
+        subprocess.run(local_cred_cmd, capture_output=True, text=True)
+        res_cpu = subprocess.run(["kubectl", "get", "nodes", "-l", "!cloud.google.com/gke-tpu-accelerator", "-o", "jsonpath={.items[*].metadata.name}"], capture_output=True, text=True)
+        res_tpu = subprocess.run(["kubectl", "get", "nodes", "-l", "cloud.google.com/gke-tpu-accelerator", "-o", "jsonpath={.items[*].metadata.name}"], capture_output=True, text=True)
+        out_cpu, out_tpu = res_cpu.stdout, res_tpu.stdout
+    else:
+        code_cpu, out_cpu, err_cpu = run_ssh_cmd(
+            socket_path, vm_name, zone,
+            "export KUBECONFIG=~/.kube/npi_kubeconfig && kubectl get nodes -l '!cloud.google.com/gke-tpu-accelerator' -o jsonpath='{.items[*].metadata.name}'",
+            timeout=30
+        )
+        code_tpu, out_tpu, err_tpu = run_ssh_cmd(
+            socket_path, vm_name, zone,
+            "export KUBECONFIG=~/.kube/npi_kubeconfig && kubectl get nodes -l 'cloud.google.com/gke-tpu-accelerator' -o jsonpath='{.items[*].metadata.name}'",
+            timeout=30
+        )
+        if code_cpu != 0:
+            raise RuntimeError(f"GKE Validation Error: Failed to list GKE CPU nodes on remote VM: {err_cpu.strip()}")
+        if code_tpu != 0:
+            raise RuntimeError(f"GKE Validation Error: Failed to list GKE TPU nodes on remote VM: {err_tpu.strip()}")
 
     cpu_count = len(out_cpu.strip().split()) if out_cpu.strip() else 0
     tpu_count = len(out_tpu.strip().split()) if out_tpu.strip() else 0
@@ -411,14 +421,83 @@ def cleanup_remote_run(target, socket_path):
     elif target["type"] == "gke":
         # Terminate runner script and delete Kubernetes jobs matching label on GKE VM via SSH
         run_ssh_cmd(socket_path, vm_name, zone, "pkill -9 -f 'python3.*npi_gke\\.py'", timeout=30)
-        cleanup_cmd = "kubectl delete jobs -l app=gcsfuse-npi-benchmark --ignore-not-found=true"
-        run_ssh_cmd(socket_path, vm_name, zone, cleanup_cmd, timeout=30)
+def monitor_local_run(target_name, state_lock, state, pid_file, log_file):
+    print(f"[{target_name}] Monitoring local GKE benchmark run...")
+    pid = None
+    for _ in range(5):
+        if os.path.exists(pid_file):
+            try:
+                with open(pid_file, "r") as f:
+                    content = f.read().strip()
+                    if content.isdigit():
+                        pid = int(content)
+                        break
+            except Exception:
+                pass
+        time.sleep(1)
+
+    if pid is None:
+        print(f"[{target_name}] Error: Could not retrieve process PID from local {pid_file}")
+        with state_lock:
+            state[target_name]["status"] = "FAILED"
+            save_state(state)
+        return
+
+    with state_lock:
+        state[target_name]["pid"] = pid
+        state[target_name]["status"] = "RUNNING"
+        save_state(state)
+
+    while True:
+        try:
+            os.kill(pid, 0)
+            running = True
+        except OSError:
+            running = False
+
+        last_line = ""
+        if os.path.exists(log_file):
+            try:
+                with open(log_file, "r") as f:
+                    lines = f.readlines()
+                    if lines:
+                        last_line = lines[-1].strip()
+            except Exception:
+                pass
+
+        with state_lock:
+            state[target_name]["last_line"] = last_line
+            save_state(state)
+
+        if not running:
+            exit_file = f"{pid_file}.exit"
+            exit_code = -1
+            if os.path.exists(exit_file):
+                try:
+                    with open(exit_file, "r") as f:
+                        exit_code = int(f.read().strip())
+                except Exception:
+                    pass
+
+            with state_lock:
+                if exit_code == 0:
+                    state[target_name]["status"] = "SUCCESS"
+                    print(f"[{target_name}] Run completed successfully.")
+                else:
+                    state[target_name]["status"] = "FAILED"
+                    print(f"[{target_name}] Run FAILED with exit code {exit_code}! Last log line: {last_line}")
+                save_state(state)
+            break
+
+        time.sleep(5)
 
 def execute_target(target, args, state_lock, state):
     target_name = target["name"]
     vm_name = target["vm_name"]
     zone = target["zone"]
     socket_path = os.path.join(SOCKET_DIR, f"{target_name}.sock")
+    pid_file = f"/tmp/npi_{target_name}.pid"
+    log_file = f"/tmp/output_{target_name}.txt"
     
     with state_lock:
         target_status = state[target_name]["status"]
@@ -430,7 +509,8 @@ def execute_target(target, args, state_lock, state):
             
             # Start run unbuffered
             has_ssd = target.get("has_ssd", target["type"] == "gce") # Default GCE to True, GKE to False if unspecified
-            requested_benchmarks = args.benchmarks.split() if isinstance(args.benchmarks, str) else args.benchmarks
+            raw_bench = args.benchmarks.replace(',', ' ') if isinstance(args.benchmarks, str) else ' '.join(args.benchmarks)
+            requested_benchmarks = raw_bench.split()
             
             # Filter out file-cache tests if no SSD is present
             if not has_ssd:
@@ -476,6 +556,8 @@ def execute_target(target, args, state_lock, state):
                 ]
                 if is_rapid:
                     python_args.append("--is-rapid-bucket")
+                if args.smoke_mode:
+                    python_args.append("--smoke-mode")
                 python_args.extend(["--benchmarks"] + active_benchmarks)
                 if target.get("buffer_mount"):
                     python_args.append(f"--buffer-mount-path={target['buffer_mount']}")
@@ -487,8 +569,10 @@ def execute_target(target, args, state_lock, state):
             elif target["type"] == "gke":
                 node_sel = target.get("node_selector", "")
                 res_lim = target.get("resources_limits", "")
-                cluster_name = target.get("cluster_name", "gke-orbax-benchmark-cluster")
-                location = target.get("location", target.get("zone", "europe-west4-a"))
+                cluster_name = target.get("cluster_name")
+                location = target.get("location")
+                if not cluster_name or not location:
+                    raise ValueError(f"Target '{target_name}' (type=gke) missing required 'cluster_name' or 'location' in targets.json.")
                 
                 python_args = [
                     "python3", "-u", f"/home/{SSH_USER}/gcsfuse-tools/npi/npi_gke.py",
@@ -504,6 +588,8 @@ def execute_target(target, args, state_lock, state):
                 ]
                 if is_rapid:
                     python_args.append("--is-rapid-bucket")
+                if args.smoke_mode:
+                    python_args.append("--smoke-mode")
                 
                 if not has_ssd:
                     python_args.append("--use-memory-volumes")
@@ -517,6 +603,40 @@ def execute_target(target, args, state_lock, state):
                 full_cmd = f"{python_cmd}; echo $? > /tmp/npi_{target_name}.exit"
                 bench_cmd = f"nohup sh -c {shlex.quote(full_cmd)} > /tmp/output_{target_name}.txt 2>&1 & echo $! > /tmp/npi_{target_name}.pid"
             
+            if target["type"] == "gke":
+                check_gcloud, _, _ = run_ssh_cmd(socket_path, vm_name, zone, "which gcloud", timeout=10)
+                if check_gcloud != 0:
+                    print(f"[{target_name}] Remote VM lacks gcloud/kubectl. Launching npi_gke.py locally...")
+                    local_python_args = [
+                        "python3", "-u", NPI_GKE_PY_PATH,
+                        "--cluster-name", cluster_name,
+                        "--location", location,
+                        "--bucket-name", target["bucket"],
+                        "--project-id", args.project,
+                        "--bq-dataset-id", dataset_id,
+                        "--image-version", args.image_version,
+                        "--node-selector", node_sel,
+                        "--resources-limits", res_lim,
+                        "--iterations", str(args.iterations),
+                    ]
+                    if is_rapid:
+                        local_python_args.append("--is-rapid-bucket")
+                    if args.smoke_mode:
+                        local_python_args.append("--smoke-mode")
+                    if not has_ssd:
+                        local_python_args.append("--use-memory-volumes")
+                    else:
+                        if any("file_cache" in b for b in active_benchmarks):
+                            local_python_args.append("--run-file-cache-test")
+                    local_python_args.extend(["--benchmarks"] + active_benchmarks)
+
+                    local_python_cmd = " ".join(shlex.quote(arg) for arg in local_python_args)
+                    local_full_cmd = f"mkdir -p ~/.kube && export KUBECONFIG=~/.kube/npi_kubeconfig && {local_python_cmd}; echo $? > {pid_file}.exit"
+                    local_bench_cmd = f"nohup sh -c {shlex.quote(local_full_cmd)} > {log_file} 2>&1 & echo $! > {pid_file}"
+                    subprocess.run(local_bench_cmd, shell=True, check=True)
+                    monitor_local_run(target_name, state_lock, state, pid_file, log_file)
+                    return
+
             print(f"[{target_name}] Triggering benchmarks on {vm_name}...")
             code, out, err = run_ssh_cmd(socket_path, vm_name, zone, bench_cmd)
             if code != 0:
@@ -628,8 +748,11 @@ def main():
     parser.add_argument("--project", default="gcs-fuse-test", help="GCP Project")
     parser.add_argument("--iterations", type=int, default=2, help="Number of iterations")
     parser.add_argument("--reset", action="store_true", help="Reset saved state and start a fresh run")
+    parser.add_argument("--smoke-mode", action="store_true", help="Run orchestrator in fast smoke test mode")
     
     args = parser.parse_args()
+    if args.smoke_mode and args.iterations == 2:
+        args.iterations = 1
     if args.reset and os.path.exists(STATE_FILE):
         try:
             os.remove(STATE_FILE)
@@ -659,6 +782,8 @@ def main():
             required_keys = ["name", "type", "vm_name", "zone", "bucket", "dataset"]
             if t.get("type") == "gce":
                 required_keys.append("buffer_mount")
+            elif t.get("type") == "gke":
+                required_keys.extend(["cluster_name", "location"])
             missing = [k for k in required_keys if k not in t]
             if missing:
                 raise ValueError(f"Target '{t.get('name', 'unknown')}' is missing required fields: {', '.join(missing)}")
@@ -684,6 +809,36 @@ def main():
         if not os.path.exists(path):
             print(f"Error: Required local file not found: {path}", file=sys.stderr)
             sys.exit(1)
+
+    # Task 6: Pre-truncate BigQuery tables once before parallel target execution threads start
+    try:
+        from google.cloud import bigquery
+        bq_client = bigquery.Client(project=PROJECT_ID)
+        truncated_tables = set()
+        for t in targets:
+            raw_dataset = t["dataset"]
+            if raw_dataset.endswith("_regional"):
+                base_dataset = raw_dataset[:-len("_regional")]
+            elif raw_dataset.endswith("_zonal"):
+                base_dataset = raw_dataset[:-len("_zonal")]
+            else:
+                base_dataset = raw_dataset
+            dataset_id = f"{base_dataset}_regional"
+
+            bench_list = args.benchmarks.split() if isinstance(args.benchmarks, str) else args.benchmarks
+            for b_name in bench_list:
+                table_id = f"fio_{b_name}"
+                full_table_id = f"{PROJECT_ID}.{dataset_id}.{table_id}"
+                if full_table_id not in truncated_tables:
+                    try:
+                        bq_client.get_table(full_table_id)
+                        print(f"[Orchestrator] Pre-truncating BQ table safely before parallel runs: {full_table_id}")
+                        bq_client.query(f"TRUNCATE TABLE `{full_table_id}`").result()
+                    except Exception:
+                        pass
+                    truncated_tables.add(full_table_id)
+    except Exception as e:
+        print(f"[Orchestrator] Note: Pre-run BQ truncation skipped or BQ client not available locally: {e}")
 
     # Startup cleanup is handled concurrently inside each target's execution thread.
 

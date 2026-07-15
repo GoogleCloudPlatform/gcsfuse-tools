@@ -50,7 +50,7 @@ class BenchmarkFactory:
         mount_path (str): The path to an already mounted GCS bucket.
     """
 
-    def __init__(self, bucket_name, project_id, bq_dataset_id, iterations, mount_path=None, image_version="latest", buffer_mount_path=None, file_cache_size_mb=2097152):
+    def __init__(self, bucket_name, project_id, bq_dataset_id, iterations, mount_path=None, image_version="latest", buffer_mount_path=None, file_cache_size_mb=2097152, smoke_mode=False):
         """Initializes the BenchmarkFactory.
 
         Args:
@@ -69,6 +69,7 @@ class BenchmarkFactory:
         self.image_version = image_version
         self.buffer_mount_path = buffer_mount_path
         self.file_cache_size_mb = file_cache_size_mb
+        self.smoke_mode = smoke_mode
         self._benchmark_definitions = self._get_benchmark_definitions()
 
     def get_benchmark_command(self, name):
@@ -140,8 +141,10 @@ class BenchmarkFactory:
             gcsfuse_flags = default_gcsfuse_flags
         gcsfuse_flags += " --log-file=/gcsfuse-buffer/gcsfuse.log --log-format=json"
 
+        num_jobs = "2" if self.smoke_mode else "112"
         base_cmd = (
             "docker run --pull=always --network=host --privileged --rm "
+            f"-e NUMJOBS={num_jobs} "
             f"{volume_mount} "
         )
 
@@ -161,7 +164,7 @@ class BenchmarkFactory:
             f"--bq-dataset-id={bq_dataset_id} "
             f"--bq-table-id={bq_table_id}"
         )
-        
+
         if runner_args:
             base_cmd += f" {runner_args}"
         if bucket_name:
@@ -445,8 +448,16 @@ def main():
         action="store_true",
         help="If set, indicates that the bucket is a RAPID bucket. Only gRPC benchmarks will be run."
     )
+    parser.add_argument(
+        "--smoke-mode",
+        action="store_true",
+        help="If set, run in fast smoke test mode with reduced iterations and thread counts."
+    )
 
     args = parser.parse_args()
+
+    if args.smoke_mode and args.iterations == 5:
+        args.iterations = 1
 
     if not args.bucket_name and not args.mount_path:
         parser.error("Either --bucket-name or --mount-path must be provided.")
@@ -480,7 +491,8 @@ def main():
         mount_path=mount_path,
         image_version=args.image_version,
         buffer_mount_path=args.buffer_mount_path,
-        file_cache_size_mb=args.file_cache_size_mb
+        file_cache_size_mb=args.file_cache_size_mb,
+        smoke_mode=args.smoke_mode
     )
 
     available_benchmarks = factory.get_available_benchmarks()

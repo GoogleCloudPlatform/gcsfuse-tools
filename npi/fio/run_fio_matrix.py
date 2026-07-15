@@ -94,6 +94,12 @@ def main():
       help="File name for the summary of results. It will be created in each configuration's output directory.",
   )
   parser.add_argument(
+      "--numjobs",
+      type=int,
+      default=None,
+      help="Override FIO numjobs count.",
+  )
+  parser.add_argument(
       "--project-id",
       default=None,
       help="Project ID to upload results. If provided, --bq-dataset-id and --bq-table-id must also be provided.",
@@ -147,7 +153,9 @@ def main():
     logging.info("Configuration: %s", config_str)
 
     # All columns from the CSV are passed as environment variables to FIO.
-    fio_env = config
+    fio_env = dict(config)
+    if args.numjobs:
+        fio_env["NUMJOBS"] = str(args.numjobs)
 
     # Create a unique subdirectory for this configuration's results.
     # The name is generated from the config parameters to be unique and

@@ -14,6 +14,7 @@ This skill guides you through checking out the GCSFuse repository, configuring t
 2. **GCSFuse Repository Access**: Local clone or submodule checkout of the GCSFuse repository.
 3. **Artifact Registry Access**: Permissions to push container images to Google Artifact Registry (`us-docker.pkg.dev`) authenticated via `gcloud auth configure-docker us-docker.pkg.dev`.
 4. **Python 3 Environment**: Local Python 3 environment with dependencies for `build_images.py`.
+5. **Isolated KUBECONFIG Environment**: Strict environment policy requiring `mkdir -p ~/.kube && export KUBECONFIG=~/.kube/npi_kubeconfig` prior to any cluster credential fetching (`gcloud container clusters get-credentials`) or `kubectl` operations to prevent mutating the default host `~/.kube/config`.
 
 ### Trigger Conditions
 - Executed prior to running the benchmark suite (`npi_orchestrator.py`) to prepare target environments and container images for **both GCE VM and GKE cluster** benchmarks.

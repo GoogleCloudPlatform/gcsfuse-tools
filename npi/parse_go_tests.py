@@ -14,6 +14,8 @@ def parse_log(log_path, gcsfuse_version, target_vm):
     # Regexes for test outcomes
     outcome_re = re.compile(r'^--- (PASS|FAIL|SKIP): (\S+) \((\d+(?:\.\d+)?)s\)')
     run_re = re.compile(r'^=== RUN\s+(\S+)')
+    info_pkg_re = re.compile(r'\[INFO\]\s+.*:\s+(Passed|Failed)\s+test package\s+\[([^\]]+)\]\s+for bucket type\s+\[([^\]]+)\]')
+    table_row_re = re.compile(r'^│\s*([a-zA-Z0-9_-]+)\s*│\s*([a-zA-Z0-9_-]+)\s*│\s*([^│]+)│\s*([^│]+)│\s*(PASSED|FAILED)\s*')
     
     try:
         with open(log_path, 'r', encoding='utf-8', errors='replace') as f:
@@ -44,13 +46,51 @@ def parse_log(log_path, gcsfuse_version, target_vm):
                         "status": status,
                         "duration_seconds": duration
                     }
-                    
                     if status == "FAIL":
-                        # Join the captured buffer as the error log
                         test_entry["error"] = "".join(test_buffers.get(name, [])).strip()
                         
                     raw_tests.append(test_entry)
                     active_tests.discard(name)
+                    continue
+
+                # Check for package info outcome (e.g. Passed/Failed test package [read_cache] for bucket type [flat])
+                info_match = info_pkg_re.search(line_str)
+                if info_match:
+                    outcome_str, pkg, btype = info_match.group(1), info_match.group(2), info_match.group(3)
+                    status = "PASS" if outcome_str == "Passed" else "FAIL"
+                    name = f"{pkg}_{btype}"
+                    if not any(t["name"] == name for t in raw_tests):
+                        raw_tests.append({
+                            "name": name,
+                            "status": status,
+                            "duration_seconds": 0.0
+                        })
+                    continue
+
+                # Check for summary table row match
+                table_match = table_row_re.match(line_str)
+                if table_match:
+                    pkg, btype, duration_str, _, outcome_str = table_match.groups()
+                    status = "PASS" if "PASSED" in outcome_str else "FAIL"
+                    name = f"{pkg}_{btype}"
+                    if not any(t["name"] == name for t in raw_tests):
+                        raw_tests.append({
+                            "name": name,
+                            "status": status,
+                            "duration_seconds": 0.0
+                        })
+                    continue
+                    
+        # Record any active tests interrupted before completion
+        for name in list(active_tests):
+            test_entry = {
+                "name": name,
+                "status": "FAIL",
+                "duration_seconds": 300.0,
+                "error": f"TIMEOUT / Interrupted test run: {name} did not complete before watchdog stall timeout.\n" + "".join(test_buffers.get(name, [])).strip()
+            }
+            raw_tests.append(test_entry)
+            active_tests.discard(name)
                     
     except Exception as e:
         print(f"Error reading log file {log_path}: {e}", file=sys.stderr)

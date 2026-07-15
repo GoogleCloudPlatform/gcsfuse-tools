@@ -12,7 +12,7 @@ This skill serves as the primary master entrypoint for executing and orchestrati
 ## Prerequisites & Trigger Conditions
 
 ### Prerequisites
-1. **GCP Project Access & Credentials**: Local environment configured with `gcloud`, `kubectl`, and `bq` CLI tools with permissions to create storage resources, push container images, run GKE workloads, and write to BigQuery.
+1. **GCP Project Access & Credentials**: Local environment configured with `gcloud`, `kubectl`, and `bq` CLI tools with permissions to create storage resources, push container images, run GKE workloads, and write to BigQuery. All `gcloud container clusters get-credentials` and `kubectl` operations MUST use strict KUBECONFIG isolation (`mkdir -p ~/.kube && export KUBECONFIG=~/.kube/npi_kubeconfig`) to ensure the host default `~/.kube/config` is never mutated or overwritten.
 2. **GCSFuse Source Checkout**: Local repository clone of GCSFuse.
 3. **Target Specifications (`targets.json`)**: Pre-populated `targets.json` defining target GCE VMs, GKE clusters, storage buffer paths, node selectors, and GCP buckets.
 4. **SSH Access**: Configured SSH key at `~/.ssh/google_compute_engine` for connecting to target GCE VMs and GKE intermediate controller nodes.
@@ -27,7 +27,7 @@ This skill serves as the primary master entrypoint for executing and orchestrati
 
 ### Inputs
 - **`targets.json`**: Target configurations schema defining target names, VM names, zones, bucket names, BigQuery dataset prefixes, buffer mount paths, and machine configurations.
-- **Workflow Parameters**: Image tag version (`<IMAGE_VERSION>`), GCSFuse version tag (`<GCSFUSE_VERSION>`), iteration count, benchmark selection (`read_parallel`, `write_parallel`, `all`).
+- **Workflow Parameters**: Image tag version (`<IMAGE_VERSION>`), GCSFuse version tag (`<GCSFUSE_VERSION>`), iteration count, benchmark selection (`read_http1`, `read_grpc`, `write_http1`, `write_grpc`, `read_file_cache`, `all`), and optional smoke mode flag (`--smoke-mode`).
 - **Baseline Dataset ID** (Optional): Historical BigQuery dataset ID for regression comparison.
 
 ### Outputs
@@ -88,9 +88,9 @@ The end-to-end pipeline executes sequentially through 6 modular phases:
 2. Clean stale socket files `rm -f ~/.ssh/sockets/*.sock`.
 3. Establish master connections for each target in `targets.json`:
    ```bash
-   ssh -N -M -S ~/.ssh/sockets/<TARGET_NAME>.sock -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ~/.ssh/google_compute_engine <SSH_USER>@nic0.<VM_NAME>.<ZONE>.c.<PROJECT_ID>.internal.gcpnode.com
+   ssh -f -N -M -S ~/.ssh/sockets/<TARGET_NAME>.sock -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ~/.ssh/google_compute_engine <SSH_USER>@nic0.<VM_NAME>.<ZONE>.c.<PROJECT_ID>.internal.gcpnode.com
    ```
-4. Verify connection liveness with `echo 'Connection Alive'`.
+4. Verify connection liveness with `ssh -O check -S ~/.ssh/sockets/<TARGET_NAME>.sock`.
 
 ### Phase 2: Target Buffer Setup & Image Build
 *Skill Reference*: **[Benchmark Build & Setup](../benchmark-build-setup/SKILL.md)**
@@ -98,9 +98,9 @@ The end-to-end pipeline executes sequentially through 6 modular phases:
 2. Install Docker, add user to `docker` group (`usermod -aG docker`).
 3. **CRITICAL**: Recreate SSH multiplexing socket (`rm -f ~/.ssh/sockets/<TARGET_NAME>.sock` + relaunch Phase 1 master command) to apply docker group session changes.
 4. Configure Artifact Registry credentials locally and remotely (`gcloud auth configure-docker us-docker.pkg.dev`).
-5. Execute image build script:
+5. Execute image build script (adding `--smoke-mode` if running in fast smoke test mode):
    ```bash
-   python3 build_images.py --project <PROJECT_ID> --image-version <IMAGE_VERSION> --gcsfuse-version <GCSFUSE_VERSION>
+   python3 build_images.py --project <PROJECT_ID> --image-version <IMAGE_VERSION> --gcsfuse-version <GCSFUSE_VERSION> [--smoke-mode]
    ```
 6. Restore matrix files if smoke-test matrices were edited (`git restore fio/read_matrix.csv fio/write_matrix.csv`).
 
@@ -119,18 +119,21 @@ The end-to-end pipeline executes sequentially through 6 modular phases:
 *Skill Reference*: **[Benchmark Suite Execution](../benchmark-suite-execution/SKILL.md)**
 1. Verify host-level OS tuning (LRO/GRO offloads, RFS/RPS packet steering) on target VMs.
 2. For fresh runs, clean run state file: `rm -f ~/.npi/npi_run_state.json`.
-3. Launch benchmark orchestrator:
+3. Enforce strict KUBECONFIG isolation (`mkdir -p ~/.kube && export KUBECONFIG=~/.kube/npi_kubeconfig`) prior to launching GKE cluster credentials fetching or `kubectl` commands.
+4. Launch benchmark orchestrator (adding `--smoke-mode` if running fast smoke test mode):
    ```bash
-   python3 npi_orchestrator.py --benchmarks "<BENCHMARK_LIST>" --image-version <IMAGE_VERSION> --iterations <ITERATION_COUNT>
+   python3 npi_orchestrator.py --benchmarks "<BENCHMARK_LIST>" --image-version <IMAGE_VERSION> --iterations <ITERATION_COUNT> [--smoke-mode]
    ```
-4. Active monitoring during run: enforce 4-hour inactivity log timeout, 85% buffer disk space limit, and TPU memory volume RAM disk flags (`--use-memory-volumes`).
+5. Active monitoring during run: enforce 4-hour inactivity log timeout, 85% buffer disk space limit, and TPU memory volume RAM disk flags (`--use-memory-volumes`).
+6. Exclude `read_file_cache` when target is a GKE TPU node pool (`is_tpu: true` or `has_ssd: false`).
+7. Pre-truncate BigQuery dataset tables ONCE before launching parallel target worker threads to prevent concurrency truncation races.
 
 ### Phase 5: Analysis & Validation Report Generation
 *Skill Reference*: **[Analysis & Report Generation](../analysis-report-generation/SKILL.md)**
 1. Query host metadata from BigQuery `<DATASET_PREFIX>_regional.host_info`.
 2. Query performance metrics from `<DATASET_PREFIX>_regional.fio_*` using quoted JSON keys (`JSON_VALUE(fio_json_output, '$."fio version"')`).
 3. Evaluate baseline comparisons (if baseline dataset available) and intra-run comparisons (gRPC vs HTTP/1.1, NUMA vs non-NUMA).
-4. Evaluate strict **20 GB/s SLA Gate**: 1G file size, 1M block size, 128 numjobs, 10 files sequential reads without caches in **standard, non-NUMA-pinned runs**. Mark as **FAIL / REJECTED** if non-pinned throughput < 20 GB/s.
+4. Evaluate strict **20 GB/s SLA Gate**: 1G file size, 1M block size, 128 numjobs, 10 files sequential reads without caches in **standard, non-NUMA-pinned runs**. Mark as **FAIL / REJECTED** if non-pinned throughput < 20 GB/s in full runs, or mark as `SKIPPED (Smoke Test Run - Scaled Parameters)` when running under smoke mode.
 5. Inspect `params.yaml` for machine type classification (`c4-standard-96`).
 6. Compile findings into `npi_validation_report.md`.
 

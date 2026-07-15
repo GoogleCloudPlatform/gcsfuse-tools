@@ -92,20 +92,22 @@ Example `npi_remediation_plan.md` template:
    - Set `--max-conns-per-host=256` and `--max-idle-conns-per-host=256`.
 3. **Kernel/OS Large Receive Offload (LRO / GRO)**:
    ```bash
-   sudo ethtool -K <interface> gro on
-   sudo ethtool -K <interface> lro on
+   DEFAULT_IFACE=$(ip route show default | awk '{print $5}')
+   sudo ethtool -K $DEFAULT_IFACE gro on
+   sudo ethtool -K $DEFAULT_IFACE lro on
    ```
 4. **Receive Flow Steering (RFS) & Receive Packet Steering (RPS)**:
    ```bash
+   DEFAULT_IFACE=$(ip route show default | awk '{print $5}')
    sudo sysctl -w net.core.rps_sock_flow_entries=32768
-   for f in /sys/class/net/<interface>/queues/rx-*/rps_flow_cnt; do echo 2048 | sudo tee $f; done
+   for f in /sys/class/net/$DEFAULT_IFACE/queues/rx-*/rps_flow_cnt; do echo 2048 | sudo tee $f; done
    # Calculate dynamic hex core bitmask based on nproc core count
    RPS_MASK=$(python3 -c "print(hex((1<<$(nproc))-1)[2:])")
-   for f in /sys/class/net/<interface>/queues/rx-*/rps_cpus; do echo "$RPS_MASK" | sudo tee $f; done
+   for f in /sys/class/net/$DEFAULT_IFACE/queues/rx-*/rps_cpus; do echo "$RPS_MASK" | sudo tee $f; done
    ```
 
 ### Phase 2: Medium/Low Priority (System / Infrastructure Optimizations)
-1. **Network MTU Jumbo Frames**: Set MTU to 8896 on supported VPCs (`sudo ip link set dev <interface> mtu 8896`).
+1. **Network MTU Jumbo Frames**: Set MTU to 8896 on supported VPCs (`DEFAULT_IFACE=$(ip route show default | awk '{print $5}') && sudo ip link set dev $DEFAULT_IFACE mtu 8896`).
 2. **TCP Buffer Window Tuning**:
    ```bash
    sudo sysctl -w net.core.rmem_max=134217728
@@ -116,7 +118,7 @@ Example `npi_remediation_plan.md` template:
    ```
 
 ### Phase 3: Open-Ended Performance Exploration & Niche Parameters (Experimental)
-1. **NIC Ring Buffer Optimization**: `sudo ethtool -G <interface> rx 4096 tx 4096`
+1. **NIC Ring Buffer Optimization**: `DEFAULT_IFACE=$(ip route show default | awk '{print $5}') && sudo ethtool -G $DEFAULT_IFACE rx 4096 tx 4096`
 2. **CPU Governor Tuning**: `echo performance | sudo tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor`
 3. **PCIe Max Read Request Size (MRRS)**: Inspect and tune via `lspci -vvv`.
 

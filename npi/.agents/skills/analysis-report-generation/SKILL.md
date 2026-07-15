@@ -79,7 +79,7 @@ FROM
   \`<PROJECT_ID>.<DATASET_ID>.<TABLE_ID>\`,
   UNNEST(JSON_EXTRACT_ARRAY(fio_json_output.jobs)) AS job
 WHERE
-  block_size = '1m' AND numjobs = 128 AND nr_files = 10 AND file_size = '1G'
+  (block_size = '1m' AND file_size IN ('1G', '1M', '100M'))
 GROUP BY 1, 2, 3
 ORDER BY run_timestamp DESC"
 ```
@@ -111,9 +111,10 @@ Example Intra-Run Table:
 
 #### 3. Strict NPI Performance Pass/Fail Gate (SLA Gate)
 Evaluate the run results against the strict NPI performance gate:
-- **Target Workload**: Sequential reads of **1 GiB file size**, **1M block size**, **128 numjobs**, **10 files** (NR_FILES), without GCSFuse caches.
-- **Performance Threshold**: Maximum throughput MUST be **>= 20 GB/s** for BOTH HTTP/1.1 and gRPC protocols.
-- **NUMA Pinning Constraint**: The 20 GB/s target **MUST be achieved in standard, non-NUMA-pinned configurations**. If non-pinned runs fail to reach 20 GB/s, the overall verdict MUST be **FAIL / REJECTED**, even if NUMA-pinned runs exceed 20 GB/s.
+- **Full Benchmark Mode**: Sequential reads of **1 GiB file size**, **1M block size**, **128 numjobs**, **10 files** (NR_FILES), without GCSFuse caches. Threshold: maximum throughput MUST be **>= 20 GB/s** for BOTH HTTP/1.1 and gRPC protocols in standard, non-NUMA-pinned configurations.
+- **Smoke Test Mode Adaptation**: If running in smoke test mode (or if 1 GiB file size metrics are absent due to scaled parameters), evaluate metrics dynamically from available file sizes (e.g. 1M/100M). Set Executive Summary verdict to:
+  `STATUS: SKIPPED (Smoke Test Run - Scaled Parameters: <FILE_SIZE>, <NUMJOBS> jobs)`
+  Do NOT mark a smoke test as `FAIL / REJECTED` simply because 1 GiB full workload parameters were not executed.
 
 ### Step 3: Verify Machine Type Configuration
 Check if the GCE VM or GKE node machine type (e.g., `c4-standard-96`) is registered in `params.yaml` in the GCSFuse repository:
@@ -128,7 +129,7 @@ Write the validation report using the standard template:
 # GCSFuse NPI Validation Report
 
 ## Executive Summary
-[Explicit PASS/FAIL verdict for 20 GB/s SLA gate on 1G file size, 1M block size, 128 numjobs non-NUMA-pinned runs for BOTH HTTP/1.1 and gRPC. If non-pinned throughput < 20 GB/s for either protocol, mark as FAIL / REJECTED.]
+[Explicit PASS/FAIL verdict for 20 GB/s SLA gate on 1G file size non-NUMA-pinned runs for BOTH HTTP/1.1 and gRPC in full runs. For smoke test runs, state: "STATUS: SKIPPED (Smoke Test Run - Scaled Parameters: <FILE_SIZE>, <NUMJOBS> jobs)" and report observed bandwidth without marking as REJECTED.]
 
 ## Run Details
 - **Timestamp**: [ISO 8601 Timestamp]

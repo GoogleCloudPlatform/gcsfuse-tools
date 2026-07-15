@@ -20,6 +20,12 @@ import datetime
 import queue
 import threading
 
+# Strict KUBECONFIG isolation setup to protect host ~/.kube/config
+KUBE_DIR = os.path.expanduser("~/.kube")
+ISOLATED_KUBECONFIG = os.path.join(KUBE_DIR, "npi_kubeconfig")
+os.makedirs(KUBE_DIR, exist_ok=True)
+os.environ["KUBECONFIG"] = ISOLATED_KUBECONFIG
+
 def enqueue_output(out, q):
     try:
         for line in iter(out.readline, ''):
@@ -43,6 +49,12 @@ def create_job_spec(job_name, image, args, bucket_name, service_account, extra_f
     
     # Replace service account
     pod_spec["serviceAccountName"] = service_account
+
+    # Set NUMJOBS env var for FIO
+    num_jobs_val = "2" if "--numjobs=2" in args else "112"
+    if "env" not in pod_spec["containers"][0] or not pod_spec["containers"][0]["env"]:
+        pod_spec["containers"][0]["env"] = []
+    pod_spec["containers"][0]["env"].append({"name": "NUMJOBS", "value": num_jobs_val})
     
     print(f"DEBUG: Parsed node_selector: {node_selector}")
     if node_selector:
@@ -101,6 +113,18 @@ def create_job_spec(job_name, image, args, bucket_name, service_account, extra_f
                     "emptyDir": {
                         "medium": "Memory"
                     }
+                }
+            ])
+            if "volumeMounts" not in pod_spec["containers"][0]:
+                pod_spec["containers"][0]["volumeMounts"] = []
+            pod_spec["containers"][0]["volumeMounts"].extend([
+                {
+                    "name": "gke-gcsfuse-cache",
+                    "mountPath": "/gcsfuse-cache"
+                },
+                {
+                    "name": "gke-gcsfuse-buffer",
+                    "mountPath": "/gcsfuse-buffer"
                 }
             ])
     
@@ -328,8 +352,7 @@ def setup_kubernetes_service_account(project_id, ksa_name, namespace, buckets, d
     ]
     res = subprocess.run(bq_cmd, capture_output=True, text=True)
     if res.returncode != 0:
-        print(f"Failed to bind BigQuery dataEditor permission on project {project_id}: {res.stderr}", file=sys.stderr)
-        return False
+        print(f"Warning: Could not bind BigQuery dataEditor permission on project {project_id}: {res.stderr.strip()}", file=sys.stderr)
 
     # 5. Grant roles/bigquery.jobUser on the GCP project (for job/query execution)
     print(f"--- Granting bigquery.jobUser role to {ksa_name} on project {project_id} ---")
@@ -339,8 +362,7 @@ def setup_kubernetes_service_account(project_id, ksa_name, namespace, buckets, d
     ]
     res = subprocess.run(bq_job_cmd, capture_output=True, text=True)
     if res.returncode != 0:
-        print(f"Failed to bind BigQuery jobUser permission on project {project_id}: {res.stderr}", file=sys.stderr)
-        return False
+        print(f"Warning: Could not bind BigQuery jobUser permission on project {project_id}: {res.stderr.strip()}", file=sys.stderr)
 
     return True
 
@@ -425,8 +447,16 @@ def main():
         default=None,
         help="Suffix to append to the BigQuery table ID."
     )
+    parser.add_argument(
+        "--smoke-mode",
+        action="store_true",
+        help="If set, run in fast smoke test mode with reduced iterations and thread counts."
+    )
     
     args = parser.parse_args()
+
+    if args.smoke_mode and args.iterations == 5:
+        args.iterations = 1
 
     if args.use_memory_volumes:
         host_ram_mb = get_host_total_ram_mb()
@@ -440,6 +470,8 @@ def main():
 
     if args.cluster_name and args.location:
         print(f"--- Fetching credentials for GKE cluster: {args.cluster_name} in {args.location} ---")
+        os.makedirs(KUBE_DIR, exist_ok=True)
+        os.environ["KUBECONFIG"] = ISOLATED_KUBECONFIG
         res = subprocess.run([
             "gcloud", "container", "clusters", "get-credentials", args.cluster_name,
             "--location", args.location, "--project", args.project_id
@@ -448,8 +480,8 @@ def main():
             print(f"Failed to fetch cluster credentials:\n{res.stderr}", file=sys.stderr)
             sys.exit(1)
         print("Successfully fetched cluster credentials.")
-    elif args.cluster_name or args.location:
-        parser.error("Both --cluster-name and --location must be provided together to fetch cluster credentials.")
+    else:
+        parser.error("Both --cluster-name and --location must be provided to fetch cluster credentials and run GKE benchmarks.")
 
     # Automatically setup/ensure service account permissions
     buckets_to_auth = [args.bucket_name]
@@ -511,7 +543,8 @@ def main():
 
     for bench_type, config_name, image_suffix, extra_flag, iter_override, runner_args in benchmarks_to_run:
         full_bench_name = f"{bench_type}_{config_name}" if config_name else bench_type
-        job_name = f"gcsfuse-npi-{full_bench_name}".replace("_", "-")
+        bucket_clean = args.bucket_name.replace("gs://", "").replace("npi-bucket-", "").replace("_", "-").lower()
+        job_name = f"gcsfuse-npi-{bucket_clean}-{full_bench_name}".replace("_", "-")
         is_go_client = (bench_type == "go_read")
         
         if bench_type == "host_info":
@@ -551,6 +584,8 @@ def main():
                 f"--bq-table-id={bq_table_id}",
                 "--mount-path=/data"
             ]
+            if args.smoke_mode:
+                cmd_args.append("--numjobs=2")
             
         if runner_args:
             cmd_args.append(runner_args)

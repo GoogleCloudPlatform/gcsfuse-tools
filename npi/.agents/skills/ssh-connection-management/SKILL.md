@@ -1,6 +1,6 @@
 ---
 name: ssh-connection-management
-description: Guides on establishing persistent master SSH multiplexing sockets at ~/.ssh/sockets/<TARGET_NAME>.sock using ssh -N -M -S, testing connection liveness, removing stale control sockets, and recreating sockets following user group modifications like docker usermod updates.
+description: Guides on establishing persistent master SSH multiplexing sockets at ~/.ssh/sockets/<TARGET_NAME>.sock using ssh -f -N -M -S, testing connection liveness, removing stale control sockets, and recreating sockets following user group modifications like docker usermod updates.
 ---
 
 # SSH Connection Management for GCSFuse NPI
@@ -33,7 +33,7 @@ This skill guides you through establishing, managing, and troubleshooting persis
 
 ### Outputs
 - **Active Master Socket File**: Unix domain socket located at `~/.ssh/sockets/<TARGET_NAME>.sock`.
-- **Background SSH Process**: Persistent background `ssh -N -M` process holding the master channel open.
+- **Background SSH Process**: Persistent background `ssh -f -N -M` process holding the master channel open.
 
 ## Step-by-Step Procedure
 
@@ -48,7 +48,7 @@ mkdir -p ~/.ssh/sockets
 
 Before starting a master connection, gracefully terminate any existing master process and remove stale socket files for the target:
 ```bash
-ssh -O exit -S ~/.ssh/sockets/<TARGET_NAME>.sock 2>/dev/null || pkill -f "ssh -N -M -S ~/.ssh/sockets/<TARGET_NAME>.sock"
+ssh -O exit -S ~/.ssh/sockets/<TARGET_NAME>.sock 2>/dev/null || pkill -f "ssh -f -N -M -S ~/.ssh/sockets/<TARGET_NAME>.sock"
 rm -f ~/.ssh/sockets/<TARGET_NAME>.sock
 ```
 
@@ -56,10 +56,11 @@ rm -f ~/.ssh/sockets/<TARGET_NAME>.sock
 
 Launch the persistent master SSH connection in the background (or persistent terminal):
 ```bash
-ssh -N -M -S ~/.ssh/sockets/<TARGET_NAME>.sock -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ~/.ssh/google_compute_engine <SSH_USER>@nic0.<VM_NAME>.<ZONE>.c.<PROJECT_ID>.internal.gcpnode.com
+ssh -f -N -M -S ~/.ssh/sockets/<TARGET_NAME>.sock -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ~/.ssh/google_compute_engine <SSH_USER>@nic0.<VM_NAME>.<ZONE>.c.<PROJECT_ID>.internal.gcpnode.com
 ```
 
 Key options explained:
+- `-f`: Requests ssh to go to background just before command execution.
 - `-N`: Do not execute a remote command (background connection mode).
 - `-M`: Place the SSH client into master mode for connection sharing.
 - `-S ~/.ssh/sockets/<TARGET_NAME>.sock`: Path to the control socket.
@@ -77,7 +78,7 @@ ssh -S ~/.ssh/sockets/<TARGET_NAME>.sock -o StrictHostKeyChecking=no -o UserKnow
 If user permissions change on the remote VM (e.g., after adding the user to the `docker` group via `usermod -aG docker`):
 1. Gracefully terminate and remove the master socket:
    ```bash
-   ssh -O exit -S ~/.ssh/sockets/<TARGET_NAME>.sock 2>/dev/null || pkill -f "ssh -N -M -S ~/.ssh/sockets/<TARGET_NAME>.sock"
+   ssh -O exit -S ~/.ssh/sockets/<TARGET_NAME>.sock 2>/dev/null || pkill -f "ssh -f -N -M -S ~/.ssh/sockets/<TARGET_NAME>.sock"
    rm -f ~/.ssh/sockets/<TARGET_NAME>.sock
    ```
 2. Re-establish the master connection by repeating Step 3.
@@ -86,16 +87,16 @@ If user permissions change on the remote VM (e.g., after adding the user to the 
 
 | Failure Scenario | Root Cause | Remediation / Recovery Action |
 |---|---|---|
-| **`Control socket connect failed: Connection refused`** | Master SSH process died unexpectedly, leaving a dead socket file | Terminate master process and delete stale socket file (`ssh -O exit -S ~/.ssh/sockets/<TARGET_NAME>.sock 2>/dev/null || pkill -f "ssh -N -M -S ~/.ssh/sockets/<TARGET_NAME>.sock" ; rm -f ~/.ssh/sockets/<TARGET_NAME>.sock`) and re-run master connection command. |
+| **`Control socket connect failed: Connection refused`** | Master SSH process died unexpectedly, leaving a dead socket file | Terminate master process and delete stale socket file (`ssh -O exit -S ~/.ssh/sockets/<TARGET_NAME>.sock 2>/dev/null || pkill -f "ssh -f -N -M -S ~/.ssh/sockets/<TARGET_NAME>.sock" ; rm -f ~/.ssh/sockets/<TARGET_NAME>.sock`) and re-run master connection command. |
 | **`Permission Denied (publickey)`** | SSH key `~/.ssh/google_compute_engine` missing or expired GCP IAM SSH login credentials | Run `gcloud compute config-default-ssh-keys` or `gcloud compute ssh <VM_NAME> --zone=<ZONE>` to refresh SSH keys. |
-| **Permission Group Refresh Delay (Docker)** | Added user to `docker` group, but commands fail with `permission denied while trying to connect to Docker daemon` | Active SSH master session retains original group IDs. Terminate processes and remove sockets (`pkill -f "ssh -N -M -S ~/.ssh/sockets/" ; rm -f ~/.ssh/sockets/*.sock`) and start new master SSH socket. |
+| **Permission Group Refresh Delay (Docker)** | Added user to `docker` group, but commands fail with `permission denied while trying to connect to Docker daemon` | Active SSH master session retains original group IDs. Terminate processes and remove sockets (`pkill -f "ssh -f -N -M -S ~/.ssh/sockets/" ; rm -f ~/.ssh/sockets/*.sock`) and start new master SSH socket. |
 | **Connection Drop / Network Disconnect** | Remote VM rebooted or network path reset | Remove stale socket and re-establish master SSH connection. |
 
 ## Verification Checks
 
-1. **Local Socket File Check**: Confirm socket file exists and is a active socket file:
+1. **Local Socket Liveness Check**: Confirm socket file exists and master process is alive:
    ```bash
-   test -S ~/.ssh/sockets/<TARGET_NAME>.sock && echo "SOCKET_EXISTS"
+   ssh -O check -S ~/.ssh/sockets/<TARGET_NAME>.sock 2>/dev/null && echo "SOCKET_ALIVE"
    ```
 2. **Remote Echo Check**: Confirm commands execute over multiplexed socket:
    ```bash

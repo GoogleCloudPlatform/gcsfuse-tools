@@ -15,6 +15,7 @@
 
 import argparse
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -120,6 +121,7 @@ def main():
     parser.add_argument("--project", default="gcs-fuse-test", help="GCP Project ID")
     parser.add_argument("--image-version", default="latest", help="Image version tag")
     parser.add_argument("--arm-worker-pool", default=None, help="Cloud Build ARM worker pool resource name")
+    parser.add_argument("--smoke-mode", action="store_true", help="Build container images using trimmed smoke test FIO matrices.")
 
     args = parser.parse_args()
 
@@ -149,6 +151,33 @@ def main():
             sys.exit(1)
 
     print(f"Using Go version: {args.go_version} to compile GCSFuse performance test base image.")
+
+    read_matrix_backup = None
+    write_matrix_backup = None
+    if args.smoke_mode:
+        print("Smoke mode enabled: packaging trimmed smoke matrices into build context.")
+        if os.path.exists("fio/read_matrix.csv"):
+            with open("fio/read_matrix.csv", "r") as f:
+                read_matrix_backup = f.read()
+        if os.path.exists("fio/write_matrix.csv"):
+            with open("fio/write_matrix.csv", "r") as f:
+                write_matrix_backup = f.read()
+        shutil.copy("fio/smoke_read_matrix.csv", "fio/read_matrix.csv")
+        shutil.copy("fio/smoke_write_matrix.csv", "fio/write_matrix.csv")
+
+    try:
+        _run_builds(args)
+    finally:
+        if args.smoke_mode:
+            if read_matrix_backup is not None:
+                with open("fio/read_matrix.csv", "w") as f:
+                    f.write(read_matrix_backup)
+            if write_matrix_backup is not None:
+                with open("fio/write_matrix.csv", "w") as f:
+                    f.write(write_matrix_backup)
+            print("Restored original FIO matrix files.")
+
+def _run_builds(args):
 
     if args.arm_worker_pool:
         print(f"Worker pool specified: {args.arm_worker_pool}")

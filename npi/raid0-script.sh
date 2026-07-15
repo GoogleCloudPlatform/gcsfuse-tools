@@ -16,10 +16,17 @@ NUM_DEVICES=${#DEVICES[@]}
 # Get the mount path from first argument, default to /mnt/lssd
 MOUNT_PATH=${1:-/mnt/lssd}
 
-# Check if any SSDs were found. If not, fallback to RAM tmpfs if RAM is >= 600GB.
+# Check if mount path is already mounted
+if mountpoint -q "$MOUNT_PATH"; then
+    echo "Storage buffer is already mounted at $MOUNT_PATH."
+    df -h "$MOUNT_PATH"
+    exit 0
+fi
+
+# Check if any SSDs were found. If not, fallback to RAM tmpfs.
 if [ $NUM_DEVICES -eq 0 ]; then
     echo "No local SSDs found matching the pattern '/dev/disk/by-id/google-local-nvme-ssd-*'."
-    echo "Checking if host has sufficient RAM (>= 600GB) to mount tmpfs instead..."
+    echo "Fallback to tmpfs RAM disk buffer..."
     
     TOTAL_RAM_KB=$(grep MemTotal /proc/meminfo | awk '{print $2}')
     if [ -z "$TOTAL_RAM_KB" ] || ! [[ "$TOTAL_RAM_KB" =~ ^[0-9]+$ ]]; then
@@ -29,17 +36,21 @@ if [ $NUM_DEVICES -eq 0 ]; then
     TOTAL_RAM_GB=$((TOTAL_RAM_KB / 1024 / 1024))
     
     if [ $TOTAL_RAM_GB -ge 550 ]; then
-        echo "Found ${TOTAL_RAM_GB}GB RAM. Creating 500GB tmpfs memory volume to leave OS headroom..."
-        sudo mkdir -p "$MOUNT_PATH"
-        sudo mount -t tmpfs -o size=500G tmpfs "$MOUNT_PATH"
-        sudo chmod a+w "$MOUNT_PATH"
-        echo "Memory volume (tmpfs) mounted successfully at $MOUNT_PATH."
-        df -h "$MOUNT_PATH"
-        exit 0
+        TMPFS_SIZE_GB=500
     else
-        echo "Error: Host has no local SSDs, and RAM is only ${TOTAL_RAM_GB}GB (requires a 600GB VM class, minimum 550GB detected)."
-        exit 1
+        TMPFS_SIZE_GB=$((TOTAL_RAM_GB / 2))
+        if [ $TMPFS_SIZE_GB -lt 1 ]; then
+            TMPFS_SIZE_GB=1
+        fi
     fi
+    
+    echo "Found ${TOTAL_RAM_GB}GB RAM. Creating ${TMPFS_SIZE_GB}G tmpfs memory volume..."
+    sudo mkdir -p "$MOUNT_PATH"
+    sudo mount -t tmpfs -o size=${TMPFS_SIZE_GB}G tmpfs "$MOUNT_PATH"
+    sudo chmod a+w "$MOUNT_PATH"
+    echo "Memory volume (tmpfs) mounted successfully at $MOUNT_PATH."
+    df -h "$MOUNT_PATH"
+    exit 0
 fi
 
 echo "Found $NUM_DEVICES local SSDs. Creating RAID 0 array..."
