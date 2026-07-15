@@ -198,27 +198,27 @@ def validate_gke_nodes(socket_path, vm_name, zone, target):
     code, _, err = run_ssh_cmd(socket_path, vm_name, zone, cred_cmd, timeout=30)
     
     if code != 0:
-        print(f"[{target['name']}] Remote VM lacks gcloud/kubectl. Validating GKE cluster using local kubectl...")
-        local_cred_cmd = ["gcloud", "container", "clusters", "get-credentials", cluster_name, "--location", location, "--project", PROJECT_ID]
-        subprocess.run(local_cred_cmd, capture_output=True, text=True)
-        res_cpu = subprocess.run(["kubectl", "get", "nodes", "-l", "!cloud.google.com/gke-tpu-accelerator", "-o", "jsonpath={.items[*].metadata.name}"], capture_output=True, text=True)
-        res_tpu = subprocess.run(["kubectl", "get", "nodes", "-l", "cloud.google.com/gke-tpu-accelerator", "-o", "jsonpath={.items[*].metadata.name}"], capture_output=True, text=True)
-        out_cpu, out_tpu = res_cpu.stdout, res_tpu.stdout
-    else:
-        code_cpu, out_cpu, err_cpu = run_ssh_cmd(
-            socket_path, vm_name, zone,
-            "export KUBECONFIG=~/.kube/npi_kubeconfig && kubectl get nodes -l '!cloud.google.com/gke-tpu-accelerator' -o jsonpath='{.items[*].metadata.name}'",
-            timeout=30
-        )
-        code_tpu, out_tpu, err_tpu = run_ssh_cmd(
-            socket_path, vm_name, zone,
-            "export KUBECONFIG=~/.kube/npi_kubeconfig && kubectl get nodes -l 'cloud.google.com/gke-tpu-accelerator' -o jsonpath='{.items[*].metadata.name}'",
-            timeout=30
-        )
-        if code_cpu != 0:
-            raise RuntimeError(f"GKE Validation Error: Failed to list GKE CPU nodes on remote VM: {err_cpu.strip()}")
-        if code_tpu != 0:
-            raise RuntimeError(f"GKE Validation Error: Failed to list GKE TPU nodes on remote VM: {err_tpu.strip()}")
+        print(f"[{target['name']}] Remote VM lacks kubectl or cluster credentials. Attempting remote tool installation...")
+        install_cmd = "sudo apt-get update && sudo apt-get install -y kubectl gke-gcloud-auth-plugin"
+        run_ssh_cmd(socket_path, vm_name, zone, install_cmd, timeout=120)
+        code, _, err = run_ssh_cmd(socket_path, vm_name, zone, cred_cmd, timeout=30)
+        if code != 0:
+            raise RuntimeError(f"GKE Validation Error: Remote VM {vm_name} failed to get credentials for cluster {cluster_name}: {err.strip()}")
+
+    code_cpu, out_cpu, err_cpu = run_ssh_cmd(
+        socket_path, vm_name, zone,
+        "export KUBECONFIG=~/.kube/npi_kubeconfig && kubectl get nodes -l '!cloud.google.com/gke-tpu-accelerator' -o jsonpath='{.items[*].metadata.name}'",
+        timeout=30
+    )
+    code_tpu, out_tpu, err_tpu = run_ssh_cmd(
+        socket_path, vm_name, zone,
+        "export KUBECONFIG=~/.kube/npi_kubeconfig && kubectl get nodes -l 'cloud.google.com/gke-tpu-accelerator' -o jsonpath='{.items[*].metadata.name}'",
+        timeout=30
+    )
+    if code_cpu != 0:
+        raise RuntimeError(f"GKE Validation Error: Failed to list GKE CPU nodes on remote VM: {err_cpu.strip()}")
+    if code_tpu != 0:
+        raise RuntimeError(f"GKE Validation Error: Failed to list GKE TPU nodes on remote VM: {err_tpu.strip()}")
 
     cpu_count = len(out_cpu.strip().split()) if out_cpu.strip() else 0
     tpu_count = len(out_tpu.strip().split()) if out_tpu.strip() else 0
@@ -606,36 +606,9 @@ def execute_target(target, args, state_lock, state):
             if target["type"] == "gke":
                 check_gcloud, _, _ = run_ssh_cmd(socket_path, vm_name, zone, "which gcloud", timeout=10)
                 if check_gcloud != 0:
-                    print(f"[{target_name}] Remote VM lacks gcloud/kubectl. Launching npi_gke.py locally...")
-                    local_python_args = [
-                        "python3", "-u", NPI_GKE_PY_PATH,
-                        "--cluster-name", cluster_name,
-                        "--location", location,
-                        "--bucket-name", target["bucket"],
-                        "--project-id", args.project,
-                        "--bq-dataset-id", dataset_id,
-                        "--image-version", args.image_version,
-                        "--node-selector", node_sel,
-                        "--resources-limits", res_lim,
-                        "--iterations", str(args.iterations),
-                    ]
-                    if is_rapid:
-                        local_python_args.append("--is-rapid-bucket")
-                    if args.smoke_mode:
-                        local_python_args.append("--smoke-mode")
-                    if not has_ssd:
-                        local_python_args.append("--use-memory-volumes")
-                    else:
-                        if any("file_cache" in b for b in active_benchmarks):
-                            local_python_args.append("--run-file-cache-test")
-                    local_python_args.extend(["--benchmarks"] + active_benchmarks)
-
-                    local_python_cmd = " ".join(shlex.quote(arg) for arg in local_python_args)
-                    local_full_cmd = f"mkdir -p ~/.kube && export KUBECONFIG=~/.kube/npi_kubeconfig && {local_python_cmd}; echo $? > {pid_file}.exit"
-                    local_bench_cmd = f"nohup sh -c {shlex.quote(local_full_cmd)} > {log_file} 2>&1 & echo $! > {pid_file}"
-                    subprocess.run(local_bench_cmd, shell=True, check=True)
-                    monitor_local_run(target_name, state_lock, state, pid_file, log_file)
-                    return
+                    print(f"[{target_name}] Remote VM lacks gcloud/kubectl. Installing remote tools...")
+                    install_cmd = "sudo apt-get update && sudo apt-get install -y kubectl gke-gcloud-auth-plugin google-cloud-cli"
+                    run_ssh_cmd(socket_path, vm_name, zone, install_cmd, timeout=120)
 
             print(f"[{target_name}] Triggering benchmarks on {vm_name}...")
             code, out, err = run_ssh_cmd(socket_path, vm_name, zone, bench_cmd)

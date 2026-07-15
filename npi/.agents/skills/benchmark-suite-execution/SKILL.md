@@ -13,7 +13,7 @@ This skill guides you through defining target environments in `targets.json`, ex
 1. **Benchmark Images Pushed**: Container images built and pushed to Artifact Registry (`us-docker.pkg.dev/<PROJECT_ID>/gcsfuse-npi-images:<IMAGE_VERSION>`) via `benchmark-build-setup`.
 2. **Storage Buffers Mounted**: RAID0 or `tmpfs` RAM disks mounted at configured buffer paths (`/mnt/lssd` or `/tmp/npi_buffer`).
 3. **Active Master SSH Sockets**: Master SSH sockets established for target VMs at `~/.ssh/sockets/<TARGET_NAME>.sock`.
-4. **CLI Tools & Isolated KUBECONFIG Authentication**: `gcloud`, `kubectl`, and `bq` CLI tools configured and authenticated with access to GCS test buckets and BigQuery output datasets. All GKE cluster credential fetches (`gcloud container clusters get-credentials`) and `kubectl` invocations MUST enforce strict KUBECONFIG isolation (`mkdir -p ~/.kube && export KUBECONFIG=~/.kube/npi_kubeconfig`) to ensure the host default `~/.kube/config` is never mutated.
+4. **CLI Tools & Remote-Only KUBECONFIG Execution**: `gcloud`, `kubectl`, and `bq` CLI tools configured and authenticated. All GKE cluster credential fetches (`gcloud container clusters get-credentials`), `kubectl` invocations, and `npi_gke.py` executions MUST run EXCLUSIVELY on the remote target runner VM via SSH under `KUBECONFIG=~/.kube/npi_kubeconfig`. Local fallback execution on the developer workstation is strictly forbidden to preserve complete host machine isolation.
 5. **Host-Level OS Tuning**: Large Receive Offload (LRO/GRO) and Receive Flow Steering (RFS/RPS) enabled on target VM network interfaces to achieve the 20 GB/s SLA gate requirement.
 
 ### Trigger Conditions
