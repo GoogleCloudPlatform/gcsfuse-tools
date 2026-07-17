@@ -28,7 +28,7 @@ This skill guides you through establishing, managing, and troubleshooting persis
   - VM Name (`<VM_NAME>`).
   - Zone (`<ZONE>`).
   - GCP Project ID (`<PROJECT_ID>`).
-  - SSH User (`<SSH_USER>`).
+  - SSH User (`<SSH_USER>`): Username used for SSH authentication. Resolved dynamically via `SSH_USER="${SSH_USER:-$(gcloud config get-value account 2>/dev/null | tr '@.' '_')}"` or falling back to local OS username logic (`local_user_google_com`).
 - **Socket Cache Directory**: `~/.ssh/sockets/`.
 
 ### Outputs
@@ -46,17 +46,20 @@ mkdir -p ~/.ssh/sockets
 
 ### Step 2: Clean Up Stale Sockets
 
-Before starting a master connection, gracefully terminate any existing master process and remove stale socket files for the target:
+Before starting a master connection, perform a non-destructive liveness check and remove socket files only if the master process is unresponsive:
 ```bash
-ssh -O exit -S ~/.ssh/sockets/<TARGET_NAME>.sock 2>/dev/null || pkill -f "ssh -f -N -M -S ~/.ssh/sockets/<TARGET_NAME>.sock"
-rm -f ~/.ssh/sockets/<TARGET_NAME>.sock
+if ! ssh -O check -S ~/.ssh/sockets/<TARGET_NAME>.sock 2>/dev/null; then
+  ssh -O exit -S ~/.ssh/sockets/<TARGET_NAME>.sock 2>/dev/null || pkill -f "ssh -f -N -M -S ~/.ssh/sockets/<TARGET_NAME>.sock"
+  rm -f ~/.ssh/sockets/<TARGET_NAME>.sock
+fi
 ```
 
 ### Step 3: Establish Master SSH Connection
 
-Launch the persistent master SSH connection in the background (or persistent terminal):
+Launch the persistent master SSH connection in the background (or persistent terminal), resolving `SSH_USER` dynamically:
 ```bash
-ssh -f -N -M -S ~/.ssh/sockets/<TARGET_NAME>.sock -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ~/.ssh/google_compute_engine <SSH_USER>@nic0.<VM_NAME>.<ZONE>.c.<PROJECT_ID>.internal.gcpnode.com
+SSH_USER="${SSH_USER:-$(gcloud config get-value account 2>/dev/null | tr '@.' '_')}"
+ssh -f -N -M -S ~/.ssh/sockets/<TARGET_NAME>.sock -o IdentitiesOnly=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ~/.ssh/google_compute_engine ${SSH_USER}@nic0.<VM_NAME>.<ZONE>.c.<PROJECT_ID>.internal.gcpnode.com
 ```
 
 Key options explained:
@@ -64,19 +67,20 @@ Key options explained:
 - `-N`: Do not execute a remote command (background connection mode).
 - `-M`: Place the SSH client into master mode for connection sharing.
 - `-S ~/.ssh/sockets/<TARGET_NAME>.sock`: Path to the control socket.
+- `-o IdentitiesOnly=yes -i ~/.ssh/google_compute_engine`: Restrict authentication strictly to the specified compute key, avoiding identity rejection.
 - `-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null`: Prevent interactive host key prompts.
 
 ### Step 4: Verify Connection Liveness
 
 Test remote command execution over the master socket:
 ```bash
-ssh -S ~/.ssh/sockets/<TARGET_NAME>.sock -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ~/.ssh/google_compute_engine <SSH_USER>@nic0.<VM_NAME>.<ZONE>.c.<PROJECT_ID>.internal.gcpnode.com "echo 'Connection Alive'"
+ssh -S ~/.ssh/sockets/<TARGET_NAME>.sock -o IdentitiesOnly=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ~/.ssh/google_compute_engine <SSH_USER>@nic0.<VM_NAME>.<ZONE>.c.<PROJECT_ID>.internal.gcpnode.com "echo 'Connection Alive'"
 ```
 
 ### Step 5: Refreshing / Recreating Sockets
 
 If user permissions change on the remote VM (e.g., after adding the user to the `docker` group via `usermod -aG docker`):
-1. Gracefully terminate and remove the master socket:
+1. Gracefully terminate and remove the master socket after checking liveness:
    ```bash
    ssh -O exit -S ~/.ssh/sockets/<TARGET_NAME>.sock 2>/dev/null || pkill -f "ssh -f -N -M -S ~/.ssh/sockets/<TARGET_NAME>.sock"
    rm -f ~/.ssh/sockets/<TARGET_NAME>.sock
@@ -87,10 +91,10 @@ If user permissions change on the remote VM (e.g., after adding the user to the 
 
 | Failure Scenario | Root Cause | Remediation / Recovery Action |
 |---|---|---|
-| **`Control socket connect failed: Connection refused`** | Master SSH process died unexpectedly, leaving a dead socket file | Terminate master process and delete stale socket file (`ssh -O exit -S ~/.ssh/sockets/<TARGET_NAME>.sock 2>/dev/null || pkill -f "ssh -f -N -M -S ~/.ssh/sockets/<TARGET_NAME>.sock" ; rm -f ~/.ssh/sockets/<TARGET_NAME>.sock`) and re-run master connection command. |
-| **`Permission Denied (publickey)`** | SSH key `~/.ssh/google_compute_engine` missing or expired GCP IAM SSH login credentials | Run `gcloud compute config-default-ssh-keys` or `gcloud compute ssh <VM_NAME> --zone=<ZONE>` to refresh SSH keys. |
+| **`Control socket connect failed: Connection refused`** | Master SSH process died unexpectedly, leaving a dead socket file | Check socket liveness (`ssh -O check -S ~/.ssh/sockets/<TARGET_NAME>.sock 2>/dev/null`). If check fails, terminate process and delete stale socket file (`ssh -O exit -S ~/.ssh/sockets/<TARGET_NAME>.sock 2>/dev/null || pkill -f "ssh -f -N -M -S ~/.ssh/sockets/<TARGET_NAME>.sock" ; rm -f ~/.ssh/sockets/<TARGET_NAME>.sock`) and re-run master connection command. |
+| **`Permission Denied (publickey)`** | SSH key `~/.ssh/google_compute_engine` missing or expired GCP IAM SSH login credentials | Ensure `-o IdentitiesOnly=yes -i ~/.ssh/google_compute_engine` is passed. Run `gcloud compute config-default-ssh-keys` or `gcloud compute ssh <VM_NAME> --zone=<ZONE>` to refresh SSH keys. |
 | **Permission Group Refresh Delay (Docker)** | Added user to `docker` group, but commands fail with `permission denied while trying to connect to Docker daemon` | Active SSH master session retains original group IDs. Terminate processes and remove sockets (`pkill -f "ssh -f -N -M -S ~/.ssh/sockets/" ; rm -f ~/.ssh/sockets/*.sock`) and start new master SSH socket. |
-| **Connection Drop / Network Disconnect** | Remote VM rebooted or network path reset | Remove stale socket and re-establish master SSH connection. |
+| **Connection Drop / Network Disconnect** | Remote VM rebooted or network path reset | Remove stale socket after checking with `ssh -O check` and re-establish master SSH connection. |
 
 ## Verification Checks
 
@@ -100,5 +104,5 @@ If user permissions change on the remote VM (e.g., after adding the user to the 
    ```
 2. **Remote Echo Check**: Confirm commands execute over multiplexed socket:
    ```bash
-   ssh -S ~/.ssh/sockets/<TARGET_NAME>.sock -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ~/.ssh/google_compute_engine <SSH_USER>@nic0.<VM_NAME>.<ZONE>.c.<PROJECT_ID>.internal.gcpnode.com "echo 'Connection Alive'"
+   ssh -S ~/.ssh/sockets/<TARGET_NAME>.sock -o IdentitiesOnly=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ~/.ssh/google_compute_engine <SSH_USER>@nic0.<VM_NAME>.<ZONE>.c.<PROJECT_ID>.internal.gcpnode.com "echo 'Connection Alive'"
    ```

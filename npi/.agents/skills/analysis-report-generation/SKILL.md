@@ -143,7 +143,7 @@ Write the validation report using the standard template:
 ## Target Performance Results
 
 ### [TARGET_NAME_1] (Platform Type)
-- **GCSFuse Version**: [e.g. v3.9.0]
+- **GCSFuse Version**: [e.g. master]
 - **Target Bucket**: [RAPID / Regional]
 
 #### Baseline Performance Comparison (If Available)

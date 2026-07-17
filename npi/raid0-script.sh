@@ -1,5 +1,11 @@
 #!/bin/bash -e
 
+MOUNT_POINT="${MOUNT_POINT:-${1:-/mnt/disks/gcsfuse-buffer}}"
+if mountpoint -q "$MOUNT_POINT" 2>/dev/null; then
+    echo "Buffer mountpoint $MOUNT_POINT is already mounted. Nothing to do."
+    exit 0
+fi
+
 # Update the package list and install mdadm if it's not already installed.
 sudo apt-get update
 sudo apt-get install -y mdadm --no-install-recommends
@@ -13,8 +19,8 @@ DEVICES=(/dev/disk/by-id/google-local-nvme-ssd-*)
 # Get the total number of SSDs found.
 NUM_DEVICES=${#DEVICES[@]}
 
-# Get the mount path from first argument, default to /mnt/lssd
-MOUNT_PATH=${1:-/mnt/lssd}
+# Get the mount path from MOUNT_POINT
+MOUNT_PATH="$MOUNT_POINT"
 
 # Check if mount path is already mounted
 if mountpoint -q "$MOUNT_PATH"; then
@@ -53,10 +59,15 @@ if [ $NUM_DEVICES -eq 0 ]; then
     exit 0
 fi
 
-echo "Found $NUM_DEVICES local SSDs. Creating RAID 0 array..."
+if [ $NUM_DEVICES -eq 1 ]; then
+    echo "Found 1 local SSD (${DEVICES[0]}). Creating 1-drive RAID 0 array with --force..."
+else
+    echo "Found $NUM_DEVICES local SSDs. Creating RAID 0 array..."
+fi
 
 # Create the RAID 0 array using all discovered devices.
-yes | sudo mdadm --create /dev/md0 --level=0 --raid-devices=$NUM_DEVICES "${DEVICES[@]}"
+# Note: mdadm --create requires --force when creating array with a single device (NUM_DEVICES=1).
+yes | sudo mdadm --create --force --verbose /dev/md0 --level=0 --raid-devices=$NUM_DEVICES "${DEVICES[@]}"
 
 echo "Formatting the RAID array..."
 

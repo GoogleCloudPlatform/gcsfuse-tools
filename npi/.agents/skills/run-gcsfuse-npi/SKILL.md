@@ -1,11 +1,11 @@
 ---
 name: run-gcsfuse-npi
-description: Master entrypoint and orchestration skill for running the end-to-end GCSFuse Network Performance Improvement (NPI) pipeline across 6 modular skills, coordinating SSH socket setup, target buffer mounting via raid0-script.sh, image building via build_images.py, POSIX conformance testing via make npi-conformance, benchmark suite execution via npi_orchestrator.py, analysis and validation report generation in npi_validation_report.md, and remediation planning in npi_remediation_plan.md.
+description: Master entrypoint and orchestration skill for running the end-to-end GCSFuse Network Performance Improvement (NPI) pipeline across modular skills, coordinating SSH socket setup, bucket creation via bucket-creation skill, target buffer mounting via raid0-script.sh, image building via build_images.py, POSIX conformance testing via make npi-conformance, benchmark suite execution via npi_orchestrator.py, analysis and validation report generation in npi_validation_report.md, and remediation planning in npi_remediation_plan.md.
 ---
 
 # GCSFuse NPI Master Orchestration Entrypoint
 
-This skill serves as the primary master entrypoint for executing and orchestrating the complete end-to-end GCSFuse Network Performance Improvement (NPI) validation, benchmarking, POSIX conformance testing, analysis, and remediation pipeline across all 6 modular skills.
+This skill serves as the primary master entrypoint for executing and orchestrating the complete end-to-end GCSFuse Network Performance Improvement (NPI) validation, benchmarking, POSIX conformance testing, analysis, and remediation pipeline across all modular skills.
 
 ---
 
@@ -15,40 +15,47 @@ This skill serves as the primary master entrypoint for executing and orchestrati
 1. **GCP Project Access & Credentials**: Local environment configured with `gcloud`, `kubectl`, and `bq` CLI tools with permissions to create storage resources, push container images, run GKE workloads, and write to BigQuery. All `gcloud container clusters get-credentials` and `kubectl` operations MUST use strict KUBECONFIG isolation (`mkdir -p ~/.kube && export KUBECONFIG=~/.kube/npi_kubeconfig`) to ensure the host default `~/.kube/config` is never mutated or overwritten.
 2. **GCSFuse Source Checkout**: Local repository clone of GCSFuse.
 3. **Target Specifications (`targets.json`)**: Pre-populated `targets.json` defining target GCE VMs, GKE clusters, storage buffer paths, node selectors, and GCP buckets.
-4. **SSH Access**: Configured SSH key at `~/.ssh/google_compute_engine` for connecting to target GCE VMs and GKE intermediate controller nodes.
+4. **SSH Access**: Configured SSH key at `~/.ssh/google_compute_engine` for connecting to target GCE VMs and GKE intermediate controller runner VMs.
 
 ### Trigger Conditions
 - Initiating end-to-end GCSFuse NPI qualification for a new software release or platform target.
-- Dispatched when requested to execute full pipeline: SSH Connection -> Target Setup -> Conformance Testing -> Benchmark Suite Execution -> Analysis & Validation Report -> Remediation Advisory.
+- Dispatched when requested to execute full pipeline: SSH Connection -> Storage Bucket Provisioning -> Target Setup -> Conformance Testing -> Benchmark Suite Execution -> Analysis & Validation Report -> Remediation Advisory.
 
 ---
 
 ## Input/Output Contract
 
 ### Inputs
-- **`targets.json`**: Target configurations schema defining target names, VM names, zones, bucket names, BigQuery dataset prefixes, buffer mount paths, and machine configurations.
-- **Workflow Parameters**: Image tag version (`<IMAGE_VERSION>`), GCSFuse version tag (`<GCSFUSE_VERSION>`), iteration count, benchmark selection (`read_http1`, `read_grpc`, `write_http1`, `write_grpc`, `read_file_cache`, `all`), and optional smoke mode flag (`--smoke-mode`).
+- **`targets.json`**: Target configurations schema defining target names, VM names (`vm_name` specifies the GCE VM or the GKE controller runner VM), zones, bucket names, BigQuery dataset prefixes, buffer mount paths, and machine configurations.
+- **Workflow Parameters**: Image tag version (`<IMAGE_VERSION>`), GCSFuse version tag (`<GCSFUSE_VERSION>`, default: `master`), iteration count, benchmark selection (`read_http1`, `read_grpc`, `write_http1`, `write_grpc`, `read_file_cache`, `all`), and optional smoke mode flag (`--smoke-mode`).
 - **Baseline Dataset ID** (Optional): Historical BigQuery dataset ID for regression comparison.
 
 ### Outputs
 - **Lifecycle Artifacts**:
   1. Active master SSH sockets at `~/.ssh/sockets/<TARGET_NAME>.sock` (via `ssh-connection-management`).
-  2. Mounted target storage buffers (RAID0 or `tmpfs` RAM disk) and pushed container image `us-docker.pkg.dev/<PROJECT_ID>/gcsfuse-npi-images:<IMAGE_VERSION>` (via `benchmark-build-setup`).
-  3. `conformance_results_<TARGET_NAME>.json` for GCE VM targets (via `conformance-testing`).
-  4. BigQuery benchmark datasets (`<prefix>_regional` or `_zonal`) containing `host_info` and `fio_*` metrics (via `benchmark-suite-execution`).
-  5. `npi_validation_report.md` with explicit PASS/FAIL verdict for the 20 GB/s non-pinned SLA gate (via `analysis-report-generation`).
-  6. `npi_remediation_plan.md` outlining tuning recommendations if SLA gate fails or regressions >5% occur (via `remediation-advisor`).
+  2. Provisioned Regional or Zonal RAPID GCS buckets with HNS enabled (via `bucket-creation`).
+  3. Mounted target storage buffers (RAID0 or `tmpfs` RAM disk) and pushed container image `us-docker.pkg.dev/<PROJECT_ID>/gcsfuse-npi-images:<IMAGE_VERSION>` (via `benchmark-build-setup`).
+  4. `conformance_results_<TARGET_NAME>.json` for GCE VM targets (via `conformance-testing`).
+  5. BigQuery benchmark datasets (`<prefix>_regional` or `_zonal`) containing `host_info` and `fio_*` metrics (via `benchmark-suite-execution`).
+  6. `npi_validation_report.md` with explicit PASS/FAIL verdict for the 20 GB/s non-pinned SLA gate (via `analysis-report-generation`).
+  7. `npi_remediation_plan.md` outlining tuning recommendations if SLA gate fails or regressions >5% occur (via `remediation-advisor`).
 
 ---
 
 ## Step-by-Step Procedure
 
-The end-to-end pipeline executes sequentially through 6 modular phases:
+The end-to-end pipeline executes sequentially through modular phases:
 
 ```
 +-----------------------------------------------------------------------------------+
 | Phase 1: SSH Connection Management                                               |
 | Establish persistent SSH master multiplexing sockets for all targets             |
++-----------------------------------------------------------------------------------+
+                                         |
+                                         v
++-----------------------------------------------------------------------------------+
+| Phase 1.5: Storage Bucket Provisioning                                           |
+| Provision Regional HNS or Zonal RAPID HNS GCS buckets via `bucket-creation`      |
 +-----------------------------------------------------------------------------------+
                                          |
                                          v
@@ -85,12 +92,25 @@ The end-to-end pipeline executes sequentially through 6 modular phases:
 ### Phase 1: Establish Persistent SSH Connections
 *Skill Reference*: **[SSH Connection Management](../ssh-connection-management/SKILL.md)**
 1. Create socket directory `mkdir -p ~/.ssh/sockets`.
-2. Clean stale socket files `rm -f ~/.ssh/sockets/*.sock`.
-3. Establish master connections for each target in `targets.json`:
+2. Clean stale socket files after verifying liveness check.
+3. Establish master connections for each target in `targets.json` (for GKE targets, `vm_name` specifies the controller runner VM):
    ```bash
-   ssh -f -N -M -S ~/.ssh/sockets/<TARGET_NAME>.sock -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ~/.ssh/google_compute_engine <SSH_USER>@nic0.<VM_NAME>.<ZONE>.c.<PROJECT_ID>.internal.gcpnode.com
+   SSH_USER="${SSH_USER:-$(gcloud config get-value account 2>/dev/null | tr '@.' '_')}"
+   ssh -f -N -M -S ~/.ssh/sockets/<TARGET_NAME>.sock -o IdentitiesOnly=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ~/.ssh/google_compute_engine ${SSH_USER}@nic0.<VM_NAME>.<ZONE>.c.<PROJECT_ID>.internal.gcpnode.com
    ```
 4. Verify connection liveness with `ssh -O check -S ~/.ssh/sockets/<TARGET_NAME>.sock`.
+
+### Phase 1.5: Storage Bucket Provisioning
+*Skill Reference*: **[Bucket Creation](../bucket-creation/SKILL.md)**
+1. For targets requiring regional standard storage, provision Regional HNS buckets:
+   ```bash
+   gcloud storage buckets create gs://<BUCKET_NAME> --project=<PROJECT_ID> --location=<REGION> --enable-hierarchical-namespace --uniform-bucket-level-access
+   ```
+2. For targets requiring zonal RAPID storage, provision Zonal RAPID HNS buckets:
+   ```bash
+   gcloud storage buckets create gs://<BUCKET_NAME> --project=<PROJECT_ID> --location=<REGION> --placement=<ZONE> --default-storage-class=RAPID --enable-hierarchical-namespace --uniform-bucket-level-access
+   ```
+3. Describe bucket properties using `gcloud storage buckets describe gs://<BUCKET_NAME> --project=<PROJECT_ID> --format="json"` to confirm HNS and location alignment.
 
 ### Phase 2: Target Buffer Setup & Image Build
 *Skill Reference*: **[Benchmark Build & Setup](../benchmark-build-setup/SKILL.md)**
@@ -98,9 +118,9 @@ The end-to-end pipeline executes sequentially through 6 modular phases:
 2. Install Docker, add user to `docker` group (`usermod -aG docker`).
 3. **CRITICAL**: Recreate SSH multiplexing socket (`rm -f ~/.ssh/sockets/<TARGET_NAME>.sock` + relaunch Phase 1 master command) to apply docker group session changes.
 4. Configure Artifact Registry credentials locally and remotely (`gcloud auth configure-docker us-docker.pkg.dev`).
-5. Execute image build script (adding `--smoke-mode` if running in fast smoke test mode):
+5. Execute image build script (default version parameter is `master`):
    ```bash
-   python3 build_images.py --project <PROJECT_ID> --image-version <IMAGE_VERSION> --gcsfuse-version <GCSFUSE_VERSION> [--smoke-mode]
+   python3 build_images.py --project <PROJECT_ID> --image-version <IMAGE_VERSION> --gcsfuse-version master [--smoke-mode]
    ```
 6. Restore matrix files if smoke-test matrices were edited (`git restore fio/read_matrix.csv fio/write_matrix.csv`).
 
@@ -108,12 +128,13 @@ The end-to-end pipeline executes sequentially through 6 modular phases:
 *Skill Reference*: **[Conformance Testing](../conformance-testing/SKILL.md)**
 1. **GKE Target Check**: If target is a GKE cluster, skip conformance testing (document skip policy).
 2. For GCE VM targets, clone GCSFuse repo on target VM (`~/gcsfuse`).
-3. Execute standardized Makefile target:
+3. Execute standardized Makefile target (default branch `master`):
    ```bash
-   ssh -S ~/.ssh/sockets/<TARGET_NAME>.sock ... "cd ~/gcsfuse && make npi-conformance PROJECT=<PROJECT_ID> BUCKET_LOCATION=<REGION> READ_AHEAD_KB=128 > ~/integration_tests.log 2>&1"
+   SSH_USER="${SSH_USER:-$(gcloud config get-value account 2>/dev/null | tr '@.' '_')}"
+   ssh -S ~/.ssh/sockets/<TARGET_NAME>.sock -o IdentitiesOnly=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ~/.ssh/google_compute_engine ${SSH_USER}@nic0.<VM_NAME>.<ZONE>.c.<PROJECT_ID>.internal.gcpnode.com "cd ~/gcsfuse && make npi-conformance PROJECT=<PROJECT_ID> BUCKET_LOCATION=<REGION> READ_AHEAD_KB=128 GCSFUSE_VERSION=master > ~/integration_tests.log 2>&1"
    ```
 4. Monitor remote log growth. If log size stalls for >5 minutes, kill processes (`pkill -9`), force unmount (`umount -f`), clean temp files, and record stall.
-5. Parse `~/integration_tests.log` and copy `conformance_results_<TARGET_NAME>.json` back to local orchestrator. Enforce non-blocking policy on permission failures.
+5. Parse `~/integration_tests.log` and copy `conformance_results_<TARGET_NAME>.json` back to local orchestrator using `scp -S ~/.ssh/sockets/<TARGET_NAME>.sock -o IdentitiesOnly=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ~/.ssh/google_compute_engine`. Enforce non-blocking policy on permission failures.
 
 ### Phase 4: Benchmark Suite Execution
 *Skill Reference*: **[Benchmark Suite Execution](../benchmark-suite-execution/SKILL.md)**

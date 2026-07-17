@@ -114,7 +114,7 @@ def resolve_go_version(gcsfuse_version):
 
 def main():
     parser = argparse.ArgumentParser(description="Orchestrate building NPI Docker images.")
-    parser.add_argument("--gcsfuse-version", default="v3.9.0", help="GCSFuse version to build")
+    parser.add_argument("--gcsfuse-version", default="master", help="GCSFuse version to build")
     parser.add_argument("--go-version", default=None, help="Go version to use (default: resolved from GCSFuse go.mod, fallback to 1.26.4)")
     parser.add_argument("--ubuntu-version", default="24.04", help="Ubuntu version to use")
     parser.add_argument("--registry", default="us-docker.pkg.dev", help="Docker registry")

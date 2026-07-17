@@ -30,7 +30,7 @@ This skill guides you through checking out the official GCSFuse repository, exec
 - **Target SSH Socket**: Socket path `~/.ssh/sockets/<TARGET_NAME>.sock`.
 - **Target GCE VM Specs**: VM Name, Zone, GCP Project ID, SSH User.
 - **Makefile Parameters**: `PROJECT=<PROJECT_ID>`, `BUCKET_LOCATION=<REGION>`, `READ_AHEAD_KB=<KB>` (defaults to 128).
-- **GCSFuse Version / Branch**: Git commit tag or branch name (`<GCSFUSE_VERSION_OR_BRANCH>`).
+- **GCSFuse Version / Branch**: Git commit tag or branch name (`<GCSFUSE_VERSION_OR_BRANCH>`, default: `master`).
 
 ### Outputs
 - **Remote Log**: `~/integration_tests.log` generated on target VM.
@@ -41,14 +41,19 @@ This skill guides you through checking out the official GCSFuse repository, exec
 
 ## Step-by-Step Procedure
 
-### Step 1: Clone the GCSFuse Repository on Target VM
+### Step 1: System Package Self-Healing & Repository Clone on Target VM
 
-Connect to the target VM using the master SSH socket and clone GCSFuse:
+Connect to the target VM using the master SSH socket, resolving `SSH_USER="${SSH_USER:-$(gcloud config get-value account 2>/dev/null | tr '@.' '_')}"`, verify missing build packages (`build-essential`, `make`, `docker.io`), install if absent, and clone GCSFuse:
 ```bash
-ssh -S ~/.ssh/sockets/<TARGET_NAME>.sock -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ~/.ssh/google_compute_engine <SSH_USER>@nic0.<VM_NAME>.<ZONE>.c.<PROJECT_ID>.internal.gcpnode.com "bash -s" << 'EOF'
+SSH_USER="${SSH_USER:-$(gcloud config get-value account 2>/dev/null | tr '@.' '_')}"
+ssh -S ~/.ssh/sockets/<TARGET_NAME>.sock -o IdentitiesOnly=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ~/.ssh/google_compute_engine ${SSH_USER}@nic0.<VM_NAME>.<ZONE>.c.<PROJECT_ID>.internal.gcpnode.com "bash -s" << 'EOF'
+  if ! command -v make &>/dev/null || ! command -v gcc &>/dev/null || ! command -v docker &>/dev/null; then
+    echo "Installing missing system build packages..."
+    sudo apt-get update && sudo apt-get install -y build-essential make docker.io
+  fi
   git clone https://github.com/GoogleCloudPlatform/gcsfuse.git ~/gcsfuse
   cd ~/gcsfuse
-  git checkout <GCSFUSE_VERSION_OR_BRANCH>
+  git checkout master
 EOF
 ```
 
@@ -70,8 +75,8 @@ Verify environmental parameters on the target VM (e.g., `GCSFUSE_TEST_BUCKET`).
 
 Execute the conformance test suite remotely using `run_conformance.sh` (which incorporates an automated log size watchdog loop that monitors `~/integration_tests.log` for 5-minute inactivity stalls, terminates deadlocked processes, and cleans up FUSE mounts automatically):
 ```bash
-ssh -S ~/.ssh/sockets/<TARGET_NAME>.sock -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ~/.ssh/google_compute_engine <SSH_USER>@nic0.<VM_NAME>.<ZONE>.c.<PROJECT_ID>.internal.gcpnode.com "bash -s" << 'EOF'
-  PROJECT=<PROJECT_ID> BUCKET_LOCATION=<REGION> READ_AHEAD_KB=128 bash ~/gcsfuse-tools/npi/run_conformance.sh
+ssh -S ~/.ssh/sockets/<TARGET_NAME>.sock -o IdentitiesOnly=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ~/.ssh/google_compute_engine ${SSH_USER}@nic0.<VM_NAME>.<ZONE>.c.<PROJECT_ID>.internal.gcpnode.com "bash -s" << 'EOF'
+  PROJECT=<PROJECT_ID> BUCKET_LOCATION=<REGION> READ_AHEAD_KB=128 GCSFUSE_VERSION=master bash ~/gcsfuse-tools/npi/run_conformance.sh
 EOF
 ```
 
@@ -83,7 +88,7 @@ Example JSON structure:
 ```json
 {
   "timestamp": "2026-06-14T15:29:19Z",
-  "gcsfuse_version": "<GCSFUSE_VERSION_OR_BRANCH>",
+  "gcsfuse_version": "master",
   "target_vm": "<VM_NAME>",
   "summary": {
     "total_tests": 120,
@@ -109,7 +114,7 @@ Example JSON structure:
 
 Copy the generated JSON report to local machine:
 ```bash
-scp -S ~/.ssh/sockets/<TARGET_NAME>.sock -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ~/.ssh/google_compute_engine <SSH_USER>@nic0.<VM_NAME>.<ZONE>.c.<PROJECT_ID>.internal.gcpnode.com:~/conformance_results.json ./conformance_results_<TARGET_NAME>.json
+scp -S ~/.ssh/sockets/<TARGET_NAME>.sock -o IdentitiesOnly=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ~/.ssh/google_compute_engine ${SSH_USER}@nic0.<VM_NAME>.<ZONE>.c.<PROJECT_ID>.internal.gcpnode.com:~/conformance_results.json ./conformance_results_<TARGET_NAME>.json
 ```
 
 ## Failure Modes & Edge Cases
@@ -117,6 +122,7 @@ scp -S ~/.ssh/sockets/<TARGET_NAME>.sock -o StrictHostKeyChecking=no -o UserKnow
 | Failure Scenario | Root Cause | Remediation / Recovery Action |
 |---|---|---|
 | **Target is GKE Cluster** | Conformance testing attempted on GKE node | Skip conformance testing on GKE targets. Document GKE skip policy in report and rely on GKE benchmark runs. |
+| **Missing System Packages** | VM image lacks `make`, `gcc`, or `docker` | Self-healing check auto-installs `build-essential make docker.io` prior to running tests. |
 | **5-Minute Log Stall / Process Hang** | `go test` or GCSFuse daemon deadlocked during test execution | Check remote log `~/integration_tests.log` size every 5 mins. If size is unchanged for >5 mins: <br> 1. Terminate processes: `ssh ... "sudo pkill -9 -f 'go test' ; sudo pkill -9 gcsfuse ; sudo pkill -9 -f proxy_server"` <br> 2. Force unmount leftover mounts: `ssh ... "sudo umount -f /tmp/gcsfuse_readwrite_test_*/mnt || true"` <br> 3. Clean temp directories: `ssh ... "sudo rm -rf /tmp/gcsfuse_*"` <br> 4. Record stall in JSON. |
 | **Permission Failure Tests** | Test asserts bucket operations restricted by service account permissions | Non-blocking policy. Do NOT abort pipeline. Parse and record test failures in `conformance_results_<TARGET_NAME>.json` and document in final report. |
 | **Go Version Mismatch** | Target GCE VM missing Go 1.22+ runtime | Install Go 1.22+ on target VM or set `PATH` to system Go binary before running Makefile. |
@@ -133,5 +139,5 @@ scp -S ~/.ssh/sockets/<TARGET_NAME>.sock -o StrictHostKeyChecking=no -o UserKnow
 3. **Verify Clean Exit / No Lingering Mounts**:
    Check target VM for leftover FUSE test mountpoints:
    ```bash
-   ssh -S ~/.ssh/sockets/<TARGET_NAME>.sock -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ~/.ssh/google_compute_engine <SSH_USER>@nic0.<VM_NAME>.<ZONE>.c.<PROJECT_ID>.internal.gcpnode.com "mount | grep gcsfuse_readwrite_test || echo 'NO_LEFTOVER_MOUNTS'"
+   ssh -S ~/.ssh/sockets/<TARGET_NAME>.sock -o IdentitiesOnly=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ~/.ssh/google_compute_engine ${SSH_USER}@nic0.<VM_NAME>.<ZONE>.c.<PROJECT_ID>.internal.gcpnode.com "mount | grep gcsfuse_readwrite_test || echo 'NO_LEFTOVER_MOUNTS'"
    ```

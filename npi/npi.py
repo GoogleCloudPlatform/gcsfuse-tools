@@ -31,6 +31,7 @@ import sys
 import tempfile
 import shutil
 import datetime
+import urllib.request
 
 class BenchmarkFactory:
     """A factory for creating benchmark commands.
@@ -347,14 +348,42 @@ def verify_permissions(project_id, bq_dataset_id, bucket_name=None):
     """Pre-flight check to verify required GCP permissions before benchmark execution on GCE/local VM.
 
     Checks:
-    1. bigquery.jobs.create (roles/bigquery.jobUser) via a 0-byte dry-run query.
-    2. GCS bucket access (roles/storage.objectUser or roles/storage.admin).
+    1. GCE OAuth2 scope (https://www.googleapis.com/auth/cloud-platform or devstorage.full_control) if on GCE VM.
+    2. bigquery.jobs.create (roles/bigquery.jobUser) via a 0-byte dry-run query.
+    3. GCS bucket access (roles/storage.objectUser or roles/storage.admin).
 
     Returns:
         bool: True if all permissions are valid, False otherwise.
     """
     print(f"--- Running Pre-flight Permission Checks (Project: {project_id}) ---")
     all_ok = True
+
+    # 0. Verify GCE Cloud-Platform OAuth2 Scope if running on a GCE instance
+    try:
+        req = urllib.request.Request(
+            "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/scopes",
+            headers={"Metadata-Flavor": "Google"}
+        )
+        with urllib.request.urlopen(req, timeout=3) as resp:
+            scopes = resp.read().decode("utf-8").splitlines()
+            valid_scopes = {
+                "https://www.googleapis.com/auth/cloud-platform",
+                "https://www.googleapis.com/auth/devstorage.full_control"
+            }
+            if not any(s in valid_scopes for s in scopes):
+                all_ok = False
+                print(
+                    "\n[PRE-FLIGHT ERROR] Target GCE VM service account lacks required authorization scope 'https://www.googleapis.com/auth/cloud-platform'.\n"
+                    "Error output: Missing required OAuth2 scope for Google Cloud APIs.\n"
+                    "Fix: Stop the VM and update service account scopes using:\n"
+                    "  gcloud compute instances set-service-account <VM_NAME> --scopes=https://www.googleapis.com/auth/cloud-platform\n",
+                    file=sys.stderr
+                )
+            else:
+                print("✓ GCE OAuth2 authorization scope verified.")
+    except Exception:
+        # Non-GCE host or metadata server unreachable
+        pass
 
     # 1. Verify BigQuery Job Creation (roles/bigquery.jobUser)
     bq_job_cmd = ["bq", "query", f"--project_id={project_id}", "--use_legacy_sql=false", "--dry_run", "SELECT 1"]

@@ -20,7 +20,10 @@ import datetime
 import queue
 import threading
 
-# Strict KUBECONFIG isolation setup to protect host ~/.kube/config
+# Strict KUBECONFIG isolation setup to protect host ~/.kube/config.
+# All gcloud container clusters get-credentials and kubectl invocations run strictly
+# on the host environment of the intermediate runner VM using this isolated config.
+# No worker node SSH calls or node container shells execute gcloud or kubectl directly.
 KUBE_DIR = os.path.expanduser("~/.kube")
 ISOLATED_KUBECONFIG = os.path.join(KUBE_DIR, "npi_kubeconfig")
 os.makedirs(KUBE_DIR, exist_ok=True)

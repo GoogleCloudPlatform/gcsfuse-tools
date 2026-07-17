@@ -12,8 +12,8 @@ This skill guides you through defining target environments in `targets.json`, ex
 ### Prerequisites
 1. **Benchmark Images Pushed**: Container images built and pushed to Artifact Registry (`us-docker.pkg.dev/<PROJECT_ID>/gcsfuse-npi-images:<IMAGE_VERSION>`) via `benchmark-build-setup`.
 2. **Storage Buffers Mounted**: RAID0 or `tmpfs` RAM disks mounted at configured buffer paths (`/mnt/lssd` or `/tmp/npi_buffer`).
-3. **Active Master SSH Sockets**: Master SSH sockets established for target VMs at `~/.ssh/sockets/<TARGET_NAME>.sock`.
-4. **CLI Tools & Remote-Only KUBECONFIG Execution**: `gcloud`, `kubectl`, and `bq` CLI tools configured and authenticated. All GKE cluster credential fetches (`gcloud container clusters get-credentials`), `kubectl` invocations, and `npi_gke.py` executions MUST run EXCLUSIVELY on the remote target runner VM via SSH under `KUBECONFIG=~/.kube/npi_kubeconfig`. Local fallback execution on the developer workstation is strictly forbidden to preserve complete host machine isolation.
+3. **Active Master SSH Sockets**: Master SSH sockets established for target VMs at `~/.ssh/sockets/<TARGET_NAME>.sock` using `-o IdentitiesOnly=yes -i ~/.ssh/google_compute_engine`.
+4. **CLI Tools & Intermediate Runner VM KUBECONFIG Execution**: `gcloud`, `kubectl`, and `bq` CLI tools configured and authenticated. All GKE cluster credential fetches (`gcloud container clusters get-credentials`), `kubectl` invocations, and `npi_gke.py` executions MUST run EXCLUSIVELY on the intermediate runner VM host environment under `KUBECONFIG=~/.kube/npi_kubeconfig`. Executing `gcloud` or `kubectl` inside GKE worker node SSH shells is strictly forbidden.
 5. **Host-Level OS Tuning**: Large Receive Offload (LRO/GRO) and Receive Flow Steering (RFS/RPS) enabled on target VM network interfaces to achieve the 20 GB/s SLA gate requirement.
 
 ### Trigger Conditions
@@ -89,9 +89,15 @@ Manage execution state prior to invoking `npi_orchestrator.py`:
   *(This terminates lingering containers and mounts before relaunching).*
 - **Resume Active Run**: To resume an in-progress background run without starting over, keep `~/.npi/npi_run_state.json` intact.
 
-### Step 4: Execute Orchestrated Benchmarks
+### Step 4: GKE Control Plane Placement & Orchestrated Benchmark Execution
 
-Run the orchestrator script:
+> [!CRITICAL]
+> **GKE Control Plane Orchestration Architecture**:
+> All cluster credential retrieval commands (`gcloud container clusters get-credentials`) and `kubectl` job dispatches MUST execute exclusively on the **intermediate runner VM host environment** (or orchestrator host) under strict `KUBECONFIG=~/.kube/npi_kubeconfig` environment isolation.
+>
+> Executing `gcloud` commands or fetching cluster credentials inside GKE worker node SSH shells is strictly prohibited as worker nodes run pod containers managed by the GKE control plane and lack cluster admin roles.
+
+Run the orchestrator script from the host environment:
 ```bash
 python3 npi_orchestrator.py --benchmarks "<BENCHMARK_LIST>" --image-version <IMAGE_VERSION> --iterations <ITERATION_COUNT>
 ```
@@ -114,7 +120,8 @@ Upon completion, the orchestrator exports collected metrics to BigQuery tables:
 
 | Failure Scenario | Root Cause | Remediation / Recovery Action |
 |---|---|---|
-| **4-Hour Inactivity Log Stall** | Benchmark execution hung due to deadlocked container or lost SSH connection | Orchestrator auto-aborts. Clean state file (`rm -f ~/.npi/npi_run_state.json`), check SSH socket health, and retrigger. |
+| **Invalid GKE Credential Context** | `gcloud container clusters get-credentials` executed inside GKE worker node SSH shell | Abort. Execute `gcloud container clusters get-credentials` strictly on the intermediate runner VM host environment using `KUBECONFIG=~/.kube/npi_kubeconfig`. |
+| **4-Hour Inactivity Log Stall** | Benchmark execution hung due to deadlocked container or lost SSH connection | Orchestrator auto-aborts. Clean state file (`rm -f ~/.npi/npi_run_state.json`), check SSH socket health (`ssh -O check ...`), and retrigger. |
 | **Buffer Disk Usage > 85%** | FIO write workloads exceeded storage buffer capacity | Abort run. Clean target mount buffer (`/mnt/lssd/*` or `/tmp/npi_buffer/*`), or increase buffer disk size. |
 | **GKE TPU Host OOM Crash** | `read_file_cache` test executed on TPU slice using RAM disk buffer | Skip `read_file_cache` tests on TPU slices. Ensure `--use-memory-volumes` is set in `npi_gke.py`. |
 | **Corrupted Orchestrator State File** | Invalid JSON formatting in `~/.npi/npi_run_state.json` after process interruption | Execute `rm -f ~/.npi/npi_run_state.json` and relaunch `npi_orchestrator.py`. |
