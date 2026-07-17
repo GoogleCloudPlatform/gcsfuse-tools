@@ -368,8 +368,10 @@ class TestOrchestrator(unittest.TestCase):
             self.assertIn("--bq-dataset-id my_dataset_zonal", triggered[0])
             self.assertIn("--bq-dataset-id my_dataset_regional", triggered[1])
 
+    @patch('shutil.which')
     @patch('subprocess.run')
-    def test_validate_gke_nodes_local(self, mock_sub_run):
+    def test_validate_gke_nodes_local(self, mock_sub_run, mock_which):
+        mock_which.side_effect = lambda cmd: f"/usr/bin/{cmd}"
         mock_sub_run.side_effect = [
             MagicMock(returncode=0, stdout="Cluster credentials fetched"),
             MagicMock(returncode=0, stdout="node1 node2"),

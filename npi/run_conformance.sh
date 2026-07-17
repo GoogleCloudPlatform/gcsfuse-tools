@@ -22,6 +22,7 @@ cleanup() {
       kill_tree "$MAKE_PID"
   fi
   pkill -9 -P $$ 2>/dev/null || true
+  pkill -9 -f 'go test' 2>/dev/null || true
   REAL_PWD=$(pwd -P 2>/dev/null || pwd)
   for m in $(awk '{print $2}' /proc/mounts 2>/dev/null | grep -E '^/(tmp|mnt)/gcsfuse' | sort -r); do
       m_decoded=$(printf '%b\n' "$m")
@@ -100,6 +101,10 @@ fi
 git fetch origin
 git checkout "${BRANCH}"
 git reset --hard "origin/${BRANCH}"
+
+if ! grep -q 'npi-conformance:' Makefile; then
+  printf '\nnpi-conformance:\n\tbash ./tools/integration_tests/improved_run_e2e_tests.sh --project-id $(PROJECT) --bucket-location $(BUCKET_LOCATION) --skip-non-essential-tests\n' >> Makefile
+fi
 
 # Forward orchestrator environment variables to Makefile if specified
 MAKE_ARGS=()
