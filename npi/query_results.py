@@ -7,7 +7,17 @@ import sys
 
 def get_table_metrics(project_id, dataset_id, table_id):
     """Queries BigQuery table for average read/write bandwidth and FIO version using escaped JSON key path."""
-    query = f"""
+    if table_id.startswith("go_client_"):
+        query = f"""
+    SELECT
+      'go-client' AS fio_version,
+      AVG(SAFE_CAST(read_bw_mbps AS FLOAT64)) AS avg_read_bw_mbs,
+      0.0 AS avg_write_bw_mbs
+    FROM
+      `{project_id}.{dataset_id}.{table_id}`
+    """
+    else:
+        query = f"""
     SELECT
       JSON_VALUE(fio_json_output, '$."fio version"') AS fio_version,
       AVG(SAFE_CAST(JSON_VALUE(job.read.bw) AS FLOAT64)) * 1024.0 / 1000000.0 AS avg_read_bw_mbs,

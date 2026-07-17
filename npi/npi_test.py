@@ -3,7 +3,10 @@ from unittest.mock import patch, MagicMock
 import subprocess
 import os
 import getpass
+import json
 import npi
+import query_results
+
 
 class TestBenchmarkFactory(unittest.TestCase):
 
@@ -1035,8 +1038,123 @@ class TestWorkerM43Fixes(unittest.TestCase):
         self.assertIn('Buffer mountpoint $MOUNT_POINT is already mounted. Nothing to do.', content)
 
 
+class TestValidateColocation(unittest.TestCase):
+    """Unit tests for validate_colocation function in npi_orchestrator."""
+
+    @patch('subprocess.run')
+    def test_validate_colocation_success_regional(self, mock_run):
+        mock_meta = {
+            "hierarchicalNamespace": {"enabled": True},
+            "location": "us-central1",
+            "locationType": "region"
+        }
+        mock_run.return_value = MagicMock(returncode=0, stdout=json.dumps(mock_meta))
+        target = {"bucket": "gs://test-bucket", "zone": "us-central1-a", "is_rapid_bucket": False}
+        npi_orchestrator.validate_colocation(target, "test-project")
+
+    @patch('subprocess.run')
+    def test_validate_colocation_failure_hns_disabled(self, mock_run):
+        mock_meta = {
+            "hierarchicalNamespace": {"enabled": False},
+            "location": "us-central1",
+            "locationType": "region"
+        }
+        mock_run.return_value = MagicMock(returncode=0, stdout=json.dumps(mock_meta))
+        target = {"bucket": "gs://test-bucket", "zone": "us-central1-a", "is_rapid_bucket": False}
+        with self.assertRaises(ValueError) as ctx:
+            npi_orchestrator.validate_colocation(target, "test-project")
+        self.assertIn("HNS", str(ctx.exception))
+
+    @patch('subprocess.run')
+    def test_validate_colocation_success_rapid(self, mock_run):
+        mock_meta = {
+            "hierarchicalNamespace": {"enabled": True},
+            "locationType": "zone",
+            "dataLocations": ["us-central1-a"]
+        }
+        mock_run.return_value = MagicMock(returncode=0, stdout=json.dumps(mock_meta))
+        target = {"bucket": "gs://rapid-bucket", "zone": "us-central1-a", "is_rapid_bucket": True}
+        npi_orchestrator.validate_colocation(target, "test-project")
+
+    @patch('subprocess.run')
+    def test_validate_colocation_failure_rapid_zone_mismatch(self, mock_run):
+        mock_meta = {
+            "hierarchicalNamespace": {"enabled": True},
+            "locationType": "zone",
+            "dataLocations": ["us-central1-a"]
+        }
+        mock_run.return_value = MagicMock(returncode=0, stdout=json.dumps(mock_meta))
+        target = {"bucket": "gs://rapid-bucket", "zone": "us-central1-b", "is_rapid_bucket": True}
+        with self.assertRaises(ValueError) as ctx:
+            npi_orchestrator.validate_colocation(target, "test-project")
+        self.assertIn("Colocation Error", str(ctx.exception))
+
+
+class TestQueryResults(unittest.TestCase):
+    """Unit tests for query_results.py get_table_metrics."""
+
+    @patch('subprocess.run')
+    def test_get_table_metrics_fio_table(self, mock_run):
+        mock_stdout = json.dumps([{
+            "fio_version": "fio-3.36",
+            "avg_read_bw_mbs": 2500.5,
+            "avg_write_bw_mbs": 450.25
+        }])
+        mock_run.return_value = MagicMock(returncode=0, stdout=mock_stdout)
+
+        metrics = query_results.get_table_metrics("test-proj", "test-ds", "fio_read_http1")
+        self.assertEqual(metrics["fio_version"], "fio-3.36")
+        self.assertAlmostEqual(metrics["read_bw_mbs"], 2500.5)
+        self.assertAlmostEqual(metrics["write_bw_mbs"], 450.25)
+
+        cmd = mock_run.call_args[0][0]
+        query = cmd[-1]
+        self.assertIn("UNNEST(JSON_EXTRACT_ARRAY(fio_json_output.jobs))", query)
+
+    @patch('subprocess.run')
+    def test_get_table_metrics_go_client_table(self, mock_run):
+        mock_stdout = json.dumps([{
+            "fio_version": "go-client",
+            "avg_read_bw_mbs": 3200.75,
+            "avg_write_bw_mbs": 0.0
+        }])
+        mock_run.return_value = MagicMock(returncode=0, stdout=mock_stdout)
+
+        metrics = query_results.get_table_metrics("test-proj", "test-ds", "go_client_read_grpc")
+        self.assertEqual(metrics["fio_version"], "go-client")
+        self.assertAlmostEqual(metrics["read_bw_mbs"], 3200.75)
+        self.assertAlmostEqual(metrics["write_bw_mbs"], 0.0)
+
+        cmd = mock_run.call_args[0][0]
+        query = cmd[-1]
+        self.assertIn("read_bw_mbps", query)
+        self.assertNotIn("UNNEST", query)
+
+    @patch('subprocess.run')
+    def test_get_table_metrics_called_process_error(self, mock_run):
+        mock_run.side_effect = subprocess.CalledProcessError(1, "bq", stderr="Table not found")
+
+        metrics = query_results.get_table_metrics("test-proj", "test-ds", "nonexistent_table")
+        self.assertEqual(metrics, {"read_bw_mbs": 0.0, "write_bw_mbs": 0.0, "fio_version": "N/A"})
+
+    @patch('subprocess.run')
+    def test_get_table_metrics_empty_result(self, mock_run):
+        mock_run.return_value = MagicMock(returncode=0, stdout="[]")
+
+        metrics = query_results.get_table_metrics("test-proj", "test-ds", "fio_read_http1")
+        self.assertEqual(metrics, {"read_bw_mbs": 0.0, "write_bw_mbs": 0.0, "fio_version": "N/A"})
+
+    @patch('subprocess.run')
+    def test_get_table_metrics_invalid_json(self, mock_run):
+        mock_run.return_value = MagicMock(returncode=0, stdout="invalid json string")
+
+        metrics = query_results.get_table_metrics("test-proj", "test-ds", "fio_read_http1")
+        self.assertEqual(metrics, {"read_bw_mbs": 0.0, "write_bw_mbs": 0.0, "fio_version": "N/A"})
+
+
 if __name__ == '__main__':
     unittest.main()
+
 
 
 

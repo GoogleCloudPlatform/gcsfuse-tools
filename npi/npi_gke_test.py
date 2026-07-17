@@ -124,5 +124,19 @@ class TestCreateJobSpec(unittest.TestCase):
         self.assertIn("limits", container["resources"])
         self.assertEqual(container["resources"]["limits"]["cpu"], "4")
 
+class TestGKEUtils(unittest.TestCase):
+
+    @patch("builtins.open", new_callable=mock_open, read_data="MemTotal:        65536000 kB\n")
+    def test_get_host_total_ram_mb(self, mock_file):
+        ram_mb = npi_gke.get_host_total_ram_mb()
+        self.assertEqual(ram_mb, 64000)
+
+    def test_parse_key_value_pairs(self):
+        kv_dict = npi_gke.parse_key_value_pairs("cloud.google.com/gke-nodepool=npi-pool,env=prod")
+        self.assertEqual(kv_dict, {"cloud.google.com/gke-nodepool": "npi-pool", "env": "prod"})
+        self.assertIsNone(npi_gke.parse_key_value_pairs(None))
+
+
 if __name__ == "__main__":
     unittest.main()
+
