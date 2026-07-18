@@ -16,6 +16,7 @@ This skill serves as the primary master entrypoint for executing and orchestrati
 2. **GCSFuse Source Checkout**: Local repository clone of GCSFuse.
 3. **Target Specifications (`targets.json`)**: Pre-populated `targets.json` defining target GCE VMs, GKE clusters, storage buffer paths, node selectors, and GCP buckets.
 4. **SSH Access**: Configured SSH key at `~/.ssh/google_compute_engine` for connecting to target GCE VMs and GKE intermediate controller runner VMs.
+5. **GKE Cluster Addons**: For GKE targets, the cluster MUST have Workload Identity enabled (`gcloud container clusters update <CLUSTER> --workload-pool=<PROJECT_ID>.svc.id.goog`) and the GCSFuse CSI driver addon enabled (`gcloud container clusters update <CLUSTER> --update-addons GcsFuseCsiDriver=ENABLED`). Node pools must have Workload Metadata enabled (`gcloud container node-pools update <POOL> --cluster=<CLUSTER> --workload-metadata=GKE_METADATA`).
 
 ### Trigger Conditions
 - Initiating end-to-end GCSFuse NPI qualification for a new software release or platform target.

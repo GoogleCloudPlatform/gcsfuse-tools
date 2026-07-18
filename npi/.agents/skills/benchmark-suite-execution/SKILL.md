@@ -14,7 +14,8 @@ This skill guides you through defining target environments in `targets.json`, ex
 2. **Storage Buffers Mounted**: RAID0 or `tmpfs` RAM disks mounted at configured buffer paths (`/mnt/lssd` or `/tmp/npi_buffer`).
 3. **Active Master SSH Sockets**: Master SSH sockets established for target VMs at `~/.ssh/sockets/<TARGET_NAME>.sock` using `-o IdentitiesOnly=yes -i ~/.ssh/google_compute_engine`.
 4. **CLI Tools & Intermediate Runner VM KUBECONFIG Execution**: `gcloud`, `kubectl`, and `bq` CLI tools configured and authenticated. All GKE cluster credential fetches (`gcloud container clusters get-credentials`), `kubectl` invocations, and `npi_gke.py` executions MUST run EXCLUSIVELY on the intermediate runner VM host environment under `KUBECONFIG=~/.kube/npi_kubeconfig`. Executing `gcloud` or `kubectl` inside GKE worker node SSH shells is strictly forbidden.
-5. **Host-Level OS Tuning**: Large Receive Offload (LRO/GRO) and Receive Flow Steering (RFS/RPS) enabled on target VM network interfaces to achieve the 20 GB/s SLA gate requirement.
+5. **GKE Cluster CSI Driver & Workload Identity**: For GKE cluster targets, Workload Identity (`gcloud container clusters update <CLUSTER> --workload-pool=<PROJECT_ID>.svc.id.goog`) and the GCSFuse CSI Driver addon (`gcloud container clusters update <CLUSTER> --update-addons GcsFuseCsiDriver=ENABLED`) MUST be enabled prior to launching benchmarks. Verify CSI driver registration (`kubectl get csidrivers`) to prevent pods from stalling in `ContainerCreating`.
+6. **Host-Level OS Tuning**: Large Receive Offload (LRO/GRO) and Receive Flow Steering (RFS/RPS) enabled on target VM network interfaces to achieve the 20 GB/s SLA gate requirement.
 
 ### Trigger Conditions
 - Target VMs and GKE clusters are provisioned, configured, and ready to execute FIO or Go SDK benchmark workloads.
