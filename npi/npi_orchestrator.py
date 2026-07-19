@@ -957,12 +957,12 @@ def main():
     parser.add_argument("--benchmarks", nargs="+", default=["read_grpc", "write_grpc"], help="Space separated benchmarks to run")
     parser.add_argument("--image-version", default="smoke-test", help="Docker image tag")
     parser.add_argument("--project", default=None, help="GCP Project")
-    parser.add_argument("--iterations", type=int, default=2, help="Number of iterations")
+    parser.add_argument("--iterations", type=int, default=5, help="Number of iterations")
     parser.add_argument("--reset", action="store_true", help="Reset saved state and start a fresh run")
     parser.add_argument("--smoke-mode", action="store_true", help="Run orchestrator in fast smoke test mode")
     
     args = parser.parse_args()
-    if args.smoke_mode and args.iterations == 2:
+    if args.smoke_mode and args.iterations == 5:
         args.iterations = 1
     if args.reset and os.path.exists(STATE_FILE):
         try:
