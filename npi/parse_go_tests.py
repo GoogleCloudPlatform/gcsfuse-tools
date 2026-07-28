@@ -5,15 +5,17 @@ import re
 from datetime import datetime
 
 def parse_log(log_path, gcsfuse_version, target_vm):
-    tests = []
+    raw_tests = []
     summary = {"total_tests": 0, "passed": 0, "failed": 0, "skipped": 0}
     
-    current_test = None
-    current_test_buffer = []
+    test_buffers = {}
+    active_tests = set()
     
     # Regexes for test outcomes
-    outcome_re = re.compile(r'^--- (PASS|FAIL|SKIP): (\S+) \((\d+\.\d+)s\)')
+    outcome_re = re.compile(r'^--- (PASS|FAIL|SKIP): (\S+) \((\d+(?:\.\d+)?)s\)')
     run_re = re.compile(r'^=== RUN\s+(\S+)')
+    info_pkg_re = re.compile(r'\[INFO\]\s+.*:\s+(Passed|Failed)\s+test package\s+\[([^\]]+)\]\s+for bucket type\s+\[([^\]]+)\]')
+    table_row_re = re.compile(r'^│\s*([a-zA-Z0-9_-]+)\s*│\s*([a-zA-Z0-9_-]+)\s*│\s*([^│]+)│\s*([^│]+)│\s*(PASSED|FAILED)\s*')
     
     try:
         with open(log_path, 'r', encoding='utf-8', errors='replace') as f:
@@ -23,13 +25,14 @@ def parse_log(log_path, gcsfuse_version, target_vm):
                 # Check for RUN start
                 run_match = run_re.match(line_str)
                 if run_match:
-                    current_test = run_match.group(1)
-                    current_test_buffer = []
+                    test_name = run_match.group(1)
+                    test_buffers[test_name] = []
+                    active_tests.add(test_name)
                     continue
                 
-                # Capture log lines for the active test
-                if current_test:
-                    current_test_buffer.append(line)
+                # Capture log lines for all active tests
+                for t in list(active_tests):
+                    test_buffers[t].append(line)
                     
                 # Check for outcome
                 outcome_match = outcome_re.match(line_str)
@@ -43,25 +46,66 @@ def parse_log(log_path, gcsfuse_version, target_vm):
                         "status": status,
                         "duration_seconds": duration
                     }
-                    
-                    summary["total_tests"] += 1
-                    if status == "PASS":
-                        summary["passed"] += 1
-                    elif status == "FAIL":
-                        summary["failed"] += 1
-                        # Join the captured buffer as the error log
-                        test_entry["error"] = "".join(current_test_buffer).strip()
-                    elif status == "SKIP":
-                        summary["skipped"] += 1
+                    if status == "FAIL":
+                        test_entry["error"] = "".join(test_buffers.get(name, [])).strip()
                         
-                    tests.append(test_entry)
-                    current_test = None
-                    current_test_buffer = []
+                    raw_tests.append(test_entry)
+                    active_tests.discard(name)
+                    continue
+
+                # Check for package info outcome (e.g. Passed/Failed test package [read_cache] for bucket type [flat])
+                info_match = info_pkg_re.search(line_str)
+                if info_match:
+                    outcome_str, pkg, btype = info_match.group(1), info_match.group(2), info_match.group(3)
+                    status = "PASS" if outcome_str == "Passed" else "FAIL"
+                    name = f"{pkg}_{btype}"
+                    if not any(t["name"] == name for t in raw_tests):
+                        raw_tests.append({
+                            "name": name,
+                            "status": status,
+                            "duration_seconds": 0.0
+                        })
+                    continue
+
+                # Check for summary table row match
+                table_match = table_row_re.match(line_str)
+                if table_match:
+                    pkg, btype, duration_str, _, outcome_str = table_match.groups()
+                    status = "PASS" if "PASSED" in outcome_str else "FAIL"
+                    name = f"{pkg}_{btype}"
+                    if not any(t["name"] == name for t in raw_tests):
+                        raw_tests.append({
+                            "name": name,
+                            "status": status,
+                            "duration_seconds": 0.0
+                        })
+                    continue
+                    
+        # Record any active tests interrupted before completion
+        for name in list(active_tests):
+            test_entry = {
+                "name": name,
+                "status": "FAIL",
+                "duration_seconds": 300.0,
+                "error": f"TIMEOUT / Interrupted test run: {name} did not complete before watchdog stall timeout.\n" + "".join(test_buffers.get(name, [])).strip()
+            }
+            raw_tests.append(test_entry)
+            active_tests.discard(name)
                     
     except Exception as e:
         print(f"Error reading log file {log_path}: {e}", file=sys.stderr)
         sys.exit(1)
         
+    # Filter parent test suite outcomes from double counting.
+    # A test is a parent suite if another test's name starts with `test_name + '/'`.
+    parent_suites = {t['name'] for t in raw_tests if any(o['name'].startswith(t['name'] + '/') for o in raw_tests)}
+    tests = [t for t in raw_tests if t['name'] not in parent_suites]
+
+    summary["total_tests"] = len(tests)
+    summary["passed"] = sum(1 for t in tests if t["status"] == "PASS")
+    summary["failed"] = sum(1 for t in tests if t["status"] == "FAIL")
+    summary["skipped"] = sum(1 for t in tests if t["status"] == "SKIP")
+
     report = {
         "timestamp": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
         "gcsfuse_version": gcsfuse_version,

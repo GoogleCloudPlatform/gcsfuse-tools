@@ -31,6 +31,7 @@ import sys
 import tempfile
 import shutil
 import datetime
+import urllib.request
 
 class BenchmarkFactory:
     """A factory for creating benchmark commands.
@@ -50,7 +51,7 @@ class BenchmarkFactory:
         mount_path (str): The path to an already mounted GCS bucket.
     """
 
-    def __init__(self, bucket_name, project_id, bq_dataset_id, iterations, mount_path=None, image_version="latest", buffer_mount_path=None, file_cache_size_mb=2097152):
+    def __init__(self, bucket_name, project_id, bq_dataset_id, iterations, mount_path=None, image_version="latest", buffer_mount_path=None, file_cache_size_mb=2097152, smoke_mode=False):
         """Initializes the BenchmarkFactory.
 
         Args:
@@ -69,6 +70,7 @@ class BenchmarkFactory:
         self.image_version = image_version
         self.buffer_mount_path = buffer_mount_path
         self.file_cache_size_mb = file_cache_size_mb
+        self.smoke_mode = smoke_mode
         self._benchmark_definitions = self._get_benchmark_definitions()
 
     def get_benchmark_command(self, name):
@@ -140,8 +142,10 @@ class BenchmarkFactory:
             gcsfuse_flags = default_gcsfuse_flags
         gcsfuse_flags += " --log-file=/gcsfuse-buffer/gcsfuse.log --log-format=json"
 
+        num_jobs = "2" if self.smoke_mode else "112"
         base_cmd = (
             "docker run --pull=always --network=host --privileged --rm "
+            f"-e NUMJOBS={num_jobs} "
             f"{volume_mount} "
         )
 
@@ -161,7 +165,7 @@ class BenchmarkFactory:
             f"--bq-dataset-id={bq_dataset_id} "
             f"--bq-table-id={bq_table_id}"
         )
-        
+
         if runner_args:
             base_cmd += f" {runner_args}"
         if bucket_name:
@@ -344,14 +348,42 @@ def verify_permissions(project_id, bq_dataset_id, bucket_name=None):
     """Pre-flight check to verify required GCP permissions before benchmark execution on GCE/local VM.
 
     Checks:
-    1. bigquery.jobs.create (roles/bigquery.jobUser) via a 0-byte dry-run query.
-    2. GCS bucket access (roles/storage.objectUser or roles/storage.admin).
+    1. GCE OAuth2 scope (https://www.googleapis.com/auth/cloud-platform or devstorage.full_control) if on GCE VM.
+    2. bigquery.jobs.create (roles/bigquery.jobUser) via a 0-byte dry-run query.
+    3. GCS bucket access (roles/storage.objectUser or roles/storage.admin).
 
     Returns:
         bool: True if all permissions are valid, False otherwise.
     """
     print(f"--- Running Pre-flight Permission Checks (Project: {project_id}) ---")
     all_ok = True
+
+    # 0. Verify GCE Cloud-Platform OAuth2 Scope if running on a GCE instance
+    try:
+        req = urllib.request.Request(
+            "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/scopes",
+            headers={"Metadata-Flavor": "Google"}
+        )
+        with urllib.request.urlopen(req, timeout=3) as resp:
+            scopes = resp.read().decode("utf-8").splitlines()
+            valid_scopes = {
+                "https://www.googleapis.com/auth/cloud-platform",
+                "https://www.googleapis.com/auth/devstorage.full_control"
+            }
+            if not any(s in valid_scopes for s in scopes):
+                all_ok = False
+                print(
+                    "\n[PRE-FLIGHT ERROR] Target GCE VM service account lacks required authorization scope 'https://www.googleapis.com/auth/cloud-platform'.\n"
+                    "Error output: Missing required OAuth2 scope for Google Cloud APIs.\n"
+                    "Fix: Stop the VM and update service account scopes using:\n"
+                    "  gcloud compute instances set-service-account <VM_NAME> --scopes=https://www.googleapis.com/auth/cloud-platform\n",
+                    file=sys.stderr
+                )
+            else:
+                print("✓ GCE OAuth2 authorization scope verified.")
+    except Exception:
+        # Non-GCE host or metadata server unreachable
+        pass
 
     # 1. Verify BigQuery Job Creation (roles/bigquery.jobUser)
     bq_job_cmd = ["bq", "query", f"--project_id={project_id}", "--use_legacy_sql=false", "--dry_run", "SELECT 1"]
@@ -445,8 +477,16 @@ def main():
         action="store_true",
         help="If set, indicates that the bucket is a RAPID bucket. Only gRPC benchmarks will be run."
     )
+    parser.add_argument(
+        "--smoke-mode",
+        action="store_true",
+        help="If set, run in fast smoke test mode with reduced iterations and thread counts."
+    )
 
     args = parser.parse_args()
+
+    if args.smoke_mode and args.iterations == 5:
+        args.iterations = 1
 
     if not args.bucket_name and not args.mount_path:
         parser.error("Either --bucket-name or --mount-path must be provided.")
@@ -480,7 +520,8 @@ def main():
         mount_path=mount_path,
         image_version=args.image_version,
         buffer_mount_path=args.buffer_mount_path,
-        file_cache_size_mb=args.file_cache_size_mb
+        file_cache_size_mb=args.file_cache_size_mb,
+        smoke_mode=args.smoke_mode
     )
 
     available_benchmarks = factory.get_available_benchmarks()

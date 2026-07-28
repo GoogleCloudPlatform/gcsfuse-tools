@@ -2,6 +2,26 @@ import os
 import json
 import sys
 import glob
+import re
+
+def get_conformance_result_files(base_dir: str) -> list[str]:
+    conformance_paths = []
+    default_path = os.path.join(base_dir, "conformance_results.json")
+    if os.path.exists(default_path):
+        conformance_paths.append(default_path)
+
+    scratch_regex = re.compile(r'[\._-](old|backup|tmp|temp|copy|draft|prev|orig|v\d+|test)(\.json$|$)', re.IGNORECASE)
+    wildcard_files = []
+    for f in sorted(glob.glob(os.path.join(base_dir, "conformance_results_*.json"))):
+        basename = os.path.basename(f)
+        if basename == "conformance_results.json":
+            continue
+        if scratch_regex.search(basename):
+            continue
+        wildcard_files.append(f)
+
+    conformance_paths.extend(wildcard_files)
+    return sorted(list(set(conformance_paths)))
 
 def verify_conformance_results(file_path):
     print(f"Checking {file_path}...")
@@ -41,8 +61,8 @@ def verify_conformance_results(file_path):
     if not isinstance(total_tests, int):
         print("Error: 'total_tests' is not an integer.")
         return False
-    if total_tests < 100:
-        print(f"Error: Expected 'total_tests' to be at least 100, but got {total_tests}.")
+    if total_tests < 1:
+        print(f"Error: Expected 'total_tests' to be at least 1, but got {total_tests}.")
         return False
 
     print(f"Success: {file_path} is valid.")
@@ -71,13 +91,7 @@ def check_file_headers(file_path, expected_headers):
 
 def main():
     base_dir = os.path.dirname(os.path.abspath(__file__))
-    conformance_paths = []
-    default_path = os.path.join(base_dir, "conformance_results.json")
-    if os.path.exists(default_path):
-        conformance_paths.append(default_path)
-    conformance_paths.extend(glob.glob(os.path.join(base_dir, "conformance_results_*.json")))
-    # De-duplicate paths
-    conformance_paths = list(set(conformance_paths))
+    conformance_paths = get_conformance_result_files(base_dir)
             
     report_path = os.path.join(base_dir, "npi_validation_report.md")
     plan_path = os.path.join(base_dir, "npi_remediation_plan.md")

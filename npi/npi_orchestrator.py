@@ -9,20 +9,26 @@ import sys
 import datetime
 import getpass
 import shlex
+import shutil
+import re
 
 HOME_DIR = os.path.expanduser("~")
-local_user = os.environ.get("USER") or getpass.getuser()
+try:
+    local_user = os.environ.get("USER") or getpass.getuser()
+except Exception:
+    local_user = "user"
 STATE_FILE = os.path.join(HOME_DIR, ".npi/npi_run_state.json")
 COMMAND_LOG = os.path.join(HOME_DIR, ".npi/npi_commands.log")
 log_lock = threading.Lock()
 
 # Dynamic SSH socket directory resolution:
-# Reuse ~/.ssh/sockets if active socket files exist, otherwise fallback to shorter /tmp/ssh-<user>
-default_socket_dir = os.path.join(HOME_DIR, ".ssh/sockets")
-if os.path.isdir(default_socket_dir) and any(f.endswith(".sock") for f in os.listdir(default_socket_dir)):
-    SOCKET_DIR = default_socket_dir
-else:
-    SOCKET_DIR = os.path.join("/tmp", f"ssh-{local_user}")
+SOCKET_DIR = os.path.join(HOME_DIR, ".ssh/sockets")
+
+# Strict KUBECONFIG isolation setup to protect host ~/.kube/config
+KUBE_DIR = os.path.join(HOME_DIR, ".kube")
+ISOLATED_KUBECONFIG = os.path.join(KUBE_DIR, "npi_kubeconfig")
+os.makedirs(KUBE_DIR, exist_ok=True)
+os.environ["KUBECONFIG"] = ISOLATED_KUBECONFIG
 
 # Ensure parent directories for state files, sockets, and logs exist
 os.makedirs(os.path.dirname(STATE_FILE), exist_ok=True)
@@ -30,10 +36,69 @@ os.makedirs(os.path.dirname(COMMAND_LOG), exist_ok=True)
 os.makedirs(SOCKET_DIR, exist_ok=True)
 os.chmod(SOCKET_DIR, 0o700)
 
-# Resolve SSH user and GCP Project dynamically
-default_ssh_user = f"{local_user}_google_com" if not local_user.endswith("_google_com") else local_user
-SSH_USER = os.environ.get("SSH_USER", default_ssh_user)
-PROJECT_ID = os.environ.get("PROJECT_ID", "gcs-fuse-test")
+def resolve_ssh_user() -> str:
+    """Dynamically resolves the SSH username for GCP VM connections."""
+    env_user = os.environ.get("SSH_USER", "").strip()
+    if env_user:
+        return env_user.lower().replace("@", "_").replace(".", "_")
+
+    try:
+        res = subprocess.run(
+            ["gcloud", "config", "get-value", "account"],
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+        if res.returncode == 0:
+            for line in res.stdout.splitlines():
+                if re.match(r'^\s*[\w\.\+-]+@[\w\.-]+\.\w+\s*$', line):
+                    account = line.strip()
+                    return account.lower().replace("@", "_").replace(".", "_")
+    except Exception:
+        pass
+
+    try:
+        raw_user = os.environ.get("USER")
+        user = raw_user.strip() if raw_user else getpass.getuser().strip()
+    except Exception:
+        user = "user"
+
+    if not user:
+        user = "user"
+
+    has_at = "@" in user
+    sanitized = user.lower().replace("@", "_").replace(".", "_")
+    if not has_at and not sanitized.endswith("_google_com"):
+        return f"{sanitized}_google_com"
+    return sanitized
+
+SSH_USER = resolve_ssh_user()
+
+DEFAULT_PROJECT_ID = os.environ.get("PROJECT_ID", "gcsfuse-npi")
+
+def get_gcp_project_id() -> str:
+    """Safely resolves GCP project ID from environment, gcloud config, or DEFAULT_PROJECT_ID fallback."""
+    env_project = os.environ.get("PROJECT_ID", "").strip()
+    if env_project:
+        return env_project
+
+    try:
+        res = subprocess.run(
+            ["gcloud", "config", "get-value", "project"],
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+        if res.returncode == 0 and res.stdout.strip():
+            project = res.stdout.strip()
+            if "(unset)" not in project.lower() and not project.startswith("error:"):
+                return project
+    except Exception:
+        pass
+
+    return DEFAULT_PROJECT_ID
+
+PROJECT_ID = get_gcp_project_id()
 
 # Dynamically resolve repository paths (npi.py, npi_gke.py)
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -157,6 +222,16 @@ def prep_vm(target, socket_path):
     if code != 0:
         raise RuntimeError(f"Failed to create directory on VM {vm_name}: {err}")
     
+    # Sync prep_vm.sh to remote VM and execute self-healing setup
+    prep_script_local = os.path.join(REPO_DIR, "prep_vm.sh")
+    if os.path.exists(prep_script_local):
+        sync_file_to_remote(socket_path, vm_name, zone, prep_script_local, "~/gcsfuse-tools/npi/prep_vm.sh")
+        target_type = target["type"]
+        buffer_mount = target.get("buffer_mount", "/mnt/lssd")
+        code, out, err = run_ssh_cmd(socket_path, vm_name, zone, f"bash ~/gcsfuse-tools/npi/prep_vm.sh {target_type} {shlex.quote(buffer_mount)}")
+        if code != 0:
+            print(f"[{target_name}] Warning: prep_vm.sh self-healing returned non-zero code ({code}): {err}")
+    
     if target["type"] == "gce":
         # Validate RAID0 ssd mount if specified
         buffer_mount = target.get("buffer_mount")
@@ -183,67 +258,233 @@ def prep_vm(target, socket_path):
         sync_file_to_remote(socket_path, vm_name, zone, NPI_GKE_PY_PATH, "~/gcsfuse-tools/npi/npi_gke.py")
         sync_file_to_remote(socket_path, vm_name, zone, os.path.join(REPO_DIR, "npi_job_spec.yaml"), "~/gcsfuse-tools/npi/npi_job_spec.yaml")
         
-        # Validate node requirements remote GKE VM
-        validate_gke_nodes(socket_path, vm_name, zone, target)
+        # Validate node requirements on local controller host environment
+        validate_gke_nodes(target)
         
     print(f"[{target_name}] VM prepared successfully.")
 
-def validate_gke_nodes(socket_path, vm_name, zone, target):
-    print(f"[{target['name']}] Validating GKE cluster node requirements on remote VM...")
+GKE_NODE_STOP_WORDS = {
+    "no", "resources", "found", "in", "default", "namespace", "name",
+    "error", "warning", "unable", "to", "connect", "the", "server",
+    "a", "an", "is", "are", "of", "or", "at", "by", "for", "from", "on",
+    "namespace.", "default.", "api", "v1beta1", "tls", "handshake",
+    "failed", "query", "nodes", "node", "cluster", "prod", "staging",
+    "system", "request", "items", "not"
+}
+
+def is_valid_gke_node_name(w: str) -> bool:
+    if not w:
+        return False
+    w_clean = w.strip()
+    if not w_clean or w_clean.endswith("."):
+        return False
+    w_lower = w_clean.lower()
+    if w_lower in GKE_NODE_STOP_WORDS:
+        return False
+    if any(sub in w_lower for sub in ("warning", "deprecated", "timeout", "denied", "unauthorized")):
+        return False
+    if w_lower.startswith("error:") or w_lower.startswith("warning:"):
+        return False
+    if not ("-" in w_lower or "." in w_lower or any(c.isdigit() for c in w_lower)):
+        return False
+    if w_lower.isdigit():
+        return False
+    if w_lower in ("amd64", "arm64", "x86_64"):
+        return False
+    if w_lower.startswith("ready") or w_lower.startswith("notready"):
+        return False
+    if re.match(r'^\d+[smhd]$', w_lower):
+        return False
+    if re.match(r'^v\d+\.', w_lower):
+        return False
+    if re.match(r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$', w_lower):
+        return False
+    if not re.match(r'^[a-z0-9]([-a-z0-9\.]*[a-z0-9])?$', w_lower):
+        return False
+    return True
+
+is_valid_node_name = is_valid_gke_node_name
+
+def count_gke_nodes(stdout: str) -> int:
+    if not stdout or not stdout.strip():
+        return 0
+
+    for start_char in ("{", "["):
+        idx = stdout.find(start_char)
+        while idx != -1:
+            try:
+                data = json.loads(stdout[idx:].strip())
+                if isinstance(data, dict):
+                    items = data.get("items")
+                    if isinstance(items, list):
+                        count = 0
+                        for item in items:
+                            if isinstance(item, dict):
+                                meta = item.get("metadata")
+                                if isinstance(meta, dict) and meta.get("name"):
+                                    count += 1
+                        return count
+                elif isinstance(data, list):
+                    return len(data)
+            except Exception:
+                idx = stdout.find(start_char, idx + 1)
+
+    lines = [line for line in stdout.splitlines() if line.strip()]
+    warning_prefixes = ("warning:", "warning ", "error:", "error ", "critical:", "critical ", "info:", "info ", "note:", "note ", "no ")
+    valid_lines = [
+        line for line in lines
+        if not line.strip().lower().startswith(warning_prefixes)
+    ]
+    if not valid_lines:
+        return 0
+
+    is_tabular = False
+    count = 0
+    for line in valid_lines:
+        line_str = line.strip()
+        if line_str == "NAME" or line_str.startswith("NAME ") or line_str.startswith("NAME\t"):
+            is_tabular = True
+            continue
+        tokens = line_str.split()
+        if not tokens:
+            continue
+        if is_tabular:
+            w = tokens[0]
+            if w.startswith("node/"):
+                w = w[5:]
+            if is_valid_gke_node_name(w):
+                count += 1
+        else:
+            for token in tokens:
+                w = token[5:] if token.startswith("node/") else token
+                if is_valid_gke_node_name(w):
+                    count += 1
+    return count
+
+def validate_gke_nodes(target):
+    print(f"[{target['name']}] Validating GKE cluster node requirements locally on controller host...")
+    
+    # Pre-flight check for local kubectl availability
+    if not shutil.which("kubectl"):
+        print(f"[{target['name']}] Pre-flight check: 'kubectl' missing on local controller host. Attempting self-healing via prep_vm.sh...")
+        prep_script = os.path.join(REPO_DIR, "prep_vm.sh")
+        if os.path.exists(prep_script):
+            try:
+                subprocess.run(["bash", prep_script, "gke"], capture_output=True, text=True, timeout=60)
+            except (subprocess.TimeoutExpired, Exception) as e:
+                print(f"[{target['name']}] Warning: Self-healing prep_vm.sh failed or timed out: {e}")
+        if not shutil.which("kubectl"):
+            raise RuntimeError("GKE Controller Pre-flight Error: 'kubectl' command not found on controller host. Please run prep_vm.sh locally.")
+
+    # Pre-flight check for local gke-gcloud-auth-plugin availability
+    if not shutil.which("gke-gcloud-auth-plugin") and not shutil.which("google-cloud-cli-gke-gcloud-auth-plugin"):
+        print(f"[{target['name']}] Pre-flight check: 'gke-gcloud-auth-plugin' missing on local controller host. Attempting self-healing via prep_vm.sh...")
+        prep_script = os.path.join(REPO_DIR, "prep_vm.sh")
+        if os.path.exists(prep_script):
+            try:
+                subprocess.run(["bash", prep_script, "gke"], capture_output=True, text=True, timeout=60)
+            except (subprocess.TimeoutExpired, Exception) as e:
+                print(f"[{target['name']}] Warning: Self-healing prep_vm.sh failed or timed out: {e}")
+        if not shutil.which("gke-gcloud-auth-plugin") and not shutil.which("google-cloud-cli-gke-gcloud-auth-plugin"):
+            raise RuntimeError("GKE Controller Pre-flight Error: 'gke-gcloud-auth-plugin' command not found on controller host. Please run prep_vm.sh locally.")
     cluster_name = target.get("cluster_name", "gke-orbax-benchmark-cluster")
     location = target.get("location", target.get("zone", "europe-west4-a"))
     
-    # Fetch credentials on the remote VM first
-    cred_cmd = f"gcloud container clusters get-credentials {shlex.quote(cluster_name)} --location {shlex.quote(location)} --project {shlex.quote(PROJECT_ID)}"
-    code, _, err = run_ssh_cmd(socket_path, vm_name, zone, cred_cmd, timeout=60)
-    if code != 0:
-        raise RuntimeError(f"Failed to fetch GKE credentials on remote VM: {err}")
-        
-    code_cpu, out_cpu, err_cpu = run_ssh_cmd(
-        socket_path, vm_name, zone,
-        "kubectl get nodes -l '!cloud.google.com/gke-tpu-accelerator' -o jsonpath='{.items[*].metadata.name}'",
-        timeout=30
-    )
-    code_tpu, out_tpu, err_tpu = run_ssh_cmd(
-        socket_path, vm_name, zone,
-        "kubectl get nodes -l 'cloud.google.com/gke-tpu-accelerator' -o jsonpath='{.items[*].metadata.name}'",
-        timeout=30
-    )
-    
-    if code_cpu != 0:
-        raise RuntimeError(f"GKE Validation Error: Failed to list GKE CPU nodes on remote VM: {err_cpu.strip()}")
-    if code_tpu != 0:
-        raise RuntimeError(f"GKE Validation Error: Failed to list GKE TPU nodes on remote VM: {err_tpu.strip()}")
+    cred_cmd = [
+        "gcloud", "container", "clusters", "get-credentials",
+        cluster_name,
+        "--location", location,
+        "--project", PROJECT_ID
+    ]
+    try:
+        res_cred = subprocess.run(cred_cmd, capture_output=True, text=True, timeout=30)
+        if res_cred.returncode != 0:
+            raise RuntimeError(f"GKE Validation Error: Controller host failed to get credentials for cluster {cluster_name}: {res_cred.stderr.strip()}")
+    except (subprocess.TimeoutExpired, Exception) as e:
+        if isinstance(e, RuntimeError):
+            raise
+        raise RuntimeError(f"GKE Validation Error: Controller host failed to get credentials for cluster {cluster_name}: {e}")
 
-    cpu_count = len(out_cpu.strip().split()) if out_cpu.strip() else 0
-    tpu_count = len(out_tpu.strip().split()) if out_tpu.strip() else 0
+    cpu_cmd = [
+        "kubectl", "get", "nodes",
+        "-l", "!cloud.google.com/gke-tpu-accelerator",
+        "-o", "jsonpath={.items[*].metadata.name}"
+    ]
+    try:
+        res_cpu = subprocess.run(cpu_cmd, capture_output=True, text=True, timeout=30)
+        if res_cpu.returncode != 0:
+            raise RuntimeError(f"GKE Validation Error: Failed to list GKE CPU nodes: {res_cpu.stderr.strip()}")
+    except (subprocess.TimeoutExpired, Exception) as e:
+        if isinstance(e, RuntimeError):
+            raise
+        raise RuntimeError(f"GKE Validation Error: Failed to list GKE CPU nodes: {e}")
+
+    tpu_cmd = [
+        "kubectl", "get", "nodes",
+        "-l", "cloud.google.com/gke-tpu-accelerator",
+        "-o", "jsonpath={.items[*].metadata.name}"
+    ]
+    try:
+        res_tpu = subprocess.run(tpu_cmd, capture_output=True, text=True, timeout=30)
+        if res_tpu.returncode != 0:
+            raise RuntimeError(f"GKE Validation Error: Failed to list GKE TPU nodes: {res_tpu.stderr.strip()}")
+    except (subprocess.TimeoutExpired, Exception) as e:
+        if isinstance(e, RuntimeError):
+            raise
+        raise RuntimeError(f"GKE Validation Error: Failed to list GKE TPU nodes: {e}")
+
+    cpu_count = count_gke_nodes(res_cpu.stdout)
+    tpu_count = count_gke_nodes(res_tpu.stdout)
 
     print(f"[{target['name']}] GKE Cluster Nodes: {cpu_count} CPU nodes, {tpu_count} TPU nodes.")
 
     if cpu_count == 0:
         raise RuntimeError("GKE Cluster Error: TPU GKE cluster requires at least one CPU compute node to host system services and CSI drivers.")
-    is_tpu = target.get("is_tpu", "google.com/tpu" in target.get("resources_limits", ""))
+    raw_is_tpu = target.get("is_tpu")
+    if isinstance(raw_is_tpu, (bool, int)):
+        is_tpu = bool(raw_is_tpu)
+    elif isinstance(raw_is_tpu, str):
+        is_tpu = raw_is_tpu.lower() in ("true", "1", "yes")
+    elif raw_is_tpu is not None:
+        is_tpu = bool(raw_is_tpu)
+    else:
+        is_tpu = "google.com/tpu" in str(target.get("resources_limits", ""))
+
     if is_tpu and tpu_count == 0:
         raise RuntimeError("GKE Cluster Error: TPU GKE cluster requires at least one TPU node to execute benchmarks.")
 
 def get_last_log_line(socket_path, vm_name, zone, log_path):
-    code, out, _ = run_ssh_cmd(socket_path, vm_name, zone, f"tail -n 1 {log_path} 2>/dev/null", timeout=10)
+    quoted_log_path = shlex.quote(log_path)
+    code, out, _ = run_ssh_cmd(socket_path, vm_name, zone, f"tail -n 1 {quoted_log_path} 2>/dev/null", timeout=10)
     if code == 0:
+        return out.strip()
+    return ""
+
+def get_log_file_stat(socket_path, vm_name, zone, log_path):
+    quoted_log_path = shlex.quote(log_path)
+    code, out, _ = run_ssh_cmd(socket_path, vm_name, zone, f"stat -c '%Y %s' {quoted_log_path} 2>/dev/null", timeout=10)
+    if code == 0 and out.strip():
         return out.strip()
     return ""
 
 def get_disk_utilization(socket_path, vm_name, zone, path):
     quoted_path = shlex.quote(path)
     code, out, _ = run_ssh_cmd(socket_path, vm_name, zone, f"df -P {quoted_path}", timeout=10)
-    if code == 0:
-        lines = out.strip().splitlines()
-        if len(lines) >= 2:
-            parts = lines[1].split()
-            if len(parts) >= 5:
-                use_pct = parts[4].rstrip('%')
-                if use_pct.isdigit():
-                    return int(use_pct)
-    return 0
+    if code != 0:
+        return -1
+    lines = [l for l in out.strip().splitlines() if l.strip()]
+    if len(lines) < 2:
+        return -1
+    for line in lines[1:]:
+        tokens = line.split()
+        if len(tokens) >= 2:
+            for token in tokens[1:]:
+                if not token.startswith('/') and token.endswith('%') and token[:-1].replace('.', '').isdigit():
+                    try:
+                        return int(float(token[:-1]))
+                    except ValueError:
+                        pass
+    return -1
 
 def monitor_run(target, socket_path, state_lock, state):
     target_name = target["name"]
@@ -279,7 +520,7 @@ def monitor_run(target, socket_path, state_lock, state):
         save_state(state)
 
     last_log_change_time = time.time()
-    previous_log_line = ""
+    previous_log_stat = ""
     MAX_INACTIVITY_SECS = 14400
     
     consecutive_ssh_failures = 0
@@ -306,27 +547,27 @@ def monitor_run(target, socket_path, state_lock, state):
         running = (running_code == 0)
         
         last_line = get_last_log_line(socket_path, vm_name, zone, log_file)
+        log_stat = get_log_file_stat(socket_path, vm_name, zone, log_file)
         
         with state_lock:
             state[target_name]["last_line"] = last_line
 
-        # Monitor disk space if a buffer mount path is specified
-        buffer_mount = target.get("buffer_mount")
-        if buffer_mount:
-            disk_used = get_disk_utilization(socket_path, vm_name, zone, buffer_mount)
-            if disk_used > 85:
-                print(f"[{target_name}] WARNING: Disk space utilization of {buffer_mount} exceeded 85% ({disk_used}%). Aborting run...")
-                cleanup_remote_run(target, socket_path)
-                with state_lock:
-                    state[target_name]["status"] = "FAILED"
-                    state[target_name]["last_line"] = f"[ABORTED] Disk usage high: {disk_used}%"
-                    save_state(state)
-                break
+        # Monitor disk space on buffer mount path or fallback to root volume '/'
+        disk_check_path = target.get("buffer_mount") or "/"
+        disk_used = get_disk_utilization(socket_path, vm_name, zone, disk_check_path)
+        if disk_used > 85:
+            print(f"[{target_name}] WARNING: Disk space utilization of {disk_check_path} exceeded 85% ({disk_used}%). Aborting run...")
+            cleanup_remote_run(target, socket_path)
+            with state_lock:
+                state[target_name]["status"] = "FAILED"
+                state[target_name]["last_line"] = f"[ABORTED] Disk usage high: {disk_used}%"
+                save_state(state)
+            break
 
-        # Check for log progress/activity
-        if last_line != previous_log_line:
+        # Check for log progress/activity using mtime / size stat change
+        if log_stat and log_stat != previous_log_stat:
             last_log_change_time = time.time()
-            previous_log_line = last_line
+            previous_log_stat = log_stat
         elif running and (time.time() - last_log_change_time > MAX_INACTIVITY_SECS):
             print(f"[{target_name}] WARNING: Log inactivity timeout of {MAX_INACTIVITY_SECS} seconds exceeded. Aborting run...")
             cleanup_remote_run(target, socket_path)
@@ -374,9 +615,14 @@ def sync_file_to_remote(socket_path, vm_name, zone, local_path, remote_path):
         "-o", "ControlPersist=10m",
         "-o", "StrictHostKeyChecking=no",
         "-o", "UserKnownHostsFile=/dev/null",
+    ]
+    identity_key = os.path.expanduser("~/.ssh/google_compute_engine")
+    if os.path.exists(identity_key):
+        scp_cmd.extend(["-i", identity_key, "-o", "IdentitiesOnly=yes"])
+    scp_cmd.extend([
         local_path,
         f"{SSH_USER}@nic0.{vm_name}.{zone}.c.{PROJECT_ID}.internal.gcpnode.com:{remote_path}"
-    ]
+    ])
     try:
         timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         log_entry = (
@@ -410,24 +656,106 @@ def cleanup_remote_run(target, socket_path):
     elif target["type"] == "gke":
         # Terminate runner script and delete Kubernetes jobs matching label on GKE VM via SSH
         run_ssh_cmd(socket_path, vm_name, zone, "pkill -9 -f 'python3.*npi_gke\\.py'", timeout=30)
-        cleanup_cmd = "kubectl delete jobs -l app=gcsfuse-npi-benchmark --ignore-not-found=true"
-        run_ssh_cmd(socket_path, vm_name, zone, cleanup_cmd, timeout=30)
+def monitor_local_run(target_name, state_lock, state, pid_file, log_file):
+    print(f"[{target_name}] Monitoring local GKE benchmark run...")
+    pid = None
+    for _ in range(5):
+        if os.path.exists(pid_file):
+            try:
+                with open(pid_file, "r") as f:
+                    content = f.read().strip()
+                    if content.isdigit():
+                        pid = int(content)
+                        break
+            except Exception:
+                pass
+        time.sleep(1)
+
+    if pid is None:
+        print(f"[{target_name}] Error: Could not retrieve process PID from local {pid_file}")
+        with state_lock:
+            state[target_name]["status"] = "FAILED"
+            save_state(state)
+        return
+
+    with state_lock:
+        state[target_name]["pid"] = pid
+        state[target_name]["status"] = "RUNNING"
+        save_state(state)
+
+    while True:
+        try:
+            os.kill(pid, 0)
+            running = True
+        except OSError:
+            running = False
+
+        last_line = ""
+        if os.path.exists(log_file):
+            try:
+                with open(log_file, "r") as f:
+                    lines = f.readlines()
+                    if lines:
+                        last_line = lines[-1].strip()
+            except Exception:
+                pass
+
+        with state_lock:
+            state[target_name]["last_line"] = last_line
+            save_state(state)
+
+        if not running:
+            exit_file = f"{pid_file}.exit"
+            exit_code = -1
+            if os.path.exists(exit_file):
+                try:
+                    with open(exit_file, "r") as f:
+                        exit_code = int(f.read().strip())
+                except Exception:
+                    pass
+
+            with state_lock:
+                if exit_code == 0:
+                    state[target_name]["status"] = "SUCCESS"
+                    print(f"[{target_name}] Run completed successfully.")
+                else:
+                    state[target_name]["status"] = "FAILED"
+                    print(f"[{target_name}] Run FAILED with exit code {exit_code}! Last log line: {last_line}")
+                save_state(state)
+            break
+
+        time.sleep(5)
 
 def execute_target(target, args, state_lock, state):
     target_name = target["name"]
     vm_name = target["vm_name"]
     zone = target["zone"]
     socket_path = os.path.join(SOCKET_DIR, f"{target_name}.sock")
+    pid_file = f"/tmp/npi_{target_name}.pid"
+    log_file = f"/tmp/output_{target_name}.txt"
     
-    if state[target_name]["status"] in ["PENDING", "FAILED"]:
+    with state_lock:
+        target_status = state[target_name]["status"]
+    
+    if target_status in ["PENDING", "FAILED"]:
         try:
             cleanup_remote_run(target, socket_path)
             prep_vm(target, socket_path)
             
             # Start run unbuffered
             has_ssd = target.get("has_ssd", target["type"] == "gce") # Default GCE to True, GKE to False if unspecified
-            requested_benchmarks = args.benchmarks.split() if isinstance(args.benchmarks, str) else args.benchmarks
+            raw_bench = args.benchmarks.replace(',', ' ') if isinstance(args.benchmarks, str) else ' '.join(args.benchmarks)
+            requested_benchmarks = raw_bench.split()
             
+            # Expand 'all' into full benchmark names before filtering
+            expanded_benchmarks = []
+            for b in requested_benchmarks:
+                if b == "all":
+                    expanded_benchmarks.extend(['read_http1', 'read_grpc', 'write_http1', 'write_grpc', 'host_info'])
+                else:
+                    expanded_benchmarks.append(b)
+            requested_benchmarks = expanded_benchmarks
+
             # Filter out file-cache tests if no SSD is present
             if not has_ssd:
                 active_benchmarks = [b for b in requested_benchmarks if "file_cache" not in b]
@@ -452,17 +780,29 @@ def execute_target(target, args, state_lock, state):
                     save_state(state)
                 return
 
+            raw_dataset = target["dataset"]
+            if raw_dataset.endswith("_regional"):
+                base_dataset = raw_dataset[:-len("_regional")]
+            elif raw_dataset.endswith("_zonal"):
+                base_dataset = raw_dataset[:-len("_zonal")]
+            else:
+                base_dataset = raw_dataset
+            suffix = "_zonal" if is_rapid else "_regional"
+            dataset_id = f"{base_dataset}{suffix}"
+
             if target["type"] == "gce":
                 python_args = [
                     "python3", "-u", f"/home/{SSH_USER}/gcsfuse-tools/npi/npi.py",
                     "--bucket-name", target["bucket"],
                     "--project-id", args.project,
-                    "--bq-dataset-id", f"{target['dataset']}_regional",
+                    "--bq-dataset-id", dataset_id,
                     "--image-version", args.image_version,
                     "--iterations", str(args.iterations),
                 ]
                 if is_rapid:
                     python_args.append("--is-rapid-bucket")
+                if args.smoke_mode:
+                    python_args.append("--smoke-mode")
                 python_args.extend(["--benchmarks"] + active_benchmarks)
                 if target.get("buffer_mount"):
                     python_args.append(f"--buffer-mount-path={target['buffer_mount']}")
@@ -474,8 +814,10 @@ def execute_target(target, args, state_lock, state):
             elif target["type"] == "gke":
                 node_sel = target.get("node_selector", "")
                 res_lim = target.get("resources_limits", "")
-                cluster_name = target.get("cluster_name", "gke-orbax-benchmark-cluster")
-                location = target.get("location", target.get("zone", "europe-west4-a"))
+                cluster_name = target.get("cluster_name")
+                location = target.get("location")
+                if not cluster_name or not location:
+                    raise ValueError(f"Target '{target_name}' (type=gke) missing required 'cluster_name' or 'location' in targets.json.")
                 
                 python_args = [
                     "python3", "-u", f"/home/{SSH_USER}/gcsfuse-tools/npi/npi_gke.py",
@@ -483,7 +825,7 @@ def execute_target(target, args, state_lock, state):
                     "--location", location,
                     "--bucket-name", target["bucket"],
                     "--project-id", args.project,
-                    "--bq-dataset-id", f"{target['dataset']}_regional",
+                    "--bq-dataset-id", dataset_id,
                     "--image-version", args.image_version,
                     "--node-selector", node_sel,
                     "--resources-limits", res_lim,
@@ -491,6 +833,8 @@ def execute_target(target, args, state_lock, state):
                 ]
                 if is_rapid:
                     python_args.append("--is-rapid-bucket")
+                if args.smoke_mode:
+                    python_args.append("--smoke-mode")
                 
                 if not has_ssd:
                     python_args.append("--use-memory-volumes")
@@ -519,7 +863,7 @@ def execute_target(target, args, state_lock, state):
                 state[target_name]["status"] = "FAILED"
                 save_state(state)
                 
-    elif state[target_name]["status"] == "RUNNING":
+    elif target_status == "RUNNING":
         print(f"[{target_name}] Resuming monitoring of active run on {vm_name}...")
         try:
             monitor_run(target, socket_path, state_lock, state)
@@ -612,11 +956,14 @@ def main():
     parser.add_argument("--config", default="targets.json", help="Path to targets.json configuration file")
     parser.add_argument("--benchmarks", nargs="+", default=["read_grpc", "write_grpc"], help="Space separated benchmarks to run")
     parser.add_argument("--image-version", default="smoke-test", help="Docker image tag")
-    parser.add_argument("--project", default="gcs-fuse-test", help="GCP Project")
-    parser.add_argument("--iterations", type=int, default=2, help="Number of iterations")
+    parser.add_argument("--project", default=None, help="GCP Project")
+    parser.add_argument("--iterations", type=int, default=5, help="Number of iterations")
     parser.add_argument("--reset", action="store_true", help="Reset saved state and start a fresh run")
+    parser.add_argument("--smoke-mode", action="store_true", help="Run orchestrator in fast smoke test mode")
     
     args = parser.parse_args()
+    if args.smoke_mode and args.iterations == 5:
+        args.iterations = 1
     if args.reset and os.path.exists(STATE_FILE):
         try:
             os.remove(STATE_FILE)
@@ -624,10 +971,23 @@ def main():
         except Exception as e:
             print(f"Warning: Could not clear state file: {e}")
     if isinstance(args.benchmarks, list):
-        args.benchmarks = " ".join(args.benchmarks)
+        raw_bench = " ".join(args.benchmarks)
+    else:
+        raw_bench = args.benchmarks
+    bench_tokens = raw_bench.replace(',', ' ').split()
+    expanded_benchmarks = []
+    for b in bench_tokens:
+        if b == "all":
+            expanded_benchmarks.extend(['read_http1', 'read_grpc', 'write_http1', 'write_grpc', 'host_info'])
+        else:
+            expanded_benchmarks.append(b)
+    args.benchmarks = " ".join(expanded_benchmarks)
 
     global PROJECT_ID
-    PROJECT_ID = os.environ.get("PROJECT_ID", args.project)
+    if args.project:
+        PROJECT_ID = args.project
+    else:
+        PROJECT_ID = get_gcp_project_id()
 
     # Load targets configuration file
     config_path = os.path.join(REPO_DIR, args.config) if not os.path.isabs(args.config) else args.config
@@ -646,6 +1006,8 @@ def main():
             required_keys = ["name", "type", "vm_name", "zone", "bucket", "dataset"]
             if t.get("type") == "gce":
                 required_keys.append("buffer_mount")
+            elif t.get("type") == "gke":
+                required_keys.extend(["cluster_name", "location"])
             missing = [k for k in required_keys if k not in t]
             if missing:
                 raise ValueError(f"Target '{t.get('name', 'unknown')}' is missing required fields: {', '.join(missing)}")
@@ -671,6 +1033,38 @@ def main():
         if not os.path.exists(path):
             print(f"Error: Required local file not found: {path}", file=sys.stderr)
             sys.exit(1)
+
+    # Task 6: Pre-truncate BigQuery tables once before parallel target execution threads start
+    try:
+        from google.cloud import bigquery
+        bq_client = bigquery.Client(project=PROJECT_ID)
+        truncated_tables = set()
+        for t in targets:
+            is_rapid = t.get("is_rapid_bucket", False)
+            raw_dataset = t["dataset"]
+            if raw_dataset.endswith("_regional"):
+                base_dataset = raw_dataset[:-len("_regional")]
+            elif raw_dataset.endswith("_zonal"):
+                base_dataset = raw_dataset[:-len("_zonal")]
+            else:
+                base_dataset = raw_dataset
+            suffix = "_zonal" if is_rapid else "_regional"
+            dataset_id = f"{base_dataset}{suffix}"
+
+            bench_list = args.benchmarks.split() if isinstance(args.benchmarks, str) else args.benchmarks
+            for b_name in bench_list:
+                table_id = f"fio_{b_name}"
+                full_table_id = f"{PROJECT_ID}.{dataset_id}.{table_id}"
+                if full_table_id not in truncated_tables:
+                    try:
+                        bq_client.get_table(full_table_id)
+                        print(f"[Orchestrator] Pre-truncating BQ table safely before parallel runs: {full_table_id}")
+                        bq_client.query(f"TRUNCATE TABLE `{full_table_id}`").result()
+                    except Exception:
+                        pass
+                    truncated_tables.add(full_table_id)
+    except Exception as e:
+        print(f"[Orchestrator] Note: Pre-run BQ truncation skipped or BQ client not available locally: {e}")
 
     # Startup cleanup is handled concurrently inside each target's execution thread.
 
