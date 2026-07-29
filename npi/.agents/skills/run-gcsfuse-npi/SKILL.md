@@ -125,9 +125,9 @@ The end-to-end pipeline executes sequentially through modular phases:
    ```
 6. Restore matrix files if smoke-test matrices were edited (`git restore fio/read_matrix.csv fio/write_matrix.csv`).
 
-### Phase 3: POSIX Conformance Testing (GCE VMs Only)
-*Skill Reference*: **[Conformance Testing](../conformance-testing/SKILL.md)**
-1. **GKE Target Check**: If target is a GKE cluster, skip conformance testing (document skip policy).
+### Phase 3: POSIX Conformance & Integration Testing
+*Skill Reference*: **[Conformance Testing](../conformance-testing/SKILL.md)** for GCE VMs, **[GKE E2E Testing](../gke-e2e-testing/SKILL.md)** for GKE Clusters
+1. For GKE targets, execute GCSFuse CSI Driver E2E integration tests using Ginkgo (`make e2e-test` via `gke-e2e-testing` skill).
 2. For GCE VM targets, clone GCSFuse repo on target VM (`~/gcsfuse`).
 3. Execute standardized Makefile target (default branch `master`):
    ```bash

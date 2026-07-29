@@ -20,9 +20,10 @@ You must run the workflow stages strictly in the following sequential order:
     *   **MANDATORY ACTION**: Execute `view_file` on `.agents/skills/ssh-connection-management/SKILL.md`.
     *   Clean up stale socket files (`~/.ssh/sockets/<TARGET_NAME>.sock`) and establish persistent multiplexed SSH connections for all targets in `targets.json`. Verify socket connectivity.
 
-2.  **Conformance Testing**:
-    *   **MANDATORY ACTION**: Execute `view_file` on `.agents/skills/conformance-testing/SKILL.md`.
-    *   Execute conformance testing **ONLY on GCE VM targets** (skip for GKE). Clone the repository and execute the native Makefile target `make npi-conformance`. Parse log results into `conformance_results_<TARGET_NAME>.json`. Monitor logs for stalls (>5 min inactivity).
+2.  **Conformance & E2E Testing**:
+    *   **MANDATORY ACTION**: Execute `view_file` on `.agents/skills/conformance-testing/SKILL.md` for GCE targets, or `.agents/skills/gke-e2e-testing/SKILL.md` for GKE cluster targets.
+    *   For GCE VM targets, execute POSIX conformance testing (`make npi-conformance`). Parse log results into `conformance_results_<TARGET_NAME>.json`. Monitor logs for stalls (>5 min inactivity).
+    *   For GKE cluster targets, execute the GCSFuse CSI Driver end-to-end test suite (`make e2e-test` via Ginkgo) under strict `KUBECONFIG` isolation.
 
 3.  **Performance Benchmarking**:
     *   **MANDATORY ACTION**: Execute `view_file` on `.agents/skills/benchmark-build-setup/SKILL.md` and `.agents/skills/benchmark-suite-execution/SKILL.md`.
@@ -60,6 +61,7 @@ You must run the workflow stages strictly in the following sequential order:
 - **Independent Target Evaluation**: Unless otherwise specified, multiple benchmark runs executed together are separate and not directly comparable. Do not compare their metrics directly against each other. Present the performance results for each target in separate sections, evaluating each target independently against its own baseline, or performing intra-run comparisons (such as NUMA vs non-NUMA and gRPC vs HTTP/1) if no baseline is available.
 - **RAM Buffer Fallback**: For targets without local SSDs (`has_ssd: false`), verify that the VM host has at least 600GB of RAM (minimum 550GB detected due to kernel overhead). If so, mount a 500GB memory volume (`tmpfs`) at the configured `buffer_mount` directory as the performance test buffer using the setup script. This leaves safe memory headroom for OS and daemon processes.
 - **Strict KUBECONFIG Isolation & Remote Execution Policy**: You **MUST** ensure all GKE cluster operations (`gcloud container clusters get-credentials`, `kubectl`, `npi_gke.py`) execute exclusively on the remote runner VM via SSH under `mkdir -p ~/.kube && export KUBECONFIG=~/.kube/npi_kubeconfig`. Fallback to local host execution is strictly forbidden to preserve host machine isolation.
+- **GKE Target Connection & Provisioning Policy**: By default, you **MUST** assume GKE cluster targets are pre-provisioned or provided in `targets.json` / user request and connect to them via `gcloud container clusters get-credentials`. You **MUST NOT** attempt to auto-create a new GKE cluster unless cluster creation is explicitly requested by the user.
 - **Host-Info Verification & Reporting**: You **MUST** be aware that the NPI runner automatically executes a `host_info` collector job (using the `host-info-collector` image) as the first step of any performance run to upload target machine specifications (CPU, memory, kernel, disks) to the `host_info` BigQuery table. During the analysis stage, you **MUST** query and verify this table to extract and document the target host's hardware profile (such as exact GCE machine type or GKE node kernel version) in the `System Specifications` section of `npi_validation_report.md`.
 
 
@@ -74,6 +76,7 @@ Refer to the modular skills in the workspace for step-by-step guidance:
 - Index: `.agents/skills/run-gcsfuse-npi/SKILL.md`
 - SSH Connection: `.agents/skills/ssh-connection-management/SKILL.md`
 - Conformance: `.agents/skills/conformance-testing/SKILL.md`
+- GKE E2E Testing: `.agents/skills/gke-e2e-testing/SKILL.md`
 - Build & Setup: `.agents/skills/benchmark-build-setup/SKILL.md`
 - Benchmarking: `.agents/skills/benchmark-suite-execution/SKILL.md`
 - Analysis: `.agents/skills/analysis-report-generation/SKILL.md`
