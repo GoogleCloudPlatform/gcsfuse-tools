@@ -102,8 +102,8 @@ export KUBECONFIG=~/.kube/npi_kubeconfig
 export E2E_TEST_USE_GKE_MANAGED_DRIVER=true
 export ENABLE_GCSFUSE_KERNEL_PARAMS=true
 export E2E_TEST_GINKGO_TIMEOUT=8h
-export E2E_TEST_FOCUS="'kernelParams|kernel_list_cache|dentry_cache|readdirplus|negative_stat_cache|read_cache|buffered_read|interrupt|stale_handle|local_file|streaming_writes|concurrent_operations|operations|file_cache|rename_symlink|volumes|mount'"
-export E2E_TEST_SKIP="'multivolume|list_large_dir|should.succeed.in.performance.test|oidc'"
+export E2E_TEST_FOCUS="kernelParams|kernel_list_cache|dentry_cache|readdirplus|negative_stat_cache|read_cache|buffered_read|interrupt|stale_handle|local_file|streaming_writes|concurrent_operations|operations|file_cache|rename_symlink|volumes|mount"
+export E2E_TEST_SKIP="multivolume|list_large_dir|should.succeed.in.performance.test|oidc"
 export E2E_TEST_GINKGO_PROCS=5
 make e2e-test
 ```
