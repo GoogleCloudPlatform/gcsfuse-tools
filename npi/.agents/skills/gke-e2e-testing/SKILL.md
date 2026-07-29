@@ -96,13 +96,13 @@ Launch the complete E2E test suite using `make`:
 make e2e-test
 ```
 
-Alternatively, to run the complete functional test matrix (covering kernel behavior, volume mounting, subpaths, file caching, basic GCS ops, sidecar lifecycle, and error handling) with an extended timeout:
+Alternatively, to run selective test suites focusing specifically on FUSE kernel behavior (kernel parameters, dentry cache, readdirplus, negative stat cache, read cache, process interrupts, and volume mounting) with an extended timeout:
 ```bash
 export KUBECONFIG=~/.kube/npi_kubeconfig
 export E2E_TEST_USE_GKE_MANAGED_DRIVER=true
 export ENABLE_GCSFUSE_KERNEL_PARAMS=true
 export E2E_TEST_GINKGO_TIMEOUT=8h
-export E2E_TEST_FOCUS="kernelParams\|volumes\|mount\|subpath\|file_cache\|gcsfuseIntegration\|auto_termination\|failed_mount"
+export E2E_TEST_FOCUS="kernelParams\|dentry_cache\|readdirplus\|negative_stat_cache\|read_cache\|buffered_read\|interrupt\|stale_handle\|volumes\|mount"
 export E2E_TEST_SKIP="multivolume\|list_large_dir\|should.succeed.in.performance.test\|oidc"
 export E2E_TEST_GINKGO_PROCS=5
 make e2e-test
