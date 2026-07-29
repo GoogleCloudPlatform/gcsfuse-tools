@@ -118,11 +118,21 @@ make e2e-test
 
 ### Step 5: Clean Up Resources Post-Test
 
-Once E2E testing completes, delete test resources and cluster if temporary:
-```bash
-export KUBECONFIG=~/.kube/npi_kubeconfig
-gcloud container clusters delete <CLUSTER_NAME> --project=<PROJECT_ID> --location=<ZONE_OR_REGION> --quiet
-```
+1. **Namespace & Test Resource Cleanup (Default)**:
+   Clean up any leftover test namespaces or pods:
+   ```bash
+   export KUBECONFIG=~/.kube/npi_kubeconfig
+   kubectl get ns | grep gcsfuse-integration | awk '{print $1}' | xargs -r kubectl delete ns
+   ```
+
+2. **Optional: Cluster Deletion (Only if Dynamically Created)**:
+   > [!CAUTION]
+   > Do **NOT** delete pre-existing or shared GKE clusters. Cluster deletion must only be executed if the cluster was dynamically provisioned specifically for this test run.
+
+   ```bash
+   export KUBECONFIG=~/.kube/npi_kubeconfig
+   gcloud container clusters delete <CLUSTER_NAME> --project=<PROJECT_ID> --location=<ZONE_OR_REGION> --quiet
+   ```
 
 ---
 
