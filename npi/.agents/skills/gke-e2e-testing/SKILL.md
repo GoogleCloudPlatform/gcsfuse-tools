@@ -65,7 +65,7 @@ This skill guides you through provisioning GKE compute clusters, configuring str
    kubectl get nodes -o wide
    ```
 
-#### Optional: On-Demand Cluster Provisioning (If Explicitly Requested)
+### Step 2: On-Demand Cluster Provisioning (Optional - If Explicitly Requested)
 If cluster creation is explicitly requested by the user, provision the cluster with GCSFuse CSI Driver and Workload Identity enabled:
 ```bash
 gcloud container clusters create <CLUSTER_NAME> \
