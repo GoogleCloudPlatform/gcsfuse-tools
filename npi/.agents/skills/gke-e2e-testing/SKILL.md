@@ -54,7 +54,7 @@ This skill guides you through provisioning GKE compute clusters, configuring str
    ```bash
    gcloud container clusters create <CLUSTER_NAME> \
        --project=<PROJECT_ID> \
-       --zone=<ZONE_OR_REGION> \
+       --location=<ZONE_OR_REGION> \
        --machine-type=<MACHINE_TYPE> \
        --num-nodes=1 \
        --addons=GcsFuseCsiDriver \
@@ -66,7 +66,7 @@ This skill guides you through provisioning GKE compute clusters, configuring str
 1. Fetch cluster credentials into isolated KUBECONFIG:
    ```bash
    export KUBECONFIG=~/.kube/npi_kubeconfig
-   gcloud container clusters get-credentials <CLUSTER_NAME> --project=<PROJECT_ID> --zone=<ZONE_OR_REGION>
+   gcloud container clusters get-credentials <CLUSTER_NAME> --project=<PROJECT_ID> --location=<ZONE_OR_REGION>
    ```
 
 2. Verify active context and node readiness:
@@ -119,7 +119,7 @@ make e2e-test
 Once E2E testing completes, delete test resources and cluster if temporary:
 ```bash
 export KUBECONFIG=~/.kube/npi_kubeconfig
-gcloud container clusters delete <CLUSTER_NAME> --project=<PROJECT_ID> --zone=<ZONE_OR_REGION> --quiet
+gcloud container clusters delete <CLUSTER_NAME> --project=<PROJECT_ID> --location=<ZONE_OR_REGION> --quiet
 ```
 
 ---
