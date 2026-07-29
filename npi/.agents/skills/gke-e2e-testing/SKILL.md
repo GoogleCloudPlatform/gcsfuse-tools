@@ -131,7 +131,7 @@ gcloud container clusters delete <CLUSTER_NAME> --project=<PROJECT_ID> --zone=<Z
 | **Host KUBECONFIG Overwritten** | `gcloud container clusters get-credentials` executed without setting `KUBECONFIG` | Always execute `mkdir -p ~/.kube && export KUBECONFIG=~/.kube/npi_kubeconfig` before running any `gcloud` or `kubectl` commands. |
 | **CSI Driver Pod Crash** | GCSFuse CSI driver addon disabled on cluster | Verify CSI driver status: `kubectl get pods -n kube-system -l app=gcs-fuse-csi-driver`. If missing, update cluster: `gcloud container clusters update <CLUSTER_NAME> --update-addons GcsFuseCsiDriver=ENABLED`. |
 | **Ginkgo Parallel Lock Contention** | High process count (`E2E_TEST_GINKGO_PROCS`) causing API server rate limiting | Reduce process count: `export E2E_TEST_GINKGO_PROCS=2` or `5`. |
-| **Stale Test Namespaces / Buckets** | Test aborted mid-run leaving lingering test namespaces (`gcsfuse-integration-*`) | Run manual cleanup: `kubectl get ns | grep gcsfuse-integration | awk '{print $1}' | xargs kubectl delete ns`. |
+| **Stale Test Namespaces / Buckets** | Test aborted mid-run leaving lingering test namespaces (`gcsfuse-integration-*`) | Run manual cleanup: `kubectl get ns | grep gcsfuse-integration | awk '{print $1}' | xargs -r kubectl delete ns`. |
 
 ---
 
