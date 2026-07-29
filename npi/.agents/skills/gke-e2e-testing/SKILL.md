@@ -43,37 +43,39 @@ This skill guides you through provisioning GKE compute clusters, configuring str
 
 ## Step-by-Step Procedure
 
-### Step 1: Provision GKE Cluster with Strict KUBECONFIG Isolation
+### Step 1: Connect to Provided GKE Cluster with Strict KUBECONFIG Isolation
+
+> [!NOTE]
+> **Existing Cluster Default**: GKE clusters are typically pre-provisioned or provided in `targets.json` / user request. Do not auto-create a new cluster unless explicitly instructed by the user.
 
 1. Enforce isolated KUBECONFIG environment:
    ```bash
    mkdir -p ~/.kube && export KUBECONFIG=~/.kube/npi_kubeconfig
    ```
 
-2. Create the GKE cluster with GCSFuse CSI Driver addon and Workload Identity enabled:
-   ```bash
-   gcloud container clusters create <CLUSTER_NAME> \
-       --project=<PROJECT_ID> \
-       --location=<ZONE_OR_REGION> \
-       --machine-type=<MACHINE_TYPE> \
-       --num-nodes=1 \
-       --addons=GcsFuseCsiDriver \
-       --workload-pool=<PROJECT_ID>.svc.id.goog
-   ```
-
-### Step 2: Fetch Credentials & Verify Cluster Topology
-
-1. Fetch cluster credentials into isolated KUBECONFIG:
+2. Fetch cluster credentials for the target cluster into isolated KUBECONFIG:
    ```bash
    export KUBECONFIG=~/.kube/npi_kubeconfig
    gcloud container clusters get-credentials <CLUSTER_NAME> --project=<PROJECT_ID> --location=<ZONE_OR_REGION>
    ```
 
-2. Verify active context and node readiness:
+3. Verify active context and node readiness:
    ```bash
    kubectl config current-context
    kubectl get nodes -o wide
    ```
+
+#### Optional: On-Demand Cluster Provisioning (If Explicitly Requested)
+If cluster creation is explicitly requested by the user, provision the cluster with GCSFuse CSI Driver and Workload Identity enabled:
+```bash
+gcloud container clusters create <CLUSTER_NAME> \
+    --project=<PROJECT_ID> \
+    --location=<ZONE_OR_REGION> \
+    --machine-type=<MACHINE_TYPE> \
+    --num-nodes=1 \
+    --addons=GcsFuseCsiDriver \
+    --workload-pool=<PROJECT_ID>.svc.id.goog
+```
 
 ### Step 3: Configure Environment for GCSFuse E2E Suite
 
