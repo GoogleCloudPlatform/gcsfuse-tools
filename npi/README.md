@@ -157,10 +157,12 @@ python3 npi.py [OPTIONS]
 *   `--project-id`: (Required) The Google Cloud Project ID where the BigQuery dataset resides.
 *   `--bq-dataset-id`: (Required) The BigQuery dataset ID to store the benchmark results.
 *   `--iterations`: (Optional) The number of times to run each FIO test within a benchmark. Defaults to `5`.
-*   `--temp-dir`: (Optional) The type of temporary directory to use for GCSfuse.
-    *   `'boot-disk'` (default): Uses a temporary directory on the host's boot disk.
-    *   `'memory'`: Uses a `tmpfs` mount (in-memory).
 *   `--dry-run`: (Optional) If set, the script will print the Docker commands it would run without actually executing them.
+*   `--buffer-mount-path`: (Required) The host directory to mount as the storage buffer inside the container (used for both writes and file-cache).
+*   `--image-version`: (Optional) The version (tag) of the benchmark Docker images to use. Default: `latest`.
+*   `--file-cache-size-mb`: (Optional) The size of the file cache in MB. Default: `2097152`.
+*   `--is-rapid-bucket`: (Optional) If set, indicates that the bucket is a RAPID bucket. Only gRPC benchmarks will be run. (Note: Ensure this is set for Zonal RAPID HNS targets in compliance with the dual-storage invariant rule).
+*   `--smoke-mode`: (Optional) If set, run in fast smoke test mode with reduced iterations and thread counts.
 
 To see a list of all available benchmarks, you can execute the script with a `--dry-run` flag.
 
@@ -174,6 +176,18 @@ In addition to `npi.py`, this directory provides `npi_gke.py` to orchestrate ben
 ### Additional Arguments for `npi_gke.py`
 *   `--cluster-name`: (Optional) The GKE cluster name. If provided with `--location`, the script fetches cluster credentials before running.
 *   `--location`: (Optional) The GCP location (region/zone) of the GKE cluster.
+*   `--kubernetes-service-account`: (Optional) Kubernetes Service Account name to run the job with. Default: `gcsfuse-npi-ksa`.
+*   `--dry-run`: (Optional) List down all the benchmarks that would be executed without actually running them.
+*   `--run-file-cache-test`: (Optional) Run the file-cache benchmark in GKE. If not specified, file-cache tests are excluded.
+*   `--file-cache-size-mb`: (Optional) The size of the file cache in MB. Default: `2097152`.
+*   `--is-rapid-bucket`: (Optional) If set, indicates that the bucket is a RAPID bucket. Only gRPC benchmarks will be run.
+*   `--use-memory-volumes`: (Optional) Declare `gke-gcsfuse-cache` and `gke-gcsfuse-buffer` volumes on memory.
+*   `--node-selector`: (Optional) Comma-separated list of key-value pairs for pod nodeSelector, e.g., `key1=val1,key2=val2`. Used for scheduling on specific nodes (like TPUs).
+*   `--resources-limits`: (Optional) Comma-separated list of key-value pairs for resource limits, e.g., `google.com/tpu=4`. Crucial for TPU allocation.
+*   `--extra-mount-options`: (Optional) Extra mount options to append to the GCSFuse CSI volume.
+*   `--gcsfuse-sidecar-image`: (Optional) Overriding GCSFuse sidecar container image.
+*   `--bq-table-suffix`: (Optional) Suffix to append to the BigQuery table ID.
+*   `--smoke-mode`: (Optional) If set, run in fast smoke test mode with reduced iterations and thread counts.
 
 Example:
 ```sh
@@ -208,8 +222,10 @@ python3 npi_orchestrator.py [OPTIONS]
 *   `--config`: Path to target configurations JSON file. Defaults to `targets.json`.
 *   `--benchmarks`: List of benchmarks to run (e.g., `read_grpc write_grpc` or `all`). Defaults to `read_grpc write_grpc`.
 *   `--image-version`: Docker image tag to pull (e.g., `smoke-test` or `latest`). Defaults to `smoke-test`.
-*   `--iterations`: Number of FIO test iterations. Defaults to `2`.
-*   `--project`: GCP Project ID. Defaults to `gcs-fuse-test`.
+*   `--iterations`: Number of FIO test iterations. Defaults to `5`.
+*   `--project`: (Optional) GCP Project ID. Defaults to `gcsfuse-npi` (or the `PROJECT_ID` environment variable).
+*   `--reset`: (Optional) Reset saved state and start a fresh run.
+*   `--smoke-mode`: (Optional) Run orchestrator in fast smoke test mode.
 
 
 ### Example
@@ -217,6 +233,22 @@ python3 npi_orchestrator.py [OPTIONS]
 ```sh
 python3 npi_orchestrator.py --benchmarks all --image-version smoke-test --iterations 2
 ```
+
+## Querying Results (`query_results.py`)
+
+The `query_results.py` script helps you easily fetch and format benchmark results from BigQuery. It generates a summary table of read and write bandwidths, and can optionally compare results against a baseline dataset.
+
+### Usage
+
+```sh
+python3 query_results.py --dataset-id YOUR_DATASET_ID [OPTIONS]
+```
+
+### Arguments
+*   `--project-id`: GCP Project ID. Defaults to `gcs-fuse-test` (or `PROJECT_ID` env variable).
+*   `--dataset-id`: (Required) Current run BigQuery dataset ID.
+*   `--baseline-dataset-id`: (Optional) Baseline BigQuery dataset ID for comparison, showing delta percentages.
+*   `--table-types`: (Optional) Space-separated list of Table IDs to query. Defaults to a standard set of `fio_read_http1`, `fio_read_grpc`, `fio_write_http1`, `fio_write_grpc`, `go_client_read_http1`, `go_client_read_grpc`.
 
 ## Benchmark Glossary
 
