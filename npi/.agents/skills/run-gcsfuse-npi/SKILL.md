@@ -1,11 +1,11 @@
 ---
 name: run-gcsfuse-npi
-description: Master entrypoint and orchestration skill for running the end-to-end GCSFuse Network Performance Improvement (NPI) pipeline across modular skills, coordinating SSH socket setup, bucket creation via bucket-creation skill, target buffer mounting via raid0-script.sh, image building via build_images.py, POSIX & E2E conformance testing across all targets (GCE VMs via make npi-conformance and GKE clusters via gke-e2e-testing), benchmark suite execution via npi_orchestrator.py, analysis and validation report generation in npi_validation_report.md, and remediation planning in npi_remediation_plan.md.
+description: Master entrypoint and orchestration skill for running the end-to-end GCSFuse New Product Introduction (NPI) pipeline across modular skills, coordinating SSH socket setup, bucket creation via bucket-creation skill, target buffer mounting via raid0-script.sh, image building via build_images.py, POSIX & E2E conformance testing across all targets (GCE VMs via make npi-conformance and GKE clusters via gke-e2e-testing), benchmark suite execution via npi_orchestrator.py, analysis and validation report generation in npi_validation_report.md, and remediation planning in npi_remediation_plan.md.
 ---
 
 # GCSFuse NPI Master Orchestration Entrypoint
 
-This skill serves as the primary master entrypoint for executing and orchestrating the complete end-to-end GCSFuse Network Performance Improvement (NPI) validation, benchmarking, POSIX & E2E conformance testing, analysis, and remediation pipeline across all modular skills.
+This skill serves as the primary master entrypoint for executing and orchestrating the complete end-to-end GCSFuse New Product Introduction (NPI) validation, benchmarking, POSIX & E2E conformance testing, analysis, and remediation pipeline across all modular skills.
 
 ---
 
