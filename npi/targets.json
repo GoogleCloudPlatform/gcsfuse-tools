@@ -26,7 +26,7 @@
     "type": "gke",
     "vm_name": "npi-smoke-gce-std",
     "zone": "us-east5-b",
-    "cluster_name": "kislayk-orbax-checkpoint-cluster",
+    "cluster_name": "npi-benchmark-cluster",
     "location": "us-east5-b",
     "bucket": "npi-smoke-regional-useast5",
     "dataset": "npi_smoke_gke_nontpu",
@@ -40,7 +40,7 @@
     "type": "gke",
     "vm_name": "npi-smoke-gce-std",
     "zone": "us-east5-b",
-    "cluster_name": "kislayk-orbax-checkpoint-cluster",
+    "cluster_name": "npi-benchmark-cluster",
     "location": "us-east5-b",
     "bucket": "npi-smoke-zonal-useast5b",
     "dataset": "npi_smoke_gke_tpu",
@@ -49,5 +49,20 @@
     "has_ssd": false,
     "is_tpu": true,
     "is_rapid_bucket": true
+  },
+  {
+    "name": "gke-tpu-v6e-regional",
+    "type": "gke",
+    "vm_name": "npi-smoke-gce-std",
+    "zone": "us-east5-b",
+    "cluster_name": "npi-benchmark-cluster",
+    "location": "us-east5-b",
+    "bucket": "npi-smoke-regional-useast5",
+    "dataset": "npi_smoke_gke_tpu_regional",
+    "node_selector": "cloud.google.com/gke-accelerator-count=4,cloud.google.com/gke-nodepool=tpu,cloud.google.com/gke-tpu-accelerator=tpu-v6e-slice,cloud.google.com/gke-tpu-topology=2x2",
+    "resources_limits": "google.com/tpu=4",
+    "has_ssd": false,
+    "is_tpu": true,
+    "is_rapid_bucket": false
   }
 ]
