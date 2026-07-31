@@ -2,6 +2,7 @@
 .agents/*
 !.agents/skills/
 !.agents/agents/
+!.agents/AGENTS.md
 
 # NPI Run output/test results
 conformance_results*.json
