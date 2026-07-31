@@ -1,11 +1,11 @@
 ---
 name: run-gcsfuse-npi
-description: Master entrypoint and orchestration skill for running the end-to-end GCSFuse Network Performance Improvement (NPI) pipeline across modular skills, coordinating SSH socket setup, bucket creation via bucket-creation skill, target buffer mounting via raid0-script.sh, image building via build_images.py, POSIX conformance testing via make npi-conformance, benchmark suite execution via npi_orchestrator.py, analysis and validation report generation in npi_validation_report.md, and remediation planning in npi_remediation_plan.md.
+description: Master entrypoint and orchestration skill for running the end-to-end GCSFuse Network Performance Improvement (NPI) pipeline across modular skills, coordinating SSH socket setup, bucket creation via bucket-creation skill, target buffer mounting via raid0-script.sh, image building via build_images.py, POSIX & E2E conformance testing across all targets (GCE VMs via make npi-conformance and GKE clusters via gke-e2e-testing), benchmark suite execution via npi_orchestrator.py, analysis and validation report generation in npi_validation_report.md, and remediation planning in npi_remediation_plan.md.
 ---
 
 # GCSFuse NPI Master Orchestration Entrypoint
 
-This skill serves as the primary master entrypoint for executing and orchestrating the complete end-to-end GCSFuse Network Performance Improvement (NPI) validation, benchmarking, POSIX conformance testing, analysis, and remediation pipeline across all modular skills.
+This skill serves as the primary master entrypoint for executing and orchestrating the complete end-to-end GCSFuse Network Performance Improvement (NPI) validation, benchmarking, POSIX & E2E conformance testing, analysis, and remediation pipeline across all modular skills.
 
 ---
 
@@ -36,7 +36,7 @@ This skill serves as the primary master entrypoint for executing and orchestrati
   1. Active master SSH sockets at `~/.ssh/sockets/<TARGET_NAME>.sock` (via `ssh-connection-management`).
   2. Provisioned Regional or Zonal RAPID GCS buckets with HNS enabled (via `bucket-creation`).
   3. Mounted target storage buffers (RAID0 or `tmpfs` RAM disk) and pushed container image `us-docker.pkg.dev/<PROJECT_ID>/gcsfuse-npi-images:<IMAGE_VERSION>` (via `benchmark-build-setup`).
-  4. `conformance_results_<TARGET_NAME>.json` for GCE VM targets (via `conformance-testing`).
+  4. `conformance_results_<TARGET_NAME>.json` for all target environments (GCE VMs via `conformance-testing`, GKE clusters via `gke-e2e-testing`).
   5. BigQuery benchmark datasets (`<prefix>_regional` or `_zonal`) containing `host_info` and `fio_*` metrics (via `benchmark-suite-execution`).
   6. `npi_validation_report.md` with explicit PASS/FAIL verdict for the 20 GB/s non-pinned SLA gate (via `analysis-report-generation`).
   7. `npi_remediation_plan.md` outlining tuning recommendations if SLA gate fails or regressions >5% occur (via `remediation-advisor`).
@@ -67,8 +67,8 @@ The end-to-end pipeline executes sequentially through modular phases:
                                          |
                                          v
 +-----------------------------------------------------------------------------------+
-| Phase 3: POSIX Conformance & Integration Testing                                  |
-| Execute `make npi-conformance` on GCE VMs (skip GKE) & export JSON results        |
+| Phase 3: POSIX & E2E Conformance Testing                                         |
+| Execute conformance tests across all targets (GCE VMs & GKE) & export JSON results|
 +-----------------------------------------------------------------------------------+
                                          |
                                          v
@@ -125,17 +125,25 @@ The end-to-end pipeline executes sequentially through modular phases:
    ```
 6. Restore matrix files if smoke-test matrices were edited (`git restore fio/read_matrix.csv fio/write_matrix.csv`).
 
-### Phase 3: POSIX Conformance & Integration Testing
+### Phase 3: POSIX & E2E Conformance Testing
 *Skill Reference*: **[Conformance Testing](../conformance-testing/SKILL.md)** for GCE VMs, **[GKE E2E Testing](../gke-e2e-testing/SKILL.md)** for GKE Clusters
-1. For GKE targets, execute GCSFuse CSI Driver E2E integration tests using Ginkgo (`make e2e-test` via `gke-e2e-testing` skill).
-2. For GCE VM targets, clone GCSFuse repo on target VM (`~/gcsfuse`).
-3. Execute standardized Makefile target (default branch `master`):
-   ```bash
-   SSH_USER="${SSH_USER:-$(gcloud config get-value account 2>/dev/null | tr '@.' '_')}"
-   ssh -S ~/.ssh/sockets/<TARGET_NAME>.sock -o IdentitiesOnly=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ~/.ssh/google_compute_engine ${SSH_USER}@nic0.<VM_NAME>.<ZONE>.c.<PROJECT_ID>.internal.gcpnode.com "cd ~/gcsfuse && make npi-conformance PROJECT=<PROJECT_ID> BUCKET_LOCATION=<REGION> READ_AHEAD_KB=128 GCSFUSE_VERSION=master > ~/integration_tests.log 2>&1"
-   ```
-4. Monitor remote log growth. If log size stalls for >5 minutes, kill processes (`pkill -9`), force unmount (`umount -f`), clean temp files, and record stall.
-5. Parse `~/integration_tests.log` and copy `conformance_results_<TARGET_NAME>.json` back to local orchestrator using `scp -S ~/.ssh/sockets/<TARGET_NAME>.sock -o IdentitiesOnly=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ~/.ssh/google_compute_engine`. Enforce non-blocking policy on permission failures.
+
+> [!IMPORTANT]
+> **Mandatory Execution Policy**: Conformance and integration testing is mandatory for ALL targets (both GCE VMs and GKE clusters) and must ALWAYS be executed by default during NPI qualification. Do NOT skip conformance testing unless the user explicitly requests to exclude it.
+
+1. **For GKE Targets**:
+   - Enforce isolated KUBECONFIG: `mkdir -p ~/.kube && export KUBECONFIG=~/.kube/npi_kubeconfig`.
+   - Connect to target cluster and execute GCSFuse CSI Driver E2E integration test suite (`make e2e-test` via `gke-e2e-testing` skill).
+   - Parse Ginkgo test outputs into `./conformance_results_<TARGET_NAME>.json`.
+2. **For GCE VM Targets**:
+   - Clone GCSFuse repo on target VM (`~/gcsfuse`).
+   - Execute standardized Makefile target (default branch `master`):
+     ```bash
+     SSH_USER="${SSH_USER:-$(gcloud config get-value account 2>/dev/null | tr '@.' '_')}"
+     ssh -S ~/.ssh/sockets/<TARGET_NAME>.sock -o IdentitiesOnly=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ~/.ssh/google_compute_engine ${SSH_USER}@nic0.<VM_NAME>.<ZONE>.c.<PROJECT_ID>.internal.gcpnode.com "cd ~/gcsfuse && make npi-conformance PROJECT=<PROJECT_ID> BUCKET_LOCATION=<REGION> READ_AHEAD_KB=128 GCSFUSE_VERSION=master > ~/integration_tests.log 2>&1"
+     ```
+   - Monitor remote log growth. If log size stalls for >5 minutes, kill processes (`pkill -9`), force unmount (`umount -f`), clean temp files, and record stall.
+   - Parse `~/integration_tests.log` and copy `conformance_results_<TARGET_NAME>.json` back to local orchestrator using `scp -S ~/.ssh/sockets/<TARGET_NAME>.sock -o IdentitiesOnly=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ~/.ssh/google_compute_engine`. Enforce non-blocking policy on permission failures.
 
 ### Phase 4: Benchmark Suite Execution
 *Skill Reference*: **[Benchmark Suite Execution](../benchmark-suite-execution/SKILL.md)**
@@ -195,7 +203,7 @@ Verify complete end-to-end pipeline deliverables upon completion:
    ```bash
    gcloud artifacts docker images list us-docker.pkg.dev/<PROJECT_ID>/gcsfuse-npi-images --image-format='value(format("{0}:{1}",package,tag))' | grep "<IMAGE_VERSION>"
    ```
-3. **Phase 3 Conformance JSON Check** (for GCE VM targets):
+3. **Phase 3 Conformance JSON Check** (for all targets):
    ```bash
    test -s ./conformance_results_<TARGET_NAME>.json && jq .summary ./conformance_results_<TARGET_NAME>.json
    ```
