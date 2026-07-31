@@ -1,11 +1,14 @@
 ---
 name: gke-e2e-testing
-description: Guides on provisioning GKE clusters (e.g. n2-standard-64) with Workload Identity and GCSFuse CSI Driver addon enabled, enforcing isolated KUBECONFIG policy, configuring gcs-fuse-csi-driver test suite, executing end-to-end (e2e) tests, and monitoring Ginkgo test execution.
+description: Guides on provisioning GKE clusters (e.g. n2-standard-64) with Workload Identity and GCSFuse CSI Driver addon enabled, enforcing isolated KUBECONFIG policy, configuring gcs-fuse-csi-driver test suite, executing end-to-end (e2e) tests, and parsing Ginkgo test outputs into conformance_results_<TARGET_NAME>.json.
 ---
 
-# GCSFuse End-to-End (E2E) Testing on GKE
+# GCSFuse End-to-End (E2E) Conformance Testing on GKE
 
-This skill guides you through provisioning GKE compute clusters, configuring strict isolated KUBECONFIG sessions, setting up the GCSFuse CSI Driver test environment, and executing the GCSFuse end-to-end (E2E) test suite using Ginkgo.
+This skill guides you through configuring strict isolated KUBECONFIG sessions, setting up the GCSFuse CSI Driver test environment, executing the GCSFuse end-to-end (E2E) conformance test suite using Ginkgo on GKE cluster targets, and generating `conformance_results_<TARGET_NAME>.json`.
+
+> [!IMPORTANT]
+> **Mandatory Execution Policy**: GKE E2E conformance testing is mandatory by default during NPI qualification for GKE targets. It must ALWAYS be executed to validate functional correctness and POSIX integration unless the user explicitly requests to exclude or skip conformance testing.
 
 ---
 
@@ -13,13 +16,13 @@ This skill guides you through provisioning GKE compute clusters, configuring str
 
 ### Prerequisites
 1. **GCP Project Access & Permissions**: Local environment configured with `gcloud`, `kubectl`, and `go` (1.24+) CLI tools with permissions to create GKE clusters (`container.clusters.create`), storage buckets (`storage.buckets.create`), and IAM service accounts (`resourcemanager.projects.get`).
-2. **KUBECONFIG Isolation Policy**: Standard policy enforcing `mkdir -p ~/.kube && export KUBECONFIG=~/.kube/npi_kubeconfig` for all cluster creation and `kubectl` operations, ensuring the host default `~/.kube/config` remains completely unmutated.
+2. **KUBECONFIG Isolation Policy**: Standard policy enforcing `mkdir -p ~/.kube && export KUBECONFIG=~/.kube/npi_kubeconfig` for all cluster interactions and `kubectl` operations, ensuring the host default `~/.kube/config` remains completely unmutated.
 3. **GCSFuse CSI Driver Repository**: Repository clone of `gcs-fuse-csi-driver` (e.g. at `~/gitproj/gcs-fuse-csi-driver` or local workspace).
 4. **Ginkgo Test Framework**: `ginkgo` v2.27.0+ installed (`go install github.com/onsi/ginkgo/v2/ginkgo@v2.27.0`).
 
 ### Trigger Conditions
-- Triggered when requested to validate functional correctness and E2E integration of GCSFuse on GKE clusters.
-- Executed when validating GCSFuse behavior against custom GKE cluster machine types (e.g., `n2-standard-64`, `n2-standard-96`).
+- Triggered when validating functional correctness, POSIX compatibility, and E2E integration of GCSFuse on GKE clusters.
+- Executed during Stage 2 (Conformance & Integration Testing) of the NPI pipeline on GKE cluster targets.
 - Used to test GCSFuse CSI Driver volume mounting, bucket creation, file caching, kernel list cache, and workload identity integration.
 
 ---
@@ -30,7 +33,7 @@ This skill guides you through provisioning GKE compute clusters, configuring str
 - **`PROJECT_ID`**: GCP Project ID (e.g. `gcs-fuse-test`).
 - **`CLUSTER_NAME`**: Name of the target GKE cluster (e.g. `gcsfuse-n2s64-e2e-cluster`).
 - **`ZONE_OR_REGION`**: GCP Zone or Region (e.g. `us-central1-c`).
-- **`MACHINE_TYPE`**: Worker node machine type (e.g. `n2-standard-64`).
+- **`MACHINE_TYPE`**: Worker node machine type (e.g. `n2-standard-64` or `ct6e-standard-4t`).
 - **`E2E_TEST_USE_GKE_MANAGED_DRIVER`**: Set to `true` when testing against GKE pre-installed GCSFuse CSI driver.
 - **`E2E_TEST_GINKGO_PROCS`**: Parallel test worker count (default: `5`).
 
@@ -38,6 +41,7 @@ This skill guides you through provisioning GKE compute clusters, configuring str
 - **GKE Cluster**: Active GKE cluster with Workload Identity and GCSFuse CSI Driver addon enabled.
 - **Kubeconfig Context**: Isolated context configured in `~/.kube/npi_kubeconfig`.
 - **E2E Test Execution Logs**: Ginkgo test logs showing test spec status (Pass/Fail/Skip).
+- **Deliverable**: `conformance_results_<TARGET_NAME>.json` containing parsed E2E test results, summaries, and individual test cases.
 
 ---
 
