@@ -85,6 +85,7 @@ You must coordinate the pipeline stages sequentially:
   3. Run Details & Scope (GCSFuse branch, smoke vs full mode, benchmark matrices).
   4. Target Environment Readiness (SSH sockets, Docker, GKE node pools, Workload Identity & CSI Driver status).
 - **Smoke Test Matrix Lifecycle**: For smoke test runs, ensure `fio/read_matrix.csv` and `fio/write_matrix.csv` are modified before container builds and restored via `git restore` immediately after image build initiation.
+- **Mandatory Dual-Storage Invariant**: Whenever planning or executing a "full NPI suite" or benchmarking any target compute platform (GCE VM or GKE node pool), the agent MUST ALWAYS generate and execute paired targets: (1) Regional Standard HNS Target (`is_rapid_bucket: false`, dataset `<prefix>_regional`) and (2) Zonal RAPID HNS Target (`is_rapid_bucket: true`, dataset `<prefix>_zonal`). Never plan or execute only one storage tier unless the user explicitly requests a single tier.
 - **Dynamic Target Inspection**: Extract target configurations from the user's prompt into `targets.json`. For GKE cluster targets, inspect worker nodes for local SSDs to determine `"has_ssd"`, not the intermediate controller VM.
 - **Sequential Execution**: Run conformance testing and performance benchmarking sequentially to avoid host resource contention.
 - **Strict KUBECONFIG Isolation**: All GKE operations must execute under isolated `KUBECONFIG=~/.kube/npi_kubeconfig`.

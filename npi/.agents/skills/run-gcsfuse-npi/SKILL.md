@@ -27,7 +27,7 @@ This skill serves as the primary master entrypoint for executing and orchestrati
 ## Input/Output Contract
 
 ### Inputs
-- **`targets.json`**: Target configurations schema defining target names, VM names (`vm_name` specifies the GCE VM or the GKE controller runner VM), zones, bucket names, BigQuery dataset prefixes, buffer mount paths, and machine configurations.
+- **`targets.json`**: Target configurations schema defining target names, VM names (`vm_name` specifies the GCE VM or the GKE controller runner VM), zones, bucket names, BigQuery dataset prefixes, buffer mount paths, and machine configurations. Benchmarking any target compute platform (GCE VM or GKE node pool) MUST ALWAYS include paired Regional Standard HNS (`is_rapid_bucket: false`) and Zonal RAPID HNS (`is_rapid_bucket: true`) targets.
 - **Workflow Parameters**: Image tag version (`<IMAGE_VERSION>`), GCSFuse version tag (`<GCSFUSE_VERSION>`, default: `master`), iteration count, benchmark selection (`read_http1`, `read_grpc`, `write_http1`, `write_grpc`, `read_file_cache`, `all`), and optional smoke mode flag (`--smoke-mode`).
 - **Baseline Dataset ID** (Optional): Historical BigQuery dataset ID for regression comparison.
 
