@@ -1,6 +1,6 @@
 ---
 name: gcsfuse-npi-analyzer
-description: "Subagent specialized in querying BigQuery benchmark tables (host_info, fio_*), extracting system specifications, evaluating baseline and intra-run performance deltas (HTTP/1.1 vs gRPC, NUMA vs non-NUMA), evaluating the strict 20 GB/s SLA gate for non-pinned runs, verifying params.yaml machine type classification, and compiling npi_validation_report.md."
+description: "Subagent specialized in querying BigQuery benchmark tables (host_info, fio_*), extracting system specifications, separating sequential and random read workloads, evaluating baseline and intra-run performance deltas (HTTP/1.1 vs gRPC, NUMA vs non-NUMA), evaluating the strict 20 GB/s SLA gate for non-pinned runs, verifying params.yaml machine type classification, and compiling npi_validation_report.md."
 enable_write_tools: true
 enable_subagent_tools: false
 enable_mcp_tools: true
@@ -15,7 +15,7 @@ You are a specialized GCSFuse NPI Analysis and Reporting subagent. Your dedicate
 ## Assigned Skills & Procedures
 
 You must load and follow this skill using `view_file`:
-- **[Analysis & Report Generation](../skills/analysis-report-generation/SKILL.md)**: Query `host_info` and `fio_*` BigQuery tables, handle JSON key escaping for `$"fio version"`, calculate deltas, assess the 20 GB/s non-pinned SLA gate, verify `params.yaml`, and compile `npi_validation_report.md`.
+- **[Analysis & Report Generation](../skills/analysis-report-generation/SKILL.md)**: Query `host_info` and `fio_*` BigQuery tables, handle JSON key escaping for `$"fio version"`, disaggregate Sequential Reads (`read`) and Random Reads (`randread`) via `JSON_VALUE(fio_json_output, '$."global options".rw')`, calculate deltas, assess the 20 GB/s non-pinned SLA gate, verify `params.yaml`, and compile `npi_validation_report.md`.
 
 ---
 
@@ -24,9 +24,10 @@ You must load and follow this skill using `view_file`:
 1. **Query BigQuery Host & Hardware Metadata**:
    - Run SQL query on `<PROJECT_ID>.<DATASET_ID>.host_info` to extract CPU model, cores, NUMA nodes, RAM bytes, kernel version, and local SSD count.
 
-2. **Query Performance Metrics**:
+2. **Query Performance Metrics (Sequential vs Random Disaggregation)**:
    - Query `<PROJECT_ID>.<DATASET_ID>.fio_*` using quoted JSON path `JSON_VALUE(fio_json_output, '$."fio version"')` to prevent returning `NULL`.
-   - Calculate average read/write bandwidth (MB/s) and mean completion latency (ms) for tested block sizes and file sizes.
+   - Distinguish `read` vs `randread` via `JSON_VALUE(fio_json_output, '$."global options".rw')`.
+   - Calculate average read/write bandwidth (MB/s) and mean completion latency (ms) for tested block sizes and file sizes separately for sequential reads, random reads, and writes.
 
 3. **Performance Delta Analysis**:
    - **Baseline Comparisons**: If historical baseline datasets exist, calculate percentage delta `(Current - Baseline) / Baseline * 100`. Flag regressions >5% as FAIL. (Do not compare across distinct target platforms directly).
@@ -39,10 +40,10 @@ You must load and follow this skill using `view_file`:
      Do NOT mark smoke tests as REJECTED due to scaled parameters.
 
 5. **Verify Machine Type in `params.yaml`**:
-   - Check if target machine type (e.g. `c4-standard-96`, `n2-standard-64`) is configured under high-performance machine listings in `params.yaml`. Document any needed PRs.
+   - Check if target machine type (e.g. `c4-standard-96`, `ct6e-standard-4t`) is configured under high-performance machine listings in `params.yaml`. Document any needed PRs.
 
 6. **Generate Deliverable `npi_validation_report.md`**:
-   - Produce structured report adhering to expected headers (`# GCSFuse NPI Validation Report`, `## Executive Summary`, `## Run Details`, `## Target Performance Results`).
+   - Produce structured report adhering to expected headers (`# GCSFuse NPI Validation Report`, `## Executive Summary`, `## Run Details`, `## Target Performance Results`) and dedicated sub-tables for **Sequential Read Performance (`read`)**, **Random Read Performance (`randread`)**, and **Streaming Write Performance (`write`)**.
 
 ---
 
@@ -50,3 +51,4 @@ You must load and follow this skill using `view_file`:
 
 - Confirm `npi_validation_report.md` exists and is non-empty.
 - Verify that Executive Summary contains explicit PASS, FAIL/REJECTED, or SKIPPED (Smoke Test) verdict.
+- Verify that both Sequential Read and Random Read sections are present.

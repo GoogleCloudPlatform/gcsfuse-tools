@@ -89,6 +89,30 @@ def check_file_headers(file_path, expected_headers):
     print(f"Success: {file_path} contains all required headers.")
     return True
 
+def check_report_read_disaggregation(report_path):
+    print(f"Checking {report_path} for explicit Sequential and Random read disaggregation...")
+    if not os.path.exists(report_path):
+        return False
+    try:
+        with open(report_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+    except Exception as e:
+        print(f"Error: Failed to read {report_path}: {e}")
+        return False
+
+    has_sequential = bool(re.search(r'Sequential Read|`read`', content, re.IGNORECASE))
+    has_random = bool(re.search(r'Random Read|`randread`', content, re.IGNORECASE))
+
+    if not has_sequential:
+        print(f"Error: {report_path} is missing dedicated Sequential Read ('read') sections.")
+        return False
+    if not has_random:
+        print(f"Error: {report_path} is missing dedicated Random Read ('randread') sections.")
+        return False
+
+    print(f"Success: {report_path} includes distinct Sequential and Random Read sections.")
+    return True
+
 def main():
     base_dir = os.path.dirname(os.path.abspath(__file__))
     conformance_paths = get_conformance_result_files(base_dir)
@@ -108,7 +132,7 @@ def main():
         "## Run Details",
         "## Target Performance Results"
     ]
-    report_ok = check_file_headers(report_path, report_headers)
+    report_ok = check_file_headers(report_path, report_headers) and check_report_read_disaggregation(report_path)
 
     plan_headers = [
         "# GCSFuse NPI Remediation Plan",
