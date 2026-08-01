@@ -89,8 +89,8 @@ def check_file_headers(file_path, expected_headers):
     print(f"Success: {file_path} contains all required headers.")
     return True
 
-def check_report_read_disaggregation(report_path):
-    print(f"Checking {report_path} for explicit Sequential and Random read disaggregation...")
+def check_report_sections(report_path):
+    print(f"Checking {report_path} for explicit Sequential Read, Random Read, and Write sections...")
     if not os.path.exists(report_path):
         return False
     try:
@@ -102,6 +102,7 @@ def check_report_read_disaggregation(report_path):
 
     has_sequential = bool(re.search(r'Sequential Read|`read`', content, re.IGNORECASE))
     has_random = bool(re.search(r'Random Read|`randread`', content, re.IGNORECASE))
+    has_write = bool(re.search(r'Write|`write`', content, re.IGNORECASE))
 
     if not has_sequential:
         print(f"Error: {report_path} is missing dedicated Sequential Read ('read') sections.")
@@ -109,9 +110,32 @@ def check_report_read_disaggregation(report_path):
     if not has_random:
         print(f"Error: {report_path} is missing dedicated Random Read ('randread') sections.")
         return False
+    if not has_write:
+        print(f"Error: {report_path} is missing dedicated Write ('write') sections.")
+        return False
 
-    print(f"Success: {report_path} includes distinct Sequential and Random Read sections.")
+    print(f"Success: {report_path} includes distinct Sequential Read, Random Read, and Write sections.")
     return True
+
+def verify_targets_config(targets_path):
+    if not os.path.exists(targets_path):
+        return True
+    print(f"Checking {targets_path} schema...")
+    try:
+        with open(targets_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        if not isinstance(data, list) or len(data) == 0:
+            print(f"Error: {targets_path} must be a non-empty list of target definitions.")
+            return False
+        for t in data:
+            if not isinstance(t, dict) or "name" not in t or "type" not in t:
+                print(f"Error: Target definition in {targets_path} missing 'name' or 'type'.")
+                return False
+        print(f"Success: {targets_path} configuration is valid.")
+        return True
+    except Exception as e:
+        print(f"Error: Failed to validate {targets_path}: {e}")
+        return False
 
 def main():
     base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -119,6 +143,7 @@ def main():
             
     report_path = os.path.join(base_dir, "npi_validation_report.md")
     plan_path = os.path.join(base_dir, "npi_remediation_plan.md")
+    targets_path = os.path.join(base_dir, "targets.json")
 
     if not conformance_paths:
         print("Error: No conformance results JSON file found.")
@@ -132,7 +157,7 @@ def main():
         "## Run Details",
         "## Target Performance Results"
     ]
-    report_ok = check_file_headers(report_path, report_headers) and check_report_read_disaggregation(report_path)
+    report_ok = check_file_headers(report_path, report_headers) and check_report_sections(report_path)
 
     plan_headers = [
         "# GCSFuse NPI Remediation Plan",
@@ -140,8 +165,9 @@ def main():
         "## Recommended Remediation Steps"
     ]
     plan_ok = check_file_headers(plan_path, plan_headers)
+    targets_ok = verify_targets_config(targets_path)
 
-    if conformance_ok and report_ok and plan_ok:
+    if conformance_ok and report_ok and plan_ok and targets_ok:
         print("VERIFICATION SUCCESSFUL: All NPI validation deliverables are present and valid.")
         sys.exit(0)
     else:

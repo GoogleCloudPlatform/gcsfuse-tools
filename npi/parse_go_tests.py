@@ -2,7 +2,7 @@
 import sys
 import json
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 
 def parse_log(log_path, gcsfuse_version, target_vm):
     raw_tests = []
@@ -107,7 +107,7 @@ def parse_log(log_path, gcsfuse_version, target_vm):
     summary["skipped"] = sum(1 for t in tests if t["status"] == "SKIP")
 
     report = {
-        "timestamp": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "gcsfuse_version": gcsfuse_version,
         "target_vm": target_vm,
         "summary": summary,
