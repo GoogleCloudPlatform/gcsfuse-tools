@@ -12,12 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-GCSFUSE_VERSION ?= master
-GO_VERSION=1.26.4
-UBUNTU_VERSION=24.04
-REGISTRY=us-docker.pkg.dev
-PROJECT=gcs-fuse-test
-IMAGE_VERSION ?= latest
+GCSFUSE_VERSION ?=
+GO_VERSION ?=
+UBUNTU_VERSION ?= 24.04
+REGISTRY ?= us-docker.pkg.dev
+PROJECT ?= gcs-fuse-test
+IMAGE_VERSION ?=
 
 
 ARM_WORKER_POOL ?=
@@ -29,10 +29,10 @@ ARM_WORKER_POOL ?=
 
 build:
 	python3 -u build_images.py \
-		--gcsfuse-version $(GCSFUSE_VERSION) \
-		--go-version $(GO_VERSION) \
+		$(if $(GCSFUSE_VERSION),--gcsfuse-version $(GCSFUSE_VERSION)) \
+		$(if $(GO_VERSION),--go-version $(GO_VERSION)) \
 		--ubuntu-version $(UBUNTU_VERSION) \
 		--registry $(REGISTRY) \
 		--project $(PROJECT) \
-		--image-version $(IMAGE_VERSION) \
+		$(if $(IMAGE_VERSION),--image-version $(IMAGE_VERSION)) \
 		$(if $(ARM_WORKER_POOL),--arm-worker-pool $(ARM_WORKER_POOL))
