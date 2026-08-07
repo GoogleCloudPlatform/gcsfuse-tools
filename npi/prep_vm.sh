@@ -82,14 +82,14 @@ if [ -x /usr/local/go/bin/go ]; then
   GO_VER_STR=$(/usr/local/go/bin/go version | awk '{print $3}' | sed 's/go//')
   MAJOR=$(echo "$GO_VER_STR" | cut -d. -f1 | sed 's/[^0-9].*//')
   MINOR_NUM=$(echo "$GO_VER_STR" | cut -d. -f2 | sed 's/[^0-9].*//')
-  if [ "$MAJOR" -gt 1 ] 2>/dev/null || { [ "$MAJOR" -eq 1 ] 2>/dev/null && [ "$MINOR_NUM" -ge 24 ] 2>/dev/null; }; then
+  if [ "$MAJOR" -gt 1 ] 2>/dev/null || { [ "$MAJOR" -eq 1 ] 2>/dev/null && [ "$MINOR_NUM" -ge 26 ] 2>/dev/null; }; then
     NEED_GO_INSTALL=false
   fi
 fi
 
 if [ "$NEED_GO_INSTALL" = true ]; then
-  echo "Installing stable Golang (1.24.0) into /usr/local/go..."
-  GO_VERSION="1.24.0"
+  echo "Installing stable Golang (1.26.5) into /usr/local/go..."
+  GO_VERSION="1.26.5"
   curl -fsSL "https://dl.google.com/go/go${GO_VERSION}.linux-amd64.tar.gz" -o /tmp/go.tar.gz || { echo "ERROR: Failed to download Go tarball" >&2; exit 1; }
   if [ -s /tmp/go.tar.gz ] && tar -tzf /tmp/go.tar.gz >/dev/null 2>&1; then
     sudo rm -rf /usr/local/go

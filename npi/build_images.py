@@ -14,6 +14,7 @@
 # limitations under the License.
 
 import argparse
+import json
 import os
 import shutil
 import subprocess
@@ -84,6 +85,39 @@ def run_build(cmd, name, active_builds, active_processes, builds_lock, cancellat
         
     return return_code, "".join(output_lines)
 
+def resolve_latest_gcsfuse_version():
+    """Resolves the latest release tag for GCSFuse from GitHub."""
+    # Method 1: Check GitHub release redirect URL (fast and avoids API rate limits)
+    try:
+        url = "https://github.com/GoogleCloudPlatform/gcsfuse/releases/latest"
+        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req, timeout=10) as response:
+            final_url = response.geturl()
+            if "/releases/tag/" in final_url:
+                tag = final_url.split("/releases/tag/")[-1].strip()
+                if tag and re.match(r"^[a-zA-Z0-9/._-]+$", tag):
+                    print(f"Resolved latest GCSFuse release tag from redirect: {tag}")
+                    return tag
+    except Exception as e:
+        print(f"Warning: Failed to resolve latest release from redirect ({e}). Trying GitHub API...")
+
+    # Method 2: GitHub API
+    try:
+        api_url = "https://api.github.com/repos/GoogleCloudPlatform/gcsfuse/releases/latest"
+        req = urllib.request.Request(api_url, headers={'User-Agent': 'Mozilla/5.0', 'Accept': 'application/vnd.github.v3+json'})
+        with urllib.request.urlopen(req, timeout=10) as response:
+            data = json.loads(response.read().decode('utf-8'))
+            tag = data.get("tag_name", "").strip()
+            if tag and re.match(r"^[a-zA-Z0-9/._-]+$", tag):
+                print(f"Resolved latest GCSFuse release tag from API: {tag}")
+                return tag
+    except Exception as e:
+        print(f"Warning: Failed to resolve latest release from API: {e}")
+
+    # Fallback default
+    print("Warning: Could not dynamically resolve latest GCSFuse release. Falling back to default 'v3.11.2'.")
+    return "v3.11.2"
+
 def resolve_go_version(gcsfuse_version):
     # Sanitize the input version to prevent path traversal or URL manipulation
     if ".." in gcsfuse_version or not all(c.isalnum() or c in ".-_/" for c in gcsfuse_version):
@@ -114,27 +148,33 @@ def resolve_go_version(gcsfuse_version):
 
 def main():
     parser = argparse.ArgumentParser(description="Orchestrate building NPI Docker images.")
-    parser.add_argument("--gcsfuse-version", default="master", help="GCSFuse version to build")
-    parser.add_argument("--go-version", default=None, help="Go version to use (default: resolved from GCSFuse go.mod, fallback to 1.26.4)")
+    parser.add_argument("--gcsfuse-version", default=None, help="GCSFuse version to build (default: resolved from latest GitHub release)")
+    parser.add_argument("--go-version", default=None, help="Go version to use (default: resolved from GCSFuse go.mod, fallback to 1.26.5)")
     parser.add_argument("--ubuntu-version", default="24.04", help="Ubuntu version to use")
     parser.add_argument("--registry", default="us-docker.pkg.dev", help="Docker registry")
     parser.add_argument("--project", default="gcs-fuse-test", help="GCP Project ID")
-    parser.add_argument("--image-version", default="latest", help="Image version tag")
+    parser.add_argument("--image-version", default=None, help="Image version tag (default: matches GCSFuse version)")
     parser.add_argument("--arm-worker-pool", default=None, help="Cloud Build ARM worker pool resource name")
     parser.add_argument("--smoke-mode", action="store_true", help="Build container images using trimmed smoke test FIO matrices.")
 
     args = parser.parse_args()
 
+    if not args.gcsfuse_version:
+        args.gcsfuse_version = resolve_latest_gcsfuse_version()
+
     if not re.match(r"^[a-zA-Z0-9/._-]+$", args.gcsfuse_version):
         print(f"Error: Invalid GCSFuse version format: {args.gcsfuse_version}", file=sys.stderr)
         sys.exit(1)
+
+    if not args.image_version:
+        args.image_version = args.gcsfuse_version
 
     if not args.go_version:
         resolved_go = resolve_go_version(args.gcsfuse_version)
         if resolved_go:
             args.go_version = resolved_go
         else:
-            args.go_version = "1.26.4"
+            args.go_version = "1.26.5"
 
     if not re.match(r"^\d+(\.\d+)*([a-zA-Z0-9.-]+)?$", args.go_version):
         print(f"Error: Invalid Go version format: {args.go_version}", file=sys.stderr)
@@ -150,6 +190,8 @@ def main():
             print(f"Error: Invalid parameter format for --{param_name}: {param_val}", file=sys.stderr)
             sys.exit(1)
 
+    print(f"Target GCSFuse version: {args.gcsfuse_version}")
+    print(f"Target Image version: {args.image_version}")
     print(f"Using Go version: {args.go_version} to compile GCSFuse performance test base image.")
 
     read_matrix_backup = None

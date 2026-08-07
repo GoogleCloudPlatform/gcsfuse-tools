@@ -1097,14 +1097,19 @@ class TestQueryResults(unittest.TestCase):
     def test_get_table_metrics_fio_table(self, mock_run):
         mock_stdout = json.dumps([{
             "fio_version": "fio-3.36",
-            "avg_read_bw_mbs": 2500.5,
-            "avg_write_bw_mbs": 450.25
+            "seq_read_bw_mbs": 2500.5,
+            "rand_read_bw_mbs": 1200.0,
+            "write_bw_mbs": 450.25,
+            "seq_read_lat_ms": 1.2,
+            "rand_read_lat_ms": 2.5,
+            "write_lat_ms": 3.0
         }])
         mock_run.return_value = MagicMock(returncode=0, stdout=mock_stdout)
 
         metrics = query_results.get_table_metrics("test-proj", "test-ds", "fio_read_http1")
         self.assertEqual(metrics["fio_version"], "fio-3.36")
-        self.assertAlmostEqual(metrics["read_bw_mbs"], 2500.5)
+        self.assertAlmostEqual(metrics["seq_read_bw_mbs"], 2500.5)
+        self.assertAlmostEqual(metrics["rand_read_bw_mbs"], 1200.0)
         self.assertAlmostEqual(metrics["write_bw_mbs"], 450.25)
 
         cmd = mock_run.call_args[0][0]
@@ -1115,14 +1120,18 @@ class TestQueryResults(unittest.TestCase):
     def test_get_table_metrics_go_client_table(self, mock_run):
         mock_stdout = json.dumps([{
             "fio_version": "go-client",
-            "avg_read_bw_mbs": 3200.75,
-            "avg_write_bw_mbs": 0.0
+            "seq_read_bw_mbs": 3200.75,
+            "rand_read_bw_mbs": 0.0,
+            "write_bw_mbs": 0.0,
+            "seq_read_lat_ms": 0.0,
+            "rand_read_lat_ms": 0.0,
+            "write_lat_ms": 0.0
         }])
         mock_run.return_value = MagicMock(returncode=0, stdout=mock_stdout)
 
         metrics = query_results.get_table_metrics("test-proj", "test-ds", "go_client_read_grpc")
         self.assertEqual(metrics["fio_version"], "go-client")
-        self.assertAlmostEqual(metrics["read_bw_mbs"], 3200.75)
+        self.assertAlmostEqual(metrics["seq_read_bw_mbs"], 3200.75)
         self.assertAlmostEqual(metrics["write_bw_mbs"], 0.0)
 
         cmd = mock_run.call_args[0][0]
@@ -1135,21 +1144,45 @@ class TestQueryResults(unittest.TestCase):
         mock_run.side_effect = subprocess.CalledProcessError(1, "bq", stderr="Table not found")
 
         metrics = query_results.get_table_metrics("test-proj", "test-ds", "nonexistent_table")
-        self.assertEqual(metrics, {"read_bw_mbs": 0.0, "write_bw_mbs": 0.0, "fio_version": "N/A"})
+        self.assertEqual(metrics, {
+            "seq_read_bw_mbs": 0.0,
+            "rand_read_bw_mbs": 0.0,
+            "write_bw_mbs": 0.0,
+            "seq_read_lat_ms": 0.0,
+            "rand_read_lat_ms": 0.0,
+            "write_lat_ms": 0.0,
+            "fio_version": "N/A"
+        })
 
     @patch('subprocess.run')
     def test_get_table_metrics_empty_result(self, mock_run):
         mock_run.return_value = MagicMock(returncode=0, stdout="[]")
 
         metrics = query_results.get_table_metrics("test-proj", "test-ds", "fio_read_http1")
-        self.assertEqual(metrics, {"read_bw_mbs": 0.0, "write_bw_mbs": 0.0, "fio_version": "N/A"})
+        self.assertEqual(metrics, {
+            "seq_read_bw_mbs": 0.0,
+            "rand_read_bw_mbs": 0.0,
+            "write_bw_mbs": 0.0,
+            "seq_read_lat_ms": 0.0,
+            "rand_read_lat_ms": 0.0,
+            "write_lat_ms": 0.0,
+            "fio_version": "N/A"
+        })
 
     @patch('subprocess.run')
     def test_get_table_metrics_invalid_json(self, mock_run):
         mock_run.return_value = MagicMock(returncode=0, stdout="invalid json string")
 
         metrics = query_results.get_table_metrics("test-proj", "test-ds", "fio_read_http1")
-        self.assertEqual(metrics, {"read_bw_mbs": 0.0, "write_bw_mbs": 0.0, "fio_version": "N/A"})
+        self.assertEqual(metrics, {
+            "seq_read_bw_mbs": 0.0,
+            "rand_read_bw_mbs": 0.0,
+            "write_bw_mbs": 0.0,
+            "seq_read_lat_ms": 0.0,
+            "rand_read_lat_ms": 0.0,
+            "write_lat_ms": 0.0,
+            "fio_version": "N/A"
+        })
 
 
 if __name__ == '__main__':

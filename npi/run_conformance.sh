@@ -57,14 +57,14 @@ if [ -n "$GO_BIN" ]; then
   GO_VER_STR=$("$GO_BIN" version | awk '{print $3}' | sed 's/go//')
   MAJOR=$(echo "$GO_VER_STR" | cut -d. -f1 | sed 's/[^0-9].*//')
   MINOR_NUM=$(echo "$GO_VER_STR" | cut -d. -f2 | sed 's/[^0-9].*//')
-  if [ "$MAJOR" -gt 1 ] 2>/dev/null || { [ "$MAJOR" -eq 1 ] 2>/dev/null && [ "$MINOR_NUM" -ge 24 ] 2>/dev/null; }; then
+  if [ "$MAJOR" -gt 1 ] 2>/dev/null || { [ "$MAJOR" -eq 1 ] 2>/dev/null && [ "$MINOR_NUM" -ge 26 ] 2>/dev/null; }; then
     NEED_GO_INSTALL=false
   fi
 fi
 
 if [ "$NEED_GO_INSTALL" = true ]; then
-  echo "Go 1.24+ not found in /usr/local/go. Installing stable Golang (1.24.0)..."
-  GO_VERSION="1.24.0"
+  echo "Go 1.26+ not found in /usr/local/go. Installing stable Golang (1.26.5)..."
+  GO_VERSION="1.26.5"
   TARBALL="go${GO_VERSION}.linux-amd64.tar.gz"
   curl -fsSL "https://dl.google.com/go/${TARBALL}" -o "${TARBALL}" || { echo "ERROR: Failed to download Go tarball" >&2; exit 1; }
   if [ -s "${TARBALL}" ] && tar -tzf "${TARBALL}" >/dev/null 2>&1; then

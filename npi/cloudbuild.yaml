@@ -14,7 +14,7 @@
 
 substitutions:
   _GCSFUSE_VERSION: 'master'
-  _GO_VERSION: '1.25.0'
+  _GO_VERSION: '1.26.5'
   _UBUNTU_VERSION: '24.04'
   _REGISTRY: 'us-docker.pkg.dev'
   _PROJECT: 'gcs-fuse-test'
