@@ -790,6 +790,15 @@ def execute_target(target, args, state_lock, state):
             suffix = "_zonal" if is_rapid else "_regional"
             dataset_id = f"{base_dataset}{suffix}"
 
+            extra_mount_opts = []
+            target_extra = target.get("extra_mount_options")
+            if target_extra and str(target_extra).strip():
+                extra_mount_opts.append(str(target_extra).strip())
+            cli_extra = getattr(args, "extra_mount_options", None)
+            if cli_extra and str(cli_extra).strip():
+                extra_mount_opts.append(str(cli_extra).strip())
+            combined_extra_mount_opts = ",".join(extra_mount_opts) if extra_mount_opts else None
+
             if target["type"] == "gce":
                 python_args = [
                     "python3", "-u", f"/home/{SSH_USER}/gcsfuse-tools/npi/npi.py",
@@ -806,6 +815,8 @@ def execute_target(target, args, state_lock, state):
                 python_args.extend(["--benchmarks"] + active_benchmarks)
                 if target.get("buffer_mount"):
                     python_args.append(f"--buffer-mount-path={target['buffer_mount']}")
+                if combined_extra_mount_opts:
+                    python_args.append(f"--extra-mount-options={combined_extra_mount_opts}")
                     
                 python_cmd = " ".join(shlex.quote(arg) for arg in python_args)
                 full_cmd = f"{python_cmd}; echo $? > /tmp/npi_{target_name}.exit"
@@ -843,6 +854,8 @@ def execute_target(target, args, state_lock, state):
                         python_args.append("--run-file-cache-test")
                 
                 python_args.extend(["--benchmarks"] + active_benchmarks)
+                if combined_extra_mount_opts:
+                    python_args.append(f"--extra-mount-options={combined_extra_mount_opts}")
                 
                 python_cmd = " ".join(shlex.quote(arg) for arg in python_args)
                 full_cmd = f"{python_cmd}; echo $? > /tmp/npi_{target_name}.exit"
@@ -960,6 +973,7 @@ def main():
     parser.add_argument("--iterations", type=int, default=5, help="Number of iterations")
     parser.add_argument("--reset", action="store_true", help="Reset saved state and start a fresh run")
     parser.add_argument("--smoke-mode", action="store_true", help="Run orchestrator in fast smoke test mode")
+    parser.add_argument("--extra-mount-options", default=None, help="Extra mount options to pass to GCSFuse benchmarks")
     
     args = parser.parse_args()
     if args.smoke_mode and args.iterations == 5:
