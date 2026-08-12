@@ -1185,6 +1185,429 @@ class TestQueryResults(unittest.TestCase):
         })
 
 
+class TestBenchmarkFactoryExtraMountOptions(unittest.TestCase):
+
+    def setUp(self):
+        self.factory_default = npi.BenchmarkFactory(
+            bucket_name="test-bucket",
+            project_id="test-project",
+            bq_dataset_id="test-dataset",
+            iterations=5,
+            buffer_mount_path="/mnt/buffer"
+        )
+
+    def test_format_extra_mount_options_none_and_empty(self):
+        self.assertEqual(self.factory_default._format_extra_mount_options(None), "")
+        self.assertEqual(self.factory_default._format_extra_mount_options(""), "")
+        self.assertEqual(self.factory_default._format_extra_mount_options("   \n\t  "), "")
+
+    def test_format_extra_mount_options_single_flag(self):
+        self.assertEqual(
+            self.factory_default._format_extra_mount_options("implicit-dirs"),
+            "--implicit-dirs"
+        )
+        self.assertEqual(
+            self.factory_default._format_extra_mount_options("--implicit-dirs"),
+            "--implicit-dirs"
+        )
+
+    def test_format_extra_mount_options_comma_separated_key_values(self):
+        opts = "congestion-threshold=384,max-background=512"
+        formatted = self.factory_default._format_extra_mount_options(opts)
+        self.assertEqual(formatted, "--congestion-threshold=384 --max-background=512")
+
+        opts_with_spaces = "congestion-threshold=384, max-background=512, implicit-dirs"
+        formatted = self.factory_default._format_extra_mount_options(opts_with_spaces)
+        self.assertEqual(formatted, "--congestion-threshold=384 --max-background=512 --implicit-dirs")
+
+    def test_format_extra_mount_options_space_separated_key_values(self):
+        opts = "congestion-threshold=384 max-background=512"
+        formatted = self.factory_default._format_extra_mount_options(opts)
+        self.assertEqual(formatted, "--congestion-threshold=384 --max-background=512")
+
+    def test_format_extra_mount_options_prefixed_flags_no_double_hyphen(self):
+        opts = "--custom-opt=val --debug_gcs"
+        formatted = self.factory_default._format_extra_mount_options(opts)
+        self.assertEqual(formatted, "--custom-opt=val --debug_gcs")
+
+        opts_comma = "--custom-opt=val, --debug_gcs"
+        formatted = self.factory_default._format_extra_mount_options(opts_comma)
+        self.assertEqual(formatted, "--custom-opt=val --debug_gcs")
+
+    def test_format_extra_mount_options_dash_o_flag_preserved(self):
+        opts_space = "-o allow_other --custom-flag=1"
+        formatted = self.factory_default._format_extra_mount_options(opts_space)
+        self.assertEqual(formatted, "-o allow_other --custom-flag=1")
+
+        opts_comma = "-o allow_other,congestion-threshold=384"
+        formatted = self.factory_default._format_extra_mount_options(opts_comma)
+        self.assertEqual(formatted, "-o allow_other --congestion-threshold=384")
+
+        opts_comma_split = "-o,allow_other,congestion-threshold=384"
+        formatted = self.factory_default._format_extra_mount_options(opts_comma_split)
+        self.assertEqual(formatted, "-o allow_other --congestion-threshold=384")
+
+    @patch('npi.BenchmarkFactory._get_cpu_list_for_numa_node')
+    def test_get_benchmark_command_standard_with_extra_mount_options(self, mock_get_cpu):
+        mock_get_cpu.return_value = None
+        factory = npi.BenchmarkFactory(
+            bucket_name="test-bucket",
+            project_id="test-project",
+            bq_dataset_id="test-dataset",
+            iterations=5,
+            buffer_mount_path="/mnt/buffer",
+            extra_mount_options="congestion-threshold=384,max-background=512"
+        )
+        cmd, table_id = factory.get_benchmark_command("read_grpc")
+        self.assertEqual(table_id, "fio_read_grpc")
+        self.assertIn("-v /mnt/buffer:/gcsfuse-buffer", cmd)
+        self.assertIn("--temp-dir=/gcsfuse-buffer/write", cmd)
+        self.assertIn("-o allow_other", cmd)
+        self.assertIn("--client-protocol=grpc", cmd)
+        self.assertIn("--log-file=/gcsfuse-buffer/gcsfuse.log", cmd)
+        self.assertIn("--log-format=json", cmd)
+        self.assertIn("--congestion-threshold=384", cmd)
+        self.assertIn("--max-background=512", cmd)
+
+    @patch('npi.BenchmarkFactory._get_cpu_list_for_numa_node')
+    def test_get_benchmark_command_standard_without_extra_mount_options(self, mock_get_cpu):
+        mock_get_cpu.return_value = None
+        factory = npi.BenchmarkFactory(
+            bucket_name="test-bucket",
+            project_id="test-project",
+            bq_dataset_id="test-dataset",
+            iterations=5,
+            buffer_mount_path="/mnt/buffer",
+            extra_mount_options=None
+        )
+        cmd, table_id = factory.get_benchmark_command("read_grpc")
+        self.assertEqual(table_id, "fio_read_grpc")
+        self.assertIn("-v /mnt/buffer:/gcsfuse-buffer", cmd)
+        self.assertIn("--temp-dir=/gcsfuse-buffer/write", cmd)
+        self.assertIn("--client-protocol=grpc", cmd)
+        self.assertNotIn("--congestion-threshold", cmd)
+        self.assertNotIn("--max-background", cmd)
+
+    @patch('npi.BenchmarkFactory._get_cpu_list_for_numa_node')
+    def test_get_benchmark_command_file_cache_with_extra_mount_options(self, mock_get_cpu):
+        mock_get_cpu.return_value = None
+        factory = npi.BenchmarkFactory(
+            bucket_name="test-bucket",
+            project_id="test-project",
+            bq_dataset_id="test-dataset",
+            iterations=5,
+            buffer_mount_path="/mnt/buffer",
+            file_cache_size_mb=4096,
+            extra_mount_options="congestion-threshold=384"
+        )
+        cmd, table_id = factory.get_benchmark_command("read_file_cache_grpc")
+        self.assertEqual(table_id, "fio_read_file_cache")
+        self.assertIn("--cache-dir=/gcsfuse-buffer/file-cache", cmd)
+        self.assertIn("--file-cache-max-size-mb=4096", cmd)
+        self.assertIn("--metadata-cache-ttl-secs=-1", cmd)
+        self.assertIn("--congestion-threshold=384", cmd)
+        self.assertIn("--keep-mount", cmd)
+
+    @patch('npi.BenchmarkFactory._get_cpu_list_for_numa_node')
+    def test_get_benchmark_command_numa_bound_with_extra_mount_options(self, mock_get_cpu):
+        mock_get_cpu.side_effect = lambda node_id: "0-15" if node_id == 0 else "16-31"
+        factory = npi.BenchmarkFactory(
+            bucket_name="test-bucket",
+            project_id="test-project",
+            bq_dataset_id="test-dataset",
+            iterations=5,
+            buffer_mount_path="/mnt/buffer",
+            extra_mount_options="max-background=512"
+        )
+        cmd, table_id = factory.get_benchmark_command("read_grpc_numa0_fio_bound")
+        self.assertEqual(table_id, "fio_read_grpc_numa0_fio_bound")
+        self.assertIn("--cpu-limit-list=0-15", cmd)
+        self.assertIn("--bind-fio", cmd)
+        self.assertIn("--max-background=512", cmd)
+
+    @patch('npi.BenchmarkFactory._get_cpu_list_for_numa_node')
+    def test_get_benchmark_command_host_info_ignores_extra_mount_options(self, mock_get_cpu):
+        mock_get_cpu.return_value = None
+        factory = npi.BenchmarkFactory(
+            bucket_name="test-bucket",
+            project_id="test-project",
+            bq_dataset_id="test-dataset",
+            iterations=1,
+            buffer_mount_path="/mnt/buffer",
+            extra_mount_options="congestion-threshold=384"
+        )
+        cmd, table_id = factory.get_benchmark_command("host_info")
+        self.assertEqual(table_id, "host_info")
+        self.assertNotIn("--gcsfuse-flags", cmd)
+        self.assertNotIn("--congestion-threshold", cmd)
+        self.assertIn("host-info-collector", cmd)
+
+
+class TestNpiMainExtraMountOptions(unittest.TestCase):
+
+    @patch('os.makedirs')
+    @patch('argparse.ArgumentParser.parse_args')
+    @patch('npi.BenchmarkFactory')
+    @patch('npi.verify_permissions', return_value=True)
+    def test_main_passes_extra_mount_options_to_factory(self, mock_verify_perms, mock_factory_class, mock_parse_args, mock_makedirs):
+        mock_args = MagicMock()
+        mock_args.benchmarks = ["read_grpc"]
+        mock_args.bucket_name = "test-bucket"
+        mock_args.mount_path = None
+        mock_args.project_id = "test-project"
+        mock_args.bq_dataset_id = "test-dataset"
+        mock_args.iterations = 5
+        mock_args.dry_run = False
+        mock_args.is_rapid_bucket = False
+        mock_args.buffer_mount_path = "/mnt/buffer"
+        mock_args.file_cache_size_mb = 2097152
+        mock_args.image_version = "latest"
+        mock_args.smoke_mode = False
+        mock_args.extra_mount_options = "congestion-threshold=384,max-background=512"
+        mock_parse_args.return_value = mock_args
+
+        mock_factory_instance = MagicMock()
+        mock_factory_instance.get_available_benchmarks.return_value = ["read_grpc"]
+        mock_factory_instance.get_benchmark_command.return_value = ("docker run ...", "test-table")
+        mock_factory_class.return_value = mock_factory_instance
+
+        with patch('npi.run_benchmark', return_value=True):
+            npi.main()
+            mock_factory_class.assert_called_once()
+            _, kwargs = mock_factory_class.call_args
+            self.assertEqual(kwargs.get("extra_mount_options"), "congestion-threshold=384,max-background=512")
+
+    def test_main_cli_help_documents_extra_mount_options(self):
+        res = subprocess.run(["python3", "npi.py", "--help"], capture_output=True, text=True, cwd=os.path.dirname(os.path.abspath(npi.__file__)))
+        self.assertEqual(res.returncode, 0)
+        self.assertIn("--extra-mount-options", res.stdout)
+
+
+class TestOrchestratorExtraMountOptions(unittest.TestCase):
+
+    def _run_execute_target(self, target, args):
+        state = {target["name"]: {"status": "PENDING"}}
+        state_lock = MagicMock()
+        captured_cmds = []
+
+        def mock_ssh(socket_path, vm_name, zone, cmd, timeout=60):
+            captured_cmds.append(cmd)
+            return (0, "", "")
+
+        with patch('npi_orchestrator.cleanup_remote_run'), \
+             patch('npi_orchestrator.prep_vm'), \
+             patch('npi_orchestrator.run_ssh_cmd', side_effect=mock_ssh), \
+             patch('npi_orchestrator.monitor_run'):
+            npi_orchestrator.execute_target(target, args, state_lock, state)
+
+        return captured_cmds
+
+    def test_gce_target_with_target_level_extra_mount_options(self):
+        target = {
+            "name": "gce_target",
+            "type": "gce",
+            "vm_name": "vm1",
+            "zone": "us-central1-a",
+            "bucket": "gs://test-bucket",
+            "dataset": "test_dataset",
+            "buffer_mount": "/mnt/buffer",
+            "extra_mount_options": "congestion-threshold=384",
+            "has_ssd": True
+        }
+        args = MagicMock()
+        args.benchmarks = "read_grpc"
+        args.project = "test-project"
+        args.image_version = "latest"
+        args.iterations = 1
+        args.smoke_mode = False
+        args.extra_mount_options = None
+
+        cmds = self._run_execute_target(target, args)
+        triggered = [c for c in cmds if "npi.py" in c]
+        self.assertEqual(len(triggered), 1)
+        self.assertIn("--extra-mount-options=congestion-threshold=384", triggered[0])
+
+    def test_gce_target_with_cli_extra_mount_options(self):
+        target = {
+            "name": "gce_target",
+            "type": "gce",
+            "vm_name": "vm1",
+            "zone": "us-central1-a",
+            "bucket": "gs://test-bucket",
+            "dataset": "test_dataset",
+            "buffer_mount": "/mnt/buffer",
+            "has_ssd": True
+        }
+        args = MagicMock()
+        args.benchmarks = "read_grpc"
+        args.project = "test-project"
+        args.image_version = "latest"
+        args.iterations = 1
+        args.smoke_mode = False
+        args.extra_mount_options = "max-background=512"
+
+        cmds = self._run_execute_target(target, args)
+        triggered = [c for c in cmds if "npi.py" in c]
+        self.assertEqual(len(triggered), 1)
+        self.assertIn("--extra-mount-options=max-background=512", triggered[0])
+
+    def test_gce_target_with_both_target_and_cli_extra_mount_options(self):
+        target = {
+            "name": "gce_target",
+            "type": "gce",
+            "vm_name": "vm1",
+            "zone": "us-central1-a",
+            "bucket": "gs://test-bucket",
+            "dataset": "test_dataset",
+            "buffer_mount": "/mnt/buffer",
+            "extra_mount_options": "congestion-threshold=384",
+            "has_ssd": True
+        }
+        args = MagicMock()
+        args.benchmarks = "read_grpc"
+        args.project = "test-project"
+        args.image_version = "latest"
+        args.iterations = 1
+        args.smoke_mode = False
+        args.extra_mount_options = "max-background=512"
+
+        cmds = self._run_execute_target(target, args)
+        triggered = [c for c in cmds if "npi.py" in c]
+        self.assertEqual(len(triggered), 1)
+        self.assertIn("--extra-mount-options=congestion-threshold=384,max-background=512", triggered[0])
+
+    def test_gce_target_with_no_extra_mount_options(self):
+        target = {
+            "name": "gce_target",
+            "type": "gce",
+            "vm_name": "vm1",
+            "zone": "us-central1-a",
+            "bucket": "gs://test-bucket",
+            "dataset": "test_dataset",
+            "buffer_mount": "/mnt/buffer",
+            "has_ssd": True
+        }
+        args = MagicMock()
+        args.benchmarks = "read_grpc"
+        args.project = "test-project"
+        args.image_version = "latest"
+        args.iterations = 1
+        args.smoke_mode = False
+        args.extra_mount_options = None
+
+        cmds = self._run_execute_target(target, args)
+        triggered = [c for c in cmds if "npi.py" in c]
+        self.assertEqual(len(triggered), 1)
+        self.assertNotIn("--extra-mount-options", triggered[0])
+
+    def test_gke_target_with_target_level_extra_mount_options(self):
+        target = {
+            "name": "gke_target",
+            "type": "gke",
+            "vm_name": "gke-runner-vm",
+            "zone": "us-central1-a",
+            "cluster_name": "test-cluster",
+            "location": "us-central1-a",
+            "bucket": "gs://test-bucket",
+            "dataset": "test_dataset",
+            "extra_mount_options": "congestion-threshold=384",
+            "has_ssd": True
+        }
+        args = MagicMock()
+        args.benchmarks = "read_grpc"
+        args.project = "test-project"
+        args.image_version = "latest"
+        args.iterations = 1
+        args.smoke_mode = False
+        args.extra_mount_options = None
+
+        cmds = self._run_execute_target(target, args)
+        triggered = [c for c in cmds if "npi_gke.py" in c]
+        self.assertEqual(len(triggered), 1)
+        self.assertIn("--extra-mount-options=congestion-threshold=384", triggered[0])
+
+    def test_gke_target_with_cli_extra_mount_options(self):
+        target = {
+            "name": "gke_target",
+            "type": "gke",
+            "vm_name": "gke-runner-vm",
+            "zone": "us-central1-a",
+            "cluster_name": "test-cluster",
+            "location": "us-central1-a",
+            "bucket": "gs://test-bucket",
+            "dataset": "test_dataset",
+            "has_ssd": True
+        }
+        args = MagicMock()
+        args.benchmarks = "read_grpc"
+        args.project = "test-project"
+        args.image_version = "latest"
+        args.iterations = 1
+        args.smoke_mode = False
+        args.extra_mount_options = "max-background=512"
+
+        cmds = self._run_execute_target(target, args)
+        triggered = [c for c in cmds if "npi_gke.py" in c]
+        self.assertEqual(len(triggered), 1)
+        self.assertIn("--extra-mount-options=max-background=512", triggered[0])
+
+    def test_gke_target_with_both_target_and_cli_extra_mount_options(self):
+        target = {
+            "name": "gke_target",
+            "type": "gke",
+            "vm_name": "gke-runner-vm",
+            "zone": "us-central1-a",
+            "cluster_name": "test-cluster",
+            "location": "us-central1-a",
+            "bucket": "gs://test-bucket",
+            "dataset": "test_dataset",
+            "extra_mount_options": "congestion-threshold=384",
+            "has_ssd": True
+        }
+        args = MagicMock()
+        args.benchmarks = "read_grpc"
+        args.project = "test-project"
+        args.image_version = "latest"
+        args.iterations = 1
+        args.smoke_mode = False
+        args.extra_mount_options = "max-background=512"
+
+        cmds = self._run_execute_target(target, args)
+        triggered = [c for c in cmds if "npi_gke.py" in c]
+        self.assertEqual(len(triggered), 1)
+        self.assertIn("--extra-mount-options=congestion-threshold=384,max-background=512", triggered[0])
+
+    def test_gke_target_with_no_extra_mount_options(self):
+        target = {
+            "name": "gke_target",
+            "type": "gke",
+            "vm_name": "gke-runner-vm",
+            "zone": "us-central1-a",
+            "cluster_name": "test-cluster",
+            "location": "us-central1-a",
+            "bucket": "gs://test-bucket",
+            "dataset": "test_dataset",
+            "has_ssd": True
+        }
+        args = MagicMock()
+        args.benchmarks = "read_grpc"
+        args.project = "test-project"
+        args.image_version = "latest"
+        args.iterations = 1
+        args.smoke_mode = False
+        args.extra_mount_options = None
+
+        cmds = self._run_execute_target(target, args)
+        triggered = [c for c in cmds if "npi_gke.py" in c]
+        self.assertEqual(len(triggered), 1)
+        self.assertNotIn("--extra-mount-options", triggered[0])
+
+    def test_orchestrator_cli_help_documents_extra_mount_options(self):
+        res = subprocess.run(["python3", "npi_orchestrator.py", "--help"], capture_output=True, text=True, cwd=os.path.dirname(os.path.abspath(npi_orchestrator.__file__)))
+        self.assertEqual(res.returncode, 0)
+        self.assertIn("--extra-mount-options", res.stdout)
+
+
 if __name__ == '__main__':
     unittest.main()
 

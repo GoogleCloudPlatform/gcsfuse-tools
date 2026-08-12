@@ -51,7 +51,7 @@ class BenchmarkFactory:
         mount_path (str): The path to an already mounted GCS bucket.
     """
 
-    def __init__(self, bucket_name, project_id, bq_dataset_id, iterations, mount_path=None, image_version="latest", buffer_mount_path=None, file_cache_size_mb=2097152, smoke_mode=False):
+    def __init__(self, bucket_name, project_id, bq_dataset_id, iterations, mount_path=None, image_version="latest", buffer_mount_path=None, file_cache_size_mb=2097152, smoke_mode=False, extra_mount_options=None):
         """Initializes the BenchmarkFactory.
 
         Args:
@@ -61,6 +61,10 @@ class BenchmarkFactory:
             iterations (int): The number of benchmark iterations.
             mount_path (str): The path to an already mounted GCS bucket.
             image_version (str): The version of the benchmark Docker images.
+            buffer_mount_path (str): The host directory for storage buffer.
+            file_cache_size_mb (int): The file cache size in MB.
+            smoke_mode (bool): Whether to run in smoke test mode.
+            extra_mount_options (str, optional): Extra mount options for GCSFuse.
         """
         self.bucket_name = bucket_name
         self.project_id = project_id
@@ -71,7 +75,41 @@ class BenchmarkFactory:
         self.buffer_mount_path = buffer_mount_path
         self.file_cache_size_mb = file_cache_size_mb
         self.smoke_mode = smoke_mode
+        self.extra_mount_options = extra_mount_options
         self._benchmark_definitions = self._get_benchmark_definitions()
+
+    def _format_extra_mount_options(self, extra_opts):
+        """Formats extra mount options string into GCSFuse CLI flags."""
+        if not extra_opts or not extra_opts.strip():
+            return ""
+
+        extra_opts = extra_opts.strip()
+        if "," in extra_opts:
+            parts = [p.strip() for p in extra_opts.split(",") if p.strip()]
+        else:
+            try:
+                parts = shlex.split(extra_opts)
+            except ValueError:
+                parts = [p.strip() for p in extra_opts.split() if p.strip()]
+
+        formatted = []
+        i = 0
+        while i < len(parts):
+            p = parts[i].strip()
+            if not p:
+                i += 1
+                continue
+            if p == "-o" and i + 1 < len(parts):
+                next_part = parts[i + 1].strip()
+                formatted.append(f"-o {next_part}")
+                i += 2
+                continue
+            if p.startswith("-"):
+                formatted.append(p)
+            else:
+                formatted.append(f"--{p}")
+            i += 1
+        return " ".join(formatted)
 
     def get_benchmark_command(self, name):
         """Generates the command for a given benchmark name.
@@ -141,6 +179,11 @@ class BenchmarkFactory:
         else:
             gcsfuse_flags = default_gcsfuse_flags
         gcsfuse_flags += " --log-file=/gcsfuse-buffer/gcsfuse.log --log-format=json"
+
+        if self.extra_mount_options:
+            extra_flags = self._format_extra_mount_options(self.extra_mount_options)
+            if extra_flags:
+                gcsfuse_flags = f"{gcsfuse_flags} {extra_flags}"
 
         num_jobs = "2" if self.smoke_mode else "112"
         base_cmd = (
@@ -482,6 +525,11 @@ def main():
         action="store_true",
         help="If set, run in fast smoke test mode with reduced iterations and thread counts."
     )
+    parser.add_argument(
+        "--extra-mount-options",
+        default=None,
+        help="Extra mount options to pass to GCSFuse (comma-separated or space-separated, e.g., 'congestion-threshold=384,max-background=512')."
+    )
 
     args = parser.parse_args()
 
@@ -521,7 +569,8 @@ def main():
         image_version=args.image_version,
         buffer_mount_path=args.buffer_mount_path,
         file_cache_size_mb=args.file_cache_size_mb,
-        smoke_mode=args.smoke_mode
+        smoke_mode=args.smoke_mode,
+        extra_mount_options=args.extra_mount_options
     )
 
     available_benchmarks = factory.get_available_benchmarks()
