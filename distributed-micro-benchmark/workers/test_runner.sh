@@ -60,6 +60,9 @@ run_test_iterations() {
 
         # Populate Metadata
         mkdir -p "$TEST_DATA_DIR"
+        if [[ "$IO_TYPE" == *"write"* ]]; then
+            find "$TEST_DATA_DIR" -mindepth 1 -delete 2>/dev/null || rm -rf "${TEST_DATA_DIR:?}"/* 2>/dev/null || true
+        fi
         if ! ls -R "$TEST_DATA_DIR" 1> /dev/null 2>&1; then :; fi
         
         # Drop Cache
@@ -71,11 +74,17 @@ run_test_iterations() {
         if ! fio "$FIO_JOB" --alloc-size=$((512 * 1024)) --output-format=json --output="$OUTPUT_FILE"; then
             echo "ERROR: FIO execution failed" >&2
             stop_monitoring "$MONITOR_PID" "$MONITOR_STOP_FLAG"
+            if [[ "$IO_TYPE" == *"write"* ]]; then
+                find "$TEST_DATA_DIR" -mindepth 1 -delete 2>/dev/null || rm -rf "${TEST_DATA_DIR:?}"/* 2>/dev/null || true
+            fi
             fusermount -u "$MOUNT_DIR" 2>/dev/null
             return 1
         fi
         
         stop_monitoring "$MONITOR_PID" "$MONITOR_STOP_FLAG"
+        if [[ "$IO_TYPE" == *"write"* ]]; then
+            find "$TEST_DATA_DIR" -mindepth 1 -delete 2>/dev/null || rm -rf "${TEST_DATA_DIR:?}"/* 2>/dev/null || true
+        fi
         
         # Unmount
         fusermount -u "$MOUNT_DIR" 2>/dev/null || umount "$MOUNT_DIR" 2>/dev/null || true
@@ -108,7 +117,7 @@ execute_test() {
     
     # Generate FIO Job
     FIO_JOB="$TEST_DIR/job.fio"
-    TEST_DATA_DIR="$MOUNT_DIR/${BENCHMARK_ID}/${VM_NAME}/${TEST_ID}_${FILE_SIZE}"
+    TEST_DATA_DIR="$MOUNT_DIR/${BENCHMARK_ID}/${VM_PATH:-$VM_NAME}/${TEST_ID}_${FILE_SIZE}"
     export BS FILE_SIZE IO_DEPTH IO_TYPE THREADS NRFILES TEST_DATA_DIR
     envsubst '$BS $FILE_SIZE $IO_DEPTH $IO_TYPE $THREADS $NRFILES $TEST_DATA_DIR' < jobfile.fio > "$FIO_JOB"
     

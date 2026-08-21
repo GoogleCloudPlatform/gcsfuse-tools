@@ -168,12 +168,12 @@ Workers download this file to get test execution parameters.
 
 1. **Initialization**: `worker.sh` sets up a workspace in `/tmp/benchmark-<ID>` and redirects all `stdout`/`stderr` to a log file.
 2. **Setup**: `setup.sh` runs `apt-get update` (once) and installs any missing tools (`fio`, `git`, `go`, `jq`, `bc`, `gettext-base`).
-3. **Configuration**: The worker downloads the job specification (`job.json`), global config, and test cases from the `ARTIFACTS_BUCKET`.
+3. **Configuration**: The worker downloads the job specification (`job.json`), global config, and test cases from the `ARTIFACTS_BUCKET`. The job specification provides the assigned tests as well as the logical `vm_path` (e.g., `multi-1`, `single-1`) used for bucket data directory paths.
 4. **Execution Loop**:
     * **Build**: `build.sh` compiles the required version of GCSFuse.
     * **Mount**: GCSFuse is mounted with the specific flags defined in the job.
     * **Monitor**: `monitor.sh` starts a background process to record resource usage.
-    * **Run**: `runner.sh` executes the FIO benchmark.
+    * **Run**: `runner.sh` executes the FIO benchmark. For write benchmarks, the worker automatically purges `$TEST_DATA_DIR` before and after each iteration to ensure objects are freshly created, guaranteeing GCSFuse streaming writes rather than falling back to file staging.
     * **Teardown**: The system unmounts GCSFuse and cleans up processes.
 5. **Reporting**: Results are uploaded to `gs://<ARTIFACTS_BUCKET>/<BENCHMARK_ID>/results/<VM_NAME>`.
 

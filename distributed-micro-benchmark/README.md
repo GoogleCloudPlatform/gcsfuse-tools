@@ -153,13 +153,20 @@ python3 orchestrator.py \
     --iterations 2
 ```
 
-### Thread-Based VM Distribution
+### Thread-Based VM Distribution and Logical VM Paths
 
 For heterogenous environments (e.g., Kokoro CI), the orchestrator can distribute workloads to different machine types based on the thread count (`num_jobs`) of the test case. This is enabled by passing:
 - `--single-thread-vm-type`: The identifier in the instance template name for single-threaded VMs (e.g., `n2-standard-32-single-threaded`).
 - `--multi-thread-vm-type`: The identifier in the instance template name for multi-threaded VMs (e.g., `c4-standard-192`).
 
 If both flags are specified, test cases with `num_jobs=1` are sent only to VMs running the single-threaded template, and test cases with `num_jobs > 1` are routed to the multi-threaded template VMs. Otherwise, the orchestrator defaults to round-robin distribution across all available VMs.
+
+#### Logical VM Paths in Test Data Bucket
+To ensure benchmark consistency when Managed Instance Groups resize or recreate VMs (where dynamic GCE instance hostnames change between runs), the orchestrator assigns deterministic logical VM paths to each instance:
+- **Single-threaded instances**: `single-1`, `single-2`, `single-3`, `single-4`, ...
+- **Multi-threaded instances**: `multi-1`, `multi-2`, `multi-3`, `multi-4`, ...
+
+Worker VMs use these logical paths for their bucket object location (`<vm_path>/write/<file_size>`), avoiding reliance on transient instance names and preserving reproducible directory structures across MIG resizes.
 
 ### Artifacts Bucket Hierarchy
 The `ARTIFACTS_BUCKET` defined in `run.sh` is used heavily by the orchestrator to communicate with the worker VMs. The structure looks like this:

@@ -113,12 +113,13 @@ def _distribute_evenly(tests, vms):
     
     return distribution
 
-def create_job_spec(vm_name, benchmark_id, test_entries, bucket, artifacts_bucket, iterations):
+def create_job_spec(vm_name, benchmark_id, test_entries, bucket, artifacts_bucket, iterations, vm_path=None):
     """Create job specification for a VM"""
     total_tests = len(test_entries)
     
     return {
         "vm_name": vm_name,
+        "vm_path": vm_path or vm_name,
         "benchmark_id": benchmark_id,
         "bucket": bucket,
         "artifacts_bucket": artifacts_bucket,

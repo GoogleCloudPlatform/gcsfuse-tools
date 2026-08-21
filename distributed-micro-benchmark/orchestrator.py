@@ -118,6 +118,7 @@ def run_benchmark(args):
     print(f"Generated test matrix: {len(test_matrix)} total tests ({len(configs)} configs × {len(test_cases)} tests)")
 
     # 1. Resolve VMs and distribute tests based on provided flags
+    vm_path_mapping = {}
     if args.single_thread_vm_type and args.multi_thread_vm_type:
         print("\nDistributing tests by VM type...")
         # Fetch VMs with their instance templates
@@ -130,10 +131,16 @@ def run_benchmark(args):
             print(f"  - {vm['name']}: {vm['template']}")
 
         # Classify VMs based on the provided identifiers
-        single_thread_vms = [vm['name'] for vm in vms_with_templates if args.single_thread_vm_type == vm.get('template', '')]
-        multi_thread_vms = [vm['name'] for vm in vms_with_templates if args.multi_thread_vm_type == vm.get('template', '')]
+        single_thread_vms = [vm['name'] for vm in vms_with_templates if args.single_thread_vm_type in vm.get('template', '')]
+        multi_thread_vms = [vm['name'] for vm in vms_with_templates if args.multi_thread_vm_type in vm.get('template', '')]
         print(f"  - Single-threaded VMs ({args.single_thread_vm_type}): {len(single_thread_vms)}")
         print(f"  - Multi-threaded VMs ({args.multi_thread_vm_type}): {len(multi_thread_vms)}")
+
+        # Assign deterministic logical VM paths (e.g., single-1..single-N, multi-1..multi-N)
+        for idx, vm in enumerate(sorted(single_thread_vms), start=1):
+            vm_path_mapping[vm] = f"single-{idx}"
+        for idx, vm in enumerate(sorted(multi_thread_vms), start=1):
+            vm_path_mapping[vm] = f"multi-{idx}"
 
         distribution = job_generator.distribute_tests_by_type(test_matrix, single_thread_vms, multi_thread_vms)
     else:
@@ -141,10 +148,28 @@ def run_benchmark(args):
         # Fetch only VM names
         vms = vm_manager.resolve_executor_vms(args.executor_vm, args.zone, args.project)
         print(f"Found {len(vms)} running VMs: {', '.join(vms)}")
+
+        # Assign logical VM paths based on instance count/names
+        if len(vms) == 1:
+            vm_path_mapping[vms[0]] = "single-1"
+        else:
+            single_list = [v for v in sorted(vms) if "single" in v.lower()]
+            multi_list = [v for v in sorted(vms) if "single" not in v.lower()]
+            for idx, vm in enumerate(single_list, start=1):
+                vm_path_mapping[vm] = f"single-{idx}"
+            for idx, vm in enumerate(multi_list, start=1):
+                vm_path_mapping[vm] = f"multi-{idx}"
+
         distribution = job_generator.distribute_tests(test_matrix, vms)
 
     if not vms:
         print(f"ERROR: No running VMs found for executor-vm '{args.executor_vm}'")
+        sys.exit(1)
+
+    # Validate that every VM gets a unique path with no collisions
+    assigned_paths = list(vm_path_mapping.values())
+    if len(assigned_paths) != len(set(assigned_paths)):
+        print(f"ERROR: Duplicate VM paths detected: {vm_path_mapping}")
         sys.exit(1)
 
     # Save run configuration metadata
@@ -153,6 +178,7 @@ def run_benchmark(args):
         "benchmark_id": args.benchmark_id,
         "num_vms": len(vms),
         "vm_names": vms,
+        "vm_path_mapping": vm_path_mapping,
         "num_tests": len(test_cases),
         "num_configs": len(configs) if configs else 1,
         "iterations": args.iterations,
@@ -165,9 +191,13 @@ def run_benchmark(args):
     with open(f"{results_dir}/run-config.json", 'w') as f:
         json.dump(run_config, f, indent=2)
     print(f"✓ Run configuration saved to {results_dir}/run-config.json")
+    print(f"\nVM Path (Bucket Data Location) Mapping:")
+    for vm_name, path in sorted(vm_path_mapping.items()):
+        print(f"  {vm_name} -> {path}")
     print(f"\nTest Distribution:")
     for vm_name, tests in distribution.items():
-        print(f"  {vm_name}: {len(tests)} tests")
+        vm_path = vm_path_mapping.get(vm_name, vm_name)
+        print(f"  {vm_name} ({vm_path}): {len(tests)} tests")
     
     # 4. Create config dict and upload to GCS
     config = {
@@ -207,6 +237,7 @@ def run_benchmark(args):
                 # Map global ID back to [1, num_test_cases]
                 entry['test_id'] = ((entry['matrix_id'] - 1) % num_test_cases) + 1
         
+        vm_path = vm_path_mapping.get(vm_name, vm_name)
         job = job_generator.create_job_spec(
             vm_name=vm_name,
             benchmark_id=args.benchmark_id,
@@ -214,6 +245,7 @@ def run_benchmark(args):
             bucket=args.test_data_bucket,
             artifacts_bucket=args.artifacts_bucket,
             iterations=args.iterations,
+            vm_path=vm_path
         )
         job_path = f"{base_path}/jobs/{vm_name}.json"
         jobs_to_upload.append((vm_name, job, job_path, len(test_entries)))

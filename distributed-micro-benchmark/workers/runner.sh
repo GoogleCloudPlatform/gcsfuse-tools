@@ -75,6 +75,12 @@ run_test_iterations() {
 
         mkdir -p "$TEST_DATA_DIR"
 
+        # For write tests, clear existing files before each iteration to ensure fresh object creation and pure streaming writes (avoiding fallback to staging writes)
+        if [[ "$IO_TYPE" == *"write"* ]]; then
+            echo "Clearing write test data in $TEST_DATA_DIR before iteration $i for streaming writes..."
+            find "$TEST_DATA_DIR" -mindepth 1 -delete 2>/dev/null || rm -rf "${TEST_DATA_DIR:?}"/* 2>/dev/null || true
+        fi
+
         # Populate Metadata
         echo "Populating metadata for $TEST_DATA_DIR"
         RES_MEM=$(ps -o rss= -p "$GCSFUSE_PID" | tail -n 1 | tr -d ' ')
@@ -99,6 +105,9 @@ run_test_iterations() {
         if [ $FIO_EXIT_CODE -ne 0 ]; then
             echo "WARNING: FIO failed or OS TIMEOUT REACHED (Exit Code $FIO_EXIT_CODE). Ignoring to continue the orchestrator..." >&2
             stop_monitoring "$MONITOR_PID" "$MONITOR_STOP_FLAG"
+            if [[ "$IO_TYPE" == *"write"* ]]; then
+                find "$TEST_DATA_DIR" -mindepth 1 -delete 2>/dev/null || rm -rf "${TEST_DATA_DIR:?}"/* 2>/dev/null || true
+            fi
             sudo fusermount -uz "$MOUNT_DIR" 2>/dev/null || sudo umount -l "$MOUNT_DIR" 2>/dev/null || true
             
             # Record the duration safely so your fio_durations.csv columns don't misalign
@@ -119,6 +128,12 @@ run_test_iterations() {
 
         stop_monitoring "$MONITOR_PID" "$MONITOR_STOP_FLAG"
         
+        # For write tests, clean up files after iteration to free up bucket storage
+        if [[ "$IO_TYPE" == *"write"* ]]; then
+            echo "Cleaning up write test data in $TEST_DATA_DIR after iteration $i..."
+            find "$TEST_DATA_DIR" -mindepth 1 -delete 2>/dev/null || rm -rf "${TEST_DATA_DIR:?}"/* 2>/dev/null || true
+        fi
+
         # Unmount
         sudo fusermount -uz "$MOUNT_DIR" 2>/dev/null || sudo umount -l "$MOUNT_DIR" 2>/dev/null || true
         
@@ -149,7 +164,8 @@ execute_test() {
     
     # Generate FIO Job
     FIO_JOB="$TEST_DIR/job.fio"
-    TEST_DATA_DIR="$MOUNT_DIR/${VM_NAME}/write/${FILE_SIZE}"
+    # Use logical VM path (e.g. single-1..N, multi-1..N) to maintain consistent bucket paths across MIG resizes
+    TEST_DATA_DIR="$MOUNT_DIR/${VM_PATH:-$VM_NAME}/write/${FILE_SIZE}"
     export BS FILE_SIZE IO_DEPTH IO_TYPE THREADS NRFILES DIRECT TEST_DATA_DIR
     envsubst '$BS $FILE_SIZE $IO_DEPTH $IO_TYPE $THREADS $NRFILES $DIRECT $TEST_DATA_DIR' < jobfile.fio > "$FIO_JOB"
     
