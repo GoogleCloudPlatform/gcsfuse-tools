@@ -141,9 +141,13 @@ gcloud storage cp "gs://${ARTIFACTS_BUCKET}/${BENCHMARK_ID}/${JOB_FILENAME}" job
 # 3. Parse Config
 BUCKET=$(jq -r '.bucket' job.json)
 ITERATIONS=$(jq -r '.iterations' job.json)
+VM_PATH=$(jq -r '.vm_path // empty' job.json)
+VM_PATH="${VM_PATH:-$VM_NAME}"
+export VM_PATH
 
 echo "Test bucket: $BUCKET"
 echo "Iterations: $ITERATIONS"
+echo "VM Path (Bucket location): $VM_PATH"
 
 mkdir -p "$MOUNT_DIR"
 
@@ -158,6 +162,7 @@ echo "$HEADER" > "$WORKSPACE/fio_durations.csv"
 cat > manifest.json <<EOF
 {
   "vm_name": "$VM_NAME",
+  "vm_path": "$VM_PATH",
   "status": "running",
   "start_time": "$(date -u +"%Y-%m-%dT%H:%M:%S%z")",
   "tests": []

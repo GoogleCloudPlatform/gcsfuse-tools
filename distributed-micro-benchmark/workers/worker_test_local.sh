@@ -73,6 +73,7 @@ cat <<EOF > "${VM_NAME}.json"
 {
   "bucket": "${ARTIFACTS_BUCKET}",
   "iterations": 1,
+  "vm_path": "single-1",
   "test_entries": [
     {
       "matrix_id": 0,
