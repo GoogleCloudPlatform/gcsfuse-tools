@@ -53,8 +53,7 @@ sa-key-rotator/
 ├── Dockerfile              # Container image specification based on google/cloud-sdk:alpine
 ├── rotate_sa_keys.sh       # Core key rotation and Secret Manager synchronization logic
 ├── deploy.sh               # Single-command end-to-end deployment script for Cloud Run & Scheduler
-├── README.md               # Playbook documentation and operational guide
-└── key_rotation_playbook.md
+└── README.md               # Playbook documentation and operational guide
 ```
 
 ---
