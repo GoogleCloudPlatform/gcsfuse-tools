@@ -216,18 +216,26 @@ generate_sa_key_in_memory() {
   GENERATED_KEY_JSON=""
 
   echo "  [Step 1/4] Creating new service account key in memory..."
+  local err_out
+  err_out=$(mktemp)
+
   local key_json
-  key_json=$(gcloud iam service-accounts keys create /dev/stdout \
+  if ! key_json=$(gcloud iam service-accounts keys create /dev/stdout \
     --iam-account="${sa_email}" \
     --project="${project_id}" \
-    --quiet 2>&1 || true)
+    --quiet 2>"${err_out}"); then
+    echo "  [ERROR] Failed to generate key for ${sa_email}:" >&2
+    cat "${err_out}" >&2
+    rm -f "${err_out}"
+    return 1
+  fi
+  rm -f "${err_out}"
 
   local key_id
   key_id=$(echo "${key_json}" | jq -r '.private_key_id // empty' 2>/dev/null || true)
 
   if [[ -z "${key_id}" ]]; then
-    echo "  [ERROR] Failed to generate key for ${sa_email}:"
-    echo "          ${key_json}" >&2
+    echo "  [ERROR] Failed to parse private key ID for ${sa_email} from generated JSON." >&2
     return 1
   fi
 
@@ -341,6 +349,12 @@ prune_older_iam_keys() {
   local project_id="$2"
   local active_key_id="$3"
   local secret_name="$4"
+
+  if [[ -z "${active_key_id}" ]]; then
+    echo "        [ERROR] Active key ID is empty. Skipping IAM key pruning to prevent accidental deletion of all keys." >&2
+    HAS_ERRORS=true
+    return 0
+  fi
 
   if [[ "${IS_DRY_RUN}" != "true" ]]; then
     echo ""
