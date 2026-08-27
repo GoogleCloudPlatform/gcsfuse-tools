@@ -95,6 +95,10 @@ All hosting resources reside in project **`gcs-fuse-test`** in region **`us-cent
 
 ## 5. IAM Security Model & Permissions
 
+> [!IMPORTANT]
+> **Project Whitelisting for Service Account Key Creation:**
+> Target GCP projects (e.g. `gcs-fuse-test`, `gcs-fuse-test-ml`, or any newly onboarded project) **must be explicitly whitelisted / exempted** from the organization policy constraint `constraints/iam.disableServiceAccountKeyCreation` (or organization-level key creation restrictions) to allow generating IAM Service Account keys.
+
 ### 5.1 Permissions Matrix
 
 | Target Resource | Granted Identity | Role | Justification |
@@ -106,6 +110,9 @@ All hosting resources reside in project **`gcs-fuse-test`** in region **`us-cent
 | `gcsfuse-integration-tests-key-rotator-job` Cloud Run Job | `gcsfuse-it-key-rotator-sched` | `roles/run.invoker` | Authorizes Cloud Scheduler to invoke the job via OIDC |
 
 ### 5.2 Onboarding a New Target Project / Secret
+
+> [!NOTE]
+> Ensure the new target project is whitelisted for service account key creation before granting the IAM roles below.
 
 When adding a new secret or service account in an existing or new GCP project:
 
