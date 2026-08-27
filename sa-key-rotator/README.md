@@ -103,11 +103,9 @@ All hosting resources reside in project **`gcs-fuse-test`** in region **`us-cent
 
 | Target Resource | Granted Identity | Role | Justification |
 | :--- | :--- | :--- | :--- |
-| `creds-integration-tests` SA (`gcs-fuse-test` & `gcs-fuse-test-ml`) | `gcsfuse-it-key-rotator-sa` | `roles/iam.serviceAccountKeyAdmin` | Creates new keys and deletes old keys for this SA |
-| `requester-pays-tester` SA (`gcs-fuse-test` & `gcs-fuse-test-ml`) | `gcsfuse-it-key-rotator-sa` | `roles/iam.serviceAccountKeyAdmin` | Creates new keys and deletes old keys for this SA |
-| `gcsfuse-integration-tests` Secret (`gcs-fuse-test` & `gcs-fuse-test-ml`) | `gcsfuse-it-key-rotator-sa` | `roles/secretmanager.admin` | Adds new secret versions, destroys old versions, and reads payloads |
-| `requester-pays-tester` Secret (`gcs-fuse-test` & `gcs-fuse-test-ml`) | `gcsfuse-it-key-rotator-sa` | `roles/secretmanager.admin` | Adds new secret versions, destroys old versions, and reads payloads |
-| `gcsfuse-integration-tests-key-rotator-job` Cloud Run Job | `gcsfuse-it-key-rotator-sched` | `roles/run.invoker` | Authorizes Cloud Scheduler to invoke the job via OIDC |
+| **Target SAs** (`creds-integration-tests`, `requester-pays-tester`) | `gcsfuse-it-key-rotator-sa` | `roles/iam.serviceAccountKeyAdmin` | Creates new keys and deletes old keys for target SAs |
+| **Target Projects** (`gcs-fuse-test`, `gcs-fuse-test-ml`) | `gcsfuse-it-key-rotator-sa` | `roles/secretmanager.admin` | Adds new secret versions, destroys old versions, and creates missing secrets |
+| **Cloud Run Job** (`gcsfuse-integration-tests-key-rotator-job`) | `gcsfuse-it-key-rotator-sched` | `roles/run.invoker` | Authorizes Cloud Scheduler to invoke the job via OIDC |
 
 ### 5.2 Onboarding a New Target Project / Secret
 
