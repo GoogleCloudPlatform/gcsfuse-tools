@@ -10,34 +10,32 @@ Integration tests in GCSFuse validate credentials, mounts, read-only permissions
 
 Because GCP IAM service account keys enforce a strict 90-day expiration lifetime, an automated Cloud Run Job and Cloud Scheduler trigger rotate all configured keys on the **1st of every month** in-memory, upload them directly to Secret Manager as the latest versions, destroy all older Secret Manager versions, and prune all older/expired keys from IAM to prevent hitting quota limits.
 
-```
-┌────────────────────────────────────────────────────────────────────────────────────────┐
-│ 1. INVOCATION TIER (Cloud Scheduler)                                                   │
-│    Trigger: gcsfuse-integration-tests-key-rotator-job-scheduler-trigger (us-central1)  │
-│    Schedule: 0 0 1 * * (1st of every month at 00:00)                                   │
-│    Service Account: gcsfuse-it-key-rotator-sched@gcs-fuse-test.iam.gserviceaccount.com │
-│    Permission: roles/run.invoker on Cloud Run Job                                      │
-└───────────────────────────────────────────┬────────────────────────────────────────────┘
-                                            │ Triggers via HTTP / OIDC
-                                            ▼
-┌────────────────────────────────────────────────────────────────────────────────────────┐
-│ 2. EXECUTION TIER (Cloud Run Job - Decoupled & Env-Var Driven)                         │
-│    Job: gcsfuse-integration-tests-key-rotator-job (us-central1)                        │
-│    Image: us-central1-docker.pkg.dev/gcs-fuse-test/gcsfuse-tools/sa-key-rotator:latest  │
-│    Service Account: gcsfuse-it-key-rotator-sa@gcs-fuse-test.iam.gserviceaccount.com    │
-│    Env Vars:                                                                           │
-│      • SECRET_CONFIGS="<SECRET_NAME>|<SA_NAME>|<PROJECT_ID>, ..."                      │
-│      • DRY_RUN="false"                                                                 │
-└───────────────────────────────────────────┬────────────────────────────────────────────┘
-                                            │ Ambient Metadata Token
-                                            │ (KeyAdmin & SecretAdmin)
-                       ┌────────────────────┴────────────────────┐
-                       ▼                                         ▼
-         [ Target: gcs-fuse-test ]                 [ Target: gcs-fuse-test-ml ]
-   • Secret: gcsfuse-integration-tests       • Secret: gcsfuse-integration-tests
-     SA: creds-integration-tests               SA: creds-integration-tests
-   • Secret: requester-pays-tester           • Secret: requester-pays-tester
-     SA: requester-pays-tester                 SA: requester-pays-tester
+```mermaid
+flowchart TD
+    subgraph INVOCATION ["1. INVOCATION TIER (Cloud Scheduler)"]
+        SCHED["<b>Scheduler Trigger:</b> gcsfuse-integration-tests-key-rotator-job-scheduler-trigger<br/><b>Location:</b> us-central1<br/><b>Schedule:</b> 0 0 1 * * (1st of every month at 00:00)<br/><b>Identity:</b> gcsfuse-it-key-rotator-sched@gcs-fuse-test.iam.gserviceaccount.com<br/><b>Permissions:</b> roles/run.invoker"]
+    end
+
+    subgraph EXECUTION ["2. EXECUTION TIER (Cloud Run Job - Decoupled & Env-Var Driven)"]
+        CR_JOB["<b>Cloud Run Job:</b> gcsfuse-integration-tests-key-rotator-job<br/><b>Location:</b> us-central1<br/><b>Image:</b> us-central1-docker.pkg.dev/gcs-fuse-test/gcsfuse-tools/sa-key-rotator:latest<br/><b>Identity:</b> gcsfuse-it-key-rotator-sa@gcs-fuse-test.iam.gserviceaccount.com<br/><b>Env Vars:</b> SECRET_CONFIGS, DRY_RUN"]
+    end
+
+    subgraph TARGETS ["3. TARGET REPOSITORIES & SECRET MANAGERS"]
+        direction LR
+        subgraph PROJ1 ["Target Project: gcs-fuse-test"]
+            T1_SEC1["<b>Secret:</b> gcsfuse-integration-tests<br/><b>SA:</b> creds-integration-tests"]
+            T1_SEC2["<b>Secret:</b> requester-pays-tester<br/><b>SA:</b> requester-pays-tester"]
+        end
+
+        subgraph PROJ2 ["Target Project: gcs-fuse-test-ml"]
+            T2_SEC1["<b>Secret:</b> gcsfuse-integration-tests<br/><b>SA:</b> creds-integration-tests"]
+            T2_SEC2["<b>Secret:</b> requester-pays-tester<br/><b>SA:</b> requester-pays-tester"]
+        end
+    end
+
+    SCHED -->|"Triggers Monthly (HTTP / OIDC)"| CR_JOB
+    CR_JOB -->|"Rotates Keys & Prunes Old Versions"| PROJ1
+    CR_JOB -->|"Rotates Keys & Prunes Old Versions"| PROJ2
 ```
 
 ---
@@ -46,7 +44,7 @@ Because GCP IAM service account keys enforce a strict 90-day expiration lifetime
 
 All source code, container build definitions, and deployment configurations are versioned in `gcsfuse-tools/sa-key-rotator` as the canonical Source of Truth:
 
-```
+```text
 sa-key-rotator/
 ├── Dockerfile              # Container image specification based on google/cloud-sdk:alpine
 ├── rotate_sa_keys.sh       # Core key rotation and Secret Manager synchronization logic
@@ -100,8 +98,8 @@ All hosting resources reside in project **`gcs-fuse-test`** in region **`us-cent
 | :--- | :--- | :--- | :--- |
 | `creds-integration-tests` SA (`gcs-fuse-test` & `gcs-fuse-test-ml`) | `gcsfuse-it-key-rotator-sa` | `roles/iam.serviceAccountKeyAdmin` | Creates new keys and deletes old keys for this SA |
 | `requester-pays-tester` SA (`gcs-fuse-test` & `gcs-fuse-test-ml`) | `gcsfuse-it-key-rotator-sa` | `roles/iam.serviceAccountKeyAdmin` | Creates new keys and deletes old keys for this SA |
-| `gcsfuse-integration-tests` Secret (`gcs-fuse-test` & `gcs-fuse-test-ml`) | `gcsfuse-it-key-rotator-sa` | `roles/secretmanager.admin` | Adds new secret versions and reads active payloads |
-| `requester-pays-tester` Secret (`gcs-fuse-test` & `gcs-fuse-test-ml`) | `gcsfuse-it-key-rotator-sa` | `roles/secretmanager.admin` | Adds new secret versions and reads active payloads |
+| `gcsfuse-integration-tests` Secret (`gcs-fuse-test` & `gcs-fuse-test-ml`) | `gcsfuse-it-key-rotator-sa` | `roles/secretmanager.admin` | Adds new secret versions, destroys old versions, and reads payloads |
+| `requester-pays-tester` Secret (`gcs-fuse-test` & `gcs-fuse-test-ml`) | `gcsfuse-it-key-rotator-sa` | `roles/secretmanager.admin` | Adds new secret versions, destroys old versions, and reads payloads |
 | `gcsfuse-integration-tests-key-rotator-job` Cloud Run Job | `gcsfuse-it-key-rotator-sched` | `roles/run.invoker` | Authorizes Cloud Scheduler to invoke the job via OIDC |
 
 ### 5.2 Onboarding a New Target Project / Secret
@@ -145,7 +143,6 @@ cd sa-key-rotator
 
 ### Customizing Deployment via Environment Variables:
 ```bash
-# Example: Deploying to a different project or with custom targets
 PROJECT_ID="gcs-fuse-test" \
 REGION="us-central1" \
 SECRET_CONFIGS="gcsfuse-integration-tests|creds-integration-tests|gcs-fuse-test" \
@@ -164,7 +161,9 @@ Since the repository is the Source of Truth, you can test modifications locally 
 export SECRET_CONFIGS="gcsfuse-integration-tests|creds-integration-tests|gcs-fuse-test"
 export DRY_RUN="true"
 ./rotate_sa_keys.sh
+```
 
+```bash
 # 2. Re-deploy changes to Cloud Run in a single command
 ./deploy.sh
 ```
