@@ -13,29 +13,33 @@ Because GCP IAM service account keys enforce a strict 90-day expiration lifetime
 ```mermaid
 flowchart TD
     subgraph INVOCATION ["1. INVOCATION TIER (Cloud Scheduler)"]
-        SCHED["<b>Scheduler Trigger:</b> gcsfuse-integration-tests-key-rotator-job-scheduler-trigger<br/><b>Location:</b> us-central1<br/><b>Schedule:</b> 0 0 1 * * (1st of every month at 00:00)<br/><b>Identity:</b> gcsfuse-it-key-rotator-sched@gcs-fuse-test.iam.gserviceaccount.com<br/><b>Permissions:</b> roles/run.invoker"]
+        SCHED["<b>Scheduler Trigger:</b> gcsfuse-integration-tests-key-rotator-job-scheduler-trigger<br/><b>Location:</b> us-central1<br/><b>Schedule:</b> 0 0 1 * * (1st of every month at 00:00 UTC)<br/><b>Identity:</b> gcsfuse-it-key-rotator-sched@gcs-fuse-test.iam.gserviceaccount.com<br/><b>Permissions:</b> roles/run.invoker"]:::schedStyle
     end
 
     subgraph EXECUTION ["2. EXECUTION TIER (Cloud Run Job - Decoupled & Env-Var Driven)"]
-        CR_JOB["<b>Cloud Run Job:</b> gcsfuse-integration-tests-key-rotator-job<br/><b>Location:</b> us-central1<br/><b>Image:</b> us-central1-docker.pkg.dev/gcs-fuse-test/gcsfuse-tools/sa-key-rotator:latest<br/><b>Identity:</b> gcsfuse-it-key-rotator-sa@gcs-fuse-test.iam.gserviceaccount.com<br/><b>Env Vars:</b> SECRET_CONFIGS, DRY_RUN"]
+        CR_JOB["<b>Cloud Run Job:</b> gcsfuse-integration-tests-key-rotator-job<br/><b>Location:</b> us-central1<br/><b>Image:</b> us-central1-docker.pkg.dev/gcs-fuse-test/gcsfuse-tools/sa-key-rotator:latest<br/><b>Identity:</b> gcsfuse-it-key-rotator-sa@gcs-fuse-test.iam.gserviceaccount.com<br/><b>Env Vars:</b> SECRET_CONFIGS, DRY_RUN"]:::jobStyle
     end
 
     subgraph TARGETS ["3. TARGET REPOSITORIES & SECRET MANAGERS"]
         direction LR
         subgraph PROJ1 ["Target Project: gcs-fuse-test"]
-            T1_SEC1["<b>Secret:</b> gcsfuse-integration-tests<br/><b>SA:</b> creds-integration-tests"]
-            T1_SEC2["<b>Secret:</b> requester-pays-tester<br/><b>SA:</b> requester-pays-tester"]
+            T1_SEC1["<b>Secret:</b> gcsfuse-integration-tests<br/><b>SA:</b> creds-integration-tests"]:::targetStyle
+            T1_SEC2["<b>Secret:</b> requester-pays-tester<br/><b>SA:</b> requester-pays-tester"]:::targetStyle
         end
 
         subgraph PROJ2 ["Target Project: gcs-fuse-test-ml"]
-            T2_SEC1["<b>Secret:</b> gcsfuse-integration-tests<br/><b>SA:</b> creds-integration-tests"]
-            T2_SEC2["<b>Secret:</b> requester-pays-tester<br/><b>SA:</b> requester-pays-tester"]
+            T2_SEC1["<b>Secret:</b> gcsfuse-integration-tests<br/><b>SA:</b> creds-integration-tests"]:::targetStyle
+            T2_SEC2["<b>Secret:</b> requester-pays-tester<br/><b>SA:</b> requester-pays-tester"]:::targetStyle
         end
     end
 
     SCHED -->|"Triggers Monthly (HTTP / OIDC)"| CR_JOB
     CR_JOB -->|"Rotates Keys & Prunes Old Versions"| PROJ1
     CR_JOB -->|"Rotates Keys & Prunes Old Versions"| PROJ2
+
+    classDef schedStyle fill:#e8f0fe,stroke:#1a73e8,stroke-width:2px,color:#174ea6;
+    classDef jobStyle fill:#e6f4ea,stroke:#137333,stroke-width:2px,color:#0d652d;
+    classDef targetStyle fill:#fef7e0,stroke:#ea8600,stroke-width:2px,color:#7a4100;
 ```
 
 ---
