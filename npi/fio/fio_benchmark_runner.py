@@ -339,11 +339,11 @@ def precreate_benchmark_directories(mount_point, fio_env, fio_config):
     else:
         logging.info("concurrent_delete.py not found. Skipping parallel cleanup.")
 
-    # 2. Pre-create nested parent directory and 112 job directories sequentially
+    # 2. Pre-create nested parent directory and job directories sequentially
     file_size = fio_env["FILE_SIZE"]
     block_size = fio_env["BLOCK_SIZE"]
     nr_files = fio_env["NR_FILES"]
-    num_jobs = int(fio_env.get("NUM_JOBS", 112))
+    num_jobs = int(fio_env.get("NUM_JOBS") or fio_env.get("NUMJOBS") or os.environ.get("NUMJOBS") or 112)
 
     nested_dir = os.path.join(target_write_dir, file_size, block_size, nr_files)
     logging.info(f"Sequentially pre-creating {num_jobs} job directories under {nested_dir}...")

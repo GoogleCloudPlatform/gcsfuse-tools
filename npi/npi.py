@@ -51,7 +51,7 @@ class BenchmarkFactory:
         mount_path (str): The path to an already mounted GCS bucket.
     """
 
-    def __init__(self, bucket_name, project_id, bq_dataset_id, iterations, mount_path=None, image_version="latest", buffer_mount_path=None, file_cache_size_mb=2097152, smoke_mode=False, extra_mount_options=None):
+    def __init__(self, bucket_name, project_id, bq_dataset_id, iterations, mount_path=None, image_version="latest", buffer_mount_path=None, file_cache_size_mb=2097152, smoke_mode=False, extra_mount_options=None, is_rapid_bucket=False, numjobs=None):
         """Initializes the BenchmarkFactory.
 
         Args:
@@ -65,6 +65,8 @@ class BenchmarkFactory:
             file_cache_size_mb (int): The file cache size in MB.
             smoke_mode (bool): Whether to run in smoke test mode.
             extra_mount_options (str, optional): Extra mount options for GCSFuse.
+            is_rapid_bucket (bool, optional): Whether the bucket is a RAPID bucket.
+            numjobs (int, optional): Explicit override for numjobs concurrency count.
         """
         self.bucket_name = bucket_name
         self.project_id = project_id
@@ -76,6 +78,8 @@ class BenchmarkFactory:
         self.file_cache_size_mb = file_cache_size_mb
         self.smoke_mode = smoke_mode
         self.extra_mount_options = extra_mount_options
+        self.is_rapid_bucket = is_rapid_bucket
+        self.numjobs = numjobs
         self._benchmark_definitions = self._get_benchmark_definitions()
 
     def _format_extra_mount_options(self, extra_opts):
@@ -185,7 +189,14 @@ class BenchmarkFactory:
             if extra_flags:
                 gcsfuse_flags = f"{gcsfuse_flags} {extra_flags}"
 
-        num_jobs = "2" if self.smoke_mode else "112"
+        if self.smoke_mode:
+            num_jobs = "2"
+        elif self.numjobs is not None:
+            num_jobs = str(self.numjobs)
+        elif self.is_rapid_bucket:
+            num_jobs = "48"
+        else:
+            num_jobs = "112"
         base_cmd = (
             "docker run --pull=always --network=host --privileged --rm "
             f"-e NUMJOBS={num_jobs} "
@@ -526,6 +537,12 @@ def main():
         help="If set, run in fast smoke test mode with reduced iterations and thread counts."
     )
     parser.add_argument(
+        "--numjobs",
+        type=int,
+        default=None,
+        help="Override FIO/Go-client numjobs concurrency count."
+    )
+    parser.add_argument(
         "--extra-mount-options",
         default=None,
         help="Extra mount options to pass to GCSFuse (comma-separated or space-separated, e.g., 'congestion-threshold=384,max-background=512')."
@@ -570,7 +587,9 @@ def main():
         buffer_mount_path=args.buffer_mount_path,
         file_cache_size_mb=args.file_cache_size_mb,
         smoke_mode=args.smoke_mode,
-        extra_mount_options=args.extra_mount_options
+        extra_mount_options=args.extra_mount_options,
+        is_rapid_bucket=args.is_rapid_bucket,
+        numjobs=args.numjobs
     )
 
     available_benchmarks = factory.get_available_benchmarks()

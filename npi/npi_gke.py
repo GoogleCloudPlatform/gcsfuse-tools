@@ -38,7 +38,7 @@ def enqueue_output(out, q):
     finally:
         out.close()
 
-def create_job_spec(job_name, image, args, bucket_name, service_account, extra_flag=None, use_memory_volumes=False, is_go_client=False, node_selector=None, resources_limits=None, project_id=None, gcsfuse_sidecar_image=None):
+def create_job_spec(job_name, image, args, bucket_name, service_account, extra_flag=None, use_memory_volumes=False, is_go_client=False, node_selector=None, resources_limits=None, project_id=None, gcsfuse_sidecar_image=None, is_rapid_bucket=False):
     """Creates a Kubernetes Job spec dictionary from the template yaml."""
     script_dir = os.path.dirname(os.path.realpath(__file__))
     template_path = os.path.join(script_dir, "npi_job_spec.yaml")
@@ -54,7 +54,18 @@ def create_job_spec(job_name, image, args, bucket_name, service_account, extra_f
     pod_spec["serviceAccountName"] = service_account
 
     # Set NUMJOBS env var for FIO
-    num_jobs_val = "2" if "--numjobs=2" in args else "112"
+    if "--numjobs=2" in args:
+        num_jobs_val = "2"
+    elif any(arg.startswith("--numjobs=") for arg in args):
+        num_jobs_val = "112"
+        for arg in args:
+            if arg.startswith("--numjobs="):
+                num_jobs_val = arg.split("=", 1)[1]
+                break
+    elif is_rapid_bucket:
+        num_jobs_val = "48"
+    else:
+        num_jobs_val = "112"
     if "env" not in pod_spec["containers"][0] or not pod_spec["containers"][0]["env"]:
         pod_spec["containers"][0]["env"] = []
     pod_spec["containers"][0]["env"].append({"name": "NUMJOBS", "value": num_jobs_val})
@@ -276,13 +287,13 @@ def wait_for_job_completion(job_name, timeout_seconds=None):
 
 
 
-def run_benchmark_job(job_name, image, args_list, project_id, dataset_id, table_id, bucket_name, service_account, extra_flag=None, use_memory_volumes=False, is_go_client=False, node_selector=None, resources_limits=None, gcsfuse_sidecar_image=None):
+def run_benchmark_job(job_name, image, args_list, project_id, dataset_id, table_id, bucket_name, service_account, extra_flag=None, use_memory_volumes=False, is_go_client=False, node_selector=None, resources_limits=None, gcsfuse_sidecar_image=None, is_rapid_bucket=False):
     """Runs a benchmark job on GKE and waits for its completion."""
     # 1. Cleanup any existing job with the same name
     subprocess.run(["kubectl", "delete", "job", job_name, "--ignore-not-found=true", "--wait=true"], capture_output=True)
 
     # 2. Create Job Spec and Apply
-    job_spec = create_job_spec(job_name, image, args_list, bucket_name, service_account, extra_flag, use_memory_volumes, is_go_client, node_selector, resources_limits, project_id=project_id, gcsfuse_sidecar_image=gcsfuse_sidecar_image)
+    job_spec = create_job_spec(job_name, image, args_list, bucket_name, service_account, extra_flag, use_memory_volumes, is_go_client, node_selector, resources_limits, project_id=project_id, gcsfuse_sidecar_image=gcsfuse_sidecar_image, is_rapid_bucket=is_rapid_bucket)
     yaml_data = yaml.dump(job_spec)
 
     print(f"--- Submitting Kubernetes Job: {job_name} ---")
@@ -455,6 +466,12 @@ def main():
         action="store_true",
         help="If set, run in fast smoke test mode with reduced iterations and thread counts."
     )
+    parser.add_argument(
+        "--numjobs",
+        type=int,
+        default=None,
+        help="Override FIO/Go-client numjobs concurrency count."
+    )
     
     args = parser.parse_args()
 
@@ -579,6 +596,10 @@ def main():
                 f"--bq-table-id={bq_table_id}",
                 f"--bucket-name={args.bucket_name}"
             ]
+            if args.numjobs is not None:
+                cmd_args.append(f"--numjobs={args.numjobs}")
+            elif args.is_rapid_bucket:
+                cmd_args.append("--numjobs=48")
         else:
             cmd_args = [
                 f"--iterations={target_iterations}",
@@ -589,6 +610,10 @@ def main():
             ]
             if args.smoke_mode:
                 cmd_args.append("--numjobs=2")
+            elif args.numjobs is not None:
+                cmd_args.append(f"--numjobs={args.numjobs}")
+            elif args.is_rapid_bucket:
+                cmd_args.append("--numjobs=48")
             
         if runner_args:
             cmd_args.append(runner_args)
@@ -602,7 +627,7 @@ def main():
                 combined_extra_flag = args.extra_mount_options
 
         if args.dry_run:
-            job_spec = create_job_spec(job_name, image, cmd_args, args.bucket_name, args.kubernetes_service_account, combined_extra_flag, args.use_memory_volumes, is_go_client, node_selector, resources_limits, gcsfuse_sidecar_image=args.gcsfuse_sidecar_image)
+            job_spec = create_job_spec(job_name, image, cmd_args, args.bucket_name, args.kubernetes_service_account, combined_extra_flag, args.use_memory_volumes, is_go_client, node_selector, resources_limits, gcsfuse_sidecar_image=args.gcsfuse_sidecar_image, is_rapid_bucket=args.is_rapid_bucket)
             print(f" - {full_bench_name}")
             print(f"   Job Name: {job_name}")
             print(f"   Image: {image}")
@@ -627,7 +652,8 @@ def main():
                 is_go_client=is_go_client,
                 node_selector=node_selector,
                 resources_limits=resources_limits,
-                gcsfuse_sidecar_image=args.gcsfuse_sidecar_image
+                gcsfuse_sidecar_image=args.gcsfuse_sidecar_image,
+                is_rapid_bucket=args.is_rapid_bucket
             )
 
             if not success:
