@@ -124,6 +124,150 @@ class TestCreateJobSpec(unittest.TestCase):
         self.assertIn("limits", container["resources"])
         self.assertEqual(container["resources"]["limits"]["cpu"], "4")
 
+    @patch("npi_gke.yaml.safe_load")
+    @patch("builtins.open", new_callable=mock_open)
+    def test_create_job_spec_numjobs_rapid_bucket(self, mock_file, mock_yaml_load):
+        template_spec = {
+            "metadata": {"name": "template"},
+            "spec": {
+                "template": {
+                    "metadata": {"labels": {"app": "test"}},
+                    "spec": {
+                        "containers": [
+                            {
+                                "name": "benchmark",
+                                "image": "placeholder",
+                                "args": []
+                            }
+                        ],
+                        "volumes": []
+                    }
+                }
+            }
+        }
+        mock_yaml_load.return_value = template_spec
+
+        res = npi_gke.create_job_spec(
+            job_name="test-job",
+            image="test-image",
+            args=["--iterations=1"],
+            bucket_name="test-bucket",
+            service_account="test-sa",
+            is_rapid_bucket=True
+        )
+
+        container = res["spec"]["template"]["spec"]["containers"][0]
+        env_vars = {e["name"]: e["value"] for e in container.get("env", [])}
+        self.assertEqual(env_vars.get("NUMJOBS"), "48")
+
+    @patch("npi_gke.yaml.safe_load")
+    @patch("builtins.open", new_callable=mock_open)
+    def test_create_job_spec_numjobs_standard(self, mock_file, mock_yaml_load):
+        template_spec = {
+            "metadata": {"name": "template"},
+            "spec": {
+                "template": {
+                    "metadata": {"labels": {"app": "test"}},
+                    "spec": {
+                        "containers": [
+                            {
+                                "name": "benchmark",
+                                "image": "placeholder",
+                                "args": []
+                            }
+                        ],
+                        "volumes": []
+                    }
+                }
+            }
+        }
+        mock_yaml_load.return_value = template_spec
+
+        res = npi_gke.create_job_spec(
+            job_name="test-job",
+            image="test-image",
+            args=["--iterations=1"],
+            bucket_name="test-bucket",
+            service_account="test-sa",
+            is_rapid_bucket=False
+        )
+
+        container = res["spec"]["template"]["spec"]["containers"][0]
+        env_vars = {e["name"]: e["value"] for e in container.get("env", [])}
+        self.assertEqual(env_vars.get("NUMJOBS"), "112")
+
+    @patch("npi_gke.yaml.safe_load")
+    @patch("builtins.open", new_callable=mock_open)
+    def test_create_job_spec_numjobs_smoke_mode(self, mock_file, mock_yaml_load):
+        template_spec = {
+            "metadata": {"name": "template"},
+            "spec": {
+                "template": {
+                    "metadata": {"labels": {"app": "test"}},
+                    "spec": {
+                        "containers": [
+                            {
+                                "name": "benchmark",
+                                "image": "placeholder",
+                                "args": []
+                            }
+                        ],
+                        "volumes": []
+                    }
+                }
+            }
+        }
+        mock_yaml_load.return_value = template_spec
+
+        res = npi_gke.create_job_spec(
+            job_name="test-job",
+            image="test-image",
+            args=["--numjobs=2"],
+            bucket_name="test-bucket",
+            service_account="test-sa",
+            is_rapid_bucket=True
+        )
+
+        container = res["spec"]["template"]["spec"]["containers"][0]
+        env_vars = {e["name"]: e["value"] for e in container.get("env", [])}
+        self.assertEqual(env_vars.get("NUMJOBS"), "2")
+
+    @patch("npi_gke.yaml.safe_load")
+    @patch("builtins.open", new_callable=mock_open)
+    def test_create_job_spec_numjobs_explicit_override(self, mock_file, mock_yaml_load):
+        template_spec = {
+            "metadata": {"name": "template"},
+            "spec": {
+                "template": {
+                    "metadata": {"labels": {"app": "test"}},
+                    "spec": {
+                        "containers": [
+                            {
+                                "name": "benchmark",
+                                "image": "placeholder",
+                                "args": []
+                            }
+                        ],
+                        "volumes": []
+                    }
+                }
+            }
+        }
+        mock_yaml_load.return_value = template_spec
+
+        res = npi_gke.create_job_spec(
+            job_name="test-job",
+            image="test-image",
+            args=["--numjobs=64"],
+            bucket_name="test-bucket",
+            service_account="test-sa",
+            is_rapid_bucket=True
+        )
+
+        container = res["spec"]["template"]["spec"]["containers"][0]
+        env_vars = {e["name"]: e["value"] for e in container.get("env", [])}
+        self.assertEqual(env_vars.get("NUMJOBS"), "64")
+
 class TestGKEUtils(unittest.TestCase):
 
     @patch("builtins.open", new_callable=mock_open, read_data="MemTotal:        65536000 kB\n")

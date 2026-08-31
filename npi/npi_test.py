@@ -42,8 +42,41 @@ class TestBenchmarkFactory(unittest.TestCase):
         
         cmd, table_id = factory.get_benchmark_command("read_http1")
         self.assertIn("-v /mnt/buffer:/gcsfuse-buffer", cmd)
+        self.assertIn("-e NUMJOBS=112", cmd)
         self.assertIn("--temp-dir=/gcsfuse-buffer/write", cmd)
         self.assertIn("us-docker.pkg.dev/test-project/gcsfuse-benchmarks/fio-read-benchmark:latest", cmd)
+
+    @patch('npi.BenchmarkFactory._get_cpu_list_for_numa_node')
+    def test_get_benchmark_command_rapid_bucket(self, mock_get_cpu):
+        mock_get_cpu.return_value = None
+        
+        factory = npi.BenchmarkFactory(
+            bucket_name="test-bucket",
+            project_id="test-project",
+            bq_dataset_id="test-dataset",
+            iterations=5,
+            buffer_mount_path="/mnt/buffer",
+            is_rapid_bucket=True
+        )
+        
+        cmd, table_id = factory.get_benchmark_command("read_grpc")
+        self.assertIn("-e NUMJOBS=48", cmd)
+
+    @patch('npi.BenchmarkFactory._get_cpu_list_for_numa_node')
+    def test_get_benchmark_command_numjobs_override(self, mock_get_cpu):
+        mock_get_cpu.return_value = None
+        
+        factory = npi.BenchmarkFactory(
+            bucket_name="test-bucket",
+            project_id="test-project",
+            bq_dataset_id="test-dataset",
+            iterations=5,
+            buffer_mount_path="/mnt/buffer",
+            numjobs=64
+        )
+        
+        cmd, table_id = factory.get_benchmark_command("read_http1")
+        self.assertIn("-e NUMJOBS=64", cmd)
 
     @patch('npi.BenchmarkFactory._get_cpu_list_for_numa_node')
     def test_get_benchmark_command_file_cache(self, mock_get_cpu):
