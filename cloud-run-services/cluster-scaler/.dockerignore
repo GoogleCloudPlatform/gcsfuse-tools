@@ -1,0 +1,13 @@
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache
+.coverage
+htmlcov
+.agents
+tests
+.git
+.gitignore
+*.md
+deploy.sh

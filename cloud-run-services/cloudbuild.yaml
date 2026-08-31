@@ -1,0 +1,360 @@
+# ==============================================================================
+# Google Cloud Build CI/CD Pipeline
+# Suite: GCSFuse Cloud Run Services & Cloud Scheduler Orchestration
+#
+# Services Managed:
+# 1. cluster-scaler                 (GKE Idle Cluster & Node Pool Scaler)
+# 2. gcsfuse-reservation-cleaner    (GCE Compute Reservation Cleaner & Cost Engine)
+# 3. vm-stopper                     (GCE Idle VM Stopper & Lifecycle Remediation)
+#
+# Pipeline Lifecycle:
+# Stage 1: Pre-Deployment Offline Unit Test Gating across all 3 services.
+# Stage 2: Google Cloud API Enablement & Artifact Registry Repository Verification.
+# Stage 3: Container Image Compilation in Parallel via Docker.
+# Stage 4: Container Image Publishing to Artifact Registry.
+# Stage 5: IAM Service Account Provisioning & Least-Privilege Role Bindings.
+# Stage 6: Google Cloud Run Service Deployments (512Mi, 540s, Auth Enforced).
+# Stage 7: Cloud Scheduler HTTP Trigger Provisioning with OIDC Token Authentication.
+# ==============================================================================
+
+steps:
+  # ----------------------------------------------------------------------------
+  # Stage 1: Pre-Deployment Offline Unit Test Gating
+  # ----------------------------------------------------------------------------
+  - id: 'run-offline-unit-tests'
+    name: 'python:3.11-slim'
+    dir: 'cloud-run-services'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        set -euo pipefail
+        echo "================================================================="
+        echo "Stage 1: Executing Offline Unit Test Suites"
+        echo "================================================================="
+
+        echo "=== Installing test dependencies ==="
+        pip install --no-cache-dir \
+          -r cluster-scaler/requirements.txt \
+          -r gcsfuse-reservation-cleaner/requirements.txt \
+          -r vm-stopper/requirements.txt \
+          pytest
+
+        echo "=== Running cluster-scaler tests ==="
+        python3 -m unittest discover -s cluster-scaler/tests -v
+
+        echo "=== Running gcsfuse-reservation-cleaner tests ==="
+        python3 -m unittest discover -s gcsfuse-reservation-cleaner/tests -v
+
+        echo "=== Running vm-stopper tests ==="
+        python3 -m unittest discover -s vm-stopper/tests -v
+
+        echo "=== Running stress test verification suite ==="
+        PYTHONPATH="cluster-scaler:gcsfuse-reservation-cleaner:vm-stopper" python3 verify_stress_tests.py
+
+        echo "=== All unit and stress test suites passed successfully ==="
+
+  # ----------------------------------------------------------------------------
+  # Stage 2: Infrastructure & API Enablement
+  # ----------------------------------------------------------------------------
+  - id: 'enable-apis-and-artifact-registry'
+    name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        set -euo pipefail
+        echo "================================================================="
+        echo "Stage 2: Enabling Required APIs & Ensuring Artifact Registry"
+        echo "================================================================="
+
+        echo "=== Enabling Required Google Cloud APIs ==="
+        gcloud services enable \
+          run.googleapis.com \
+          cloudscheduler.googleapis.com \
+          cloudbuild.googleapis.com \
+          artifactregistry.googleapis.com \
+          container.googleapis.com \
+          compute.googleapis.com \
+          monitoring.googleapis.com \
+          logging.googleapis.com \
+          iam.googleapis.com \
+          --project="${_PROJECT_ID}"
+
+        echo "=== Ensuring Artifact Registry Repository Exists ==="
+        if ! gcloud artifacts repositories describe "${_REPO_NAME}" --location="${_REGION}" --project="${_PROJECT_ID}" >/dev/null 2>&1; then
+          echo "Creating Artifact Registry repository '${_REPO_NAME}'..."
+          gcloud artifacts repositories create "${_REPO_NAME}" \
+            --repository-format=docker \
+            --location="${_REGION}" \
+            --project="${_PROJECT_ID}" \
+            --description="Docker repository for gcsfuse automation tools"
+        else
+          echo "Artifact Registry repository '${_REPO_NAME}' already exists."
+        fi
+
+  # ----------------------------------------------------------------------------
+  # Stage 3: Parallel Container Image Compilation
+  # ----------------------------------------------------------------------------
+  - id: 'build-cluster-scaler-image'
+    name: 'gcr.io/cloud-builders/docker'
+    dir: 'cloud-run-services/cluster-scaler'
+    args:
+      - 'build'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPO_NAME}/cluster-scaler:${_IMAGE_TAG}'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPO_NAME}/cluster-scaler:latest'
+      - '.'
+
+  - id: 'build-reservation-cleaner-image'
+    name: 'gcr.io/cloud-builders/docker'
+    dir: 'cloud-run-services/gcsfuse-reservation-cleaner'
+    args:
+      - 'build'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPO_NAME}/gcsfuse-reservation-cleaner:${_IMAGE_TAG}'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPO_NAME}/gcsfuse-reservation-cleaner:latest'
+      - '.'
+
+  - id: 'build-vm-stopper-image'
+    name: 'gcr.io/cloud-builders/docker'
+    dir: 'cloud-run-services/vm-stopper'
+    args:
+      - 'build'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPO_NAME}/vm-stopper:${_IMAGE_TAG}'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPO_NAME}/vm-stopper:latest'
+      - '.'
+
+  # ----------------------------------------------------------------------------
+  # Stage 4: Publish Container Images to Artifact Registry
+  # ----------------------------------------------------------------------------
+  - id: 'push-container-images'
+    name: 'gcr.io/cloud-builders/docker'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        set -euo pipefail
+        echo "================================================================="
+        echo "Stage 4: Publishing Container Images to Artifact Registry"
+        echo "================================================================="
+
+        docker push "${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPO_NAME}/cluster-scaler:${_IMAGE_TAG}"
+        docker push "${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPO_NAME}/cluster-scaler:latest"
+        docker push "${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPO_NAME}/gcsfuse-reservation-cleaner:${_IMAGE_TAG}"
+        docker push "${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPO_NAME}/gcsfuse-reservation-cleaner:latest"
+        docker push "${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPO_NAME}/vm-stopper:${_IMAGE_TAG}"
+        docker push "${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPO_NAME}/vm-stopper:latest"
+        echo "=== All container images published successfully ==="
+
+  # ----------------------------------------------------------------------------
+  # Stage 5: IAM Service Account & Least-Privilege Role Provisioning
+  # ----------------------------------------------------------------------------
+  - id: 'provision-iam-service-accounts'
+    name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        set -euo pipefail
+        echo "================================================================="
+        echo "Stage 5: Provisioning Service Accounts & Least-Privilege IAM Roles"
+        echo "================================================================="
+
+        declare -A SA_ROLES=(
+          ["${_CLUSTER_SCALER_SA}"]="roles/container.admin roles/logging.logWriter"
+          ["${_CLEANER_SA}"]="roles/compute.instanceAdmin.v1 roles/monitoring.viewer roles/logging.logWriter"
+          ["${_VM_STOPPER_SA}"]="roles/compute.instanceAdmin.v1 roles/logging.viewer roles/logging.logWriter"
+        )
+        SCHED_SAS=("${_CLUSTER_SCALER_SCHEDULER_SA}" "${_CLEANER_SCHEDULER_SA}" "${_VM_STOPPER_SCHEDULER_SA}")
+
+        # Provision Runtime Service Accounts and Bind Roles
+        for sa in "${!SA_ROLES[@]}"; do
+          email="${sa}@${_PROJECT_ID}.iam.gserviceaccount.com"
+          echo "Checking runtime service account '${email}'..."
+          if ! gcloud iam service-accounts describe "${email}" --project="${_PROJECT_ID}" >/dev/null 2>&1; then
+            echo "Creating service account '${sa}'..."
+            gcloud iam service-accounts create "${sa}" \
+              --project="${_PROJECT_ID}" \
+              --display-name="${sa} Runtime SA"
+          fi
+
+          for role in ${SA_ROLES[$sa]}; do
+            echo "Granting role '${role}' to '${email}'..."
+            gcloud projects add-iam-policy-binding "${_PROJECT_ID}" \
+              --member="serviceAccount:${email}" \
+              --role="${role}" \
+              --condition=None \
+              --quiet >/dev/null
+          done
+        done
+
+        # Provision Scheduler Invoker Service Accounts
+        for sched_sa in "${SCHED_SAS[@]}"; do
+          email="${sched_sa}@${_PROJECT_ID}.iam.gserviceaccount.com"
+          echo "Checking scheduler service account '${email}'..."
+          if ! gcloud iam service-accounts describe "${email}" --project="${_PROJECT_ID}" >/dev/null 2>&1; then
+            echo "Creating scheduler service account '${sched_sa}'..."
+            gcloud iam service-accounts create "${sched_sa}" \
+              --project="${_PROJECT_ID}" \
+              --display-name="${sched_sa} Scheduler Invoker SA"
+          fi
+        done
+        echo "=== IAM Service Accounts and role bindings configured ==="
+
+  # ----------------------------------------------------------------------------
+  # Stage 6: Deploy Google Cloud Run Services
+  # ----------------------------------------------------------------------------
+  - id: 'deploy-cloud-run-services'
+    name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        set -euo pipefail
+        echo "================================================================="
+        echo "Stage 6: Deploying Cloud Run Services"
+        echo "================================================================="
+
+        # 1. Deploy cluster-scaler
+        echo "Deploying cluster-scaler..."
+        gcloud run deploy cluster-scaler \
+          --project="${_PROJECT_ID}" \
+          --region="${_REGION}" \
+          --image="${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPO_NAME}/cluster-scaler:${_IMAGE_TAG}" \
+          --platform=managed \
+          --service-account="${_CLUSTER_SCALER_SA}@${_PROJECT_ID}.iam.gserviceaccount.com" \
+          --no-allow-unauthenticated \
+          --timeout=540s \
+          --memory=512Mi \
+          --set-env-vars="PROJECT_ID=${_PROJECT_ID},IDLE_DAYS_THRESHOLD=${_IDLE_DAYS_THRESHOLD},DRY_RUN=${_DRY_RUN}" \
+          --quiet
+
+        # 2. Deploy gcsfuse-reservation-cleaner
+        echo "Deploying gcsfuse-reservation-cleaner..."
+        gcloud run deploy gcsfuse-reservation-cleaner \
+          --project="${_PROJECT_ID}" \
+          --region="${_REGION}" \
+          --image="${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPO_NAME}/gcsfuse-reservation-cleaner:${_IMAGE_TAG}" \
+          --platform=managed \
+          --service-account="${_CLEANER_SA}@${_PROJECT_ID}.iam.gserviceaccount.com" \
+          --no-allow-unauthenticated \
+          --timeout=540s \
+          --memory=512Mi \
+          --set-env-vars="PROJECT_ID=${_PROJECT_ID},DRY_RUN=${_DRY_RUN}" \
+          --quiet
+
+        # 3. Deploy vm-stopper
+        echo "Deploying vm-stopper..."
+        gcloud run deploy vm-stopper \
+          --project="${_PROJECT_ID}" \
+          --region="${_REGION}" \
+          --image="${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPO_NAME}/vm-stopper:${_IMAGE_TAG}" \
+          --platform=managed \
+          --service-account="${_VM_STOPPER_SA}@${_PROJECT_ID}.iam.gserviceaccount.com" \
+          --no-allow-unauthenticated \
+          --timeout=540s \
+          --memory=512Mi \
+          --set-env-vars="PROJECT_ID=${_PROJECT_ID},DRY_RUN=${_DRY_RUN}" \
+          --quiet
+
+        echo "=== Cloud Run services deployed successfully ==="
+
+  # ----------------------------------------------------------------------------
+  # Stage 7: Configure Cloud Scheduler HTTP Triggers with OIDC
+  # ----------------------------------------------------------------------------
+  - id: 'configure-cloud-scheduler-jobs'
+    name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        set -euo pipefail
+        echo "================================================================="
+        echo "Stage 7: Configuring Cloud Scheduler HTTP Triggers with OIDC"
+        echo "================================================================="
+
+        deploy_job() {
+          local svc_name="$1"
+          local sched_name="${svc_name}-scheduler"
+          local sched_sa="$2@${_PROJECT_ID}.iam.gserviceaccount.com"
+          local cron_expr="$3"
+          local payload="$4"
+
+          echo "Resolving service URL for '${svc_name}'..."
+          local svc_url
+          svc_url="$(gcloud run services describe "${svc_name}" --project="${_PROJECT_ID}" --region="${_REGION}" --format="value(status.url)")"
+          if [[ -z "${svc_url}" ]]; then
+            echo "ERROR: Could not resolve service URL for ${svc_name}" >&2
+            exit 1
+          fi
+
+          echo "Granting roles/run.invoker to '${sched_sa}' on '${svc_name}'..."
+          gcloud run services add-iam-policy-binding "${svc_name}" \
+            --project="${_PROJECT_ID}" \
+            --region="${_REGION}" \
+            --member="serviceAccount:${sched_sa}" \
+            --role="roles/run.invoker" \
+            --quiet >/dev/null
+
+          local sched_args=(
+            --project="${_PROJECT_ID}"
+            --location="${_REGION}"
+            --schedule="${cron_expr}"
+            --time-zone="UTC"
+            --uri="${svc_url}"
+            --http-method=POST
+            --message-body="${payload}"
+            --oidc-service-account-email="${sched_sa}"
+            --oidc-token-audience="${svc_url}"
+          )
+
+          if gcloud scheduler jobs describe "${sched_name}" --project="${_PROJECT_ID}" --location="${_REGION}" >/dev/null 2>&1; then
+            echo "Updating existing Cloud Scheduler job '${sched_name}'..."
+            gcloud scheduler jobs update http "${sched_name}" "${sched_args[@]}" --update-headers="Content-Type=application/json" --quiet
+          else
+            echo "Creating new Cloud Scheduler job '${sched_name}'..."
+            gcloud scheduler jobs create http "${sched_name}" "${sched_args[@]}" --headers="Content-Type=application/json" --quiet
+          fi
+          echo "Configured Cloud Scheduler trigger for '${svc_name}'."
+        }
+
+        deploy_job "cluster-scaler" "${_CLUSTER_SCALER_SCHEDULER_SA}" "${_CLUSTER_SCALER_SCHEDULE}" "{\"project\":\"${_PROJECT_ID}\",\"idle_days_threshold\":${_IDLE_DAYS_THRESHOLD},\"dry_run\":${_DRY_RUN}}"
+        deploy_job "gcsfuse-reservation-cleaner" "${_CLEANER_SCHEDULER_SA}" "${_CLEANER_SCHEDULE}" "{\"project\":\"${_PROJECT_ID}\",\"dry_run\":${_DRY_RUN}}"
+        deploy_job "vm-stopper" "${_VM_STOPPER_SCHEDULER_SA}" "${_VM_STOPPER_SCHEDULE}" "{\"project\":\"${_PROJECT_ID}\",\"dry_run\":${_DRY_RUN}}"
+
+        echo "=== Cloud Scheduler HTTP triggers configured successfully ==="
+
+substitutions:
+  _PROJECT_ID: ''
+  _REGION: 'us-central1'
+  _REPO_NAME: 'gcsfuse-tools'
+  _IMAGE_TAG: 'latest'
+  _DRY_RUN: 'false'
+  _CLUSTER_SCALER_SCHEDULE: '0 2 * * *'
+  _CLEANER_SCHEDULE: '0 0 1 * *'
+  _VM_STOPPER_SCHEDULE: '0 20 * * *'
+  _IDLE_DAYS_THRESHOLD: '7'
+  _CLUSTER_SCALER_SA: 'cluster-scaler-sa'
+  _CLUSTER_SCALER_SCHEDULER_SA: 'cluster-scaler-sched'
+  _CLEANER_SA: 'gcsfuse-res-cleaner-sa'
+  _CLEANER_SCHEDULER_SA: 'gcsfuse-res-cleaner-sched'
+  _VM_STOPPER_SA: 'vm-stopper-sa'
+  _VM_STOPPER_SCHEDULER_SA: 'vm-stopper-sched'
+
+images:
+  - '${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPO_NAME}/cluster-scaler:${_IMAGE_TAG}'
+  - '${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPO_NAME}/cluster-scaler:latest'
+  - '${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPO_NAME}/gcsfuse-reservation-cleaner:${_IMAGE_TAG}'
+  - '${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPO_NAME}/gcsfuse-reservation-cleaner:latest'
+  - '${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPO_NAME}/vm-stopper:${_IMAGE_TAG}'
+  - '${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPO_NAME}/vm-stopper:latest'
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+
+timeout: '1200s'
