@@ -165,7 +165,11 @@ execute_test() {
     # Generate FIO Job
     FIO_JOB="$TEST_DIR/job.fio"
     # Use logical VM path (e.g. single-1..N, multi-1..N) to maintain consistent bucket paths across MIG resizes
-    TEST_DATA_DIR="$MOUNT_DIR/${VM_PATH:-$VM_NAME}/write/${FILE_SIZE}"
+    if [[ "$IO_TYPE" == *"write"* ]]; then
+        TEST_DATA_DIR="$MOUNT_DIR/${VM_PATH:-$VM_NAME}/write/${FILE_SIZE}"
+    else
+        TEST_DATA_DIR="$MOUNT_DIR/${VM_PATH:-$VM_NAME}/read/${FILE_SIZE}"
+    fi
     export BS FILE_SIZE IO_DEPTH IO_TYPE THREADS NRFILES DIRECT TEST_DATA_DIR
     envsubst '$BS $FILE_SIZE $IO_DEPTH $IO_TYPE $THREADS $NRFILES $DIRECT $TEST_DATA_DIR' < jobfile.fio > "$FIO_JOB"
     

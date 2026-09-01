@@ -166,7 +166,7 @@ To ensure benchmark consistency when Managed Instance Groups resize or recreate 
 - **Single-threaded instances**: `single-1`, `single-2`, `single-3`, `single-4`, ...
 - **Multi-threaded instances**: `multi-1`, `multi-2`, `multi-3`, `multi-4`, ...
 
-Worker VMs use these logical paths for their bucket object location (`<vm_path>/write/<file_size>`), avoiding reliance on transient instance names and preserving reproducible directory structures across MIG resizes.
+Worker VMs use these logical paths for their bucket object locations (`<vm_path>/read/<file_size>` and `<vm_path>/write/<file_size>`), avoiding reliance on transient instance names and keeping read test data isolated from write iterations across MIG resizes.
 
 ### Artifacts Bucket Hierarchy
 The `ARTIFACTS_BUCKET` defined in `run.sh` is used heavily by the orchestrator to communicate with the worker VMs. The structure looks like this:

@@ -173,7 +173,7 @@ Workers download this file to get test execution parameters.
     * **Build**: `build.sh` compiles the required version of GCSFuse.
     * **Mount**: GCSFuse is mounted with the specific flags defined in the job.
     * **Monitor**: `monitor.sh` starts a background process to record resource usage.
-    * **Run**: `runner.sh` executes the FIO benchmark. For write benchmarks, the worker automatically purges `$TEST_DATA_DIR` before and after each iteration to ensure objects are freshly created, guaranteeing GCSFuse streaming writes rather than falling back to file staging.
+    * **Run**: `runner.sh` executes the FIO benchmark. Read workloads consume pre-existing test data from `$TEST_DATA_DIR` (`<vm_path>/read/<file_size>`) without modifying files, while write benchmarks operate in `<vm_path>/write/<file_size>` and automatically purge the directory before and after each iteration to ensure objects are freshly created for GCSFuse streaming writes without affecting read datasets.
     * **Teardown**: The system unmounts GCSFuse and cleans up processes.
 5. **Reporting**: Results are uploaded to `gs://<ARTIFACTS_BUCKET>/<BENCHMARK_ID>/results/<VM_NAME>`.
 
