@@ -1,2 +1,2 @@
 commit,mount_args,label
-master,"--implicit-dirs --client-protocol=grpc --metadata-cache-ttl-secs=-1 --stat-cache-max-size-mb=-1",grpc
+master,"--implicit-dirs --client-protocol=grpc --metadata-cache-ttl-secs=-1 --stat-cache-max-size-mb=-1 --write-global-max-blocks=-1",grpc
