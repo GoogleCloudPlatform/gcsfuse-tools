@@ -334,11 +334,29 @@ class VMProcessor:
             stop_ts = (
                 parse_timestamp(getattr(instance, "last_stop_timestamp", None))
                 or parse_timestamp(getattr(instance, "last_suspended_timestamp", None))
-                or parse_timestamp(getattr(instance, "creation_timestamp", None))
             )
+
+            # Optional fallback to resource_status.shutdown_details.request_timestamp
+            if not stop_ts:
+                resource_status = getattr(instance, "resource_status", None)
+                if resource_status:
+                    shutdown_details = getattr(resource_status, "shutdown_details", None)
+                    if shutdown_details:
+                        stop_ts = parse_timestamp(getattr(shutdown_details, "request_timestamp", None))
+
+            # Fail-safe: If stop time cannot be affirmatively determined, NEVER delete.
+            # Avoid falling back to creation_timestamp to prevent deleting recently-stopped older VMs.
+            if not stop_ts:
+                result["category"] = "skipped_stopped"
+                result["reason"] = (
+                    f"Instance '{name}' is stopped, but its stop timestamp could not be determined. "
+                    "Skipping deletion as a safety precaution."
+                )
+                return result
+
             stopped_cutoff = now_utc - timedelta(days=self.config.stopped_days_threshold)
 
-            if stop_ts and stop_ts > stopped_cutoff:
+            if stop_ts > stopped_cutoff:
                 result["category"] = "skipped_stopped"
                 result["reason"] = (
                     f"Instance stopped recently at {stop_ts.isoformat()} "

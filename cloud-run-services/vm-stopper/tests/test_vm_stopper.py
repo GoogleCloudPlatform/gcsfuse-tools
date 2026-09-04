@@ -185,6 +185,20 @@ class MockTags:
         self.items = items or []
 
 
+class MockShutdownDetails:
+    """Mock compute_v1.Instance.ResourceStatus.ShutdownDetails object."""
+
+    def __init__(self, request_timestamp: str = ""):
+        self.request_timestamp = request_timestamp
+
+
+class MockResourceStatus:
+    """Mock compute_v1.Instance.ResourceStatus object."""
+
+    def __init__(self, shutdown_details: Any = None):
+        self.shutdown_details = shutdown_details
+
+
 class MockInstance:
     """Mock GCE compute_v1.Instance object."""
 
@@ -200,6 +214,7 @@ class MockInstance:
         metadata_items: list = None,
         metadata: Any = None,
         tags: list = None,
+        resource_status: Any = None,
     ):
         self.name = name
         self.id = instance_id
@@ -207,6 +222,7 @@ class MockInstance:
         self.creation_timestamp = creation_timestamp
         self.last_stop_timestamp = last_stop_timestamp
         self.last_suspended_timestamp = last_suspended_timestamp
+        self.resource_status = resource_status
         self.labels = labels or {}
         if metadata is not None:
             if isinstance(metadata, dict):
@@ -726,6 +742,79 @@ class TestVMProcessorLifecycle(unittest.TestCase):
         self.assertEqual(res["category"], "dry_run_deletions")
         self.assertEqual(res["action"], "dry_run_delete")
         self.assertIn("[DRY RUN] Would delete stopped VM", res["reason"])
+        self.mock_client.delete_instance.assert_not_called()
+
+    def test_stopped_vm_missing_stop_timestamp_skipped_fail_safe(self):
+        """Verifies that an older VM stopped without last_stop_timestamp is not deleted (fail-safe)."""
+        config = StopperConfig(
+            project_id="test-proj",
+            delete_stopped_vms=True,
+            stopped_days_threshold=90,
+            dry_run=False,
+        )
+        processor = VMProcessor(config, gce_client=self.mock_client)
+
+        # VM created 200 days ago, but stop timestamp is unknown/empty
+        stopped_vm = MockInstance(
+            name="unknown-stop-vm",
+            status="TERMINATED",
+            creation_timestamp=(self.now - timedelta(days=200)).isoformat(),
+            last_stop_timestamp="",
+            last_suspended_timestamp="",
+        )
+
+        res = processor.process_single_instance("us-central1-a", stopped_vm, self.now)
+        self.assertEqual(res["category"], "skipped_stopped")
+        self.assertEqual(res["action"], "none")
+        self.assertIn("stop timestamp could not be determined", res["reason"])
+        self.mock_client.delete_instance.assert_not_called()
+
+    def test_stopped_vm_fallback_to_shutdown_details_request_timestamp(self):
+        """Verifies that shutdown_details.request_timestamp is used if last_stop_timestamp is absent."""
+        config = StopperConfig(
+            project_id="test-proj",
+            delete_stopped_vms=True,
+            stopped_days_threshold=90,
+            dry_run=False,
+        )
+        processor = VMProcessor(config, gce_client=self.mock_client)
+
+        shutdown_details = MockShutdownDetails(request_timestamp=(self.now - timedelta(days=100)).isoformat())
+        resource_status = MockResourceStatus(shutdown_details=shutdown_details)
+        stopped_vm = MockInstance(
+            name="shutdown-details-vm",
+            status="TERMINATED",
+            last_stop_timestamp="",
+            resource_status=resource_status,
+        )
+
+        res = processor.process_single_instance("us-central1-a", stopped_vm, self.now)
+        self.assertEqual(res["category"], "deleted")
+        self.assertEqual(res["action"], "deleted")
+        self.mock_client.delete_instance.assert_called_once_with("test-proj", "us-central1-a", "shutdown-details-vm")
+
+    def test_stopped_vm_recent_shutdown_details_retained(self):
+        """Verifies that a VM recently stopped via shutdown_details is retained."""
+        config = StopperConfig(
+            project_id="test-proj",
+            delete_stopped_vms=True,
+            stopped_days_threshold=90,
+            dry_run=False,
+        )
+        processor = VMProcessor(config, gce_client=self.mock_client)
+
+        shutdown_details = MockShutdownDetails(request_timestamp=(self.now - timedelta(days=10)).isoformat())
+        resource_status = MockResourceStatus(shutdown_details=shutdown_details)
+        stopped_vm = MockInstance(
+            name="shutdown-recent-vm",
+            status="TERMINATED",
+            last_stop_timestamp="",
+            resource_status=resource_status,
+        )
+
+        res = processor.process_single_instance("us-central1-a", stopped_vm, self.now)
+        self.assertEqual(res["category"], "skipped_stopped")
+        self.assertEqual(res["action"], "none")
         self.mock_client.delete_instance.assert_not_called()
 
     def test_stop_instance_api_error_handling(self):
