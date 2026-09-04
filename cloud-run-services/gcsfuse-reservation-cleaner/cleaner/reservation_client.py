@@ -18,6 +18,7 @@ from datetime import datetime, timedelta, timezone
 import json
 import logging
 from typing import Any, Dict, List, Optional
+import threading
 import urllib.parse
 import urllib3
 import google.auth
@@ -39,6 +40,7 @@ class ReservationClient:
         http_pool: Optional[urllib3.PoolManager] = None,
     ):
         self._http = http_pool or urllib3.PoolManager()
+        self._lock = threading.Lock()
         if credentials:
             self._credentials = credentials
         else:
@@ -54,10 +56,11 @@ class ReservationClient:
             return {"Content-Type": "application/json"}
 
         try:
-            if not self._credentials.valid:
-                auth_req = google.auth.transport.requests.Request()
-                self._credentials.refresh(auth_req)
-            token = self._credentials.token
+            with self._lock:
+                if not self._credentials.valid:
+                    auth_req = google.auth.transport.requests.Request()
+                    self._credentials.refresh(auth_req)
+                token = self._credentials.token
             return {
                 "Authorization": f"Bearer {token}",
                 "Content-Type": "application/json",

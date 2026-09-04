@@ -21,6 +21,7 @@ import datetime
 import logging
 import os
 import tempfile
+import threading
 import time
 from typing import Any, Callable, Dict, List, Optional, Tuple
 import dateutil.parser
@@ -63,52 +64,56 @@ class GKEClient:
         self._credentials = credentials
         self._container_client = container_client
         self._logging_client = logging_client
+        self._lock = threading.RLock()
 
     def _get_credentials(self) -> Any:
-        if self._credentials is None:
-            import google.auth
-            from google.auth.transport.requests import Request
-
-            creds, _ = google.auth.default(
-                scopes=["https://www.googleapis.com/auth/cloud-platform"]
-            )
-            if not creds.valid:
-                creds.refresh(Request())
-            self._credentials = creds
-        else:
-            try:
+        with self._lock:
+            if self._credentials is None:
+                import google.auth
                 from google.auth.transport.requests import Request
-                if hasattr(self._credentials, "valid") and not self._credentials.valid:
-                    if hasattr(self._credentials, "refresh"):
-                        self._credentials.refresh(Request())
-            except Exception as e:
-                logger.debug("Credentials refresh skipped or failed: %s", e)
+
+                creds, _ = google.auth.default(
+                    scopes=["https://www.googleapis.com/auth/cloud-platform"]
+                )
+                if not creds.valid:
+                    creds.refresh(Request())
+                self._credentials = creds
+            else:
+                try:
+                    from google.auth.transport.requests import Request
+                    if hasattr(self._credentials, "valid") and not self._credentials.valid:
+                        if hasattr(self._credentials, "refresh"):
+                            self._credentials.refresh(Request())
+                except Exception as e:
+                    logger.debug("Credentials refresh skipped or failed: %s", e)
         return self._credentials
 
     def _get_container_client(self) -> Any:
-        if self._container_client is None:
-            from google.cloud import container_v1
-            self._container_client = container_v1.ClusterManagerClient(
-                credentials=self._get_credentials()
-            )
+        with self._lock:
+            if self._container_client is None:
+                from google.cloud import container_v1
+                self._container_client = container_v1.ClusterManagerClient(
+                    credentials=self._get_credentials()
+                )
         return self._container_client
 
     def _get_logging_client(self, project_id: str) -> Any:
-        if self._logging_client is None or getattr(self._logging_client, "project", None) != project_id:
-            if not project_id or project_id.startswith("test-") or project_id == "test-project":
-                return None
-            creds = self._get_credentials()
-            if creds is not None and type(creds).__name__.endswith("Mock"):
-                return None
-            try:
-                from google.cloud import logging_v2
-                self._logging_client = logging_v2.Client(
-                    project=project_id,
-                    credentials=creds,
-                )
-            except Exception as e:
-                logger.debug("Failed to initialize Cloud Logging client: %s", e)
-                return None
+        with self._lock:
+            if self._logging_client is None or getattr(self._logging_client, "project", None) != project_id:
+                if not project_id or project_id.startswith("test-") or project_id == "test-project":
+                    return None
+                creds = self._get_credentials()
+                if creds is not None and type(creds).__name__.endswith("Mock"):
+                    return None
+                try:
+                    from google.cloud import logging_v2
+                    self._logging_client = logging_v2.Client(
+                        project=project_id,
+                        credentials=creds,
+                    )
+                except Exception as e:
+                    logger.debug("Failed to initialize Cloud Logging client: %s", e)
+                    return None
         return self._logging_client
 
     def list_clusters(self, project_id: str, location: str = "-") -> List[Any]:
@@ -164,7 +169,9 @@ class GKEClient:
         try:
             from google.auth.transport.requests import Request
             if hasattr(creds, "refresh"):
-                creds.refresh(Request())
+                with self._lock:
+                    if not creds.valid:
+                        creds.refresh(Request())
         except Exception as e:
             logger.debug("Could not refresh token for k8s connection: %s", e)
 
@@ -186,8 +193,8 @@ class GKEClient:
                 try:
                     ca_bytes = base64.b64decode(ca_cert_data)
                     with tempfile.NamedTemporaryFile(delete=False, suffix=".pem") as f:
-                        f.write(ca_bytes)
                         ca_file_path = f.name
+                        f.write(ca_bytes)
                     kube_config.ssl_ca_cert = ca_file_path
                 except Exception as e:
                     logger.debug("Failed to decode cluster CA certificate: %s", e)
