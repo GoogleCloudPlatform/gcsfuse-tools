@@ -94,7 +94,7 @@ class GKEClient:
         return self._container_client
 
     def _get_logging_client(self, project_id: str) -> Any:
-        if self._logging_client is None:
+        if self._logging_client is None or getattr(self._logging_client, "project", None) != project_id:
             if not project_id or project_id.startswith("test-") or project_id == "test-project":
                 return None
             creds = self._get_credentials()

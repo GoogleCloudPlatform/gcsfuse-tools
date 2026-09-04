@@ -48,7 +48,7 @@ def parse_idle_since(val: Any) -> Optional[datetime.date]:
     try:
         epoch_num = float(val_str)
         return datetime.datetime.fromtimestamp(epoch_num, tz=datetime.timezone.utc).date()
-    except (ValueError, OSError):
+    except (ValueError, OSError, OverflowError):
         pass
 
     # 4. Fallback to python-dateutil parser if available

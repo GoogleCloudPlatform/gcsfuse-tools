@@ -67,6 +67,12 @@ def _setup_offline_mock_modules() -> None:
         sys.modules["google.cloud.container_v1"] = container_mod
         setattr(sys.modules["google.cloud"], "container_v1", container_mod)
 
+    if "google.cloud.logging_v2" not in sys.modules:
+        logging_mod = types.ModuleType("google.cloud.logging_v2")
+        logging_mod.Client = MagicMock
+        sys.modules["google.cloud.logging_v2"] = logging_mod
+        setattr(sys.modules["google.cloud"], "logging_v2", logging_mod)
+
     if "kubernetes" not in sys.modules:
         sys.modules["kubernetes"] = MagicMock()
         sys.modules["kubernetes.client"] = MagicMock()
@@ -273,9 +279,11 @@ class TestScalerConfig(unittest.TestCase):
         d3 = parse_idle_since(str(epoch))
         self.assertIsNotNone(d3)
 
-        # Invalid formats return None
+        # Invalid formats and overflow values return None
         self.assertIsNone(parse_idle_since(""))
         self.assertIsNone(parse_idle_since("invalid-date-string-xyz"))
+        self.assertIsNone(parse_idle_since("1e100"))
+        self.assertIsNone(parse_idle_since("9" * 100))
 
 
 class TestClusterProcessor(unittest.TestCase):
@@ -756,6 +764,31 @@ class TestGKEClient(unittest.TestCase):
         self.assertEqual(len(results), 1)
         self.assertIn("io.k8s.core.v1.pods.create", results[0])
         self.assertIn("developer@google.com", results[0])
+
+    @patch("google.cloud.logging_v2.Client")
+    def test_logging_client_reinitialized_on_project_change(self, mock_logging_cls: MagicMock) -> None:
+        dummy_creds = object()
+        with patch.object(self.client, "_get_credentials", return_value=dummy_creds):
+            client_a = MagicMock()
+            client_a.project = "prod-project-a"
+            client_b = MagicMock()
+            client_b.project = "prod-project-b"
+            mock_logging_cls.side_effect = [client_a, client_b]
+
+            # First project lookup initializes client_a
+            res_a = self.client._get_logging_client("prod-project-a")
+            self.assertEqual(res_a, client_a)
+            mock_logging_cls.assert_called_once_with(project="prod-project-a", credentials=dummy_creds)
+
+            # Second lookup with same project returns cached client_a
+            res_a_again = self.client._get_logging_client("prod-project-a")
+            self.assertEqual(res_a_again, client_a)
+            self.assertEqual(mock_logging_cls.call_count, 1)
+
+            # Third lookup with different project re-initializes client_b
+            res_b = self.client._get_logging_client("prod-project-b")
+            self.assertEqual(res_b, client_b)
+            self.assertEqual(mock_logging_cls.call_count, 2)
 
 
 class TestDualEntrypoints(unittest.TestCase):
