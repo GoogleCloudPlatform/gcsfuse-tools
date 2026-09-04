@@ -896,6 +896,44 @@ class TestReservationCleanerService(unittest.TestCase):
         self.assertEqual(result["status"], "error")
         self.assertEqual(len(result["errors"]), 1)
 
+    def test_service_run_partial_error_status(self):
+        mock_reservations = [
+            {
+                "id": "1",
+                "name": "res-ok",
+                "zone": "us-central1-a",
+                "specificReservation": {"count": "1", "inUseCount": "1"},
+            },
+            {
+                "id": "2",
+                "name": "res-fail",
+                "zone": "us-central1-a",
+                "specificReservation": {"count": "1", "inUseCount": "0"},
+            },
+        ]
+        self.mock_client.list_aggregated_reservations.return_value = mock_reservations
+        self.mock_client.query_reservation_usage.side_effect = RuntimeError("Quota exceeded")
+
+        result = self.service.run(reference_time=self.ref_now)
+        self.assertEqual(result["status"], "partial_error")
+        self.assertGreater(len(result["errors"]), 0)
+
+    def test_service_run_raise_on_error_consolidated_exception(self):
+        mock_reservations = [
+            {
+                "id": "1",
+                "name": "res-fail",
+                "zone": "us-central1-a",
+                "specificReservation": {"count": "1", "inUseCount": "0"},
+            },
+        ]
+        self.mock_client.list_aggregated_reservations.return_value = mock_reservations
+        self.mock_client.query_reservation_usage.side_effect = RuntimeError("Backend failure")
+
+        with self.assertRaises(RuntimeError) as ctx:
+            self.service.run(reference_time=self.ref_now, raise_on_error=True)
+        self.assertIn("Consolidated cleanup failures", str(ctx.exception))
+
 
 class TestHttpEndpoints(unittest.TestCase):
     """Tests for Flask routing and Functions Framework handler."""

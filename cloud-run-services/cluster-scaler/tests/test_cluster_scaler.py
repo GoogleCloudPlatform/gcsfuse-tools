@@ -631,6 +631,38 @@ class TestClusterScalerService(unittest.TestCase):
         self.assertEqual(result["status"], "error")
         self.assertIn("PermissionDenied", result["message"])
 
+    def test_service_run_partial_error_status(self) -> None:
+        mock_gke_client = MagicMock(spec=GKEClient)
+        c1 = create_mock_cluster(name="projects/test/locations/us-central1/clusters/c1-ok")
+        c2 = create_mock_cluster(name="projects/test/locations/us-central1/clusters/c2-fail")
+        mock_gke_client.list_clusters.return_value = [c1, c2]
+
+        def mock_get_pods(cluster: Any, **kwargs: Any) -> tuple[bool, list[Any]]:
+            if "c2-fail" in cluster.name:
+                raise RuntimeError("API timeout on cluster c2")
+            return True, [{"name": "app", "namespace": "prod", "phase": "Running"}]
+
+        mock_gke_client.get_cluster_active_pods.side_effect = mock_get_pods
+        config = ScalerConfig(project_id="test-fleet-project")
+        service = ClusterScalerService(config=config, gke_client=mock_gke_client)
+        result = service.run()
+
+        self.assertEqual(result["status"], "partial_error")
+        self.assertEqual(result["summary"]["errors"], 1)
+
+    def test_service_run_all_clusters_error_status(self) -> None:
+        mock_gke_client = MagicMock(spec=GKEClient)
+        c1 = create_mock_cluster(name="projects/test/locations/us-central1/clusters/c1-fail")
+        mock_gke_client.list_clusters.return_value = [c1]
+        mock_gke_client.get_cluster_active_pods.side_effect = RuntimeError("Fatal cluster query error")
+
+        config = ScalerConfig(project_id="test-fleet-project")
+        service = ClusterScalerService(config=config, gke_client=mock_gke_client)
+        result = service.run()
+
+        self.assertEqual(result["status"], "error")
+        self.assertEqual(result["summary"]["errors"], 1)
+
 
 class TestGKEClient(unittest.TestCase):
     """Test suite for GKEClient API wrapping and dynamic K8s credentials."""

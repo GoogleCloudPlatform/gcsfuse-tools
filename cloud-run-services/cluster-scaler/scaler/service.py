@@ -158,8 +158,15 @@ class ClusterScalerService:
             summary,
         )
 
+        if not errors:
+            status = "success"
+        elif len(errors) == len(clusters) and clusters:
+            status = "error"
+        else:
+            status = "partial_error"
+
         return {
-            "status": "success" if not (errors and len(errors) == len(clusters) and len(clusters) > 0) else "partial_error",
+            "status": status,
             "service": "cluster-scaler",
             "project_id": cfg.project_id,
             "location": cfg.location,

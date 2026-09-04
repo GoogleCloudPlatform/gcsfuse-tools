@@ -4,7 +4,7 @@
 [![Runtime](https://img.shields.io/badge/Runtime-Cloud%20Run%20v2%20%7C%20Cloud%20Functions%20Gen%202-brightgreen.svg)](https://cloud.google.com/run)
 [![Security](https://img.shields.io/badge/Security-Least%20Privilege%20%7C%20OIDC-orange.svg)](https://cloud.google.com/iam)
 [![CI/CD](https://img.shields.io/badge/CI%2FCD-Cloud%20Build%20%7C%20Terraform-blueviolet.svg)](./cloudbuild.yaml)
-[![Tests](https://img.shields.io/badge/Tests-100%25%20Offline%20Pass%20(29%2F29)-success.svg)](./verify_deployment_artifacts.py)
+[![Tests](https://img.shields.io/badge/Tests-100%25%20Offline%20Pass%20(30%2F30)-success.svg)](./verify_deployment_artifacts.py)
 
 A collection of project-agnostic, enterprise-grade cloud automation services packaged for Google Cloud Run and Google Cloud Functions (Gen 2). Designed to eliminate cloud waste, enforce lifecycle governance, calculate cost savings, and remediate idle compute resources safely across Google Kubernetes Engine (GKE) and Google Compute Engine (GCE).
 
@@ -254,7 +254,7 @@ cloud-run-services/
 │   │   └── service.py                         # Concurrent sweep coordinator and reporting
 │   └── tests/
 │       ├── __init__.py                        # Test package marker
-│       └── test_reservation_cleaner.py        # 100% offline mock unit tests (36 tests)
+│       └── test_reservation_cleaner.py        # 100% offline mock unit tests (43 tests)
 │
 └── vm-stopper/                                # GCE Idle VM Remediation Service
     ├── Dockerfile                             # Python 3.11-slim + Gunicorn container definition
@@ -271,7 +271,7 @@ cloud-run-services/
     │   └── vm_processor.py                    # GKE/MIG filtering, idle detection, VM stopping
     └── tests/
         ├── __init__.py                        # Test package marker
-        └── test_vm_stopper.py                 # 100% offline mock unit tests (39 tests)
+        └── test_vm_stopper.py                 # 100% offline mock unit tests (43 tests)
 ```
 
 ---
@@ -511,14 +511,14 @@ GCSFUSE CLOUD RUN SERVICES - DEPLOYMENT ARTIFACTS VERIFICATION SUITE
 ==========================================================================================
 Test Suite / Category                 Total   Passed   Failed   Errors   Skipped   Duration
 ------------------------------------------------------------------------------------------
-TestShellScripts ✓                        9        9        0        0         0      0.67s
+TestShellScripts ✓                       10       10        0        0         0      0.67s
 TestCloudBuildConfig ✓                    8        8        0        0         0      0.00s
 TestTerraformModule ✓                     8        8        0        0         0      0.02s
 TestServiceUnitSuites ✓                   4        4        0        0         0      4.80s
 ------------------------------------------------------------------------------------------
-TOTAL                                    29       29        0        0         0      5.50s
+TOTAL                                    30       30        0        0         0      5.50s
 ==========================================================================================
-OVERALL STATUS: ALL 29 VERIFICATION TESTS PASSED CLEANLY [PASS]
+OVERALL STATUS: ALL 30 VERIFICATION TESTS PASSED CLEANLY [PASS]
 ==========================================================================================
 ```
 
@@ -526,7 +526,7 @@ OVERALL STATUS: ALL 29 VERIFICATION TESTS PASSED CLEANLY [PASS]
 
 ### 6.2 Test Sub-Suite Breakdown & Coverage
 
-#### 1. `TestShellScripts` (9 Tests)
+#### 1. `TestShellScripts` (10 Tests)
 Validates all bash scripts across the repository (`deploy_all.sh`, `cluster-scaler/deploy.sh`, `gcsfuse-reservation-cleaner/deploy.sh`, `vm-stopper/deploy.sh`):
 - `test_bash_syntax_on_all_deploy_scripts`: Validates `bash -n` static syntax across all 4 scripts.
 - `test_help_flags_exit_code_and_usage`: Asserts `--help` and `-h` return exit code 0 and emit usage text.
@@ -537,6 +537,7 @@ Validates all bash scripts across the repository (`deploy_all.sh`, `cluster-scal
 - `test_missing_project_handling`: Validates that omitting project ID when unconfigured in gcloud results in exit code 1 with descriptive remediation guidance.
 - `test_dry_run_simulation_mode`: Verifies `--dry-run` executes preview planning without issuing mutating API calls and sets `"dry_run": true` in payloads.
 - `test_schedule_and_threshold_customizations`: Validates custom cron expressions and idle thresholds propagate cleanly.
+- `test_iam_permission_flags_and_dry_run_checks`: Validates IAM automation flags (-y, --yes, --auto-grant-roles, --no-grant-roles) parse cleanly in dry-run mode.
 
 #### 2. `TestCloudBuildConfig` (8 Tests)
 Validates `cloud-run-services/cloudbuild.yaml` syntax, step ordering, and parameterization:

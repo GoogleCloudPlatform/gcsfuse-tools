@@ -38,7 +38,7 @@ class ReservationCleanerService:
         self.client = client or ReservationClient()
         self.processor = ReservationProcessor(self.config, self.client)
 
-    def run(self, reference_time: Optional[datetime] = None) -> Dict[str, Any]:
+    def run(self, reference_time: Optional[datetime] = None, raise_on_error: bool = False) -> Dict[str, Any]:
         """Execute full reservation cleanup sweep."""
         now = reference_time or datetime.now(timezone.utc)
         logger.info(
@@ -93,6 +93,9 @@ class ReservationCleanerService:
                     try:
                         res_result = future.result()
                         evaluated_reservations.append(res_result)
+                        if res_result.get("status") in ("Query Error", "Evaluation Error", "Timestamp Error"):
+                            err_reason = res_result.get("reason") or "Unknown evaluation failure"
+                            errors.append(f"Reservation '{res_result.get('name')}': {err_reason}")
                     except Exception as e:
                         orig_res = future_to_res[future]
                         res_name = orig_res.get("name", "unknown")
@@ -178,7 +181,20 @@ class ReservationCleanerService:
             "realized_annual_savings_usd": realized_annual_savings,
         }
 
-        status = "error" if (errors and not final_reservations) else "success"
+        if not errors:
+            status = "success"
+        elif len(errors) >= len(final_reservations) and final_reservations:
+            status = "error"
+        elif not final_reservations and errors:
+            status = "error"
+        else:
+            status = "partial_error"
+
+        if raise_on_error and errors:
+            raise RuntimeError(
+                f"Consolidated cleanup failures ({len(errors)}): "
+                + "; ".join(errors)
+            )
 
         return {
             "status": status,
