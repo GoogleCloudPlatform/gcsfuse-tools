@@ -113,11 +113,71 @@ class ReservationProcessor:
             res_record["reason"] = f"Reservation currently has {in_use_now} instance(s) in use."
             return res_record
 
-        # Check protection labels / tags
-        labels = dict(reservation.get("resourceLabels") or reservation.get("labels") or {})
+        # Check protection via name, description, resource manager tags, or labels.
+        # Note: GCE Reservation resources do not support standard labels, so name and
+        # description checks ensure reservations can be protected out of the box.
         norm_excl_keys = {k.lower() for k in self.config.exclude_label_keys}
         norm_tags = {t.lower() for t in self.config.whitelist_tags}
+        protection_keywords = norm_excl_keys | norm_tags
 
+        # 1. Check reservation name
+        name_lower = name.lower()
+        if self.config.whitelist_names:
+            for wname in self.config.whitelist_names:
+                w_lower = wname.lower()
+                if w_lower == name_lower or w_lower in name_lower:
+                    res_record["status"] = "Protected"
+                    res_record["is_candidate"] = False
+                    res_record["action"] = "retained_protected"
+                    res_record["reason"] = f"Protected by whitelist name match '{wname}'."
+                    return res_record
+
+        for kw in protection_keywords:
+            if kw in name_lower:
+                res_record["status"] = "Protected"
+                res_record["is_candidate"] = False
+                res_record["action"] = "retained_protected"
+                res_record["reason"] = f"Protected by keyword '{kw}' in reservation name."
+                return res_record
+
+        # 2. Check reservation description (GCE reservations support description)
+        desc = str(reservation.get("description") or "")
+        desc_lower = desc.lower()
+        for kw in protection_keywords:
+            if kw in desc_lower:
+                res_record["status"] = "Protected"
+                res_record["is_candidate"] = False
+                res_record["action"] = "retained_protected"
+                res_record["reason"] = f"Protected by keyword '{kw}' in reservation description."
+                return res_record
+
+        if any(marker in desc_lower for marker in ("auto-delete=false", "auto_delete=false", "autodelete=false", "auto-clean=false")):
+            res_record["status"] = "Protected"
+            res_record["is_candidate"] = False
+            res_record["action"] = "retained_protected"
+            res_record["reason"] = "Protected by auto-delete=false in reservation description."
+            return res_record
+
+        # 3. Check resource_manager_tags under params
+        rm_tags = {}
+        params = reservation.get("params")
+        if isinstance(params, dict):
+            rm_tags = params.get("resourceManagerTags") or params.get("resource_manager_tags") or {}
+        elif hasattr(params, "resource_manager_tags"):
+            rm_tags = getattr(params, "resource_manager_tags", {}) or {}
+
+        for tag_k, tag_v in dict(rm_tags).items():
+            k_lower = str(tag_k).lower()
+            v_lower = str(tag_v).lower()
+            if any(kw in k_lower or kw in v_lower for kw in protection_keywords):
+                res_record["status"] = "Protected"
+                res_record["is_candidate"] = False
+                res_record["action"] = "retained_protected"
+                res_record["reason"] = f"Protected by resource manager tag '{tag_k}={tag_v}'."
+                return res_record
+
+        # 4. Check labels / resourceLabels (if present or mocked)
+        labels = dict(reservation.get("resourceLabels") or reservation.get("labels") or {})
         for label_k, label_v in labels.items():
             k_lower = str(label_k).lower()
             v_lower = str(label_v).lower()

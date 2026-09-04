@@ -589,6 +589,85 @@ class TestReservationProcessor(unittest.TestCase):
         self.mock_client.query_reservation_usage.assert_not_called()
         self.mock_client.delete_reservation.assert_not_called()
 
+    def test_protected_reservation_via_name_keyword(self):
+        """Reservations with keep-alive, do-not-delete, or permanent in name are retained."""
+        res_name_protected = {
+            "id": "1005b",
+            "name": "res-keep-alive-team",
+            "zone": "us-central1-a",
+            "specificReservation": {"count": "2", "inUseCount": "0"},
+        }
+        eval_res = self.processor.evaluate_reservation(res_name_protected, now=self.ref_now)
+        self.assertEqual(eval_res["status"], "Protected")
+        self.assertFalse(eval_res["is_candidate"])
+        self.assertEqual(eval_res["action"], "retained_protected")
+        self.assertIn("in reservation name", eval_res["reason"])
+        self.mock_client.query_reservation_usage.assert_not_called()
+        self.mock_client.delete_reservation.assert_not_called()
+
+    def test_protected_reservation_via_whitelist_names(self):
+        """Reservations matching whitelist_names config are retained."""
+        self.config.whitelist_names = ["custom-static-res"]
+        res_whitelist = {
+            "id": "1005c",
+            "name": "custom-static-res",
+            "zone": "us-central1-a",
+            "specificReservation": {"count": "2", "inUseCount": "0"},
+        }
+        eval_res = self.processor.evaluate_reservation(res_whitelist, now=self.ref_now)
+        self.assertEqual(eval_res["status"], "Protected")
+        self.assertFalse(eval_res["is_candidate"])
+        self.assertEqual(eval_res["action"], "retained_protected")
+        self.assertIn("whitelist name match", eval_res["reason"])
+        self.mock_client.query_reservation_usage.assert_not_called()
+        self.mock_client.delete_reservation.assert_not_called()
+
+    def test_protected_reservation_via_description_keyword_and_flag(self):
+        """Reservations with description containing protection keywords or auto-delete=false are retained."""
+        res_desc_1 = {
+            "id": "1005d",
+            "name": "my-compute-res",
+            "zone": "us-central1-a",
+            "description": "Production reservation - do-not-delete under any circumstances",
+            "specificReservation": {"count": "2", "inUseCount": "0"},
+        }
+        res_desc_2 = {
+            "id": "1005e",
+            "name": "staging-res",
+            "zone": "us-central1-a",
+            "description": "auto-delete=false for QA environment",
+            "specificReservation": {"count": "2", "inUseCount": "0"},
+        }
+        eval1 = self.processor.evaluate_reservation(res_desc_1, now=self.ref_now)
+        eval2 = self.processor.evaluate_reservation(res_desc_2, now=self.ref_now)
+        self.assertEqual(eval1["status"], "Protected")
+        self.assertEqual(eval1["action"], "retained_protected")
+        self.assertEqual(eval2["status"], "Protected")
+        self.assertEqual(eval2["action"], "retained_protected")
+        self.mock_client.query_reservation_usage.assert_not_called()
+        self.mock_client.delete_reservation.assert_not_called()
+
+    def test_protected_reservation_via_resource_manager_tags(self):
+        """Reservations with params.resource_manager_tags containing protection keywords are retained."""
+        res_rm_tags = {
+            "id": "1005f",
+            "name": "untagged-name-res",
+            "zone": "us-central1-a",
+            "params": {
+                "resourceManagerTags": {
+                    "tagKeys/12345": "permanent",
+                }
+            },
+            "specificReservation": {"count": "2", "inUseCount": "0"},
+        }
+        eval_res = self.processor.evaluate_reservation(res_rm_tags, now=self.ref_now)
+        self.assertEqual(eval_res["status"], "Protected")
+        self.assertFalse(eval_res["is_candidate"])
+        self.assertEqual(eval_res["action"], "retained_protected")
+        self.assertIn("resource manager tag", eval_res["reason"])
+        self.mock_client.query_reservation_usage.assert_not_called()
+        self.mock_client.delete_reservation.assert_not_called()
+
     def test_never_used_reservation_with_policy_disabled(self):
         """Never used reservation with delete_never_used=False and young age."""
         self.config.delete_never_used = False

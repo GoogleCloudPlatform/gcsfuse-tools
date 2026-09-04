@@ -29,7 +29,7 @@
 # Usage: ./deploy_all.sh [OPTIONS]
 # ==============================================================================
 
-set -euo pipefail
+set -Eeuo pipefail
 
 # --- ANSI Color Formatting & Diagnostics ---
 if [[ -t 1 ]] && [[ "${TERM:-}" != "dumb" ]]; then

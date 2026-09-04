@@ -732,6 +732,31 @@ class TestGKEClient(unittest.TestCase):
         self.assertEqual(len(results), 1)
         self.assertIn("RESIZE_NODE_POOL", results[0])
 
+    def test_get_recent_audit_logs_with_payload_dict(self) -> None:
+        now = datetime.datetime.now(datetime.timezone.utc)
+        mock_entry = MagicMock()
+        mock_entry.timestamp = now
+        # Mock standard google-cloud-logging LogEntry where payload is a dict
+        mock_entry.payload = {
+            "methodName": "io.k8s.core.v1.pods.create",
+            "authenticationInfo": {"principalEmail": "developer@google.com"},
+        }
+
+        mock_logging_client = MagicMock()
+        mock_logging_client.list_entries.return_value = [mock_entry]
+
+        with patch.object(self.client, "_get_logging_client", return_value=mock_logging_client):
+            cutoff = now - datetime.timedelta(hours=24)
+            results = self.client.get_recent_audit_logs(
+                project_id="proj-1",
+                cluster_name="test-cluster",
+                cutoff_time=cutoff,
+            )
+
+        self.assertEqual(len(results), 1)
+        self.assertIn("io.k8s.core.v1.pods.create", results[0])
+        self.assertIn("developer@google.com", results[0])
+
 
 class TestDualEntrypoints(unittest.TestCase):
     """Test suite for HTTP entrypoint and Functions Framework routing."""

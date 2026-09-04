@@ -325,7 +325,7 @@ class GKEClient:
         """Queries Cloud Audit logs for recent user or tool interactions with the GKE cluster."""
         audit_activities: List[str] = []
         client = self._get_logging_client(project_id)
-        if not client or type(client).__name__.endswith("Mock"):
+        if not client:
             return audit_activities
 
         simple_cluster_name = cluster_name.split("/")[-1]
@@ -357,7 +357,7 @@ class GKEClient:
             if type(entries).__name__.endswith("Mock") and not isinstance(entries, (list, tuple)):
                 return audit_activities
             for entry in entries:
-                payload = getattr(entry, "proto_payload", {}) or {}
+                payload = getattr(entry, "payload", None) or getattr(entry, "proto_payload", {}) or {}
                 method = (
                     getattr(payload, "method_name", None)
                     or (payload.get("methodName") if isinstance(payload, dict) else "")

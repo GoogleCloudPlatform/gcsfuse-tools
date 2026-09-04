@@ -87,6 +87,7 @@ class CleanerConfig:
     max_workers: int = 10
     zones: Optional[List[str]] = None
     reservation_names: Optional[List[str]] = None
+    whitelist_names: Optional[List[str]] = None
     exclude_label_keys: List[str] = field(default_factory=lambda: list(DEFAULT_EXCLUDE_LABEL_KEYS))
     exclude_label_values: Dict[str, str] = field(default_factory=dict)
     whitelist_tags: List[str] = field(default_factory=lambda: list(DEFAULT_EXCLUDE_LABEL_KEYS))
@@ -168,6 +169,9 @@ class CleanerConfig:
         reservation_names = _parse_list(
             data.get("reservation_names") or data.get("reservations") or os.environ.get("RESERVATION_NAMES")
         )
+        whitelist_names = _parse_list(
+            data.get("whitelist_names") or data.get("whitelist_reservations") or os.environ.get("WHITELIST_NAMES")
+        )
 
         # 9. Resolve protection labels and tags
         excl_keys = _parse_list(
@@ -199,6 +203,7 @@ class CleanerConfig:
             max_workers=max_workers,
             zones=zones,
             reservation_names=reservation_names,
+            whitelist_names=whitelist_names,
             exclude_label_keys=exclude_label_keys,
             exclude_label_values=exclude_label_values,
             whitelist_tags=whitelist_tags,
