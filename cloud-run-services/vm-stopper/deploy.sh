@@ -257,8 +257,10 @@ prompt_for_permission() {
       return 1
     fi
   else
-    log "Non-interactive session detected; automatically granting role (${prompt_text}). Pass --no-grant-roles to prevent."
-    return 0
+    log "ERROR: Non-interactive session detected and '${prompt_text}' requires authorization."
+    log "ERROR: Automatically granting IAM roles in non-interactive sessions is disabled by default for security."
+    log "ERROR: To proceed, specify --auto-grant-roles (or -y / --yes) to authorize role assignment, or --no-grant-roles to bypass."
+    exit 1
   fi
 }
 

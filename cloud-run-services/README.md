@@ -178,6 +178,13 @@ The automation suite implements strict least-privilege separation of duties betw
 | | Runtime (Runner SA) | `vm-stopper-sa@${PROJECT_ID}.iam.gserviceaccount.com` | `roles/logging.logWriter` | Emits structured JSON logs to Cloud Logging. |
 | | Invoker (Scheduler SA) | `vm-stopper-sched@${PROJECT_ID}.iam.gserviceaccount.com` | `roles/run.invoker` | Authorizes Cloud Scheduler to invoke the Cloud Run endpoint. |
 
+> [!NOTE]
+> **Predefined vs. Custom IAM Roles**:
+> Predefined Google Cloud roles (`roles/container.admin`, `roles/compute.instanceAdmin.v1`) are configured by default for turnkey portability without requiring `roles/iam.roleAdmin` privileges. For enterprise environments requiring custom least-privilege roles, the minimal required permissions are:
+> - **`cluster-scaler`**: `container.clusters.get`, `container.clusters.list`, `container.clusters.update`, `container.nodePools.get`, `container.nodePools.update`, `logging.logEntries.create`.
+> - **`gcsfuse-reservation-cleaner`**: `compute.reservations.get`, `compute.reservations.list`, `compute.reservations.delete`, `monitoring.timeSeries.list`, `logging.logEntries.create`.
+> - **`vm-stopper`**: `compute.instances.get`, `compute.instances.list`, `compute.instances.aggregatedList`, `compute.instances.stop`, `compute.instances.delete`, `logging.logEntries.list`, `logging.logEntries.create`.
+
 ### Cross-Project & Centralized Governance Pattern
 
 Organizations operating multiple GCP projects can deploy the automation suite in a **Central Governance Project** and manage remote target projects without deploying separate Cloud Run containers in each project:

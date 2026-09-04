@@ -354,9 +354,10 @@ class GKEClient:
             f'  resource.labels.cluster_name="{simple_cluster_name}"\n'
             f'  OR protoPayload.resourceName:"clusters/{simple_cluster_name}"\n'
             f')\n'
-            f'AND NOT protoPayload.authenticationInfo.principalEmail:"cluster-scaler-sa@"\n'
-            f'AND NOT protoPayload.authenticationInfo.principalEmail:"cluster-scaler-sched@"\n'
+            f'AND NOT protoPayload.authenticationInfo.principalEmail="cluster-scaler-sa@{project_id}.iam.gserviceaccount.com"\n'
+            f'AND NOT protoPayload.authenticationInfo.principalEmail="cluster-scaler-sched@{project_id}.iam.gserviceaccount.com"\n'
             f'AND timestamp >= "{cutoff_iso}"'
+
         )
 
         try:

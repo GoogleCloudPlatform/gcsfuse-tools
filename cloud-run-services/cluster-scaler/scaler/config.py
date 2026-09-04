@@ -173,7 +173,13 @@ class ScalerConfig:
         }
 
     @classmethod
-    def from_request(cls, request: Any = None) -> ScalerConfig:
+    def from_request(
+        cls,
+        request: Any = None,
+        payload: Optional[dict[str, Any]] = None,
+        args: Optional[dict[str, Any]] = None,
+        env: Optional[dict[str, str]] = None,
+    ) -> ScalerConfig:
         """Extracts and resolves configuration from HTTP request and environment.
 
         Resolution hierarchy:
@@ -182,36 +188,48 @@ class ScalerConfig:
         3. Environment variables
         4. Application Default Credentials (ADC) project fallback
         """
-        payload: dict[str, Any] = {}
-        args: dict[str, Any] = {}
+        req_payload: dict[str, Any] = dict(payload) if payload else {}
+        req_args: dict[str, Any] = dict(args) if args else {}
 
         if request is not None:
             # Handle Flask request or custom request wrapper
             if hasattr(request, "get_json"):
                 try:
-                    payload = request.get_json(silent=True) or {}
+                    json_data = request.get_json(silent=True)
+                    if isinstance(json_data, dict):
+                        req_payload = {**json_data, **req_payload}
                 except Exception:
-                    payload = {}
+                    pass
             elif isinstance(request, dict):
-                payload = request
+                req_payload = {**request, **req_payload}
 
             if hasattr(request, "args") and request.args is not None:
                 try:
-                    args = dict(request.args)
+                    req_args = {**dict(request.args), **req_args}
                 except Exception:
-                    args = {}
+                    pass
+
+        environ = env if env is not None else os.environ
+
+        def _get_val(key_names: list[str], env_names: Optional[list[str]] = None) -> Any:
+            for k in key_names:
+                if k in req_payload and req_payload[k] is not None:
+                    return req_payload[k]
+            for k in key_names:
+                if k in req_args and req_args[k] is not None:
+                    return req_args[k]
+            if env_names:
+                for ek in env_names:
+                    if ek in environ and environ[ek] is not None and str(environ[ek]).strip():
+                        return environ[ek]
+            return None
 
         # 1. Project ID resolution
-        project_id = (
-            payload.get("project")
-            or payload.get("project_id")
-            or args.get("project")
-            or args.get("project_id")
-            or os.environ.get("PROJECT_ID")
-            or os.environ.get("GCP_PROJECT")
-            or os.environ.get("GOOGLE_CLOUD_PROJECT")
-            or ""
+        raw_project = _get_val(
+            ["project", "project_id", "projectId"],
+            ["PROJECT_ID", "GCP_PROJECT", "GOOGLE_CLOUD_PROJECT"],
         )
+        project_id = str(raw_project).strip() if raw_project else ""
 
         if not project_id:
             try:
@@ -223,115 +241,93 @@ class ScalerConfig:
                 pass
 
         # 2. Location resolution
-        location = (
-            payload.get("location")
-            or payload.get("region")
-            or args.get("location")
-            or args.get("region")
-            or os.environ.get("LOCATION")
-            or os.environ.get("REGION")
-            or DEFAULT_LOCATION
+        raw_location = _get_val(
+            ["location", "region"],
+            ["LOCATION", "REGION"],
         )
+        location = str(raw_location).strip() if raw_location else DEFAULT_LOCATION
 
         # 3. Idle days threshold resolution
-        idle_days_val = (
-            payload.get("idle_days_threshold")
-            if "idle_days_threshold" in payload
-            else payload.get("days_threshold",
-            args.get("idle_days_threshold",
-            args.get("days_threshold",
-            os.environ.get("IDLE_DAYS_THRESHOLD",
-            os.environ.get("DAYS_THRESHOLD")))))
+        raw_idle_days = _get_val(
+            ["idle_days_threshold", "days_threshold", "idleDaysThreshold"],
+            ["IDLE_DAYS_THRESHOLD", "DAYS_THRESHOLD"],
         )
-        idle_days_threshold = _parse_int(idle_days_val, DEFAULT_IDLE_DAYS_THRESHOLD)
+        idle_days_threshold = _parse_int(raw_idle_days, DEFAULT_IDLE_DAYS_THRESHOLD)
 
         # 4. Ignored namespaces resolution
-        ignored_ns_input = (
-            payload.get("ignored_namespaces")
-            or args.get("ignored_namespaces")
-            or os.environ.get("IGNORED_NAMESPACES")
+        raw_ignored_ns = _get_val(
+            ["ignored_namespaces", "ignoredNamespaces"],
+            ["IGNORED_NAMESPACES"],
         )
         ignored_namespaces = set(DEFAULT_IGNORED_NAMESPACES)
-        if ignored_ns_input is not None:
-            parsed_ns = _parse_str_list(ignored_ns_input)
+        if raw_ignored_ns is not None:
+            parsed_ns = _parse_str_list(raw_ignored_ns)
             if parsed_ns:
                 ignored_namespaces = set(parsed_ns)
 
         # 5. Dry run resolution
-        dry_run_val = (
-            payload.get("dry_run")
-            if "dry_run" in payload
-            else args.get("dry_run", os.environ.get("DRY_RUN"))
+        raw_dry_run = _get_val(
+            ["dry_run", "dryRun"],
+            ["DRY_RUN"],
         )
-        dry_run = _parse_bool(dry_run_val, default=False)
+        dry_run = _parse_bool(raw_dry_run, default=False)
 
         # 6. Max workers resolution
-        max_workers_val = (
-            payload.get("max_workers")
-            if "max_workers" in payload
-            else args.get("max_workers", os.environ.get("MAX_WORKERS"))
+        raw_max_workers = _get_val(
+            ["max_workers", "maxWorkers"],
+            ["MAX_WORKERS"],
         )
-        max_workers = _parse_int(max_workers_val, DEFAULT_MAX_WORKERS)
+        max_workers = _parse_int(raw_max_workers, DEFAULT_MAX_WORKERS)
 
         # 7. Cluster names filter resolution
-        cluster_names_input = (
-            payload.get("cluster_names")
-            or payload.get("clusters")
-            or args.get("cluster_names")
-            or args.get("clusters")
-            or os.environ.get("CLUSTER_NAMES")
+        raw_cluster_names = _get_val(
+            ["cluster_names", "clusters", "clusterNames"],
+            ["CLUSTER_NAMES"],
         )
-        cluster_names = _parse_str_list(cluster_names_input)
+        cluster_names = _parse_str_list(raw_cluster_names)
 
         # 8. Protection label keys and tags resolution
-        excl_keys_input = (
-            payload.get("exclude_label_keys")
-            or payload.get("exclude_labels")
-            or payload.get("whitelist_labels")
-            or args.get("exclude_label_keys")
-            or os.environ.get("EXCLUDE_LABEL_KEYS")
+        raw_exclude_keys = _get_val(
+            ["exclude_label_keys", "exclude_labels", "whitelist_labels", "excludeLabelKeys"],
+            ["EXCLUDE_LABEL_KEYS"],
         )
         exclude_label_keys = set(DEFAULT_EXCLUDE_LABEL_KEYS)
-        if excl_keys_input is not None:
-            parsed_keys = _parse_str_list(excl_keys_input)
+        if raw_exclude_keys is not None:
+            parsed_keys = _parse_str_list(raw_exclude_keys)
             if parsed_keys:
                 exclude_label_keys = set(parsed_keys)
 
-        whitelist_tags_input = (
-            payload.get("whitelist_tags")
-            or payload.get("tags")
-            or args.get("whitelist_tags")
-            or os.environ.get("WHITELIST_TAGS")
+        raw_whitelist_tags = _get_val(
+            ["whitelist_tags", "tags", "whitelistTags"],
+            ["WHITELIST_TAGS"],
         )
         whitelist_tags = set(DEFAULT_EXCLUDE_LABEL_KEYS)
-        if whitelist_tags_input is not None:
-            parsed_tags = _parse_str_list(whitelist_tags_input)
+        if raw_whitelist_tags is not None:
+            parsed_tags = _parse_str_list(raw_whitelist_tags)
             if parsed_tags:
                 whitelist_tags = set(parsed_tags)
 
-        exclude_label_values = payload.get("exclude_label_values") or {}
-        if not isinstance(exclude_label_values, dict):
-            exclude_label_values = {}
+        raw_exclude_values = _get_val(
+            ["exclude_label_values", "excludeLabelValues"],
+            ["EXCLUDE_LABEL_VALUES"],
+        )
+        exclude_label_values = raw_exclude_values if isinstance(raw_exclude_values, dict) else {}
 
         # 9. Activity lookback and audit logs configuration
-        lookback_val = (
-            payload.get("activity_lookback_hours")
-            or payload.get("lookback_hours")
-            or args.get("activity_lookback_hours")
-            or args.get("lookback_hours")
-            or os.environ.get("ACTIVITY_LOOKBACK_HOURS")
+        raw_lookback = _get_val(
+            ["activity_lookback_hours", "lookback_hours", "activityLookbackHours"],
+            ["ACTIVITY_LOOKBACK_HOURS"],
         )
         try:
-            activity_lookback_hours = float(lookback_val) if lookback_val is not None else 24.0
+            activity_lookback_hours = float(raw_lookback) if raw_lookback is not None else 24.0
         except (ValueError, TypeError):
             activity_lookback_hours = 24.0
 
-        check_audit_val = (
-            payload.get("check_audit_logs")
-            if "check_audit_logs" in payload
-            else args.get("check_audit_logs", os.environ.get("CHECK_AUDIT_LOGS"))
+        raw_check_audit = _get_val(
+            ["check_audit_logs", "checkAuditLogs"],
+            ["CHECK_AUDIT_LOGS"],
         )
-        check_audit_logs = _parse_bool(check_audit_val, default=True)
+        check_audit_logs = _parse_bool(raw_check_audit, default=True)
 
         return cls(
             project_id=str(project_id).strip(),
@@ -347,3 +343,4 @@ class ScalerConfig:
             activity_lookback_hours=activity_lookback_hours,
             check_audit_logs=check_audit_logs,
         )
+

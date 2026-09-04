@@ -151,6 +151,8 @@ class GCEClient:
             f'    AND (protoPayload.methodName:"oslogin" OR jsonPayload.event_subtype="compute.instances.osLogin")\n'
             f'  )\n'
             f')\n'
+            f'AND NOT protoPayload.authenticationInfo.principalEmail="vm-stopper-sa@{project_id}.iam.gserviceaccount.com"\n'
+            f'AND NOT protoPayload.authenticationInfo.principalEmail="vm-stopper-sched@{project_id}.iam.gserviceaccount.com"\n'
             f'AND timestamp >= "{cutoff_iso}"'
         )
 

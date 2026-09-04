@@ -114,19 +114,55 @@ class CleanerConfig:
             raise ValueError(f"max_workers must be positive, got {self.max_workers}")
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "CleanerConfig":
-        """Construct CleanerConfig from a raw dictionary with fallbacks."""
-        # 1. Resolve Project ID: data -> env vars -> ADC
-        project_id = (
-            data.get("project")
-            or data.get("project_id")
-            or data.get("projectId")
-            or data.get("gcp_project")
-            or os.environ.get("PROJECT_ID")
-            or os.environ.get("GOOGLE_CLOUD_PROJECT")
-            or os.environ.get("GCP_PROJECT")
-            or os.environ.get("GCLOUD_PROJECT")
+    def from_request(
+        cls,
+        request: Any = None,
+        request_data: Optional[Dict[str, Any]] = None,
+        query_args: Optional[Dict[str, Any]] = None,
+        env: Optional[Dict[str, str]] = None,
+    ) -> "CleanerConfig":
+        """Resolve configuration hierarchically from JSON body, query params, env, and ADC."""
+        req = dict(request_data) if request_data else {}
+        args = dict(query_args) if query_args else {}
+
+        if request is not None:
+            if hasattr(request, "get_json"):
+                try:
+                    json_payload = request.get_json(silent=True)
+                    if isinstance(json_payload, dict):
+                        req = {**json_payload, **req}
+                except Exception:
+                    pass
+            elif isinstance(request, dict):
+                req = {**request, **req}
+
+            if hasattr(request, "args") and request.args:
+                try:
+                    args = {**dict(request.args), **args}
+                except Exception:
+                    pass
+
+        environ = env if env is not None else os.environ
+
+        def _get_val(key_names: List[str], env_names: Optional[List[str]] = None) -> Any:
+            for k in key_names:
+                if k in req and req[k] is not None:
+                    return req[k]
+            for k in key_names:
+                if k in args and args[k] is not None:
+                    return args[k]
+            if env_names:
+                for ek in env_names:
+                    if ek in environ and environ[ek] is not None and str(environ[ek]).strip():
+                        return environ[ek]
+            return None
+
+        # 1. Resolve Project ID
+        raw_project = _get_val(
+            ["project", "project_id", "projectId", "gcp_project"],
+            ["PROJECT_ID", "GOOGLE_CLOUD_PROJECT", "GCP_PROJECT", "GCLOUD_PROJECT"],
         )
+        project_id = str(raw_project).strip() if raw_project else ""
 
         if not project_id:
             try:
@@ -137,64 +173,89 @@ class CleanerConfig:
                 logger.debug("Failed to acquire ADC default project: %s", e)
 
         # 2. Resolve delete_idle_days
-        delete_idle_days_raw = data.get("delete_idle_days") or data.get("idle_days") or os.environ.get("DELETE_IDLE_DAYS")
-        delete_idle_days = float(delete_idle_days_raw) if delete_idle_days_raw is not None else 60.0
+        raw_idle_days = _get_val(
+            ["delete_idle_days", "idle_days", "idleDaysThreshold"],
+            ["DELETE_IDLE_DAYS", "IDLE_DAYS"],
+        )
+        delete_idle_days = float(raw_idle_days) if raw_idle_days is not None else 60.0
 
         # 3. Resolve delete_never_used
-        delete_never_used_raw = data.get("delete_never_used")
-        if delete_never_used_raw is None:
-            delete_never_used_raw = os.environ.get("DELETE_NEVER_USED")
-        delete_never_used = _parse_bool(delete_never_used_raw, default=True)
+        raw_never_used = _get_val(
+            ["delete_never_used", "deleteNeverUsed"],
+            ["DELETE_NEVER_USED"],
+        )
+        delete_never_used = _parse_bool(raw_never_used, default=True)
 
         # 4. Resolve max_age_days
-        max_age_days_raw = data.get("max_age_days") or os.environ.get("MAX_AGE_DAYS")
-        max_age_days = float(max_age_days_raw) if max_age_days_raw is not None else 180.0
+        raw_max_age = _get_val(
+            ["max_age_days", "maxAgeDays"],
+            ["MAX_AGE_DAYS"],
+        )
+        max_age_days = float(raw_max_age) if raw_max_age is not None else 180.0
 
         # 5. Resolve lookback_days
-        lookback_days_raw = data.get("lookback_days") or data.get("days") or os.environ.get("LOOKBACK_DAYS")
-        lookback_days = int(lookback_days_raw) if lookback_days_raw is not None else 730
+        raw_lookback = _get_val(
+            ["lookback_days", "days", "lookbackDays"],
+            ["LOOKBACK_DAYS"],
+        )
+        lookback_days = int(raw_lookback) if raw_lookback is not None else 730
 
         # 6. Resolve dry_run
-        dry_run_raw = data.get("dry_run")
-        if dry_run_raw is None:
-            dry_run_raw = os.environ.get("DRY_RUN")
-        dry_run = _parse_bool(dry_run_raw, default=False)
+        raw_dry_run = _get_val(
+            ["dry_run", "dryRun"],
+            ["DRY_RUN"],
+        )
+        dry_run = _parse_bool(raw_dry_run, default=False)
 
         # 7. Resolve max_workers
-        max_workers_raw = data.get("max_workers") or os.environ.get("MAX_WORKERS")
-        max_workers = int(max_workers_raw) if max_workers_raw is not None else 10
+        raw_max_workers = _get_val(
+            ["max_workers", "maxWorkers"],
+            ["MAX_WORKERS"],
+        )
+        max_workers = int(raw_max_workers) if raw_max_workers is not None else 10
 
         # 8. Resolve zones and reservation_names filters
-        zones = _parse_list(data.get("zones") or data.get("zone") or os.environ.get("ZONES"))
-        reservation_names = _parse_list(
-            data.get("reservation_names") or data.get("reservations") or os.environ.get("RESERVATION_NAMES")
+        raw_zones = _get_val(
+            ["zones", "zone"],
+            ["ZONES"],
         )
-        whitelist_names = _parse_list(
-            data.get("whitelist_names") or data.get("whitelist_reservations") or os.environ.get("WHITELIST_NAMES")
+        zones = _parse_list(raw_zones)
+
+        raw_res_names = _get_val(
+            ["reservation_names", "reservations", "reservationNames"],
+            ["RESERVATION_NAMES"],
         )
+        reservation_names = _parse_list(raw_res_names)
+
+        raw_whitelist_names = _get_val(
+            ["whitelist_names", "whitelist_reservations", "whitelistNames"],
+            ["WHITELIST_NAMES"],
+        )
+        whitelist_names = _parse_list(raw_whitelist_names)
 
         # 9. Resolve protection labels and tags
-        excl_keys = _parse_list(
-            data.get("exclude_label_keys")
-            or data.get("exclude_labels")
-            or data.get("whitelist_labels")
-            or os.environ.get("EXCLUDE_LABEL_KEYS")
+        raw_excl_keys = _get_val(
+            ["exclude_label_keys", "exclude_labels", "whitelist_labels", "excludeLabelKeys"],
+            ["EXCLUDE_LABEL_KEYS"],
         )
+        excl_keys = _parse_list(raw_excl_keys)
         exclude_label_keys = excl_keys if excl_keys is not None else list(DEFAULT_EXCLUDE_LABEL_KEYS)
 
-        whitelist_tags_input = _parse_list(
-            data.get("whitelist_tags")
-            or data.get("tags")
-            or os.environ.get("WHITELIST_TAGS")
+        raw_whitelist_tags = _get_val(
+            ["whitelist_tags", "tags", "whitelistTags"],
+            ["WHITELIST_TAGS"],
         )
+        whitelist_tags_input = _parse_list(raw_whitelist_tags)
         whitelist_tags = whitelist_tags_input if whitelist_tags_input is not None else list(DEFAULT_EXCLUDE_LABEL_KEYS)
 
-        exclude_label_values = data.get("exclude_label_values") or {}
-        if not isinstance(exclude_label_values, dict):
-            exclude_label_values = {}
+        raw_exclude_values = _get_val(
+            ["exclude_label_values", "excludeLabelValues"],
+            ["EXCLUDE_LABEL_VALUES"],
+        )
+        exclude_label_values = raw_exclude_values if isinstance(raw_exclude_values, dict) else {}
 
         return cls(
-            project_id=str(project_id) if project_id else "",
+            project_id=str(project_id).strip() if project_id else "",
             delete_idle_days=delete_idle_days,
             delete_never_used=delete_never_used,
             max_age_days=max_age_days,
@@ -210,26 +271,7 @@ class CleanerConfig:
         )
 
     @classmethod
-    def from_request(cls, request: Any) -> "CleanerConfig":
-        """Construct CleanerConfig from a Flask or Functions Framework request."""
-        merged_data: Dict[str, Any] = {}
+    def from_dict(cls, data: Dict[str, Any], env: Optional[Dict[str, str]] = None) -> "CleanerConfig":
+        """Construct CleanerConfig from a raw dictionary with fallbacks."""
+        return cls.from_request(request_data=data, env=env)
 
-        # 1. Query parameters
-        if hasattr(request, "args") and request.args:
-            merged_data.update(dict(request.args))
-
-        # 2. JSON request body (higher precedence than query args)
-        if request is not None:
-            try:
-                if hasattr(request, "is_json") and request.is_json:
-                    json_payload = request.get_json(silent=True)
-                    if isinstance(json_payload, dict):
-                        merged_data.update(json_payload)
-                elif hasattr(request, "get_json"):
-                    json_payload = request.get_json(silent=True)
-                    if isinstance(json_payload, dict):
-                        merged_data.update(json_payload)
-            except Exception as e:
-                logger.debug("Could not parse request JSON payload: %s", e)
-
-        return cls.from_dict(merged_data)
