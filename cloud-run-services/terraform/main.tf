@@ -337,13 +337,14 @@ resource "google_cloud_run_v2_service_iam_member" "vm_stopper_invoker" {
 
 # 1. GKE Cluster Scaler Scheduler Job
 resource "google_cloud_scheduler_job" "cluster_scaler" {
-  count       = var.enable_cluster_scaler ? 1 : 0
-  name        = var.cluster_scaler_schedule_name
-  description = "Trigger GKE Cluster Scaler to evaluate and resize idle GKE cluster node pools"
-  schedule    = var.cluster_scaler_schedule
-  time_zone   = var.time_zone
-  project     = var.project_id
-  region      = var.region
+  count            = var.enable_cluster_scaler ? 1 : 0
+  name             = var.cluster_scaler_schedule_name
+  description      = "Trigger GKE Cluster Scaler to evaluate and resize idle GKE cluster node pools"
+  schedule         = var.cluster_scaler_schedule
+  time_zone        = var.time_zone
+  project          = var.project_id
+  region           = var.region
+  attempt_deadline = "540s"
 
   http_target {
     http_method = "POST"
@@ -368,13 +369,14 @@ resource "google_cloud_scheduler_job" "cluster_scaler" {
 
 # 2. GCE Reservation Cleaner Scheduler Job
 resource "google_cloud_scheduler_job" "reservation_cleaner" {
-  count       = var.enable_reservation_cleaner ? 1 : 0
-  name        = var.reservation_cleaner_schedule_name
-  description = "Trigger GCE Reservation Cleaner to evaluate and delete stale compute reservations"
-  schedule    = var.reservation_cleaner_schedule
-  time_zone   = var.time_zone
-  project     = var.project_id
-  region      = var.region
+  count            = var.enable_reservation_cleaner ? 1 : 0
+  name             = var.reservation_cleaner_schedule_name
+  description      = "Trigger GCE Reservation Cleaner to evaluate and delete stale compute reservations"
+  schedule         = var.reservation_cleaner_schedule
+  time_zone        = var.time_zone
+  project          = var.project_id
+  region           = var.region
+  attempt_deadline = "540s"
 
   http_target {
     http_method = "POST"
@@ -402,13 +404,14 @@ resource "google_cloud_scheduler_job" "reservation_cleaner" {
 
 # 3. GCE VM Stopper Scheduler Job
 resource "google_cloud_scheduler_job" "vm_stopper" {
-  count       = var.enable_vm_stopper ? 1 : 0
-  name        = var.vm_stopper_schedule_name
-  description = "Trigger GCE VM Stopper to evaluate and stop idle compute engine instances"
-  schedule    = var.vm_stopper_schedule
-  time_zone   = var.time_zone
-  project     = var.project_id
-  region      = var.region
+  count            = var.enable_vm_stopper ? 1 : 0
+  name             = var.vm_stopper_schedule_name
+  description      = "Trigger GCE VM Stopper to evaluate and stop idle compute engine instances"
+  schedule         = var.vm_stopper_schedule
+  time_zone        = var.time_zone
+  project          = var.project_id
+  region           = var.region
+  attempt_deadline = "540s"
 
   http_target {
     http_method = "POST"
