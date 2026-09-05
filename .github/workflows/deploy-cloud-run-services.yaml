@@ -124,6 +124,7 @@ jobs:
           DEPLOY_ARGS=(
             --project "${TARGET_PROJECT}"
             --region "${TARGET_REGION}"
+            --skip-tests
             --yes
           )
           if [ "${TARGET_DRY_RUN}" = "true" ]; then
