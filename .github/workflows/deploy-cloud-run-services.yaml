@@ -1,0 +1,142 @@
+# Copyright 2026 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Cloud Run Services CI/CD
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'cloud-run-services/**'
+      - '.github/workflows/deploy-cloud-run-services.yaml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'cloud-run-services/**'
+      - '.github/workflows/deploy-cloud-run-services.yaml'
+  workflow_dispatch:
+    inputs:
+      project_id:
+        description: 'Google Cloud Project ID'
+        required: true
+        default: 'gcs-fuse-test-ml'
+      region:
+        description: 'Google Cloud Region'
+        required: true
+        default: 'us-central1'
+      dry_run:
+        description: 'Dry Run mode (true/false)'
+        required: false
+        default: 'false'
+        type: string
+
+concurrency:
+  group: cloud-run-services-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  test:
+    name: Pre-deployment Test Gating
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest
+          pip install -r cloud-run-services/cluster-scaler/requirements.txt
+          pip install -r cloud-run-services/gcsfuse-reservation-cleaner/requirements.txt
+          pip install -r cloud-run-services/vm-stopper/requirements.txt
+
+      - name: Run cluster-scaler unit tests
+        run: |
+          python -m unittest discover -s cloud-run-services/cluster-scaler/tests -v
+
+      - name: Run gcsfuse-reservation-cleaner unit tests
+        run: |
+          python -m unittest discover -s cloud-run-services/gcsfuse-reservation-cleaner/tests -v
+
+      - name: Run vm-stopper unit tests
+        run: |
+          python -m unittest discover -s cloud-run-services/vm-stopper/tests -v
+
+      - name: Run stress test verification suite
+        run: |
+          cd cloud-run-services
+          PYTHONPATH="cluster-scaler:gcsfuse-reservation-cleaner:vm-stopper" python verify_stress_tests.py
+
+      - name: Run deployment artifact verification suite
+        run: |
+          cd cloud-run-services
+          python verify_deployment_artifacts.py
+
+  deploy:
+    name: Continuous Deployment to Cloud Run & Terraform
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          version: '>= 450.0.0'
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: '1.7.0'
+
+      - name: Build and deploy services from source
+        env:
+          TARGET_PROJECT: ${{ github.event.inputs.project_id || 'gcs-fuse-test-ml' }}
+          TARGET_REGION: ${{ github.event.inputs.region || 'us-central1' }}
+          TARGET_DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
+        run: |
+          echo "=== Deploying Cloud Run automation services from source ==="
+          ./cloud-run-services/deploy_all.sh \
+            --project "${TARGET_PROJECT}" \
+            --region "${TARGET_REGION}" \
+            --dry-run "${TARGET_DRY_RUN}" \
+            --yes
+
+      - name: Reconcile declarative Terraform infrastructure
+        env:
+          TARGET_PROJECT: ${{ github.event.inputs.project_id || 'gcs-fuse-test-ml' }}
+          TARGET_REGION: ${{ github.event.inputs.region || 'us-central1' }}
+          TARGET_DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
+        run: |
+          echo "=== Applying Terraform infrastructure reconciliation ==="
+          cd cloud-run-services/terraform
+          terraform init
+          terraform apply -auto-approve \
+            -var="project_id=${TARGET_PROJECT}" \
+            -var="region=${TARGET_REGION}" \
+            -var="dry_run=${TARGET_DRY_RUN}"

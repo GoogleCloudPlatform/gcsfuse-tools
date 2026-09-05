@@ -14,6 +14,10 @@
 
 terraform {
   required_version = ">= 1.0"
+  backend "gcs" {
+    bucket = "gcs-fuse-test-ml-tfstate"
+    prefix = "cloud-run-services"
+  }
   required_providers {
     google = {
       source  = "hashicorp/google"
@@ -349,11 +353,11 @@ resource "google_cloud_scheduler_job" "cluster_scaler" {
   http_target {
     http_method = "POST"
     uri         = google_cloud_run_v2_service.cluster_scaler[0].uri
-    body = jsonencode({
+    body = base64encode(jsonencode({
       project             = var.project_id
       idle_days_threshold = var.cluster_scaler_idle_days_threshold
       dry_run             = var.dry_run
-    })
+    }))
     headers = {
       "Content-Type" = "application/json"
     }
@@ -381,14 +385,14 @@ resource "google_cloud_scheduler_job" "reservation_cleaner" {
   http_target {
     http_method = "POST"
     uri         = google_cloud_run_v2_service.reservation_cleaner[0].uri
-    body = jsonencode({
+    body = base64encode(jsonencode({
       project           = var.project_id
       delete_idle_days  = var.reservation_cleaner_delete_idle_days
       delete_never_used = var.reservation_cleaner_delete_never_used
       max_age_days      = var.reservation_cleaner_max_age_days
       lookback_days     = var.reservation_cleaner_lookback_days
       dry_run           = var.dry_run
-    })
+    }))
     headers = {
       "Content-Type" = "application/json"
     }
@@ -416,13 +420,13 @@ resource "google_cloud_scheduler_job" "vm_stopper" {
   http_target {
     http_method = "POST"
     uri         = google_cloud_run_v2_service.vm_stopper[0].uri
-    body = jsonencode({
+    body = base64encode(jsonencode({
       project                = var.project_id
       idle_days_threshold    = var.vm_stopper_idle_days_threshold
       stopped_days_threshold = var.vm_stopper_stopped_days_threshold
       delete_stopped_vms     = var.vm_stopper_delete_stopped_vms
       dry_run                = var.dry_run
-    })
+    }))
     headers = {
       "Content-Type" = "application/json"
     }

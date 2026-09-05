@@ -213,7 +213,29 @@ gcloud projects add-iam-policy-binding app-project-1 \
 
 ---
 
-## 7. Teardown
+## 7. Remote State Backend & CI/CD Continuous Deployment
+
+### Remote State Backend (GCS)
+Terraform state is stored remotely with state locking in Google Cloud Storage:
+```hcl
+terraform {
+  backend "gcs" {
+    bucket = "gcs-fuse-test-ml-tfstate"
+    prefix = "cloud-run-services"
+  }
+}
+```
+
+### Continuous Deployment via GitHub Actions
+Continuous deployment from source is configured via [`.github/workflows/deploy-cloud-run-services.yaml`](file:///.github/workflows/deploy-cloud-run-services.yaml):
+- **Trigger**: Automatically runs on push to `main` when files under `cloud-run-services/**` are modified, or on manual trigger (`workflow_dispatch`).
+- **Test Gating**: Executes all unit tests, stress verification tests, and artifact linting.
+- **Source Compilation & Deployment**: Invokes `deploy_all.sh` to compile container images and deploy Cloud Run services.
+- **Declarative Reconciliation**: Executes `terraform apply` to ensure all IAM roles, Schedulers, and services match the declarative Terraform definitions.
+
+---
+
+## 8. Teardown
 
 To delete all provisioned Cloud Run services, IAM role bindings, and Cloud Scheduler triggers:
 ```bash
