@@ -121,11 +121,15 @@ jobs:
           TARGET_DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
         run: |
           echo "=== Deploying Cloud Run automation services from source ==="
-          ./cloud-run-services/deploy_all.sh \
-            --project "${TARGET_PROJECT}" \
-            --region "${TARGET_REGION}" \
-            --dry-run "${TARGET_DRY_RUN}" \
+          DEPLOY_ARGS=(
+            --project "${TARGET_PROJECT}"
+            --region "${TARGET_REGION}"
             --yes
+          )
+          if [ "${TARGET_DRY_RUN}" = "true" ]; then
+            DEPLOY_ARGS+=(--dry-run)
+          fi
+          ./cloud-run-services/deploy_all.sh "${DEPLOY_ARGS[@]}"
 
       - name: Reconcile declarative Terraform infrastructure
         env:
