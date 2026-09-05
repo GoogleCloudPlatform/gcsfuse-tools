@@ -455,6 +455,7 @@ deploy_scheduler() {
     --message-body "${payload}"
     --oidc-service-account-email "${SCHEDULER_SA_EMAIL}"
     --oidc-token-audience "${SERVICE_URL}"
+    --attempt-deadline "540s"
   )
 
   if [[ "${DRY_RUN}" == "true" ]]; then
