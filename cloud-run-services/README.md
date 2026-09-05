@@ -169,7 +169,7 @@ The automation suite implements strict least-privilege separation of duties betw
 | | Runtime (Runner SA) | `cluster-scaler-sa@${PROJECT_ID}.iam.gserviceaccount.com` | `roles/logging.logWriter` | Emits structured JSON logs to Cloud Logging. |
 | | In-Cluster RBAC | GKE Control Plane | `ClusterRole` / `ClusterRoleBinding` | Grants Runner SA permission to list pods across namespaces via Kubernetes API. |
 | | Invoker (Scheduler SA) | `cluster-scaler-sched@${PROJECT_ID}.iam.gserviceaccount.com` | `roles/run.invoker` | Authorizes Cloud Scheduler to generate OIDC tokens to invoke Cloud Run. |
-| **`gcsfuse-reservation-cleaner`** | Runtime (Runner SA) | `gcsfuse-res-cleaner-sa@${PROJECT_ID}.iam.gserviceaccount.com` | `roles/compute.instanceAdmin.v1` | Required to discover aggregated reservations and delete stale reservations. |
+| **`gcsfuse-reservation-cleaner`** | Runtime (Runner SA) | `gcsfuse-res-cleaner-sa@${PROJECT_ID}.iam.gserviceaccount.com` | `roles/compute.admin` | Required to discover aggregated reservations and delete stale reservations. |
 | | Runtime (Runner SA) | `gcsfuse-res-cleaner-sa@${PROJECT_ID}.iam.gserviceaccount.com` | `roles/monitoring.viewer` | Required to read utilization metrics from `compute.googleapis.com/reservation/used`. |
 | | Runtime (Runner SA) | `gcsfuse-res-cleaner-sa@${PROJECT_ID}.iam.gserviceaccount.com` | `roles/logging.logWriter` | Emits structured JSON logs to Cloud Logging. |
 | | Invoker (Scheduler SA) | `gcsfuse-res-cleaner-sched@${PROJECT_ID}.iam.gserviceaccount.com` | `roles/run.invoker` | Authorizes Cloud Scheduler to invoke the Cloud Run endpoint. |
@@ -180,7 +180,7 @@ The automation suite implements strict least-privilege separation of duties betw
 
 > [!NOTE]
 > **Predefined vs. Custom IAM Roles**:
-> Predefined Google Cloud roles (`roles/container.admin`, `roles/compute.instanceAdmin.v1`) are configured by default for turnkey portability without requiring `roles/iam.roleAdmin` privileges. For enterprise environments requiring custom least-privilege roles, the minimal required permissions are:
+> Predefined Google Cloud roles (`roles/container.admin`, `roles/compute.admin`, `roles/compute.instanceAdmin.v1`) are configured by default for turnkey portability without requiring `roles/iam.roleAdmin` privileges. For enterprise environments requiring custom least-privilege roles, the minimal required permissions are:
 > - **`cluster-scaler`**: `container.clusters.get`, `container.clusters.list`, `container.clusters.update`, `container.nodePools.get`, `container.nodePools.update`, `logging.logEntries.create`.
 > - **`gcsfuse-reservation-cleaner`**: `compute.reservations.get`, `compute.reservations.list`, `compute.reservations.delete`, `monitoring.timeSeries.list`, `logging.logEntries.create`.
 > - **`vm-stopper`**: `compute.instances.get`, `compute.instances.list`, `compute.instances.aggregatedList`, `compute.instances.stop`, `compute.instances.delete`, `logging.logEntries.list`, `logging.logEntries.create`.
@@ -692,7 +692,7 @@ gcloud scheduler jobs resume vm-stopper-scheduler --project <PROJECT_ID> --locat
 
 | Symptom / Error | Root Cause | Remediation Procedure |
 | :--- | :--- | :--- |
-| `HTTP 403 Forbidden` / `PermissionDenied` | Runner SA lacks required IAM role in target project. | Verify IAM bindings: grant `roles/container.admin` for `cluster-scaler`, `roles/compute.instanceAdmin.v1` and `roles/monitoring.viewer` for `reservation-cleaner`, or `roles/compute.instanceAdmin.v1` and `roles/logging.viewer` for `vm-stopper`. |
+| `HTTP 403 Forbidden` / `PermissionDenied` | Runner SA lacks required IAM role in target project. | Verify IAM bindings: grant `roles/container.admin` for `cluster-scaler`, `roles/compute.admin` and `roles/monitoring.viewer` for `reservation-cleaner`, or `roles/compute.instanceAdmin.v1` and `roles/logging.viewer` for `vm-stopper`. |
 | `HTTP 401 Unauthorized` on Scheduler Trigger | Scheduler SA lacks `roles/run.invoker` or OIDC token audience mismatch. | Confirm Cloud Scheduler job has `--oidc-service-account-email` configured and granted `roles/run.invoker` on the Cloud Run service. |
 | Node pool resized back to original size immediately | GKE Cluster Autoscaler is enabled and recreated nodes. | `cluster-scaler` automatically adjusts `min_node_count=0` before resizing. If managed by external GitOps (e.g. Terraform/Config Sync), ensure GitOps reconciler does not override min node size. |
 | Active VM accidentally stopped | Cloud Logging permission failure or missing whitelist label. | Apply `keep-alive: true` label or add network tag `keep-alive` to exempt instance permanently. Check Cloud Logging viewer permissions on Runner SA. |

@@ -167,7 +167,7 @@ steps:
 
         declare -A SA_ROLES=(
           ["${_CLUSTER_SCALER_SA}"]="roles/container.admin roles/logging.logWriter"
-          ["${_CLEANER_SA}"]="roles/compute.instanceAdmin.v1 roles/monitoring.viewer roles/logging.logWriter"
+          ["${_CLEANER_SA}"]="roles/compute.admin roles/monitoring.viewer roles/logging.logWriter"
           ["${_VM_STOPPER_SA}"]="roles/compute.instanceAdmin.v1 roles/logging.viewer roles/logging.logWriter"
         )
         SCHED_SAS=("${_CLUSTER_SCALER_SCHEDULER_SA}" "${_CLEANER_SCHEDULER_SA}" "${_VM_STOPPER_SCHEDULER_SA}")

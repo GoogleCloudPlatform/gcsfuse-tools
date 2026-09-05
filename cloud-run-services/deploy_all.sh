@@ -598,7 +598,7 @@ deploy_service() {
     gcsfuse-reservation-cleaner)
       default_runner_sa_name="gcsfuse-res-cleaner-sa"
       default_sched_sa_name="gcsfuse-res-cleaner-sched"
-      iam_roles=("roles/compute.instanceAdmin.v1" "roles/monitoring.viewer" "roles/logging.logWriter")
+      iam_roles=("roles/compute.admin" "roles/monitoring.viewer" "roles/logging.logWriter")
       cron_schedule="${CLEANER_SCHEDULE}"
       ;;
     vm-stopper)

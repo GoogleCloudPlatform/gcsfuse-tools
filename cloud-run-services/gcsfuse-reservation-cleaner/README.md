@@ -122,7 +122,7 @@ The service uses least-privilege separation of duties between the **Runner Servi
 
 | Identity / Service Account | Granted IAM Role | Target Resource | Purpose / Justification |
 | :--- | :--- | :--- | :--- |
-| **Runner SA**<br/>`gcsfuse-res-cleaner-sa@${PROJECT_ID}.iam.gserviceaccount.com` | `roles/compute.instanceAdmin.v1` | GCP Project | Required to discover aggregated reservations and delete stale reservations. |
+| **Runner SA**<br/>`gcsfuse-res-cleaner-sa@${PROJECT_ID}.iam.gserviceaccount.com` | `roles/compute.admin` | GCP Project | Required to discover aggregated reservations and delete stale reservations. |
 | **Runner SA**<br/>`gcsfuse-res-cleaner-sa@${PROJECT_ID}.iam.gserviceaccount.com` | `roles/monitoring.viewer` | GCP Project | Required to query time-series utilization metrics from Cloud Monitoring. |
 | **Scheduler SA**<br/>`gcsfuse-res-cleaner-sched@${PROJECT_ID}.iam.gserviceaccount.com` | `roles/run.invoker` | Cloud Run Service | Required to generate authenticated OIDC tokens to trigger the service endpoint. |
 

@@ -53,7 +53,7 @@ locals {
     "roles/logging.logWriter",
   ]
   reservation_cleaner_runner_roles = [
-    "roles/compute.instanceAdmin.v1",
+    "roles/compute.admin",
     "roles/monitoring.viewer",
     "roles/logging.logWriter",
   ]

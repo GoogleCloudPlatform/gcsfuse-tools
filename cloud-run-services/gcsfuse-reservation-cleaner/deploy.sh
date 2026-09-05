@@ -357,7 +357,7 @@ setup_service_accounts() {
 
   # Assign required roles to Runner SA
   local runner_roles=(
-    "roles/compute.instanceAdmin.v1"
+    "roles/compute.admin"
     "roles/monitoring.viewer"
     "roles/logging.logWriter"
   )

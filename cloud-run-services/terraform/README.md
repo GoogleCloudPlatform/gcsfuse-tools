@@ -197,7 +197,7 @@ gcloud projects add-iam-policy-binding app-project-1 \
 # Reservation Cleaner Runner SA in target project
 gcloud projects add-iam-policy-binding app-project-1 \
   --member="serviceAccount:gcsfuse-res-cleaner-sa@tooling-project.iam.gserviceaccount.com" \
-  --role="roles/compute.instanceAdmin.v1"
+  --role="roles/compute.admin"
 gcloud projects add-iam-policy-binding app-project-1 \
   --member="serviceAccount:gcsfuse-res-cleaner-sa@tooling-project.iam.gserviceaccount.com" \
   --role="roles/monitoring.viewer"
