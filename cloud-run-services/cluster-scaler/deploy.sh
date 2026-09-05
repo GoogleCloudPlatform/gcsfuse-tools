@@ -453,6 +453,7 @@ setup_cloud_scheduler() {
     --oidc-service-account-email "${SCHEDULER_SA_EMAIL}"
     --oidc-token-audience "${service_url}"
     --time-zone "UTC"
+    --attempt-deadline "540s"
     --quiet
   )
 

@@ -701,6 +701,7 @@ deploy_service() {
     --message-body="${payload}"
     --oidc-service-account-email="${sched_sa_email}"
     --oidc-token-audience="${service_url}"
+    --attempt-deadline="540s"
   )
 
   if [[ "${DRY_RUN}" == "true" ]]; then
