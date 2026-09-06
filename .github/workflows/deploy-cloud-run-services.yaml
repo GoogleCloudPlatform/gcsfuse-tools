@@ -1,0 +1,77 @@
+# Copyright 2026 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Cloud Run Services CI
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'cloud-run-services/**'
+      - '.github/workflows/deploy-cloud-run-services.yaml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'cloud-run-services/**'
+      - '.github/workflows/deploy-cloud-run-services.yaml'
+  workflow_dispatch:
+
+concurrency:
+  group: cloud-run-services-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Unit, Stress & Artifact Verification Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest
+          pip install -r cloud-run-services/cluster-scaler/requirements.txt
+          pip install -r cloud-run-services/gcsfuse-reservation-cleaner/requirements.txt
+          pip install -r cloud-run-services/vm-stopper/requirements.txt
+
+      - name: Run cluster-scaler unit tests
+        run: |
+          python -m unittest discover -s cloud-run-services/cluster-scaler/tests -v
+
+      - name: Run gcsfuse-reservation-cleaner unit tests
+        run: |
+          python -m unittest discover -s cloud-run-services/gcsfuse-reservation-cleaner/tests -v
+
+      - name: Run vm-stopper unit tests
+        run: |
+          python -m unittest discover -s cloud-run-services/vm-stopper/tests -v
+
+      - name: Run stress test verification suite
+        run: |
+          cd cloud-run-services
+          PYTHONPATH="cluster-scaler:gcsfuse-reservation-cleaner:vm-stopper" python verify_stress_tests.py
+
+      - name: Run deployment artifact verification suite
+        run: |
+          cd cloud-run-services
+          python verify_deployment_artifacts.py

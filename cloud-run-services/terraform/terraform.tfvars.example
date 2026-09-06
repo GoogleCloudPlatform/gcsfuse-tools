@@ -1,0 +1,91 @@
+# ==============================================================================
+# Sample Terraform Variables for Google Cloud Run Services & Schedulers
+# ==============================================================================
+# Copy this file to terraform.tfvars and customize with your GCP settings:
+#   cp terraform.tfvars.example terraform.tfvars
+# ==============================================================================
+
+# Target Google Cloud Project ID (Required)
+project_id = "my-gcp-governance-project"
+
+# Deployment Region for Cloud Run and Cloud Scheduler
+region = "us-central1"
+
+# Timezone for Cloud Scheduler Cron Triggers
+time_zone = "UTC"
+
+# Global Dry-Run Mode
+# When true, services perform read-only evaluations without modifying/stopping/deleting resources
+dry_run = false
+
+# Service Account Management
+# When true, Terraform automatically provisions dedicated least-privilege Service Accounts
+# When false, provide custom SA emails in the corresponding variables below
+create_service_accounts = true
+
+# Artifact Registry Repository Name
+artifact_registry_repo = "gcsfuse-tools"
+
+# Cloud Run Ingress Policy
+# Options: "INGRESS_TRAFFIC_ALL" (public HTTPS with IAM auth) or "INGRESS_TRAFFIC_INTERNAL_ONLY"
+ingress = "INGRESS_TRAFFIC_ALL"
+
+# ==============================================================================
+# Service Activation Toggles
+# ==============================================================================
+enable_cluster_scaler       = true
+enable_reservation_cleaner  = true
+enable_vm_stopper           = true
+
+# ==============================================================================
+# 1. GKE Cluster Scaler Settings
+# ==============================================================================
+cluster_scaler_service_name        = "cluster-scaler"
+cluster_scaler_schedule_name       = "cluster-scaler-scheduler"
+cluster_scaler_schedule            = "0 2 * * *"  # Daily at 02:00 UTC
+cluster_scaler_idle_days_threshold = 7            # Days before resizing idle standard pools to 0
+cluster_scaler_max_workers         = 10
+
+# Optional Container Image Override (if not using standard Artifact Registry path)
+# cluster_scaler_image = "us-central1-docker.pkg.dev/my-gcp-governance-project/gcsfuse-tools/cluster-scaler:v1.0.0"
+
+# Optional Service Account Email Overrides (used when create_service_accounts = false)
+# cluster_scaler_runner_sa_email    = "custom-scaler-sa@my-gcp-governance-project.iam.gserviceaccount.com"
+# cluster_scaler_scheduler_sa_email = "custom-scaler-sched@my-gcp-governance-project.iam.gserviceaccount.com"
+
+# ==============================================================================
+# 2. GCE Reservation Cleaner Settings
+# ==============================================================================
+reservation_cleaner_service_name      = "gcsfuse-reservation-cleaner"
+reservation_cleaner_schedule_name     = "gcsfuse-reservation-cleaner-scheduler"
+reservation_cleaner_schedule          = "0 0 1 * *" # Monthly on 1st at 00:00 UTC
+reservation_cleaner_delete_idle_days  = 60          # Continuous 0-utilization days before deletion
+reservation_cleaner_delete_never_used = true        # Delete reservations never utilized since creation
+reservation_cleaner_max_age_days      = 180         # Maximum reservation lifetime in days
+reservation_cleaner_lookback_days     = 730         # Cloud Monitoring metric history window (days)
+reservation_cleaner_max_workers       = 10
+
+# Optional Container Image Override
+# reservation_cleaner_image = "us-central1-docker.pkg.dev/my-gcp-governance-project/gcsfuse-tools/gcsfuse-reservation-cleaner:v1.0.0"
+
+# Optional Service Account Email Overrides (used when create_service_accounts = false)
+# reservation_cleaner_runner_sa_email    = "custom-cleaner-sa@my-gcp-governance-project.iam.gserviceaccount.com"
+# reservation_cleaner_scheduler_sa_email = "custom-cleaner-sched@my-gcp-governance-project.iam.gserviceaccount.com"
+
+# ==============================================================================
+# 3. GCE VM Stopper Settings
+# ==============================================================================
+vm_stopper_service_name            = "vm-stopper"
+vm_stopper_schedule_name           = "vm-stopper-scheduler"
+vm_stopper_schedule                = "0 20 * * *" # Daily at 20:00 UTC
+vm_stopper_idle_days_threshold     = 7            # Inactivity days before stopping running VMs
+vm_stopper_stopped_days_threshold  = 90           # Days in STOPPED state before potential deletion
+vm_stopper_delete_stopped_vms      = false        # Safety: set to true only if permanent deletion desired
+vm_stopper_max_workers             = 20
+
+# Optional Container Image Override
+# vm_stopper_image = "us-central1-docker.pkg.dev/my-gcp-governance-project/gcsfuse-tools/vm-stopper:v1.0.0"
+
+# Optional Service Account Email Overrides (used when create_service_accounts = false)
+# vm_stopper_runner_sa_email    = "custom-stopper-sa@my-gcp-governance-project.iam.gserviceaccount.com"
+# vm_stopper_scheduler_sa_email = "custom-stopper-sched@my-gcp-governance-project.iam.gserviceaccount.com"
