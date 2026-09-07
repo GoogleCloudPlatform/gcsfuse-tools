@@ -41,7 +41,7 @@ APP_NAME="gcsfuse-reservation-cleaner"
 REPO_NAME="${REPO_NAME:-gcsfuse-tools}"
 SERVICE_NAME="${SERVICE_NAME:-${APP_NAME}}"
 SCHEDULE_NAME="${SCHEDULE_NAME:-${APP_NAME}-scheduler}"
-CRON_SCHEDULE="${CRON_SCHEDULE:-0 0 1 * *}"
+CRON_SCHEDULE="${CRON_SCHEDULE:-0 0 * * *}"
 
 # Service Accounts
 RUNNER_SA_NAME="${RUNNER_SA_NAME:-gcsfuse-res-cleaner-sa}"

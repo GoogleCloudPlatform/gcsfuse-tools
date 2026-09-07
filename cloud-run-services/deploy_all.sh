@@ -106,7 +106,7 @@ NO_GRANT_ROLES="${NO_GRANT_ROLES:-false}"
 
 # Cron Schedules
 CLUSTER_SCALER_SCHEDULE="${CLUSTER_SCALER_SCHEDULE:-0 2 * * *}"
-CLEANER_SCHEDULE="${CLEANER_SCHEDULE:-0 0 1 * *}"
+CLEANER_SCHEDULE="${CLEANER_SCHEDULE:-0 0 * * *}"
 VM_STOPPER_SCHEDULE="${VM_STOPPER_SCHEDULE:-0 20 * * *}"
 
 # Parameters
@@ -142,7 +142,7 @@ Options:
 
 Schedule Customization:
       --cluster-scaler-schedule CRON    Cron schedule for cluster-scaler (Default: "0 2 * * *")
-      --cleaner-schedule CRON           Cron schedule for reservation-cleaner (Default: "0 0 1 * *")
+      --cleaner-schedule CRON           Cron schedule for reservation-cleaner (Default: "0 0 * * *")
       --vm-stopper-schedule CRON        Cron schedule for vm-stopper (Default: "0 20 * * *")
   -t, --threshold DAYS                  Idle days threshold for cluster-scaler (Default: 7)
 

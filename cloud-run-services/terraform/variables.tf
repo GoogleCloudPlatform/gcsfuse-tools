@@ -149,8 +149,8 @@ variable "reservation_cleaner_schedule_name" {
 
 variable "reservation_cleaner_schedule" {
   type        = string
-  description = "Cron schedule expression for GCE Reservation Cleaner (default: monthly on 1st at 00:00 UTC)."
-  default     = "0 0 1 * *"
+  description = "Cron schedule expression for GCE Reservation Cleaner (default: daily at 00:00 UTC)."
+  default     = "0 0 * * *"
 }
 
 variable "reservation_cleaner_image" {

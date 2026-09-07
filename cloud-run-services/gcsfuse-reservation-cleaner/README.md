@@ -27,7 +27,7 @@ The service follows a decoupled three-tier serverless architecture:
 ```mermaid
 flowchart TD
     subgraph Invocation Tier
-        Sched[Cloud Scheduler\nCron: 0 0 1 * *]
+        Sched[Cloud Scheduler\nCron: 0 0 * * *]
     end
 
     subgraph Execution Tier
@@ -191,7 +191,7 @@ Usage: deploy.sh [OPTIONS]
 Options:
   -p, --project PROJECT_ID          Target GCP Project ID (Required if not set via PROJECT_ID env var)
   -r, --region REGION               GCP Region for Cloud Run & Scheduler (Default: us-central1)
-  -s, --schedule CRON_SCHEDULE      Cron schedule expression (Default: "0 0 1 * *")
+  -s, --schedule CRON_SCHEDULE      Cron schedule expression (Default: "0 0 * * *")
   -a, --service-account EMAIL       Runtime Service Account email for Cloud Run
       --scheduler-sa EMAIL          Invocation Service Account email for Cloud Scheduler
   -d, --dry-run                     Configure default scheduler payload in dry-run mode (Default: false)

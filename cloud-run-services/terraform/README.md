@@ -102,7 +102,7 @@ terraform apply tfplan
 | `cluster_scaler_scheduler_sa_email` | `string` | `""` | No | Existing Invoker SA email (used when `create_service_accounts = false`). |
 | `reservation_cleaner_service_name` | `string` | `"gcsfuse-reservation-cleaner"` | No | Cloud Run service name for GCE Reservation Cleaner. |
 | `reservation_cleaner_schedule_name` | `string` | `"gcsfuse-reservation-cleaner-scheduler"` | No | Cloud Scheduler job name for GCE Reservation Cleaner. |
-| `reservation_cleaner_schedule` | `string` | `"0 0 1 * *"` | No | Cron schedule for Reservation Cleaner (Monthly on 1st at 00:00 UTC). |
+| `reservation_cleaner_schedule` | `string` | `"0 0 * * *"` | No | Cron schedule for Reservation Cleaner (Daily at 00:00 UTC). |
 | `reservation_cleaner_image` | `string` | `""` | No | Container image URL override for Reservation Cleaner. |
 | `reservation_cleaner_delete_idle_days` | `number` | `60` | No | Days of continuous 0-utilization before an unused reservation is deleted. |
 | `reservation_cleaner_delete_never_used` | `bool` | `true` | No | Whether to delete reservations never used since creation. |
