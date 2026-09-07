@@ -695,6 +695,22 @@ class TestGCEClientAndCloudLogging(unittest.TestCase):
         mock_op.result.assert_called_once_with(timeout=300)
 
     @patch("stopper.gce_client.compute_v1.InstancesClient")
+    def test_stop_instance_local_ssd_error_no_retry_when_discard_local_ssd_true(self, mock_instances_cls):
+        mock_instances_client = MagicMock()
+        mock_instances_cls.return_value = mock_instances_client
+        self.client._instances_client = mock_instances_client
+
+        mock_instances_client.stop.side_effect = Exception(
+            "400 POST https://compute.googleapis.com/compute/v1/projects/gcs-fuse-test/zones/us-west4-a/instances/abhishek-west4a-zb/stop: "
+            "VM has a Local SSD attached but an undefined value for `discard-local-ssd`."
+        )
+
+        with self.assertRaises(Exception) as ctx:
+            self.client.stop_instance("gcs-fuse-test", "us-west4-a", "abhishek-west4a-zb", discard_local_ssd=True)
+        self.assertIn("discard-local-ssd", str(ctx.exception))
+        self.assertEqual(mock_instances_client.stop.call_count, 1)
+
+    @patch("stopper.gce_client.compute_v1.InstancesClient")
     def test_stop_instance_unrelated_error_raises_without_retry(self, mock_instances_cls):
         mock_instances_client = MagicMock()
         mock_instances_cls.return_value = mock_instances_client

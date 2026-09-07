@@ -496,22 +496,12 @@ class GCEClient:
             discard_local_ssd=discard_local_ssd,
         )
         try:
-            try:
-                operation = self.instances_client.stop(request=request)
-            except TypeError as type_err:
-                if "request" in str(type_err):
-                    operation = self.instances_client.stop(
-                        project=project_id,
-                        zone=zone,
-                        instance=instance_name,
-                    )
-                else:
-                    raise
+            operation = self.instances_client.stop(request=request)
             if hasattr(operation, "result") and callable(operation.result):
                 operation.result(timeout=300)
         except Exception as exc:
             err_str = str(exc).lower()
-            if "discard-local-ssd" in err_str or "discard_local_ssd" in err_str or "local ssd" in err_str:
+            if not discard_local_ssd and ("discard-local-ssd" in err_str or "discard_local_ssd" in err_str or "local ssd" in err_str):
                 logger.warning(
                     "Stop instance '%s' in zone '%s' failed due to attached Local SSD: %s. "
                     "Retrying stop with discard_local_ssd=True...",
@@ -525,17 +515,7 @@ class GCEClient:
                     instance=instance_name,
                     discard_local_ssd=True,
                 )
-                try:
-                    operation = self.instances_client.stop(request=retry_request)
-                except TypeError as type_err:
-                    if "request" in str(type_err):
-                        operation = self.instances_client.stop(
-                            project=project_id,
-                            zone=zone,
-                            instance=instance_name,
-                        )
-                    else:
-                        raise
+                operation = self.instances_client.stop(request=retry_request)
                 if hasattr(operation, "result") and callable(operation.result):
                     operation.result(timeout=300)
             else:
