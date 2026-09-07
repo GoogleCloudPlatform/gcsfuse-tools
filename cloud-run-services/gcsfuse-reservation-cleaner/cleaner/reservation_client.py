@@ -41,9 +41,9 @@ class ReservationClient:
         http_pool: Optional[urllib3.PoolManager] = None,
         maxsize: int = DEFAULT_POOL_SIZE,
     ):
-        try:
-            parsed_maxsize = int(maxsize) if maxsize is not None else DEFAULT_POOL_SIZE
-        except (ValueError, TypeError):
+        if maxsize is not None:
+            parsed_maxsize = int(float(maxsize))
+        else:
             parsed_maxsize = DEFAULT_POOL_SIZE
 
         if http_pool is not None:

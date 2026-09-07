@@ -233,6 +233,20 @@ class TestCleanerConfig(unittest.TestCase):
             self.assertEqual(cfg_from_env.pool_maxsize, 35)
             self.assertEqual(cfg_from_env.effective_pool_maxsize, 35)
 
+        # Resolution of float strings e.g. "10.0" in CleanerConfig
+        cfg_float_str = CleanerConfig.from_dict({"project_id": "test", "pool_maxsize": "10.0"})
+        self.assertEqual(cfg_float_str.pool_maxsize, 10)
+        self.assertIsInstance(cfg_float_str.pool_maxsize, int)
+
+        with patch.dict(os.environ, {"POOL_MAXSIZE": "15.0"}):
+            cfg_env_float_str = CleanerConfig.from_dict({"project_id": "test"})
+            self.assertEqual(cfg_env_float_str.pool_maxsize, 15)
+            self.assertIsInstance(cfg_env_float_str.pool_maxsize, int)
+
+        # Invalid pool_maxsize string raises ValueError
+        with self.assertRaises(ValueError):
+            CleanerConfig.from_dict({"project_id": "test", "pool_maxsize": "invalid"})
+
     def test_config_from_flask_request(self):
         mock_req = MagicMock()
         mock_req.args = {"project": "query-proj", "delete_idle_days": "15"}
@@ -334,14 +348,25 @@ class TestReservationClient(unittest.TestCase):
         self.assertEqual(client_pool_float.maxsize, 15)
         self.assertIsInstance(client_pool_float.maxsize, int)
 
-        # Verifies None and invalid strings fall back to DEFAULT_POOL_SIZE (10)
+        # Verifies float-like string parameters (e.g. "15.0", "10.0") are parsed correctly
+        client_float_str = ReservationClient(credentials=self.mock_creds, maxsize="15.0")
+        self.assertEqual(client_float_str.maxsize, 15)
+        self.assertIsInstance(client_float_str.maxsize, int)
+        self.assertEqual(client_float_str.http_pool.connection_pool_kw.get("maxsize"), 15)
+
+        client_float_str2 = ReservationClient(credentials=self.mock_creds, maxsize="10.0")
+        self.assertEqual(client_float_str2.maxsize, 10)
+        self.assertIsInstance(client_float_str2.maxsize, int)
+        self.assertEqual(client_float_str2.http_pool.connection_pool_kw.get("maxsize"), 10)
+
+        # Verifies None falls back to DEFAULT_POOL_SIZE (10)
         client_none = ReservationClient(credentials=self.mock_creds, maxsize=None)
         self.assertEqual(client_none.maxsize, 10)
         self.assertEqual(client_none.http_pool.connection_pool_kw.get("maxsize"), 10)
 
-        client_invalid = ReservationClient(credentials=self.mock_creds, maxsize="invalid")
-        self.assertEqual(client_invalid.maxsize, 10)
-        self.assertEqual(client_invalid.http_pool.connection_pool_kw.get("maxsize"), 10)
+        # Verifies invalid non-numeric string raises ValueError rather than silent fallback
+        with self.assertRaises(ValueError):
+            ReservationClient(credentials=self.mock_creds, maxsize="invalid")
 
         # Fallback to DEFAULT_POOL_SIZE when custom pool fallback occurs
         client_pool_none = ReservationClient(
@@ -349,10 +374,14 @@ class TestReservationClient(unittest.TestCase):
         )
         self.assertEqual(client_pool_none.maxsize, 10)
 
-        client_pool_invalid = ReservationClient(
-            credentials=self.mock_creds, http_pool=mock_pool, maxsize="invalid"
+        client_pool_float_str = ReservationClient(
+            credentials=self.mock_creds, http_pool=mock_pool, maxsize="15.0"
         )
-        self.assertEqual(client_pool_invalid.maxsize, 10)
+        self.assertEqual(client_pool_float_str.maxsize, 15)
+        self.assertIsInstance(client_pool_float_str.maxsize, int)
+
+        with self.assertRaises(ValueError):
+            ReservationClient(credentials=self.mock_creds, http_pool=mock_pool, maxsize="invalid")
 
     def test_reservation_client_custom_http_pool_maxsize_extraction(self):
         # Verify that when a custom urllib3.PoolManager(maxsize=42) is passed as http_pool,

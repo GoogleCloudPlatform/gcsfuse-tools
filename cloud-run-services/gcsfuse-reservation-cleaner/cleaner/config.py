@@ -228,7 +228,7 @@ class CleanerConfig:
             ["pool_maxsize", "poolMaxSize", "pool_size", "poolSize"],
             ["POOL_MAXSIZE", "POOL_SIZE"],
         )
-        pool_maxsize = int(raw_pool_maxsize) if raw_pool_maxsize is not None else None
+        pool_maxsize = int(float(raw_pool_maxsize)) if raw_pool_maxsize is not None else None
 
         # 9. Resolve zones and reservation_names filters
         raw_zones = _get_val(
