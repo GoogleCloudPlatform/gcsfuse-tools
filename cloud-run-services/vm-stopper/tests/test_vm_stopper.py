@@ -609,11 +609,10 @@ class TestGCEClientAndCloudLogging(unittest.TestCase):
         _, kwargs = mock_instances_client.stop.call_args
         req = kwargs.get("request")
         self.assertIsNotNone(req)
-        if not isinstance(req, MagicMock):
-            self.assertEqual(req.project, "proj")
-            self.assertEqual(req.zone, "us-central1-a")
-            self.assertEqual(req.instance, "vm-1")
-            self.assertTrue(req.discard_local_ssd)
+        self.assertEqual(req.project, "proj")
+        self.assertEqual(req.zone, "us-central1-a")
+        self.assertEqual(req.instance, "vm-1")
+        self.assertTrue(req.discard_local_ssd)
         mock_op.result.assert_called_once_with(timeout=300)
 
         self.client.delete_instance("proj", "us-central1-a", "vm-2")
@@ -633,11 +632,10 @@ class TestGCEClientAndCloudLogging(unittest.TestCase):
         _, kwargs = mock_instances_client.stop.call_args
         req = kwargs.get("request")
         self.assertIsNotNone(req)
-        if not isinstance(req, MagicMock):
-            self.assertEqual(req.project, "proj")
-            self.assertEqual(req.zone, "us-central1-a")
-            self.assertEqual(req.instance, "vm-1")
-            self.assertFalse(req.discard_local_ssd)
+        self.assertEqual(req.project, "proj")
+        self.assertEqual(req.zone, "us-central1-a")
+        self.assertEqual(req.instance, "vm-1")
+        self.assertFalse(req.discard_local_ssd)
 
     @patch("stopper.gce_client.compute_v1.InstancesClient")
     def test_stop_instance_error_raises(self, mock_instances_cls):
