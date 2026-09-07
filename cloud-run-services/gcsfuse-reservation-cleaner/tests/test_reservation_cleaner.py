@@ -308,6 +308,32 @@ class TestReservationClient(unittest.TestCase):
         self.assertEqual(client_custom.maxsize, 32)
         self.assertEqual(client_custom.http_pool.connection_pool_kw.get("maxsize"), 32)
 
+    def test_reservation_client_maxsize_type_coercion(self):
+        # Verifies string and float maxsize parameters are safely cast to int
+        client_str = ReservationClient(credentials=self.mock_creds, maxsize="25")
+        self.assertEqual(client_str.maxsize, 25)
+        self.assertIsInstance(client_str.maxsize, int)
+        self.assertEqual(client_str.http_pool.connection_pool_kw.get("maxsize"), 25)
+
+        client_float = ReservationClient(credentials=self.mock_creds, maxsize=15.0)
+        self.assertEqual(client_float.maxsize, 15)
+        self.assertIsInstance(client_float.maxsize, int)
+        self.assertEqual(client_float.http_pool.connection_pool_kw.get("maxsize"), 15)
+
+        # Also verify type coercion when custom pool fallback occurs
+        mock_pool = MagicMock(spec=urllib3.PoolManager)
+        client_pool_str = ReservationClient(
+            credentials=self.mock_creds, http_pool=mock_pool, maxsize="25"
+        )
+        self.assertEqual(client_pool_str.maxsize, 25)
+        self.assertIsInstance(client_pool_str.maxsize, int)
+
+        client_pool_float = ReservationClient(
+            credentials=self.mock_creds, http_pool=mock_pool, maxsize=15.0
+        )
+        self.assertEqual(client_pool_float.maxsize, 15)
+        self.assertIsInstance(client_pool_float.maxsize, int)
+
     def test_reservation_client_custom_http_pool_maxsize_extraction(self):
         # Verify that when a custom urllib3.PoolManager(maxsize=42) is passed as http_pool,
         # client.maxsize returns 42
