@@ -308,6 +308,27 @@ class TestReservationClient(unittest.TestCase):
         self.assertEqual(client_custom.maxsize, 32)
         self.assertEqual(client_custom.http_pool.connection_pool_kw.get("maxsize"), 32)
 
+    def test_reservation_client_custom_http_pool_maxsize_extraction(self):
+        # Verify that when a custom urllib3.PoolManager(maxsize=42) is passed as http_pool,
+        # client.maxsize returns 42
+        custom_pool = urllib3.PoolManager(maxsize=42)
+        client = ReservationClient(credentials=self.mock_creds, http_pool=custom_pool)
+        self.assertEqual(client.maxsize, 42)
+
+        # Verify fallback to maxsize parameter when mock or pool without connection_pool_kw is passed
+        mock_pool = MagicMock(spec=urllib3.PoolManager)
+        client_mock = ReservationClient(credentials=self.mock_creds, http_pool=mock_pool, maxsize=20)
+        self.assertEqual(client_mock.maxsize, 20)
+
+        # Verify fallback when pool object has no connection_pool_kw attribute
+        class CustomPoolWithoutKw:
+            pass
+
+        client_no_kw = ReservationClient(
+            credentials=self.mock_creds, http_pool=CustomPoolWithoutKw(), maxsize=15
+        )
+        self.assertEqual(client_no_kw.maxsize, 15)
+
     def test_list_aggregated_reservations_single_page(self):
         mock_response = MagicMock()
         mock_response.status = 200

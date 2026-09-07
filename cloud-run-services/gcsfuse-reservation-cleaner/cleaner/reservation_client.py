@@ -41,11 +41,16 @@ class ReservationClient:
         http_pool: Optional[urllib3.PoolManager] = None,
         maxsize: int = DEFAULT_POOL_SIZE,
     ):
-        self._maxsize = max(1, maxsize)
-        self._http = http_pool or urllib3.PoolManager(
-            num_pools=10,
-            maxsize=self._maxsize,
-        )
+        if http_pool is not None:
+            self._http = http_pool
+            pool_kw = getattr(http_pool, "connection_pool_kw", None)
+            self._maxsize = max(1, pool_kw.get("maxsize", maxsize) if isinstance(pool_kw, dict) else maxsize)
+        else:
+            self._maxsize = max(1, maxsize)
+            self._http = urllib3.PoolManager(
+                num_pools=10,
+                maxsize=self._maxsize,
+            )
         self._lock = threading.Lock()
         if credentials:
             self._credentials = credentials
