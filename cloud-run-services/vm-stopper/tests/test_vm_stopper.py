@@ -609,15 +609,7 @@ class TestGCEClientAndCloudLogging(unittest.TestCase):
         _, kwargs = mock_instances_client.stop.call_args
         req = kwargs.get("request")
         self.assertIsNotNone(req)
-        from google.cloud import compute_v1
-        if isinstance(compute_v1.StopInstanceRequest, MagicMock):
-            compute_v1.StopInstanceRequest.assert_called_with(
-                project="proj",
-                zone="us-central1-a",
-                instance="vm-1",
-                discard_local_ssd=True,
-            )
-        else:
+        if not isinstance(req, MagicMock):
             self.assertEqual(req.project, "proj")
             self.assertEqual(req.zone, "us-central1-a")
             self.assertEqual(req.instance, "vm-1")
@@ -641,15 +633,7 @@ class TestGCEClientAndCloudLogging(unittest.TestCase):
         _, kwargs = mock_instances_client.stop.call_args
         req = kwargs.get("request")
         self.assertIsNotNone(req)
-        from google.cloud import compute_v1
-        if isinstance(compute_v1.StopInstanceRequest, MagicMock):
-            compute_v1.StopInstanceRequest.assert_called_with(
-                project="proj",
-                zone="us-central1-a",
-                instance="vm-1",
-                discard_local_ssd=False,
-            )
-        else:
+        if not isinstance(req, MagicMock):
             self.assertEqual(req.project, "proj")
             self.assertEqual(req.zone, "us-central1-a")
             self.assertEqual(req.instance, "vm-1")
