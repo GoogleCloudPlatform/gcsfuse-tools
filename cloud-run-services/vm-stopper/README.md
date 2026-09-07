@@ -118,6 +118,10 @@ The service dynamically resolves configuration parameters with the following pre
 | **Exclude Label Values**| `exclude_label_values`| - | `EXCLUDE_LABEL_VALUES` | dict/json | `{}` | Label key-value pairs that exempt instances (e.g. `auto-stop: false`) |
 | **Whitelist Names** | `whitelist_names` | `whitelist_names` | `WHITELIST_NAMES` | list/str | `[]` | VM name substrings or exact names to exempt |
 | **Whitelist Tags** | `whitelist_tags` | `whitelist_tags` | `WHITELIST_TAGS` | list/str | `["keep-alive", "do-not-stop", "do-not-delete", "protected", "permanent", "no-auto-stop", "no-auto-delete", "whitelisted", "skip-lifecycle"]` | Network tags that exempt instances |
+| **Logging Batch Size** | `cloud_logging_batch_size` | `batch_size` | `CLOUD_LOGGING_BATCH_SIZE` | int | `25` | Number of candidate VMs batched into a compound Cloud Logging query to conserve read quota |
+| **Logging Rate Limit** | `cloud_logging_rate_limit` | `rate_limit` | `CLOUD_LOGGING_RATE_LIMIT` | int | `40` | Max Cloud Logging queries per minute (safely below GCP's 60 req/min quota limit) |
+| **Logging Max Retries** | `cloud_logging_max_retries` | `max_retries` | `CLOUD_LOGGING_MAX_RETRIES` | int | `4` | Max retry attempts with exponential backoff on HTTP 429 quota exhaustion |
+| **Logging Retry Backoff** | `cloud_logging_retry_backoff` | `retry_backoff` | `CLOUD_LOGGING_RETRY_BACKOFF` | float | `2.0` | Base duration (seconds) for exponential backoff on 429 rate limit errors |
 
 ---
 

@@ -149,10 +149,11 @@ from stopper.config import (
     StopperConfig,
     _parse_bool,
     _parse_dict,
+    _parse_float,
     _parse_int,
     _parse_list,
 )
-from stopper.gce_client import GCEClient
+from stopper.gce_client import GCEClient, RateLimiter, is_rate_limit_error
 from stopper.service import process_request
 from stopper.vm_processor import (
     VMProcessor,
@@ -249,6 +250,10 @@ class TestStopperConfig(unittest.TestCase):
         self.assertFalse(config.delete_stopped_vms)
         self.assertFalse(config.dry_run)
         self.assertEqual(config.max_workers, 20)
+        self.assertEqual(config.cloud_logging_batch_size, 25)
+        self.assertEqual(config.cloud_logging_rate_limit, 40)
+        self.assertEqual(config.cloud_logging_max_retries, 4)
+        self.assertEqual(config.cloud_logging_retry_backoff, 2.0)
 
     def test_config_overrides_from_payload(self):
         payload = {
@@ -262,6 +267,10 @@ class TestStopperConfig(unittest.TestCase):
             "exclude_label_values": {"tier": "prod"},
             "whitelist_names": ["bastion-vm", "db-leader"],
             "whitelist_tags": ["safe-tag"],
+            "cloud_logging_batch_size": 10,
+            "cloud_logging_rate_limit": 30,
+            "cloud_logging_max_retries": 2,
+            "cloud_logging_retry_backoff": 1.5,
         }
         config = StopperConfig.from_request(request_data=payload)
         self.assertEqual(config.project_id, "custom-project")
@@ -274,6 +283,10 @@ class TestStopperConfig(unittest.TestCase):
         self.assertEqual(config.exclude_label_values, {"tier": "prod"})
         self.assertEqual(config.whitelist_names, ["bastion-vm", "db-leader"])
         self.assertEqual(config.whitelist_tags, ["safe-tag"])
+        self.assertEqual(config.cloud_logging_batch_size, 10)
+        self.assertEqual(config.cloud_logging_rate_limit, 30)
+        self.assertEqual(config.cloud_logging_max_retries, 2)
+        self.assertEqual(config.cloud_logging_retry_backoff, 1.5)
 
     def test_config_from_query_args(self):
         query_args = {
@@ -598,13 +611,156 @@ class TestGCEClientAndCloudLogging(unittest.TestCase):
         self.client.delete_instance("proj", "us-central1-a", "vm-2")
         mock_instances_client.delete.assert_called_once_with(project="proj", zone="us-central1-a", instance="vm-2")
 
+    def test_is_rate_limit_error(self):
+        """Test rate limit detection across exception types, status codes, and messages."""
+        self.assertTrue(is_rate_limit_error(Exception("429 POST https://logging.googleapis.com/...: Quota exceeded for quota metric 'Read requests'")))
+        self.assertTrue(is_rate_limit_error(Exception("Rate limit exceeded for read requests per minute")))
+        self.assertTrue(is_rate_limit_error(Exception("RESOURCE_EXHAUSTED: Quota exceeded")))
+
+        code_err = Exception("Custom error")
+        setattr(code_err, "code", 429)
+        self.assertTrue(is_rate_limit_error(code_err))
+
+        grpc_err = Exception("gRPC error")
+        setattr(grpc_err, "code", 8)  # gRPC code 8 = RESOURCE_EXHAUSTED
+        self.assertTrue(is_rate_limit_error(grpc_err))
+
+        self.assertFalse(is_rate_limit_error(Exception("403 Forbidden: Permission denied")))
+        self.assertFalse(is_rate_limit_error(ValueError("Invalid argument")))
+        self.assertFalse(is_rate_limit_error(RuntimeError("Unexpected connection error")))
+
+    def test_rate_limiter_tokens(self):
+        """Test RateLimiter token replenishment and burst handling."""
+        limiter = RateLimiter(max_per_minute=6000, burst_capacity=5)
+        # Should acquire without blocking when burst capacity is available
+        for _ in range(5):
+            limiter.acquire()
+        self.assertLessEqual(limiter.tokens, 1.0)
+
+    @patch("time.sleep")
+    @patch("stopper.gce_client.logging_v2.Client")
+    def test_has_recent_activity_retry_on_429_success(self, mock_logging_cls, mock_sleep):
+        """Verify that a 429 Rate Limit error is retried with backoff and succeeds on subsequent attempt."""
+        mock_logging_client = MagicMock()
+        mock_logging_cls.return_value = mock_logging_client
+        self.client._logging_client = mock_logging_client
+
+        # First call raises 429, second call succeeds with an entry
+        rate_err = Exception("429 POST https://logging.googleapis.com/v2/entries:list: Quota exceeded")
+        mock_entry = MagicMock()
+        mock_logging_client.list_entries.side_effect = [
+            rate_err,
+            [mock_entry],
+        ]
+
+        has_activity = self.client.has_recent_activity(
+            project_id="test-proj",
+            zone="us-central1-a",
+            instance_name="retry-vm",
+            instance_id="12345",
+            since_timestamp=datetime(2026, 8, 20, 0, 0, tzinfo=timezone.utc),
+        )
+        self.assertTrue(has_activity)
+        self.assertEqual(mock_logging_client.list_entries.call_count, 2)
+        mock_sleep.assert_called_once()
+
+    @patch("time.sleep")
+    @patch("stopper.gce_client.logging_v2.Client")
+    def test_has_recent_activity_retry_on_429_exhausted_fails_safe(self, mock_logging_cls, mock_sleep):
+        """Verify that when 429 retries are exhausted, it fails safe (assumes ACTIVE)."""
+        mock_logging_client = MagicMock()
+        mock_logging_cls.return_value = mock_logging_client
+        self.client._logging_client = mock_logging_client
+        self.client.max_retries = 2
+
+        rate_err = Exception("429 Too Many Requests: Quota exceeded")
+        mock_logging_client.list_entries.side_effect = rate_err
+
+        has_activity = self.client.has_recent_activity(
+            project_id="test-proj",
+            zone="us-central1-a",
+            instance_name="exhausted-vm",
+            instance_id="12345",
+            since_timestamp=datetime(2026, 8, 20, 0, 0, tzinfo=timezone.utc),
+        )
+        # MUST return True (fail-safe) after exhausting all attempts
+        self.assertTrue(has_activity)
+        self.assertEqual(mock_logging_client.list_entries.call_count, 3)  # initial + 2 retries
+        self.assertEqual(mock_sleep.call_count, 2)
+
+    @patch("stopper.gce_client.logging_v2.Client")
+    def test_get_instances_activity_batch(self, mock_logging_cls):
+        """Test batch query identifies active instances and confirms idle instances in a single call."""
+        mock_logging_client = MagicMock()
+        mock_logging_cls.return_value = mock_logging_client
+        self.client._logging_client = mock_logging_client
+
+        vm1 = MockInstance("active-oslogin-vm", instance_id="111")
+        vm2 = MockInstance("active-activity-vm", instance_id="222")
+        vm3 = MockInstance("idle-vm", instance_id="333")
+        candidate_instances = [
+            ("us-central1-a", vm1),
+            ("us-central1-b", vm2),
+            ("us-central1-c", vm3),
+        ]
+
+        # Entry 1: OS Login data_access log mentioning vm1
+        entry1 = MagicMock()
+        entry1.resource = MagicMock(type="audited_resource", labels={})
+        entry1.payload = {"resourceName": "projects/test-proj/zones/us-central1-a/instances/active-oslogin-vm"}
+
+        # Entry 2: Activity log with instance_id=222
+        entry2 = MagicMock()
+        entry2.resource = MagicMock(type="gce_instance", labels={"instance_id": "222"})
+        entry2.payload = {}
+
+        mock_logging_client.list_entries.return_value = [entry1, entry2]
+
+        results = self.client.get_instances_activity(
+            project_id="test-proj",
+            candidate_instances=candidate_instances,
+            since_timestamp=datetime(2026, 8, 20, 0, 0, tzinfo=timezone.utc),
+            batch_size=25,
+        )
+
+        self.assertEqual(mock_logging_client.list_entries.call_count, 1)
+        self.assertTrue(results[("us-central1-a", "active-oslogin-vm")])
+        self.assertTrue(results[("us-central1-b", "active-activity-vm")])
+        self.assertFalse(results[("us-central1-c", "idle-vm")])
+
+    @patch("stopper.gce_client.logging_v2.Client")
+    def test_get_instances_activity_fallback_on_batch_error(self, mock_logging_cls):
+        """Test fallback to individual evaluations when batch query fails."""
+        mock_logging_client = MagicMock()
+        mock_logging_cls.return_value = mock_logging_client
+        self.client._logging_client = mock_logging_client
+
+        vm = MockInstance("fallback-vm", instance_id="999")
+        candidate_instances = [("us-central1-a", vm)]
+
+        # First call (batch) raises error, fallback call (individual) returns empty
+        mock_logging_client.list_entries.side_effect = [
+            Exception("Batch query syntax error"),
+            [],
+        ]
+
+        results = self.client.get_instances_activity(
+            project_id="test-proj",
+            candidate_instances=candidate_instances,
+            since_timestamp=datetime(2026, 8, 20, 0, 0, tzinfo=timezone.utc),
+            batch_size=25,
+        )
+
+        self.assertEqual(mock_logging_client.list_entries.call_count, 2)
+        self.assertFalse(results[("us-central1-a", "fallback-vm")])
+
 
 class TestVMProcessorLifecycle(unittest.TestCase):
     """Test end-to-end VM evaluation, stopping, deleting, and dry-run sweeps."""
 
     def setUp(self):
         self.mock_client = MagicMock(spec=GCEClient)
-        self.now = datetime(2026, 8, 31, 12, 0, 0, tzinfo=timezone.utc)
+        self.now = datetime.now(timezone.utc)
 
     def test_young_running_vm_is_skipped(self):
         config = StopperConfig(project_id="test-proj", idle_days_threshold=7)
@@ -883,6 +1039,39 @@ class TestVMProcessorLifecycle(unittest.TestCase):
 
         self.mock_client.stop_instance.assert_called_once_with("test-proj", "us-central1-b", "idle-vm")
         self.mock_client.delete_instance.assert_called_once_with("test-proj", "us-central1-c", "stopped-old")
+
+    def test_sweep_with_batch_activity_checking(self):
+        """Verify that processor.sweep() batch-evaluates candidate running instances."""
+        config = StopperConfig(
+            project_id="test-proj",
+            idle_days_threshold=7,
+            dry_run=False,
+            cloud_logging_batch_size=10,
+        )
+        mock_client = MagicMock(spec=GCEClient)
+        processor = VMProcessor(config, gce_client=mock_client)
+
+        idle_vm1 = MockInstance("candidate-idle-1", status="RUNNING", creation_timestamp=(self.now - timedelta(days=20)).isoformat())
+        active_vm2 = MockInstance("candidate-active-2", status="RUNNING", creation_timestamp=(self.now - timedelta(days=20)).isoformat())
+
+        mock_client.list_instances.return_value = [
+            ("us-central1-a", idle_vm1),
+            ("us-central1-b", active_vm2),
+        ]
+
+        # Explicitly configure mock_client.get_instances_activity
+        mock_client.get_instances_activity.return_value = {
+            ("us-central1-a", "candidate-idle-1"): False,
+            ("us-central1-b", "candidate-active-2"): True,
+        }
+
+        response = processor.sweep()
+        self.assertEqual(response["status"], "success")
+        self.assertEqual(response["summary"]["stopped"], 1)
+        self.assertEqual(response["summary"]["skipped_active"], 1)
+
+        mock_client.get_instances_activity.assert_called_once()
+        mock_client.stop_instance.assert_called_once_with("test-proj", "us-central1-a", "candidate-idle-1")
 
 
 class TestHTTPServiceAndMain(unittest.TestCase):
