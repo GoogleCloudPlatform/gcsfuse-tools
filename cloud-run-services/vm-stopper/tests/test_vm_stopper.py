@@ -628,6 +628,34 @@ class TestGCEClientAndCloudLogging(unittest.TestCase):
         mock_instances_client.delete.assert_called_once_with(project="proj", zone="us-central1-a", instance="vm-2")
 
     @patch("stopper.gce_client.compute_v1.InstancesClient")
+    def test_stop_instance_with_explicit_discard_local_ssd(self, mock_instances_cls):
+        mock_instances_client = MagicMock()
+        mock_instances_cls.return_value = mock_instances_client
+        self.client._instances_client = mock_instances_client
+
+        mock_op = MagicMock()
+        mock_instances_client.stop.return_value = mock_op
+
+        self.client.stop_instance("proj", "us-central1-a", "vm-1", discard_local_ssd=False)
+        self.assertEqual(mock_instances_client.stop.call_count, 1)
+        _, kwargs = mock_instances_client.stop.call_args
+        req = kwargs.get("request")
+        self.assertIsNotNone(req)
+        from google.cloud import compute_v1
+        if isinstance(compute_v1.StopInstanceRequest, MagicMock):
+            compute_v1.StopInstanceRequest.assert_called_with(
+                project="proj",
+                zone="us-central1-a",
+                instance="vm-1",
+                discard_local_ssd=False,
+            )
+        else:
+            self.assertEqual(req.project, "proj")
+            self.assertEqual(req.zone, "us-central1-a")
+            self.assertEqual(req.instance, "vm-1")
+            self.assertFalse(req.discard_local_ssd)
+
+    @patch("stopper.gce_client.compute_v1.InstancesClient")
     def test_stop_instance_error_raises(self, mock_instances_cls):
         mock_instances_client = MagicMock()
         mock_instances_cls.return_value = mock_instances_client

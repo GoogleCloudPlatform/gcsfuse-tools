@@ -465,28 +465,36 @@ class GCEClient:
 
         return results
 
-    def stop_instance(self, project_id: str, zone: str, instance_name: str) -> None:
+    def stop_instance(
+        self,
+        project_id: str,
+        zone: str,
+        instance_name: str,
+        discard_local_ssd: bool = True,
+    ) -> None:
         """Issue an instance stop API call and wait for operation completion.
-
-        Always passes discard_local_ssd=True so instances with attached Local
-        SSDs can be stopped cleanly without encountering GCE 400 errors.
 
         Args:
             project_id: Target GCP project ID.
             zone: Zone where the instance is located.
             instance_name: Name of the compute instance.
+            discard_local_ssd: If True, contents of attached Local SSD disks are
+                discarded upon stopping. Defaults to True to ensure instances with
+                attached Local SSDs can be stopped cleanly without encountering
+                Compute Engine 400 errors.
         """
         logger.info(
-            "Executing STOP on instance '%s' in zone '%s' (project: %s)...",
+            "Executing STOP on instance '%s' in zone '%s' (project: %s, discard_local_ssd=%s)...",
             instance_name,
             zone,
             project_id,
+            discard_local_ssd,
         )
         request = compute_v1.StopInstanceRequest(
             project=project_id,
             zone=zone,
             instance=instance_name,
-            discard_local_ssd=True,
+            discard_local_ssd=discard_local_ssd,
         )
         operation = self.instances_client.stop(request=request)
         if hasattr(operation, "result") and callable(operation.result):
