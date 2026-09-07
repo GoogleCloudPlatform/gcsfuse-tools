@@ -331,7 +331,15 @@ class VMProcessor:
                 )
             else:
                 try:
-                    self.client.stop_instance(self.config.project_id, zone, name)
+                    try:
+                        self.client.stop_instance(
+                            self.config.project_id,
+                            zone,
+                            name,
+                            discard_local_ssd=self.config.discard_local_ssd,
+                        )
+                    except TypeError:
+                        self.client.stop_instance(self.config.project_id, zone, name)
                     result["action"] = "stopped"
                     result["category"] = "stopped"
                     result["reason"] = (

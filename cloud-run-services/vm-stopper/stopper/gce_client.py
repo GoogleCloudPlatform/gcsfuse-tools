@@ -465,16 +465,81 @@ class GCEClient:
 
         return results
 
-    def stop_instance(self, project_id: str, zone: str, instance_name: str) -> None:
-        """Issue an instance stop API call and wait for operation completion."""
-        logger.info("Executing STOP on instance '%s' in zone '%s' (project: %s)...", instance_name, zone, project_id)
-        operation = self.instances_client.stop(
+    def stop_instance(
+        self,
+        project_id: str,
+        zone: str,
+        instance_name: str,
+        discard_local_ssd: bool = True,
+    ) -> None:
+        """Issue an instance stop API call and wait for operation completion.
+
+        Args:
+            project_id: Target GCP project ID.
+            zone: Zone where the instance is located.
+            instance_name: Name of the compute instance.
+            discard_local_ssd: If True, contents of attached Local SSD disks are
+                discarded upon stopping. Required by Compute Engine if the VM
+                has Local SSDs attached. Defaults to True.
+        """
+        logger.info(
+            "Executing STOP on instance '%s' in zone '%s' (project: %s, discard_local_ssd=%s)...",
+            instance_name,
+            zone,
+            project_id,
+            discard_local_ssd,
+        )
+        request = compute_v1.StopInstanceRequest(
             project=project_id,
             zone=zone,
             instance=instance_name,
+            discard_local_ssd=discard_local_ssd,
         )
-        if hasattr(operation, "result") and callable(operation.result):
-            operation.result(timeout=300)
+        try:
+            try:
+                operation = self.instances_client.stop(request=request)
+            except TypeError as type_err:
+                if "request" in str(type_err):
+                    operation = self.instances_client.stop(
+                        project=project_id,
+                        zone=zone,
+                        instance=instance_name,
+                    )
+                else:
+                    raise
+            if hasattr(operation, "result") and callable(operation.result):
+                operation.result(timeout=300)
+        except Exception as exc:
+            err_str = str(exc).lower()
+            if "discard-local-ssd" in err_str or "discard_local_ssd" in err_str or "local ssd" in err_str:
+                logger.warning(
+                    "Stop instance '%s' in zone '%s' failed due to attached Local SSD: %s. "
+                    "Retrying stop with discard_local_ssd=True...",
+                    instance_name,
+                    zone,
+                    exc,
+                )
+                retry_request = compute_v1.StopInstanceRequest(
+                    project=project_id,
+                    zone=zone,
+                    instance=instance_name,
+                    discard_local_ssd=True,
+                )
+                try:
+                    operation = self.instances_client.stop(request=retry_request)
+                except TypeError as type_err:
+                    if "request" in str(type_err):
+                        operation = self.instances_client.stop(
+                            project=project_id,
+                            zone=zone,
+                            instance=instance_name,
+                        )
+                    else:
+                        raise
+                if hasattr(operation, "result") and callable(operation.result):
+                    operation.result(timeout=300)
+            else:
+                raise
         logger.info("Successfully stopped instance '%s' in zone '%s'.", instance_name, zone)
 
     def delete_instance(self, project_id: str, zone: str, instance_name: str) -> None:

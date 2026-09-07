@@ -170,6 +170,7 @@ class StopperConfig:
     delete_stopped_vms: bool = False
     dry_run: bool = False
     max_workers: int = 20
+    discard_local_ssd: bool = True
     exclude_label_keys: List[str] = field(default_factory=lambda: list(DEFAULT_EXCLUDE_LABEL_KEYS))
     exclude_label_values: Dict[str, str] = field(default_factory=dict)
     whitelist_names: List[str] = field(default_factory=list)
@@ -268,6 +269,12 @@ class StopperConfig:
         )
         dry_run = _parse_bool(raw_dry_run, default=False)
 
+        raw_discard_local_ssd = _get_val(
+            ["discard_local_ssd", "discardLocalSsd", "discard_local_ssds"],
+            ["DISCARD_LOCAL_SSD"],
+        )
+        discard_local_ssd = _parse_bool(raw_discard_local_ssd, default=True)
+
         raw_max_workers = _get_val(
             ["max_workers", "maxWorkers", "concurrency"],
             ["MAX_WORKERS"],
@@ -331,6 +338,7 @@ class StopperConfig:
             delete_stopped_vms=delete_stopped_vms,
             dry_run=dry_run,
             max_workers=max_workers,
+            discard_local_ssd=discard_local_ssd,
             exclude_label_keys=exclude_label_keys,
             exclude_label_values=exclude_label_values,
             whitelist_names=whitelist_names,
