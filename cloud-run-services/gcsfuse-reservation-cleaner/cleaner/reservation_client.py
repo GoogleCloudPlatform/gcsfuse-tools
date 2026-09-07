@@ -40,7 +40,7 @@ class ReservationClient:
         credentials: Optional[google.auth.credentials.Credentials] = None,
         *,
         http_pool: Optional[urllib3.PoolManager] = None,
-        maxsize: int = DEFAULT_POOL_SIZE,
+        maxsize: Optional[int] = DEFAULT_POOL_SIZE,
     ):
         if maxsize is not None:
             parsed_maxsize = int(float(maxsize))
@@ -53,7 +53,7 @@ class ReservationClient:
             self._http = http_pool
             pool_kw = getattr(http_pool, "connection_pool_kw", None)
             pool_maxsize = pool_kw.get("maxsize") if isinstance(pool_kw, dict) else None
-            is_mock = type(http_pool).__name__ in ("Mock", "MagicMock")
+            is_mock = hasattr(http_pool, "mock_add_spec")
             if pool_maxsize is None and isinstance(http_pool, urllib3.PoolManager) and not is_mock:
                 logger.warning(
                     "The provided http_pool does not have an explicit maxsize configured. "

@@ -23,6 +23,7 @@ import sys
 import types
 from typing import Any
 import unittest
+import unittest.mock
 from unittest.mock import MagicMock, Mock, patch
 import urllib3
 
@@ -499,10 +500,47 @@ class TestReservationClient(unittest.TestCase):
         self.assertEqual(subclass_client.maxsize, 1)
 
         # Mock / MagicMock with spec=urllib3.PoolManager does NOT trigger warning
-        for mock_obj in (MagicMock(spec=urllib3.PoolManager), Mock(spec=urllib3.PoolManager)):
+        for mock_obj in (
+            MagicMock(spec=urllib3.PoolManager),
+            Mock(spec=urllib3.PoolManager),
+            unittest.mock.create_autospec(urllib3.PoolManager),
+        ):
             with self.subTest(mock_type=type(mock_obj).__name__):
                 with self.assertNoLogs("cleaner.reservation_client", level="WARNING"):
-                    ReservationClient(credentials=self.mock_creds, http_pool=mock_obj, maxsize=15)
+                    mock_client = ReservationClient(
+                        credentials=self.mock_creds, http_pool=mock_obj, maxsize=15
+                    )
+                    self.assertEqual(mock_client.maxsize, 15)
+
+    def test_reservation_client_autospec_poolmanager_detected_as_mock(self):
+        # When a test uses unittest.mock.create_autospec(urllib3.PoolManager),
+        # hasattr(http_pool, "mock_add_spec") detects it as a mock, no warning is logged,
+        # and client.maxsize does not get forced to 1.
+        autospec_pool = unittest.mock.create_autospec(urllib3.PoolManager)
+        self.assertTrue(hasattr(autospec_pool, "mock_add_spec"))
+        with self.assertNoLogs("cleaner.reservation_client", level="WARNING"):
+            client = ReservationClient(
+                credentials=self.mock_creds, http_pool=autospec_pool, maxsize=20
+            )
+        self.assertEqual(client.maxsize, 20)
+
+        # Also verify when maxsize is not explicitly passed (falls back to DEFAULT_POOL_SIZE)
+        with self.assertNoLogs("cleaner.reservation_client", level="WARNING"):
+            client_default = ReservationClient(
+                credentials=self.mock_creds, http_pool=autospec_pool
+            )
+        self.assertEqual(client_default.maxsize, 10)
+
+        # Also verify with instance=True (which produces NonCallableMagicMock)
+        autospec_instance = unittest.mock.create_autospec(
+            urllib3.PoolManager, instance=True
+        )
+        self.assertTrue(hasattr(autospec_instance, "mock_add_spec"))
+        with self.assertNoLogs("cleaner.reservation_client", level="WARNING"):
+            client_inst = ReservationClient(
+                credentials=self.mock_creds, http_pool=autospec_instance, maxsize=15
+            )
+        self.assertEqual(client_inst.maxsize, 15)
 
     def test_list_aggregated_reservations_single_page(self):
         mock_response = MagicMock()
