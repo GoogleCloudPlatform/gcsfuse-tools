@@ -35,7 +35,8 @@ concurrency:
 
 jobs:
   test:
-    permissions: read-all
+    permissions:
+      contents: read
     name: Unit, Stress & Artifact Verification Tests
     runs-on: ubuntu-latest
     steps:
