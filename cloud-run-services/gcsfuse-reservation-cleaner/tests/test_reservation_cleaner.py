@@ -329,6 +329,30 @@ class TestReservationClient(unittest.TestCase):
         )
         self.assertEqual(client_no_kw.maxsize, 15)
 
+        # Verify fallback when connection_pool_kw has maxsize set to None (no TypeError)
+        none_pool = MagicMock()
+        none_pool.connection_pool_kw = {"maxsize": None}
+        client_none = ReservationClient(
+            credentials=self.mock_creds, http_pool=none_pool, maxsize=16
+        )
+        self.assertEqual(client_none.maxsize, 16)
+
+        # Verify fallback when connection_pool_kw has non-int maxsize (no TypeError)
+        str_pool = MagicMock()
+        str_pool.connection_pool_kw = {"maxsize": "invalid"}
+        client_str = ReservationClient(
+            credentials=self.mock_creds, http_pool=str_pool, maxsize=18
+        )
+        self.assertEqual(client_str.maxsize, 18)
+
+        # Verify fallback when connection_pool_kw has float/list maxsize (no TypeError)
+        float_pool = MagicMock()
+        float_pool.connection_pool_kw = {"maxsize": 12.5}
+        client_float = ReservationClient(
+            credentials=self.mock_creds, http_pool=float_pool, maxsize=22
+        )
+        self.assertEqual(client_float.maxsize, 22)
+
     def test_list_aggregated_reservations_single_page(self):
         mock_response = MagicMock()
         mock_response.status = 200
