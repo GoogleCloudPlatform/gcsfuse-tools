@@ -331,7 +331,11 @@ class VMProcessor:
                 )
             else:
                 try:
-                    self.client.stop_instance(self.config.project_id, zone, name)
+                    self.client.stop_instance(
+                        self.config.project_id,
+                        zone,
+                        name,
+                    )
                     result["action"] = "stopped"
                     result["category"] = "stopped"
                     result["reason"] = (

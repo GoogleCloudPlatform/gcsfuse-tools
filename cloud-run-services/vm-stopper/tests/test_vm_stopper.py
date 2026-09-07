@@ -605,11 +605,49 @@ class TestGCEClientAndCloudLogging(unittest.TestCase):
         mock_instances_client.delete.return_value = mock_op
 
         self.client.stop_instance("proj", "us-central1-a", "vm-1")
-        mock_instances_client.stop.assert_called_once_with(project="proj", zone="us-central1-a", instance="vm-1")
+        self.assertEqual(mock_instances_client.stop.call_count, 1)
+        _, kwargs = mock_instances_client.stop.call_args
+        req = kwargs.get("request")
+        self.assertIsNotNone(req)
+        self.assertEqual(req.project, "proj")
+        self.assertEqual(req.zone, "us-central1-a")
+        self.assertEqual(req.instance, "vm-1")
+        self.assertTrue(req.discard_local_ssd)
         mock_op.result.assert_called_once_with(timeout=300)
 
         self.client.delete_instance("proj", "us-central1-a", "vm-2")
         mock_instances_client.delete.assert_called_once_with(project="proj", zone="us-central1-a", instance="vm-2")
+
+    @patch("stopper.gce_client.compute_v1.InstancesClient")
+    def test_stop_instance_with_explicit_discard_local_ssd(self, mock_instances_cls):
+        mock_instances_client = MagicMock()
+        mock_instances_cls.return_value = mock_instances_client
+        self.client._instances_client = mock_instances_client
+
+        mock_op = MagicMock()
+        mock_instances_client.stop.return_value = mock_op
+
+        self.client.stop_instance("proj", "us-central1-a", "vm-1", discard_local_ssd=False)
+        self.assertEqual(mock_instances_client.stop.call_count, 1)
+        _, kwargs = mock_instances_client.stop.call_args
+        req = kwargs.get("request")
+        self.assertIsNotNone(req)
+        self.assertEqual(req.project, "proj")
+        self.assertEqual(req.zone, "us-central1-a")
+        self.assertEqual(req.instance, "vm-1")
+        self.assertFalse(req.discard_local_ssd)
+
+    @patch("stopper.gce_client.compute_v1.InstancesClient")
+    def test_stop_instance_error_raises(self, mock_instances_cls):
+        mock_instances_client = MagicMock()
+        mock_instances_cls.return_value = mock_instances_client
+        self.client._instances_client = mock_instances_client
+
+        mock_instances_client.stop.side_effect = Exception("503 Service Unavailable: Backend error")
+        with self.assertRaises(Exception) as ctx:
+            self.client.stop_instance("proj", "us-central1-a", "vm-1")
+        self.assertIn("503 Service Unavailable", str(ctx.exception))
+        self.assertEqual(mock_instances_client.stop.call_count, 1)
 
     def test_is_rate_limit_error(self):
         """Test rate limit detection across exception types, status codes, and messages."""
@@ -806,7 +844,9 @@ class TestVMProcessorLifecycle(unittest.TestCase):
         self.assertEqual(res["category"], "stopped")
         self.assertEqual(res["action"], "stopped")
         self.assertIn("Stopped idle running VM", res["reason"])
-        self.mock_client.stop_instance.assert_called_once_with("test-proj", "us-central1-a", "idle-vm")
+        self.mock_client.stop_instance.assert_called_once_with(
+            "test-proj", "us-central1-a", "idle-vm"
+        )
 
     def test_idle_running_vm_dry_run(self):
         config = StopperConfig(project_id="test-proj", idle_days_threshold=7, dry_run=True)
@@ -1037,7 +1077,9 @@ class TestVMProcessorLifecycle(unittest.TestCase):
         self.assertEqual(summary["deleted"], 1)
         self.assertEqual(summary["errors_count"], 0)
 
-        self.mock_client.stop_instance.assert_called_once_with("test-proj", "us-central1-b", "idle-vm")
+        self.mock_client.stop_instance.assert_called_once_with(
+            "test-proj", "us-central1-b", "idle-vm"
+        )
         self.mock_client.delete_instance.assert_called_once_with("test-proj", "us-central1-c", "stopped-old")
 
     def test_sweep_with_batch_activity_checking(self):
@@ -1071,7 +1113,9 @@ class TestVMProcessorLifecycle(unittest.TestCase):
         self.assertEqual(response["summary"]["skipped_active"], 1)
 
         mock_client.get_instances_activity.assert_called_once()
-        mock_client.stop_instance.assert_called_once_with("test-proj", "us-central1-a", "candidate-idle-1")
+        mock_client.stop_instance.assert_called_once_with(
+            "test-proj", "us-central1-a", "candidate-idle-1"
+        )
 
 
 class TestHTTPServiceAndMain(unittest.TestCase):
