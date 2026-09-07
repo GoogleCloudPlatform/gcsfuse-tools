@@ -84,6 +84,8 @@ cloud-run-services/vm-stopper/
    Supports `dry_run: true` mode via JSON payload, query parameters, or environment variables to log all candidate actions without invoking any mutating stop or delete APIs.
 8. **Per-VM Error Isolation**:
    Evaluates and mutates instances concurrently using `ThreadPoolExecutor`. If an error occurs on a single VM (e.g. quota limit or concurrent lock), other instances continue processing and errors are aggregated in the response JSON.
+9. **Attached Local SSD Handling**:
+   Always sets `discard_local_ssd=True` on Compute Engine stop requests so VMs with ephemeral Local SSDs are stopped cleanly without encountering GCE 400 errors.
 
 ---
 
@@ -112,7 +114,6 @@ The service dynamically resolves configuration parameters with the following pre
 | **Idle Threshold** | `idle_days_threshold` | `idle_days` | `IDLE_DAYS_THRESHOLD` | int | `7` | Days of no login/SSH activity before stopping running VMs |
 | **Stopped Threshold**| `stopped_days_threshold`| `stopped_days` | `STOPPED_DAYS_THRESHOLD` | int | `90` | Days stopped before eligible for deletion |
 | **Delete Stopped VMs**| `delete_stopped_vms` | `delete_stopped` | `DELETE_STOPPED_VMS` | bool | `false` | When true, deletes VMs stopped >= `stopped_days_threshold` |
-| **Discard Local SSD** | `discard_local_ssd` | `discard_local_ssd` | `DISCARD_LOCAL_SSD` | bool | `true` | Automatically discard ephemeral Local SSD disk contents when stopping idle VMs (required by GCE to stop VMs with Local SSDs attached) |
 | **Dry Run Mode** | `dry_run` | `dry_run` | `DRY_RUN` | bool | `false` | When true, identifies candidates without stopping/deleting |
 | **Max Workers** | `max_workers` | `max_workers` | `MAX_WORKERS` | int | `20` | Thread pool size for parallel instance processing |
 | **Exclude Label Keys**| `exclude_label_keys` | `exclude_label_keys` | `EXCLUDE_LABEL_KEYS` | list/str | `["keep-alive", "do-not-stop", "do-not-delete", "protected", "permanent", "no-auto-stop", "no-auto-delete", "whitelisted", "skip-lifecycle"]` | VM label keys that exempt instances |

@@ -335,7 +335,6 @@ class VMProcessor:
                         self.config.project_id,
                         zone,
                         name,
-                        discard_local_ssd=self.config.discard_local_ssd,
                     )
                     result["action"] = "stopped"
                     result["category"] = "stopped"

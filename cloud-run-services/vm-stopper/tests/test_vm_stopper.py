@@ -250,7 +250,6 @@ class TestStopperConfig(unittest.TestCase):
         self.assertFalse(config.delete_stopped_vms)
         self.assertFalse(config.dry_run)
         self.assertEqual(config.max_workers, 20)
-        self.assertTrue(config.discard_local_ssd)
         self.assertEqual(config.cloud_logging_batch_size, 25)
         self.assertEqual(config.cloud_logging_rate_limit, 40)
         self.assertEqual(config.cloud_logging_max_retries, 4)
@@ -264,7 +263,6 @@ class TestStopperConfig(unittest.TestCase):
             "delete_stopped_vms": True,
             "dry_run": True,
             "max_workers": 10,
-            "discard_local_ssd": False,
             "exclude_label_keys": ["custom-keep", "no-touch"],
             "exclude_label_values": {"tier": "prod"},
             "whitelist_names": ["bastion-vm", "db-leader"],
@@ -281,7 +279,6 @@ class TestStopperConfig(unittest.TestCase):
         self.assertTrue(config.delete_stopped_vms)
         self.assertTrue(config.dry_run)
         self.assertEqual(config.max_workers, 10)
-        self.assertFalse(config.discard_local_ssd)
         self.assertEqual(config.exclude_label_keys, ["custom-keep", "no-touch"])
         self.assertEqual(config.exclude_label_values, {"tier": "prod"})
         self.assertEqual(config.whitelist_names, ["bastion-vm", "db-leader"])
@@ -290,31 +287,6 @@ class TestStopperConfig(unittest.TestCase):
         self.assertEqual(config.cloud_logging_rate_limit, 30)
         self.assertEqual(config.cloud_logging_max_retries, 2)
         self.assertEqual(config.cloud_logging_retry_backoff, 1.5)
-
-    def test_discard_local_ssd_parsing(self):
-        # Default is True
-        cfg_default = StopperConfig.from_request(request_data={"project": "p"})
-        self.assertTrue(cfg_default.discard_local_ssd)
-
-        # False from payload (snake_case)
-        cfg_snake = StopperConfig.from_request(request_data={"project": "p", "discard_local_ssd": False})
-        self.assertFalse(cfg_snake.discard_local_ssd)
-
-        # False from payload (camelCase)
-        cfg_camel = StopperConfig.from_request(request_data={"project": "p", "discardLocalSsd": False})
-        self.assertFalse(cfg_camel.discard_local_ssd)
-
-        # False from query args
-        cfg_query = StopperConfig.from_request(query_args={"project": "p", "discard_local_ssd": "false"})
-        self.assertFalse(cfg_query.discard_local_ssd)
-
-        # False from env var
-        cfg_env = StopperConfig.from_request(env={"PROJECT_ID": "p", "DISCARD_LOCAL_SSD": "false"})
-        self.assertFalse(cfg_env.discard_local_ssd)
-
-        # True from env var
-        cfg_env_true = StopperConfig.from_request(env={"PROJECT_ID": "p", "DISCARD_LOCAL_SSD": "true"})
-        self.assertTrue(cfg_env_true.discard_local_ssd)
 
     def test_config_from_query_args(self):
         query_args = {
@@ -647,78 +619,14 @@ class TestGCEClientAndCloudLogging(unittest.TestCase):
         mock_instances_client.delete.assert_called_once_with(project="proj", zone="us-central1-a", instance="vm-2")
 
     @patch("stopper.gce_client.compute_v1.InstancesClient")
-    def test_stop_instance_with_discard_local_ssd_false(self, mock_instances_cls):
-        mock_instances_client = MagicMock()
-        mock_instances_cls.return_value = mock_instances_client
-        self.client._instances_client = mock_instances_client
-
-        mock_op = MagicMock()
-        mock_instances_client.stop.return_value = mock_op
-
-        self.client.stop_instance("proj", "us-central1-a", "vm-1", discard_local_ssd=False)
-        self.assertEqual(mock_instances_client.stop.call_count, 1)
-        _, kwargs = mock_instances_client.stop.call_args
-        req = kwargs.get("request")
-        self.assertIsNotNone(req)
-        self.assertEqual(req.project, "proj")
-        self.assertEqual(req.zone, "us-central1-a")
-        self.assertEqual(req.instance, "vm-1")
-        self.assertFalse(req.discard_local_ssd)
-
-    @patch("stopper.gce_client.compute_v1.InstancesClient")
-    def test_stop_instance_local_ssd_error_retry_success(self, mock_instances_cls):
-        mock_instances_client = MagicMock()
-        mock_instances_cls.return_value = mock_instances_client
-        self.client._instances_client = mock_instances_client
-
-        mock_op = MagicMock()
-        # First call fails with Local SSD discard required error, second call succeeds
-        mock_instances_client.stop.side_effect = [
-            Exception(
-                "400 POST https://compute.googleapis.com/compute/v1/projects/gcs-fuse-test/zones/us-west4-a/instances/abhishek-west4a-zb/stop: "
-                "VM has a Local SSD attached but an undefined value for `discard-local-ssd`. "
-                "If using gcloud, please add `--discard-local-ssd=false` or `--discard-local-ssd=true` to your command."
-            ),
-            mock_op,
-        ]
-
-        self.client.stop_instance("gcs-fuse-test", "us-west4-a", "abhishek-west4a-zb", discard_local_ssd=False)
-        self.assertEqual(mock_instances_client.stop.call_count, 2)
-        # Verify first call had discard_local_ssd=False
-        _, first_kwargs = mock_instances_client.stop.call_args_list[0]
-        first_req = first_kwargs.get("request")
-        self.assertFalse(first_req.discard_local_ssd)
-        # Verify retry had discard_local_ssd=True
-        _, second_kwargs = mock_instances_client.stop.call_args_list[1]
-        second_req = second_kwargs.get("request")
-        self.assertTrue(second_req.discard_local_ssd)
-        mock_op.result.assert_called_once_with(timeout=300)
-
-    @patch("stopper.gce_client.compute_v1.InstancesClient")
-    def test_stop_instance_local_ssd_error_no_retry_when_discard_local_ssd_true(self, mock_instances_cls):
-        mock_instances_client = MagicMock()
-        mock_instances_cls.return_value = mock_instances_client
-        self.client._instances_client = mock_instances_client
-
-        mock_instances_client.stop.side_effect = Exception(
-            "400 POST https://compute.googleapis.com/compute/v1/projects/gcs-fuse-test/zones/us-west4-a/instances/abhishek-west4a-zb/stop: "
-            "VM has a Local SSD attached but an undefined value for `discard-local-ssd`."
-        )
-
-        with self.assertRaises(Exception) as ctx:
-            self.client.stop_instance("gcs-fuse-test", "us-west4-a", "abhishek-west4a-zb", discard_local_ssd=True)
-        self.assertIn("discard-local-ssd", str(ctx.exception))
-        self.assertEqual(mock_instances_client.stop.call_count, 1)
-
-    @patch("stopper.gce_client.compute_v1.InstancesClient")
-    def test_stop_instance_unrelated_error_raises_without_retry(self, mock_instances_cls):
+    def test_stop_instance_error_raises(self, mock_instances_cls):
         mock_instances_client = MagicMock()
         mock_instances_cls.return_value = mock_instances_client
         self.client._instances_client = mock_instances_client
 
         mock_instances_client.stop.side_effect = Exception("503 Service Unavailable: Backend error")
         with self.assertRaises(Exception) as ctx:
-            self.client.stop_instance("proj", "us-central1-a", "vm-1", discard_local_ssd=True)
+            self.client.stop_instance("proj", "us-central1-a", "vm-1")
         self.assertIn("503 Service Unavailable", str(ctx.exception))
         self.assertEqual(mock_instances_client.stop.call_count, 1)
 
@@ -918,27 +826,7 @@ class TestVMProcessorLifecycle(unittest.TestCase):
         self.assertEqual(res["action"], "stopped")
         self.assertIn("Stopped idle running VM", res["reason"])
         self.mock_client.stop_instance.assert_called_once_with(
-            "test-proj", "us-central1-a", "idle-vm", discard_local_ssd=True
-        )
-
-    def test_idle_running_vm_with_custom_discard_local_ssd_config(self):
-        config = StopperConfig(
-            project_id="test-proj",
-            idle_days_threshold=7,
-            dry_run=False,
-            discard_local_ssd=False,
-        )
-        processor = VMProcessor(config, gce_client=self.mock_client)
-
-        created_ts = (self.now - timedelta(days=15)).isoformat()
-        idle_vm = MockInstance(name="idle-vm-ssd", status="RUNNING", creation_timestamp=created_ts)
-
-        self.mock_client.has_recent_activity.return_value = False
-
-        res = processor.process_single_instance("us-central1-a", idle_vm, self.now)
-        self.assertEqual(res["category"], "stopped")
-        self.mock_client.stop_instance.assert_called_once_with(
-            "test-proj", "us-central1-a", "idle-vm-ssd", discard_local_ssd=False
+            "test-proj", "us-central1-a", "idle-vm"
         )
 
     def test_idle_running_vm_dry_run(self):
@@ -1171,7 +1059,7 @@ class TestVMProcessorLifecycle(unittest.TestCase):
         self.assertEqual(summary["errors_count"], 0)
 
         self.mock_client.stop_instance.assert_called_once_with(
-            "test-proj", "us-central1-b", "idle-vm", discard_local_ssd=True
+            "test-proj", "us-central1-b", "idle-vm"
         )
         self.mock_client.delete_instance.assert_called_once_with("test-proj", "us-central1-c", "stopped-old")
 
@@ -1207,7 +1095,7 @@ class TestVMProcessorLifecycle(unittest.TestCase):
 
         mock_client.get_instances_activity.assert_called_once()
         mock_client.stop_instance.assert_called_once_with(
-            "test-proj", "us-central1-a", "candidate-idle-1", discard_local_ssd=True
+            "test-proj", "us-central1-a", "candidate-idle-1"
         )
 
 
