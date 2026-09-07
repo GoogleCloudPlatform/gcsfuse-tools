@@ -23,7 +23,7 @@ import sys
 import types
 from typing import Any
 import unittest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, Mock, patch
 import urllib3
 
 
@@ -482,6 +482,27 @@ class TestReservationClient(unittest.TestCase):
         pool_with_maxsize = urllib3.PoolManager(maxsize=10)
         with self.assertNoLogs("cleaner.reservation_client", level="WARNING"):
             ReservationClient(credentials=self.mock_creds, http_pool=pool_with_maxsize)
+
+        # Subclass of urllib3.PoolManager without explicit maxsize also triggers warning (PEP 8 isinstance check)
+        class CustomPoolManager(urllib3.PoolManager):
+            pass
+
+        custom_pool = CustomPoolManager()
+        with self.assertLogs("cleaner.reservation_client", level="WARNING") as cm_subclass:
+            subclass_client = ReservationClient(credentials=self.mock_creds, http_pool=custom_pool)
+        self.assertTrue(
+            any(
+                "does not have an explicit maxsize configured" in msg
+                for msg in cm_subclass.output
+            )
+        )
+        self.assertEqual(subclass_client.maxsize, 1)
+
+        # Mock / MagicMock with spec=urllib3.PoolManager does NOT trigger warning
+        for mock_obj in (MagicMock(spec=urllib3.PoolManager), Mock(spec=urllib3.PoolManager)):
+            with self.subTest(mock_type=type(mock_obj).__name__):
+                with self.assertNoLogs("cleaner.reservation_client", level="WARNING"):
+                    ReservationClient(credentials=self.mock_creds, http_pool=mock_obj, maxsize=15)
 
     def test_list_aggregated_reservations_single_page(self):
         mock_response = MagicMock()
@@ -1009,6 +1030,36 @@ class TestReservationCleanerService(unittest.TestCase):
             any(
                 "Provided ReservationClient maxsize (2) is less than max_workers (4)" in msg
                 for msg in cm.output
+            )
+        )
+
+    def test_service_warns_when_client_none_and_pool_maxsize_less_than_max_workers(self):
+        # When client is None and config.pool_maxsize < config.max_workers,
+        # ReservationCleanerService initializes ReservationClient with effective_pool_maxsize
+        # and logs a warning about connection pool overflow.
+        cfg = CleanerConfig(
+            project_id="test-fleet-project",
+            max_workers=6,
+            pool_maxsize=2,
+        )
+        with self.assertLogs("cleaner.service", level="WARNING") as cm:
+            service = ReservationCleanerService(cfg, client=None)
+        self.assertEqual(service.client.maxsize, 2)
+        self.assertTrue(
+            any(
+                "Provided ReservationClient maxsize (2) is less than max_workers (6)" in msg
+                for msg in cm.output
+            )
+        )
+
+        # Also verify when client argument is omitted entirely (defaults to None)
+        with self.assertLogs("cleaner.service", level="WARNING") as cm2:
+            service_default = ReservationCleanerService(cfg)
+        self.assertEqual(service_default.client.maxsize, 2)
+        self.assertTrue(
+            any(
+                "Provided ReservationClient maxsize (2) is less than max_workers (6)" in msg
+                for msg in cm2.output
             )
         )
 

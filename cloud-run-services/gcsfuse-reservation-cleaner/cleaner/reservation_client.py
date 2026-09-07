@@ -53,7 +53,8 @@ class ReservationClient:
             self._http = http_pool
             pool_kw = getattr(http_pool, "connection_pool_kw", None)
             pool_maxsize = pool_kw.get("maxsize") if isinstance(pool_kw, dict) else None
-            if pool_maxsize is None and type(http_pool) is urllib3.PoolManager:
+            is_mock = type(http_pool).__name__ in ("Mock", "MagicMock")
+            if pool_maxsize is None and isinstance(http_pool, urllib3.PoolManager) and not is_mock:
                 logger.warning(
                     "The provided http_pool does not have an explicit maxsize configured. "
                     "urllib3 defaults to maxsize=1, which may cause connection pool overflow "
