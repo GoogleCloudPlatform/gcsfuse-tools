@@ -204,6 +204,34 @@ class TestCleanerConfig(unittest.TestCase):
             CleanerConfig(project_id="test", max_workers=0)
         with self.assertRaises(ValueError):
             CleanerConfig(project_id="test", lookback_days=-1)
+        with self.assertRaises(ValueError):
+            CleanerConfig(project_id="test", pool_maxsize=0)
+        with self.assertRaises(ValueError):
+            CleanerConfig(project_id="test", pool_maxsize=-3)
+
+    def test_config_pool_maxsize_resolution(self):
+        # Default effective pool size: max(10, max_workers)
+        cfg_default = CleanerConfig(project_id="test", max_workers=4)
+        self.assertIsNone(cfg_default.pool_maxsize)
+        self.assertEqual(cfg_default.effective_pool_maxsize, 10)
+
+        # Scales up with max_workers if greater than 10
+        cfg_high_workers = CleanerConfig(project_id="test", max_workers=25)
+        self.assertEqual(cfg_high_workers.effective_pool_maxsize, 25)
+
+        # Explicit pool_maxsize override takes precedence
+        cfg_override = CleanerConfig(project_id="test", max_workers=5, pool_maxsize=50)
+        self.assertEqual(cfg_override.pool_maxsize, 50)
+        self.assertEqual(cfg_override.effective_pool_maxsize, 50)
+
+        # Resolution via dict and environment variables
+        cfg_from_dict = CleanerConfig.from_dict({"project_id": "test", "pool_maxsize": 20})
+        self.assertEqual(cfg_from_dict.pool_maxsize, 20)
+
+        with patch.dict(os.environ, {"POOL_MAXSIZE": "35"}):
+            cfg_from_env = CleanerConfig.from_dict({"project_id": "test"})
+            self.assertEqual(cfg_from_env.pool_maxsize, 35)
+            self.assertEqual(cfg_from_env.effective_pool_maxsize, 35)
 
     def test_config_from_flask_request(self):
         mock_req = MagicMock()
@@ -266,6 +294,19 @@ class TestReservationClient(unittest.TestCase):
         self.mock_creds.token = "mock-bearer-token"
         self.mock_http = MagicMock(spec=urllib3.PoolManager)
         self.client = ReservationClient(credentials=self.mock_creds, http_pool=self.mock_http)
+
+    def test_reservation_client_default_pool_maxsize(self):
+        # Default maxsize must be >= 10 to support concurrent workers
+        client_default = ReservationClient(credentials=self.mock_creds)
+        self.assertEqual(client_default.maxsize, 10)
+        self.assertIsInstance(client_default.http_pool, urllib3.PoolManager)
+        self.assertEqual(client_default.http_pool.connection_pool_kw.get("maxsize"), 10)
+
+    def test_reservation_client_custom_pool_maxsize(self):
+        # Custom maxsize parameter sets connection_pool_kw maxsize
+        client_custom = ReservationClient(credentials=self.mock_creds, maxsize=32)
+        self.assertEqual(client_custom.maxsize, 32)
+        self.assertEqual(client_custom.http_pool.connection_pool_kw.get("maxsize"), 32)
 
     def test_list_aggregated_reservations_single_page(self):
         mock_response = MagicMock()
@@ -774,6 +815,13 @@ class TestReservationCleanerService(unittest.TestCase):
         self.mock_client = MagicMock(spec=ReservationClient)
         self.service = ReservationCleanerService(self.config, client=self.mock_client)
         self.ref_now = datetime(2026, 8, 31, 12, 0, 0, tzinfo=timezone.utc)
+
+    def test_service_client_initialization_with_effective_pool_size(self):
+        # Service instantiates client with effective_pool_maxsize matching workers
+        cfg_workers = CleanerConfig(project_id="test-fleet-project", max_workers=16)
+        service = ReservationCleanerService(cfg_workers)
+        self.assertEqual(service.client.maxsize, 16)
+        self.assertEqual(service.client.http_pool.connection_pool_kw.get("maxsize"), 16)
 
     def test_full_sweep_mixed_fleet(self):
         # 1 active, 1 idle, 1 never-used, 1 recently-used

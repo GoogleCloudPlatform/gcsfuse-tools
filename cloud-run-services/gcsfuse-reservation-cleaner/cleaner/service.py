@@ -35,7 +35,7 @@ class ReservationCleanerService:
         client: Optional[ReservationClient] = None,
     ):
         self.config = config
-        self.client = client or ReservationClient()
+        self.client = client or ReservationClient(maxsize=self.config.effective_pool_maxsize)
         self.processor = ReservationProcessor(self.config, self.client)
 
     def run(self, reference_time: Optional[datetime] = None, raise_on_error: bool = False) -> Dict[str, Any]:

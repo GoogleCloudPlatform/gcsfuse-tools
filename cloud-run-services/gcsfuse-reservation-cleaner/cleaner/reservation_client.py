@@ -29,6 +29,10 @@ logger = logging.getLogger(__name__)
 COMPUTE_API_BASE = "https://compute.googleapis.com/compute/v1"
 MONITORING_API_BASE = "https://monitoring.googleapis.com/v3"
 DEFAULT_SCOPES = ["https://www.googleapis.com/auth/cloud-platform"]
+DEFAULT_POOL_SIZE = 10
+
+# Suppress noisy "Connection pool is full" warnings from urllib3
+logging.getLogger("urllib3.connectionpool").setLevel(logging.ERROR)
 
 
 class ReservationClient:
@@ -38,8 +42,13 @@ class ReservationClient:
         self,
         credentials: Optional[google.auth.credentials.Credentials] = None,
         http_pool: Optional[urllib3.PoolManager] = None,
+        maxsize: int = DEFAULT_POOL_SIZE,
     ):
-        self._http = http_pool or urllib3.PoolManager()
+        self._maxsize = max(1, maxsize)
+        self._http = http_pool or urllib3.PoolManager(
+            num_pools=10,
+            maxsize=self._maxsize,
+        )
         self._lock = threading.Lock()
         if credentials:
             self._credentials = credentials
@@ -49,6 +58,16 @@ class ReservationClient:
             except Exception as e:
                 logger.warning("Could not load default Google Cloud credentials: %s", e)
                 self._credentials = None
+
+    @property
+    def http_pool(self) -> urllib3.PoolManager:
+        """Return the underlying urllib3 PoolManager instance."""
+        return self._http
+
+    @property
+    def maxsize(self) -> int:
+        """Return configured connection pool maxsize."""
+        return self._maxsize
 
     def _get_auth_headers(self) -> Dict[str, str]:
         """Obtain valid authorization headers with OAuth 2.0 Bearer token."""

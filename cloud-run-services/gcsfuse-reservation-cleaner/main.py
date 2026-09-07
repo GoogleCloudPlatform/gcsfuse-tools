@@ -29,6 +29,8 @@ logging.basicConfig(
     format="[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s",
     stream=sys.stdout,
 )
+# Suppress noisy "Connection pool is full" warnings from urllib3
+logging.getLogger("urllib3.connectionpool").setLevel(logging.ERROR)
 logger = logging.getLogger("gcsfuse-reservation-cleaner")
 
 app = Flask(__name__)
