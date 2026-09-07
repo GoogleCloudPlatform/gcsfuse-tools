@@ -476,7 +476,7 @@ class TestReservationClient(unittest.TestCase):
                 for msg in cm.output
             )
         )
-        self.assertEqual(client.maxsize, 10)
+        self.assertEqual(client.maxsize, 1)
 
         # When pool has explicit maxsize configured, no warning is logged
         pool_with_maxsize = urllib3.PoolManager(maxsize=10)
@@ -1008,6 +1008,23 @@ class TestReservationCleanerService(unittest.TestCase):
         self.assertTrue(
             any(
                 "Provided ReservationClient maxsize (2) is less than max_workers (4)" in msg
+                for msg in cm.output
+            )
+        )
+
+    def test_service_warns_when_default_poolmanager_client_passed_with_concurrent_workers(self):
+        # A default urllib3.PoolManager without explicit maxsize sets client.maxsize to 1.
+        # Passing this client to ReservationCleanerService when max_workers > 1 triggers a warning.
+        self.assertGreater(self.config.max_workers, 1)
+        default_pool = urllib3.PoolManager()
+        with self.assertLogs("cleaner.reservation_client", level="WARNING"):
+            client = ReservationClient(credentials=MagicMock(), http_pool=default_pool)
+        self.assertEqual(client.maxsize, 1)
+        with self.assertLogs("cleaner.service", level="WARNING") as cm:
+            ReservationCleanerService(self.config, client=client)
+        self.assertTrue(
+            any(
+                f"Provided ReservationClient maxsize (1) is less than max_workers ({self.config.max_workers})" in msg
                 for msg in cm.output
             )
         )

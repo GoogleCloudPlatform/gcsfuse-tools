@@ -59,7 +59,9 @@ class ReservationClient:
                     "urllib3 defaults to maxsize=1, which may cause connection pool overflow "
                     "under concurrency."
                 )
-            self._maxsize = max(1, pool_maxsize if isinstance(pool_maxsize, int) else parsed_maxsize)
+                self._maxsize = 1
+            else:
+                self._maxsize = max(1, pool_maxsize if isinstance(pool_maxsize, int) else parsed_maxsize)
         else:
             self._maxsize = parsed_maxsize
             self._http = urllib3.PoolManager(
