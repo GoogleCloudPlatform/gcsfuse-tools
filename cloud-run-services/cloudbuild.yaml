@@ -336,7 +336,7 @@ substitutions:
   _IMAGE_TAG: 'latest'
   _DRY_RUN: 'false'
   _CLUSTER_SCALER_SCHEDULE: '0 2 * * *'
-  _CLEANER_SCHEDULE: '0 0 1 * *'
+  _CLEANER_SCHEDULE: '0 0 * * *'
   _VM_STOPPER_SCHEDULE: '0 20 * * *'
   _IDLE_DAYS_THRESHOLD: '7'
   _CLUSTER_SCALER_SA: 'cluster-scaler-sa'

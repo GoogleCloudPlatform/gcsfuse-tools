@@ -58,7 +58,7 @@ cluster_scaler_max_workers         = 10
 # ==============================================================================
 reservation_cleaner_service_name      = "gcsfuse-reservation-cleaner"
 reservation_cleaner_schedule_name     = "gcsfuse-reservation-cleaner-scheduler"
-reservation_cleaner_schedule          = "0 0 1 * *" # Monthly on 1st at 00:00 UTC
+reservation_cleaner_schedule          = "0 0 * * *" # Daily at 00:00 UTC
 reservation_cleaner_delete_idle_days  = 60          # Continuous 0-utilization days before deletion
 reservation_cleaner_delete_never_used = true        # Delete reservations never utilized since creation
 reservation_cleaner_max_age_days      = 180         # Maximum reservation lifetime in days

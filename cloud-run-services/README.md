@@ -56,7 +56,7 @@ flowchart TD
     subgraph INVOCATION ["1. INVOCATION & SCHEDULING TIER (Cloud Scheduler)"]
         direction TB
         SCHED_CS["<b>Cloud Scheduler: cluster-scaler</b><br/>Cron: 0 2 * * * (Daily 02:00 UTC)<br/>OIDC Token (Service Account)"]:::schedStyle
-        SCHED_RC["<b>Cloud Scheduler: reservation-cleaner</b><br/>Cron: 0 0 1 * * (Monthly 1st 00:00 UTC)<br/>OIDC Token (Service Account)"]:::schedStyle
+        SCHED_RC["<b>Cloud Scheduler: reservation-cleaner</b><br/>Cron: 0 0 * * * (Daily 00:00 UTC)<br/>OIDC Token (Service Account)"]:::schedStyle
         SCHED_VM["<b>Cloud Scheduler: vm-stopper</b><br/>Cron: 0 20 * * * (Daily 20:00 UTC)<br/>OIDC Token (Service Account)"]:::schedStyle
     end
 
@@ -109,7 +109,7 @@ flowchart TD
 | :--- | :--- | :--- | :--- |
 | **Target Infrastructure** | Google Kubernetes Engine (GKE) Clusters & Node Pools | Google Compute Engine (GCE) Reservations | Google Compute Engine (GCE) VM Instances |
 | **Primary Remediation Action** | Resizes idle node pools to size 0 (sets autoscaling min to 0) | Deletes stale or abandoned compute reservations | Stops idle running VMs (optional deletion of long-stopped VMs) |
-| **Default Schedule** | Daily at 02:00 UTC (`0 2 * * *`) | Monthly on the 1st at 00:00 UTC (`0 0 1 * *`) | Daily at 20:00 UTC (`0 20 * * *`) |
+| **Default Schedule** | Daily at 02:00 UTC (`0 2 * * *`) | Daily at 00:00 UTC (`0 0 * * *`) | Daily at 20:00 UTC (`0 20 * * *`) |
 | **Idle Detection Method** | K8s API pod inspection across non-system namespaces | Cloud Monitoring metrics (`compute.googleapis.com/reservation/used`) | Cloud Logging OSLogin audit events and instance metadata events |
 | **Idle Threshold Parameter** | `idle_days_threshold` (Default: `7` days) | `delete_idle_days` (Default: `60` days) | `idle_days_threshold` (Default: `7` days) |
 | **Lifecycle State Tracking** | Stamped GKE cluster labels: `idle_since=YYYY-MM-DD` | Historical utilization lookback (Default: `730` days) | Instance `creationTimestamp` + Cloud Logging timestamp |
@@ -332,7 +332,7 @@ The suite supports three distinct deployment workflows tailored to different ope
 | | `--skip-tests` | `SKIP_TESTS` | `false` | Bypass Stage 1 pre-deployment offline unit test gating |
 | | `--repo-name` | `REPO_NAME` | `gcsfuse-tools` | Artifact Registry Docker repository name |
 | | `--cluster-scaler-schedule` | `CLUSTER_SCALER_SCHEDULE` | `"0 2 * * *"` | Cron schedule for `cluster-scaler` (Daily at 02:00 UTC) |
-| | `--cleaner-schedule` | `CLEANER_SCHEDULE` | `"0 0 1 * *"` | Cron schedule for `gcsfuse-reservation-cleaner` (Monthly 1st 00:00 UTC) |
+| | `--cleaner-schedule` | `CLEANER_SCHEDULE` | `"0 0 * * *"` | Cron schedule for `gcsfuse-reservation-cleaner` (Daily 00:00 UTC) |
 | | `--vm-stopper-schedule` | `VM_STOPPER_SCHEDULE` | `"0 20 * * *"` | Cron schedule for `vm-stopper` (Daily at 20:00 UTC) |
 | `-t` | `--threshold` | `IDLE_DAYS_THRESHOLD` | `7` | Days of inactivity before resizing idle GKE node pools to 0 |
 | `-h` | `--help` | - | - | Displays usage instructions and exits with code 0 |
@@ -410,7 +410,7 @@ Before compiling container images or mutating GCP resources, Stage 1 executes al
 | `_IMAGE_TAG` | `"latest"` | Tag applied to compiled container images. |
 | `_DRY_RUN` | `"false"` | Global dry-run flag passed to Cloud Run environment and scheduler payloads. |
 | `_CLUSTER_SCALER_SCHEDULE` | `"0 2 * * *"` | Cron expression for `cluster-scaler` (Daily at 02:00 UTC). |
-| `_CLEANER_SCHEDULE` | `"0 0 1 * *"` | Cron expression for `gcsfuse-reservation-cleaner` (Monthly 1st 00:00 UTC). |
+| `_CLEANER_SCHEDULE` | `"0 0 * * *"` | Cron expression for `gcsfuse-reservation-cleaner` (Daily 00:00 UTC). |
 | `_VM_STOPPER_SCHEDULE` | `"0 20 * * *"` | Cron expression for `vm-stopper` (Daily at 20:00 UTC). |
 | `_IDLE_DAYS_THRESHOLD` | `"7"` | Inactivity threshold in days before scaling idle GKE node pools. |
 | `_CLUSTER_SCALER_SA` | `"cluster-scaler-sa"` | Name of the Runtime Service Account for `cluster-scaler`. |
@@ -488,7 +488,7 @@ enable_vm_stopper          = true
 
 # Custom schedules
 cluster_scaler_schedule      = "0 2 * * *"
-reservation_cleaner_schedule = "0 0 1 * *"
+reservation_cleaner_schedule = "0 0 * * *"
 vm_stopper_schedule          = "0 20 * * *"
 ```
 
