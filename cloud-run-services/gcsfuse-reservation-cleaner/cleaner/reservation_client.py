@@ -29,6 +29,7 @@ logger = logging.getLogger(__name__)
 COMPUTE_API_BASE = "https://compute.googleapis.com/compute/v1"
 MONITORING_API_BASE = "https://monitoring.googleapis.com/v3"
 DEFAULT_SCOPES = ["https://www.googleapis.com/auth/cloud-platform"]
+DEFAULT_POOL_SIZE = 10
 
 
 class ReservationClient:
@@ -37,9 +38,37 @@ class ReservationClient:
     def __init__(
         self,
         credentials: Optional[google.auth.credentials.Credentials] = None,
+        *,
         http_pool: Optional[urllib3.PoolManager] = None,
+        maxsize: Optional[int] = DEFAULT_POOL_SIZE,
     ):
-        self._http = http_pool or urllib3.PoolManager()
+        if maxsize is not None:
+            parsed_maxsize = int(float(maxsize))
+            if parsed_maxsize <= 0:
+                raise ValueError(f"maxsize must be positive, got {parsed_maxsize}")
+        else:
+            parsed_maxsize = DEFAULT_POOL_SIZE
+
+        if http_pool is not None:
+            self._http = http_pool
+            pool_kw = getattr(http_pool, "connection_pool_kw", None)
+            pool_maxsize = pool_kw.get("maxsize") if isinstance(pool_kw, dict) else None
+            is_mock = hasattr(http_pool, "mock_add_spec")
+            if pool_maxsize is None and isinstance(http_pool, urllib3.PoolManager) and not is_mock:
+                logger.warning(
+                    "The provided http_pool does not have an explicit maxsize configured. "
+                    "urllib3 defaults to maxsize=1, which may cause connection pool overflow "
+                    "under concurrency."
+                )
+                self._maxsize = 1
+            else:
+                self._maxsize = max(1, pool_maxsize if isinstance(pool_maxsize, int) else parsed_maxsize)
+        else:
+            self._maxsize = parsed_maxsize
+            self._http = urllib3.PoolManager(
+                num_pools=10,
+                maxsize=self._maxsize,
+            )
         self._lock = threading.Lock()
         if credentials:
             self._credentials = credentials
@@ -49,6 +78,16 @@ class ReservationClient:
             except Exception as e:
                 logger.warning("Could not load default Google Cloud credentials: %s", e)
                 self._credentials = None
+
+    @property
+    def http_pool(self) -> urllib3.PoolManager:
+        """Return the underlying urllib3 PoolManager instance."""
+        return self._http
+
+    @property
+    def maxsize(self) -> int:
+        """Return configured connection pool maxsize."""
+        return self._maxsize
 
     def _get_auth_headers(self) -> Dict[str, str]:
         """Obtain valid authorization headers with OAuth 2.0 Bearer token."""

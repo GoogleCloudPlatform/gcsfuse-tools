@@ -23,7 +23,8 @@ import sys
 import types
 from typing import Any
 import unittest
-from unittest.mock import MagicMock, patch
+import unittest.mock
+from unittest.mock import MagicMock, Mock, patch
 import urllib3
 
 
@@ -204,6 +205,61 @@ class TestCleanerConfig(unittest.TestCase):
             CleanerConfig(project_id="test", max_workers=0)
         with self.assertRaises(ValueError):
             CleanerConfig(project_id="test", lookback_days=-1)
+        with self.assertRaises(ValueError):
+            CleanerConfig(project_id="test", pool_maxsize=0)
+        with self.assertRaises(ValueError):
+            CleanerConfig(project_id="test", pool_maxsize=-3)
+
+    def test_config_pool_maxsize_resolution(self):
+        # Default effective pool size: max(10, max_workers)
+        cfg_default = CleanerConfig(project_id="test", max_workers=4)
+        self.assertIsNone(cfg_default.pool_maxsize)
+        self.assertEqual(cfg_default.effective_pool_maxsize, 10)
+
+        # Scales up with max_workers if greater than 10
+        cfg_high_workers = CleanerConfig(project_id="test", max_workers=25)
+        self.assertEqual(cfg_high_workers.effective_pool_maxsize, 25)
+
+        # Explicit pool_maxsize override takes precedence
+        cfg_override = CleanerConfig(project_id="test", max_workers=5, pool_maxsize=50)
+        self.assertEqual(cfg_override.pool_maxsize, 50)
+        self.assertEqual(cfg_override.effective_pool_maxsize, 50)
+
+        # Resolution via dict and environment variables
+        cfg_from_dict = CleanerConfig.from_dict({"project_id": "test", "pool_maxsize": 20})
+        self.assertEqual(cfg_from_dict.pool_maxsize, 20)
+
+        with patch.dict(os.environ, {"POOL_MAXSIZE": "35"}):
+            cfg_from_env = CleanerConfig.from_dict({"project_id": "test"})
+            self.assertEqual(cfg_from_env.pool_maxsize, 35)
+            self.assertEqual(cfg_from_env.effective_pool_maxsize, 35)
+
+        # Resolution of float strings e.g. "10.0" in CleanerConfig
+        cfg_float_str = CleanerConfig.from_dict({"project_id": "test", "pool_maxsize": "10.0"})
+        self.assertEqual(cfg_float_str.pool_maxsize, 10)
+        self.assertIsInstance(cfg_float_str.pool_maxsize, int)
+
+        with patch.dict(os.environ, {"POOL_MAXSIZE": "15.0"}):
+            cfg_env_float_str = CleanerConfig.from_dict({"project_id": "test"})
+            self.assertEqual(cfg_env_float_str.pool_maxsize, 15)
+            self.assertIsInstance(cfg_env_float_str.pool_maxsize, int)
+
+        # Invalid pool_maxsize string raises ValueError
+        with self.assertRaises(ValueError):
+            CleanerConfig.from_dict({"project_id": "test", "pool_maxsize": "invalid"})
+
+    def test_config_pool_maxsize_non_positive_raises(self):
+        # pool_maxsize <= 0 (e.g. 0, -1, "-5", "0.0") raises ValueError via direct constructor and from_dict
+        invalid_values = [0, -1, -5, "-5", "0", "0.0", "-1.0"]
+        for val in invalid_values:
+            with self.subTest(val=val):
+                with self.assertRaises(ValueError):
+                    CleanerConfig(project_id="test", pool_maxsize=val)
+                with self.assertRaises(ValueError):
+                    CleanerConfig.from_dict({"project_id": "test", "pool_maxsize": val})
+                with patch.dict(os.environ, {"POOL_MAXSIZE": str(val)}):
+                    with self.assertRaises(ValueError):
+                        CleanerConfig.from_dict({"project_id": "test"})
 
     def test_config_from_flask_request(self):
         mock_req = MagicMock()
@@ -266,6 +322,225 @@ class TestReservationClient(unittest.TestCase):
         self.mock_creds.token = "mock-bearer-token"
         self.mock_http = MagicMock(spec=urllib3.PoolManager)
         self.client = ReservationClient(credentials=self.mock_creds, http_pool=self.mock_http)
+
+    def test_reservation_client_keyword_only_parameters(self):
+        # http_pool and maxsize are keyword-only arguments to prevent positional binding bugs
+        with self.assertRaises(TypeError):
+            ReservationClient(None, self.mock_http)
+        with self.assertRaises(TypeError):
+            ReservationClient(self.mock_creds, self.mock_http)
+        with self.assertRaises(TypeError):
+            ReservationClient(self.mock_creds, self.mock_http, 10)
+        with self.assertRaises(TypeError):
+            ReservationClient(None, 10)
+        with self.assertRaises(TypeError):
+            ReservationClient(self.mock_creds, 10)
+
+    def test_reservation_client_non_positive_maxsize_raises(self):
+        # maxsize <= 0 (e.g., 0, -1, "-5", "0.0") raises ValueError
+        invalid_values = [0, -1, -10, "-5", "0", "0.0", "-1.0"]
+        for val in invalid_values:
+            with self.subTest(val=val):
+                with self.assertRaises(ValueError):
+                    ReservationClient(credentials=self.mock_creds, maxsize=val)
+                with self.assertRaises(ValueError):
+                    ReservationClient(credentials=self.mock_creds, http_pool=self.mock_http, maxsize=val)
+
+    def test_reservation_client_default_pool_maxsize(self):
+        # Default maxsize must be >= 10 to support concurrent workers
+        client_default = ReservationClient(credentials=self.mock_creds)
+        self.assertEqual(client_default.maxsize, 10)
+        self.assertIsInstance(client_default.http_pool, urllib3.PoolManager)
+        self.assertEqual(client_default.http_pool.connection_pool_kw.get("maxsize"), 10)
+
+    def test_reservation_client_custom_pool_maxsize(self):
+        # Custom maxsize parameter sets connection_pool_kw maxsize
+        client_custom = ReservationClient(credentials=self.mock_creds, maxsize=32)
+        self.assertEqual(client_custom.maxsize, 32)
+        self.assertEqual(client_custom.http_pool.connection_pool_kw.get("maxsize"), 32)
+
+    def test_reservation_client_maxsize_type_coercion(self):
+        # Verifies string and float maxsize parameters are safely cast to int
+        client_str = ReservationClient(credentials=self.mock_creds, maxsize="25")
+        self.assertEqual(client_str.maxsize, 25)
+        self.assertIsInstance(client_str.maxsize, int)
+        self.assertEqual(client_str.http_pool.connection_pool_kw.get("maxsize"), 25)
+
+        client_float = ReservationClient(credentials=self.mock_creds, maxsize=15.0)
+        self.assertEqual(client_float.maxsize, 15)
+        self.assertIsInstance(client_float.maxsize, int)
+        self.assertEqual(client_float.http_pool.connection_pool_kw.get("maxsize"), 15)
+
+        # Also verify type coercion when custom pool fallback occurs
+        mock_pool = MagicMock(spec=urllib3.PoolManager)
+        client_pool_str = ReservationClient(
+            credentials=self.mock_creds, http_pool=mock_pool, maxsize="25"
+        )
+        self.assertEqual(client_pool_str.maxsize, 25)
+        self.assertIsInstance(client_pool_str.maxsize, int)
+
+        client_pool_float = ReservationClient(
+            credentials=self.mock_creds, http_pool=mock_pool, maxsize=15.0
+        )
+        self.assertEqual(client_pool_float.maxsize, 15)
+        self.assertIsInstance(client_pool_float.maxsize, int)
+
+        # Verifies float-like string parameters (e.g. "15.0", "10.0") are parsed correctly
+        client_float_str = ReservationClient(credentials=self.mock_creds, maxsize="15.0")
+        self.assertEqual(client_float_str.maxsize, 15)
+        self.assertIsInstance(client_float_str.maxsize, int)
+        self.assertEqual(client_float_str.http_pool.connection_pool_kw.get("maxsize"), 15)
+
+        client_float_str2 = ReservationClient(credentials=self.mock_creds, maxsize="10.0")
+        self.assertEqual(client_float_str2.maxsize, 10)
+        self.assertIsInstance(client_float_str2.maxsize, int)
+        self.assertEqual(client_float_str2.http_pool.connection_pool_kw.get("maxsize"), 10)
+
+        # Verifies None falls back to DEFAULT_POOL_SIZE (10)
+        client_none = ReservationClient(credentials=self.mock_creds, maxsize=None)
+        self.assertEqual(client_none.maxsize, 10)
+        self.assertEqual(client_none.http_pool.connection_pool_kw.get("maxsize"), 10)
+
+        # Verifies invalid non-numeric string raises ValueError rather than silent fallback
+        with self.assertRaises(ValueError):
+            ReservationClient(credentials=self.mock_creds, maxsize="invalid")
+
+        # Fallback to DEFAULT_POOL_SIZE when custom pool fallback occurs
+        client_pool_none = ReservationClient(
+            credentials=self.mock_creds, http_pool=mock_pool, maxsize=None
+        )
+        self.assertEqual(client_pool_none.maxsize, 10)
+
+        client_pool_float_str = ReservationClient(
+            credentials=self.mock_creds, http_pool=mock_pool, maxsize="15.0"
+        )
+        self.assertEqual(client_pool_float_str.maxsize, 15)
+        self.assertIsInstance(client_pool_float_str.maxsize, int)
+
+        with self.assertRaises(ValueError):
+            ReservationClient(credentials=self.mock_creds, http_pool=mock_pool, maxsize="invalid")
+
+    def test_reservation_client_custom_http_pool_maxsize_extraction(self):
+        # Verify that when a custom urllib3.PoolManager(maxsize=42) is passed as http_pool,
+        # client.maxsize returns 42
+        custom_pool = urllib3.PoolManager(maxsize=42)
+        client = ReservationClient(credentials=self.mock_creds, http_pool=custom_pool)
+        self.assertEqual(client.maxsize, 42)
+
+        # Verify fallback to maxsize parameter when mock or pool without connection_pool_kw is passed
+        mock_pool = MagicMock(spec=urllib3.PoolManager)
+        client_mock = ReservationClient(credentials=self.mock_creds, http_pool=mock_pool, maxsize=20)
+        self.assertEqual(client_mock.maxsize, 20)
+
+        # Verify fallback when pool object has no connection_pool_kw attribute
+        class CustomPoolWithoutKw:
+            pass
+
+        client_no_kw = ReservationClient(
+            credentials=self.mock_creds, http_pool=CustomPoolWithoutKw(), maxsize=15
+        )
+        self.assertEqual(client_no_kw.maxsize, 15)
+
+        # Verify fallback when connection_pool_kw has maxsize set to None (no TypeError)
+        none_pool = MagicMock()
+        none_pool.connection_pool_kw = {"maxsize": None}
+        client_none = ReservationClient(
+            credentials=self.mock_creds, http_pool=none_pool, maxsize=16
+        )
+        self.assertEqual(client_none.maxsize, 16)
+
+        # Verify fallback when connection_pool_kw has non-int maxsize (no TypeError)
+        str_pool = MagicMock()
+        str_pool.connection_pool_kw = {"maxsize": "invalid"}
+        client_str = ReservationClient(
+            credentials=self.mock_creds, http_pool=str_pool, maxsize=18
+        )
+        self.assertEqual(client_str.maxsize, 18)
+
+        # Verify fallback when connection_pool_kw has float/list maxsize (no TypeError)
+        float_pool = MagicMock()
+        float_pool.connection_pool_kw = {"maxsize": 12.5}
+        client_float = ReservationClient(
+            credentials=self.mock_creds, http_pool=float_pool, maxsize=22
+        )
+        self.assertEqual(client_float.maxsize, 22)
+
+    def test_reservation_client_warns_on_default_poolmanager_without_maxsize(self):
+        # A default urllib3.PoolManager has no explicit maxsize in connection_pool_kw (urllib3 defaults to maxsize=1)
+        pool = urllib3.PoolManager()
+        self.assertNotIn("maxsize", pool.connection_pool_kw)
+        with self.assertLogs("cleaner.reservation_client", level="WARNING") as cm:
+            client = ReservationClient(credentials=self.mock_creds, http_pool=pool)
+        self.assertTrue(
+            any(
+                "does not have an explicit maxsize configured" in msg
+                for msg in cm.output
+            )
+        )
+        self.assertEqual(client.maxsize, 1)
+
+        # When pool has explicit maxsize configured, no warning is logged
+        pool_with_maxsize = urllib3.PoolManager(maxsize=10)
+        with self.assertNoLogs("cleaner.reservation_client", level="WARNING"):
+            ReservationClient(credentials=self.mock_creds, http_pool=pool_with_maxsize)
+
+        # Subclass of urllib3.PoolManager without explicit maxsize also triggers warning (PEP 8 isinstance check)
+        class CustomPoolManager(urllib3.PoolManager):
+            pass
+
+        custom_pool = CustomPoolManager()
+        with self.assertLogs("cleaner.reservation_client", level="WARNING") as cm_subclass:
+            subclass_client = ReservationClient(credentials=self.mock_creds, http_pool=custom_pool)
+        self.assertTrue(
+            any(
+                "does not have an explicit maxsize configured" in msg
+                for msg in cm_subclass.output
+            )
+        )
+        self.assertEqual(subclass_client.maxsize, 1)
+
+        # Mock / MagicMock with spec=urllib3.PoolManager does NOT trigger warning
+        for mock_obj in (
+            MagicMock(spec=urllib3.PoolManager),
+            Mock(spec=urllib3.PoolManager),
+            unittest.mock.create_autospec(urllib3.PoolManager),
+        ):
+            with self.subTest(mock_type=type(mock_obj).__name__):
+                with self.assertNoLogs("cleaner.reservation_client", level="WARNING"):
+                    mock_client = ReservationClient(
+                        credentials=self.mock_creds, http_pool=mock_obj, maxsize=15
+                    )
+                    self.assertEqual(mock_client.maxsize, 15)
+
+    def test_reservation_client_autospec_poolmanager_detected_as_mock(self):
+        # When a test uses unittest.mock.create_autospec(urllib3.PoolManager),
+        # hasattr(http_pool, "mock_add_spec") detects it as a mock, no warning is logged,
+        # and client.maxsize does not get forced to 1.
+        autospec_pool = unittest.mock.create_autospec(urllib3.PoolManager)
+        self.assertTrue(hasattr(autospec_pool, "mock_add_spec"))
+        with self.assertNoLogs("cleaner.reservation_client", level="WARNING"):
+            client = ReservationClient(
+                credentials=self.mock_creds, http_pool=autospec_pool, maxsize=20
+            )
+        self.assertEqual(client.maxsize, 20)
+
+        # Also verify when maxsize is not explicitly passed (falls back to DEFAULT_POOL_SIZE)
+        with self.assertNoLogs("cleaner.reservation_client", level="WARNING"):
+            client_default = ReservationClient(
+                credentials=self.mock_creds, http_pool=autospec_pool
+            )
+        self.assertEqual(client_default.maxsize, 10)
+
+        # Also verify with instance=True (which produces NonCallableMagicMock)
+        autospec_instance = unittest.mock.create_autospec(
+            urllib3.PoolManager, instance=True
+        )
+        self.assertTrue(hasattr(autospec_instance, "mock_add_spec"))
+        with self.assertNoLogs("cleaner.reservation_client", level="WARNING"):
+            client_inst = ReservationClient(
+                credentials=self.mock_creds, http_pool=autospec_instance, maxsize=15
+            )
+        self.assertEqual(client_inst.maxsize, 15)
 
     def test_list_aggregated_reservations_single_page(self):
         mock_response = MagicMock()
@@ -772,8 +1047,93 @@ class TestReservationCleanerService(unittest.TestCase):
             max_workers=4,
         )
         self.mock_client = MagicMock(spec=ReservationClient)
+        self.mock_client.maxsize = 10
         self.service = ReservationCleanerService(self.config, client=self.mock_client)
         self.ref_now = datetime(2026, 8, 31, 12, 0, 0, tzinfo=timezone.utc)
+
+    def test_service_client_initialization_with_effective_pool_size(self):
+        # Service instantiates client with effective_pool_maxsize matching workers
+        cfg_workers = CleanerConfig(project_id="test-fleet-project", max_workers=16)
+        service = ReservationCleanerService(cfg_workers)
+        self.assertEqual(service.client.maxsize, 16)
+        self.assertEqual(service.client.http_pool.connection_pool_kw.get("maxsize"), 16)
+
+    def test_service_warns_when_client_maxsize_less_than_max_workers(self):
+        # Warning is logged when client.maxsize < config.max_workers
+        client = ReservationClient(credentials=MagicMock(), maxsize=2)
+        self.assertLess(client.maxsize, self.config.max_workers)
+        with self.assertLogs("cleaner.service", level="WARNING") as cm:
+            ReservationCleanerService(self.config, client=client)
+        self.assertTrue(
+            any(
+                "Provided ReservationClient maxsize (2) is less than max_workers (4)" in msg
+                for msg in cm.output
+            )
+        )
+
+    def test_service_warns_when_client_none_and_pool_maxsize_less_than_max_workers(self):
+        # When client is None and config.pool_maxsize < config.max_workers,
+        # ReservationCleanerService initializes ReservationClient with effective_pool_maxsize
+        # and logs a warning about connection pool overflow.
+        cfg = CleanerConfig(
+            project_id="test-fleet-project",
+            max_workers=6,
+            pool_maxsize=2,
+        )
+        with self.assertLogs("cleaner.service", level="WARNING") as cm:
+            service = ReservationCleanerService(cfg, client=None)
+        self.assertEqual(service.client.maxsize, 2)
+        self.assertTrue(
+            any(
+                "Provided ReservationClient maxsize (2) is less than max_workers (6)" in msg
+                for msg in cm.output
+            )
+        )
+
+        # Also verify when client argument is omitted entirely (defaults to None)
+        with self.assertLogs("cleaner.service", level="WARNING") as cm2:
+            service_default = ReservationCleanerService(cfg)
+        self.assertEqual(service_default.client.maxsize, 2)
+        self.assertTrue(
+            any(
+                "Provided ReservationClient maxsize (2) is less than max_workers (6)" in msg
+                for msg in cm2.output
+            )
+        )
+
+    def test_service_warns_when_default_poolmanager_client_passed_with_concurrent_workers(self):
+        # A default urllib3.PoolManager without explicit maxsize sets client.maxsize to 1.
+        # Passing this client to ReservationCleanerService when max_workers > 1 triggers a warning.
+        self.assertGreater(self.config.max_workers, 1)
+        default_pool = urllib3.PoolManager()
+        with self.assertLogs("cleaner.reservation_client", level="WARNING"):
+            client = ReservationClient(credentials=MagicMock(), http_pool=default_pool)
+        self.assertEqual(client.maxsize, 1)
+        with self.assertLogs("cleaner.service", level="WARNING") as cm:
+            ReservationCleanerService(self.config, client=client)
+        self.assertTrue(
+            any(
+                f"Provided ReservationClient maxsize (1) is less than max_workers ({self.config.max_workers})" in msg
+                for msg in cm.output
+            )
+        )
+
+    def test_service_no_warning_when_client_maxsize_greater_or_equal_to_max_workers(self):
+        # Warning is NOT logged when maxsize >= config.max_workers
+        # 1. client.maxsize == config.max_workers (4 == 4)
+        client_equal = ReservationClient(credentials=MagicMock(), maxsize=self.config.max_workers)
+        with self.assertNoLogs("cleaner.service", level="WARNING"):
+            ReservationCleanerService(self.config, client=client_equal)
+
+        # 2. client.maxsize > config.max_workers (8 > 4)
+        client_larger = ReservationClient(credentials=MagicMock(), maxsize=self.config.max_workers + 4)
+        with self.assertNoLogs("cleaner.service", level="WARNING"):
+            ReservationCleanerService(self.config, client=client_larger)
+
+        # Also verify via assertLogs that no WARNING logs are triggered
+        with self.assertRaises(AssertionError):
+            with self.assertLogs("cleaner.service", level="WARNING"):
+                ReservationCleanerService(self.config, client=client_equal)
 
     def test_full_sweep_mixed_fleet(self):
         # 1 active, 1 idle, 1 never-used, 1 recently-used

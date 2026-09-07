@@ -85,6 +85,7 @@ class CleanerConfig:
     lookback_days: int = 730
     dry_run: bool = False
     max_workers: int = 10
+    pool_maxsize: Optional[int] = None
     zones: Optional[List[str]] = None
     reservation_names: Optional[List[str]] = None
     whitelist_names: Optional[List[str]] = None
@@ -112,6 +113,17 @@ class CleanerConfig:
 
         if self.max_workers <= 0:
             raise ValueError(f"max_workers must be positive, got {self.max_workers}")
+
+        if self.pool_maxsize is not None:
+            parsed_pool_maxsize = int(float(self.pool_maxsize))
+            if parsed_pool_maxsize <= 0:
+                raise ValueError(f"pool_maxsize must be positive, got {parsed_pool_maxsize}")
+            self.pool_maxsize = parsed_pool_maxsize
+
+    @property
+    def effective_pool_maxsize(self) -> int:
+        """Effective connection pool size for HTTP clients."""
+        return self.pool_maxsize if self.pool_maxsize is not None else max(10, self.max_workers)
 
     @classmethod
     def from_request(
@@ -214,7 +226,14 @@ class CleanerConfig:
         )
         max_workers = int(raw_max_workers) if raw_max_workers is not None else 10
 
-        # 8. Resolve zones and reservation_names filters
+        # 8. Resolve pool_maxsize (connection pool size, defaults to max(10, max_workers))
+        raw_pool_maxsize = _get_val(
+            ["pool_maxsize", "poolMaxSize", "pool_size", "poolSize"],
+            ["POOL_MAXSIZE", "POOL_SIZE"],
+        )
+        pool_maxsize = int(float(raw_pool_maxsize)) if raw_pool_maxsize is not None else None
+
+        # 9. Resolve zones and reservation_names filters
         raw_zones = _get_val(
             ["zones", "zone"],
             ["ZONES"],
@@ -233,7 +252,7 @@ class CleanerConfig:
         )
         whitelist_names = _parse_list(raw_whitelist_names)
 
-        # 9. Resolve protection labels and tags
+        # 10. Resolve protection labels and tags
         raw_excl_keys = _get_val(
             ["exclude_label_keys", "exclude_labels", "whitelist_labels", "excludeLabelKeys"],
             ["EXCLUDE_LABEL_KEYS"],
@@ -262,6 +281,7 @@ class CleanerConfig:
             lookback_days=lookback_days,
             dry_run=dry_run,
             max_workers=max_workers,
+            pool_maxsize=pool_maxsize,
             zones=zones,
             reservation_names=reservation_names,
             whitelist_names=whitelist_names,

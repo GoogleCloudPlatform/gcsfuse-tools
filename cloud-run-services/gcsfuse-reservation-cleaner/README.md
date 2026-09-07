@@ -147,6 +147,7 @@ The service dynamically resolves configuration parameters with the following pre
 | **Monitoring Lookback** | `lookback_days` / `days` | `lookback_days` / `days` | `LOOKBACK_DAYS` | `int` | `730` | Number of past days to query in Cloud Monitoring time-series metrics. |
 | **Dry Run Mode** | `dry_run` | `dry_run` | `DRY_RUN` | `bool` | `false` | When `true`, simulates actions without invoking destructive deletion APIs. |
 | **Worker Threads** | `max_workers` | `max_workers` | `MAX_WORKERS` | `int` | `10` | Concurrency thread pool size for querying and processing. |
+| **Connection Pool Size** | `pool_maxsize` | `pool_maxsize` | `POOL_MAXSIZE` | `int` | `max(10, max_workers)` | HTTP connection pool size for urllib3 (prevents connection pool overflow and enables connection reuse). |
 | **Zone Filter** | `zones` | `zones` | `ZONES` | `list[str]` | `null` (all) | Optional list of specific zones to filter (e.g. `["us-central1-a"]`). |
 | **Reservation Filter** | `reservation_names` | `reservation_names` | `RESERVATION_NAMES` | `list[str]` | `null` (all) | Optional list of specific reservation names to evaluate. |
 | **Exclude Label Keys** | `exclude_label_keys` | `exclude_label_keys` | `EXCLUDE_LABEL_KEYS` | `list[str]` | `["keep-alive", "do-not-delete", "protected", "permanent", "no-auto-delete", "skip-lifecycle"]` | Reservation label keys that exempt reservation from deletion. |

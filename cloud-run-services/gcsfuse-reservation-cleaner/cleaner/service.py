@@ -35,7 +35,15 @@ class ReservationCleanerService:
         client: Optional[ReservationClient] = None,
     ):
         self.config = config
-        self.client = client or ReservationClient()
+        self.client = client or ReservationClient(maxsize=self.config.effective_pool_maxsize)
+        client_maxsize = getattr(self.client, "maxsize", None)
+        if isinstance(client_maxsize, int) and client_maxsize < self.config.max_workers:
+            logger.warning(
+                "Provided ReservationClient maxsize (%d) is less than max_workers (%d). "
+                "This may cause urllib3 connection pool overflow warnings.",
+                client_maxsize,
+                self.config.max_workers,
+            )
         self.processor = ReservationProcessor(self.config, self.client)
 
     def run(self, reference_time: Optional[datetime] = None, raise_on_error: bool = False) -> Dict[str, Any]:
