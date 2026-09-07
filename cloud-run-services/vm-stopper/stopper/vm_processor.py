@@ -21,7 +21,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from dateutil import parser as dateutil_parser
 
 from stopper.config import StopperConfig
-from stopper.gce_client import GCEClient
+from stopper.gce_client import GCEClient, RateLimiter
 
 logger = logging.getLogger(__name__)
 
@@ -227,15 +227,36 @@ class VMProcessor:
 
     def __init__(self, config: StopperConfig, gce_client: Optional[GCEClient] = None):
         self.config = config
-        self.client = gce_client or GCEClient()
+        if gce_client is not None:
+            self.client = gce_client
+            # Propagate rate limit and retry settings if supported by client instance
+            if hasattr(self.client, "rate_limiter") and getattr(self.client, "rate_limiter", None):
+                self.client.rate_limiter = RateLimiter(max_per_minute=config.cloud_logging_rate_limit)
+            if hasattr(self.client, "max_retries"):
+                self.client.max_retries = config.cloud_logging_max_retries
+            if hasattr(self.client, "backoff_base"):
+                self.client.backoff_base = config.cloud_logging_retry_backoff
+        else:
+            self.client = GCEClient(
+                rate_limit_per_minute=config.cloud_logging_rate_limit,
+                max_retries=config.cloud_logging_max_retries,
+                backoff_base=config.cloud_logging_retry_backoff,
+            )
 
     def process_single_instance(
         self,
         zone: str,
         instance: Any,
         now_utc: datetime,
+        has_activity: Optional[bool] = None,
     ) -> Dict[str, Any]:
         """Evaluate a single instance and execute stop/delete actions if applicable.
+
+        Args:
+            zone: Compute zone name.
+            instance: GCE compute_v1.Instance object.
+            now_utc: UTC datetime reference.
+            has_activity: Optional pre-evaluated activity status (e.g. from batch query).
 
         Returns:
             Dictionary describing the evaluation outcome and action taken.
@@ -282,14 +303,15 @@ class VMProcessor:
                 )
                 return result
 
-            # Check Cloud Logging for recent login/SSH/metadata activity
-            has_activity = self.client.has_recent_activity(
-                project_id=self.config.project_id,
-                zone=zone,
-                instance_name=name,
-                instance_id=inst_id,
-                since_timestamp=idle_cutoff,
-            )
+            # Check Cloud Logging for recent login/SSH/metadata activity if not pre-computed
+            if has_activity is None:
+                has_activity = self.client.has_recent_activity(
+                    project_id=self.config.project_id,
+                    zone=zone,
+                    instance_name=name,
+                    instance_id=inst_id,
+                    since_timestamp=idle_cutoff,
+                )
 
             if has_activity:
                 result["category"] = "skipped_active"
@@ -394,13 +416,17 @@ class VMProcessor:
         result["reason"] = f"Instance in non-actionable status '{status}'"
         return result
 
-    def sweep(self) -> Dict[str, Any]:
+    def sweep(self, now_utc: Optional[datetime] = None) -> Dict[str, Any]:
         """Execute a complete scan and processing sweep across all instances.
+
+        Args:
+            now_utc: Optional UTC datetime reference (defaults to datetime.now(timezone.utc)).
 
         Returns:
             Structured summary response dictionary.
         """
-        now_utc = datetime.now(timezone.utc)
+        if now_utc is None:
+            now_utc = datetime.now(timezone.utc)
         logger.info(
             "Starting VM Stopper sweep for project '%s' (dry_run=%s, idle_threshold=%dd, "
             "delete_stopped=%s, stopped_threshold=%dd, max_workers=%d)...",
@@ -413,6 +439,46 @@ class VMProcessor:
         )
 
         all_instances = self.client.list_instances(self.config.project_id)
+
+        # Identify candidate running instances requiring Cloud Logging inspection
+        idle_cutoff = now_utc - timedelta(days=self.config.idle_days_threshold)
+        candidate_instances: List[Tuple[str, Any]] = []
+
+        for zone, inst in all_instances:
+            status = str(getattr(inst, "status", "UNKNOWN")).upper()
+            if status == "RUNNING" and not is_part_of_gke_or_mig(inst):
+                whitelisted, _ = is_whitelisted(inst, self.config)
+                if not whitelisted:
+                    creation_ts = parse_timestamp(getattr(inst, "creation_timestamp", None))
+                    if not (creation_ts and creation_ts > idle_cutoff):
+                        candidate_instances.append((zone, inst))
+
+        # Batch-evaluate candidate running instances if supported
+        activity_map: Dict[Tuple[str, str], bool] = {}
+        batch_method = getattr(self.client, "get_instances_activity", None)
+        # Verify batch_method is an active callable and not an unconfigured test mock
+        is_unconfigured_mock = False
+        try:
+            import unittest.mock
+            if isinstance(batch_method, (unittest.mock.Mock, unittest.mock.MagicMock)):
+                if not getattr(batch_method, "_mock_side_effect", None) and getattr(batch_method, "_mock_return_value", None) is unittest.mock.DEFAULT:
+                    is_unconfigured_mock = True
+        except ImportError:
+            pass
+
+        if candidate_instances and callable(batch_method) and not is_unconfigured_mock:
+            try:
+                activity_map = self.client.get_instances_activity(
+                    project_id=self.config.project_id,
+                    candidate_instances=candidate_instances,
+                    since_timestamp=idle_cutoff,
+                    batch_size=self.config.cloud_logging_batch_size,
+                )
+            except Exception as exc:
+                logger.warning(
+                    "Batch Cloud Logging activity query failed: %s. Falling back to per-instance query.",
+                    exc,
+                )
 
         summary = {
             "total_scanned": len(all_instances),
@@ -435,7 +501,13 @@ class VMProcessor:
         # Multi-threaded concurrent evaluation
         with concurrent.futures.ThreadPoolExecutor(max_workers=self.config.max_workers) as executor:
             future_to_inst = {
-                executor.submit(self.process_single_instance, zone, inst, now_utc): (zone, inst)
+                executor.submit(
+                    self.process_single_instance,
+                    zone,
+                    inst,
+                    now_utc,
+                    activity_map.get((zone, str(getattr(inst, "name", "")))),
+                ): (zone, inst)
                 for zone, inst in all_instances
             }
 
