@@ -464,6 +464,25 @@ class TestReservationClient(unittest.TestCase):
         )
         self.assertEqual(client_float.maxsize, 22)
 
+    def test_reservation_client_warns_on_default_poolmanager_without_maxsize(self):
+        # A default urllib3.PoolManager has no explicit maxsize in connection_pool_kw (urllib3 defaults to maxsize=1)
+        pool = urllib3.PoolManager()
+        self.assertNotIn("maxsize", pool.connection_pool_kw)
+        with self.assertLogs("cleaner.reservation_client", level="WARNING") as cm:
+            client = ReservationClient(credentials=self.mock_creds, http_pool=pool)
+        self.assertTrue(
+            any(
+                "does not have an explicit maxsize configured" in msg
+                for msg in cm.output
+            )
+        )
+        self.assertEqual(client.maxsize, 10)
+
+        # When pool has explicit maxsize configured, no warning is logged
+        pool_with_maxsize = urllib3.PoolManager(maxsize=10)
+        with self.assertNoLogs("cleaner.reservation_client", level="WARNING"):
+            ReservationClient(credentials=self.mock_creds, http_pool=pool_with_maxsize)
+
     def test_list_aggregated_reservations_single_page(self):
         mock_response = MagicMock()
         mock_response.status = 200
@@ -969,6 +988,7 @@ class TestReservationCleanerService(unittest.TestCase):
             max_workers=4,
         )
         self.mock_client = MagicMock(spec=ReservationClient)
+        self.mock_client.maxsize = 10
         self.service = ReservationCleanerService(self.config, client=self.mock_client)
         self.ref_now = datetime(2026, 8, 31, 12, 0, 0, tzinfo=timezone.utc)
 
@@ -978,6 +998,36 @@ class TestReservationCleanerService(unittest.TestCase):
         service = ReservationCleanerService(cfg_workers)
         self.assertEqual(service.client.maxsize, 16)
         self.assertEqual(service.client.http_pool.connection_pool_kw.get("maxsize"), 16)
+
+    def test_service_warns_when_client_maxsize_less_than_max_workers(self):
+        # Warning is logged when client.maxsize < config.max_workers
+        client = ReservationClient(credentials=MagicMock(), maxsize=2)
+        self.assertLess(client.maxsize, self.config.max_workers)
+        with self.assertLogs("cleaner.service", level="WARNING") as cm:
+            ReservationCleanerService(self.config, client=client)
+        self.assertTrue(
+            any(
+                "Provided ReservationClient maxsize (2) is less than max_workers (4)" in msg
+                for msg in cm.output
+            )
+        )
+
+    def test_service_no_warning_when_client_maxsize_greater_or_equal_to_max_workers(self):
+        # Warning is NOT logged when maxsize >= config.max_workers
+        # 1. client.maxsize == config.max_workers (4 == 4)
+        client_equal = ReservationClient(credentials=MagicMock(), maxsize=self.config.max_workers)
+        with self.assertNoLogs("cleaner.service", level="WARNING"):
+            ReservationCleanerService(self.config, client=client_equal)
+
+        # 2. client.maxsize > config.max_workers (8 > 4)
+        client_larger = ReservationClient(credentials=MagicMock(), maxsize=self.config.max_workers + 4)
+        with self.assertNoLogs("cleaner.service", level="WARNING"):
+            ReservationCleanerService(self.config, client=client_larger)
+
+        # Also verify via assertLogs that no WARNING logs are triggered
+        with self.assertRaises(AssertionError):
+            with self.assertLogs("cleaner.service", level="WARNING"):
+                ReservationCleanerService(self.config, client=client_equal)
 
     def test_full_sweep_mixed_fleet(self):
         # 1 active, 1 idle, 1 never-used, 1 recently-used

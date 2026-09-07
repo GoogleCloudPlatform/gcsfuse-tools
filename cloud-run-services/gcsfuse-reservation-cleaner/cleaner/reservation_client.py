@@ -53,6 +53,12 @@ class ReservationClient:
             self._http = http_pool
             pool_kw = getattr(http_pool, "connection_pool_kw", None)
             pool_maxsize = pool_kw.get("maxsize") if isinstance(pool_kw, dict) else None
+            if pool_maxsize is None and type(http_pool) is urllib3.PoolManager:
+                logger.warning(
+                    "The provided http_pool does not have an explicit maxsize configured. "
+                    "urllib3 defaults to maxsize=1, which may cause connection pool overflow "
+                    "under concurrency."
+                )
             self._maxsize = max(1, pool_maxsize if isinstance(pool_maxsize, int) else parsed_maxsize)
         else:
             self._maxsize = parsed_maxsize

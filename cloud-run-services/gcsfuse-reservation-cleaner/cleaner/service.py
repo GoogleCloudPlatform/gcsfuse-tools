@@ -35,6 +35,14 @@ class ReservationCleanerService:
         client: Optional[ReservationClient] = None,
     ):
         self.config = config
+        client_maxsize = getattr(client, "maxsize", None)
+        if isinstance(client_maxsize, int) and client_maxsize < self.config.max_workers:
+            logger.warning(
+                "Provided ReservationClient maxsize (%d) is less than max_workers (%d). "
+                "This may cause urllib3 connection pool overflow warnings.",
+                client_maxsize,
+                self.config.max_workers,
+            )
         self.client = client or ReservationClient(maxsize=self.config.effective_pool_maxsize)
         self.processor = ReservationProcessor(self.config, self.client)
 
