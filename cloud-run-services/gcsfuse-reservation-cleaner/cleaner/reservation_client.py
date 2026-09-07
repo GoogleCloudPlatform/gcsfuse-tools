@@ -31,9 +31,6 @@ MONITORING_API_BASE = "https://monitoring.googleapis.com/v3"
 DEFAULT_SCOPES = ["https://www.googleapis.com/auth/cloud-platform"]
 DEFAULT_POOL_SIZE = 10
 
-# Suppress noisy "Connection pool is full" warnings from urllib3
-logging.getLogger("urllib3.connectionpool").setLevel(logging.ERROR)
-
 
 class ReservationClient:
     """Client for querying GCE Compute Reservations and Cloud Monitoring metrics."""
