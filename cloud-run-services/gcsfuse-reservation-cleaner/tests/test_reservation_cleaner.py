@@ -247,6 +247,19 @@ class TestCleanerConfig(unittest.TestCase):
         with self.assertRaises(ValueError):
             CleanerConfig.from_dict({"project_id": "test", "pool_maxsize": "invalid"})
 
+    def test_config_pool_maxsize_non_positive_raises(self):
+        # pool_maxsize <= 0 (e.g. 0, -1, "-5", "0.0") raises ValueError via direct constructor and from_dict
+        invalid_values = [0, -1, -5, "-5", "0", "0.0", "-1.0"]
+        for val in invalid_values:
+            with self.subTest(val=val):
+                with self.assertRaises(ValueError):
+                    CleanerConfig(project_id="test", pool_maxsize=val)
+                with self.assertRaises(ValueError):
+                    CleanerConfig.from_dict({"project_id": "test", "pool_maxsize": val})
+                with patch.dict(os.environ, {"POOL_MAXSIZE": str(val)}):
+                    with self.assertRaises(ValueError):
+                        CleanerConfig.from_dict({"project_id": "test"})
+
     def test_config_from_flask_request(self):
         mock_req = MagicMock()
         mock_req.args = {"project": "query-proj", "delete_idle_days": "15"}
@@ -308,6 +321,29 @@ class TestReservationClient(unittest.TestCase):
         self.mock_creds.token = "mock-bearer-token"
         self.mock_http = MagicMock(spec=urllib3.PoolManager)
         self.client = ReservationClient(credentials=self.mock_creds, http_pool=self.mock_http)
+
+    def test_reservation_client_keyword_only_parameters(self):
+        # http_pool and maxsize are keyword-only arguments to prevent positional binding bugs
+        with self.assertRaises(TypeError):
+            ReservationClient(None, self.mock_http)
+        with self.assertRaises(TypeError):
+            ReservationClient(self.mock_creds, self.mock_http)
+        with self.assertRaises(TypeError):
+            ReservationClient(self.mock_creds, self.mock_http, 10)
+        with self.assertRaises(TypeError):
+            ReservationClient(None, 10)
+        with self.assertRaises(TypeError):
+            ReservationClient(self.mock_creds, 10)
+
+    def test_reservation_client_non_positive_maxsize_raises(self):
+        # maxsize <= 0 (e.g., 0, -1, "-5", "0.0") raises ValueError
+        invalid_values = [0, -1, -10, "-5", "0", "0.0", "-1.0"]
+        for val in invalid_values:
+            with self.subTest(val=val):
+                with self.assertRaises(ValueError):
+                    ReservationClient(credentials=self.mock_creds, maxsize=val)
+                with self.assertRaises(ValueError):
+                    ReservationClient(credentials=self.mock_creds, http_pool=self.mock_http, maxsize=val)
 
     def test_reservation_client_default_pool_maxsize(self):
         # Default maxsize must be >= 10 to support concurrent workers

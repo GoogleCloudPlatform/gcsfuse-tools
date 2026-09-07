@@ -114,8 +114,11 @@ class CleanerConfig:
         if self.max_workers <= 0:
             raise ValueError(f"max_workers must be positive, got {self.max_workers}")
 
-        if self.pool_maxsize is not None and self.pool_maxsize <= 0:
-            raise ValueError(f"pool_maxsize must be positive, got {self.pool_maxsize}")
+        if self.pool_maxsize is not None:
+            parsed_pool_maxsize = int(float(self.pool_maxsize))
+            if parsed_pool_maxsize <= 0:
+                raise ValueError(f"pool_maxsize must be positive, got {parsed_pool_maxsize}")
+            self.pool_maxsize = parsed_pool_maxsize
 
     @property
     def effective_pool_maxsize(self) -> int:
@@ -229,6 +232,8 @@ class CleanerConfig:
             ["POOL_MAXSIZE", "POOL_SIZE"],
         )
         pool_maxsize = int(float(raw_pool_maxsize)) if raw_pool_maxsize is not None else None
+        if pool_maxsize is not None and pool_maxsize <= 0:
+            raise ValueError(f"pool_maxsize must be positive, got {pool_maxsize}")
 
         # 9. Resolve zones and reservation_names filters
         raw_zones = _get_val(
