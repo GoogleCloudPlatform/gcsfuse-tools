@@ -792,6 +792,188 @@ class TestGCEClientAndCloudLogging(unittest.TestCase):
         self.assertEqual(mock_logging_client.list_entries.call_count, 2)
         self.assertFalse(results[("us-central1-a", "fallback-vm")])
 
+    @patch("stopper.gce_client.logging_v2.Client")
+    def test_has_recent_activity_filter_excludes_list_login_profiles(self, mock_logging_cls):
+        """Verify has_recent_activity includes ListLoginProfiles exclusion in Cloud Logging filter."""
+        mock_logging_client = MagicMock()
+        mock_logging_cls.return_value = mock_logging_client
+        self.client._logging_client = mock_logging_client
+        mock_logging_client.list_entries.return_value = []
+
+        self.client.has_recent_activity(
+            project_id="test-proj",
+            zone="us-central1-a",
+            instance_name="target-vm",
+            instance_id="98765",
+            since_timestamp=datetime(2026, 8, 20, 0, 0, tzinfo=timezone.utc),
+        )
+
+        mock_logging_client.list_entries.assert_called_once()
+        _, kwargs = mock_logging_client.list_entries.call_args
+        query_filter = kwargs.get("filter_") or ""
+
+        # Assert ListLoginProfiles exclusion is present
+        self.assertIn('NOT protoPayload.methodName:"ListLoginProfiles"', query_filter)
+        # Assert target instance resource matching is preserved
+        self.assertIn('protoPayload.resourceName="projects/test-proj/zones/us-central1-a/instances/target-vm"', query_filter)
+        # Assert interactive methods are retained
+        self.assertIn('protoPayload.methodName:"setMetadata"', query_filter)
+        self.assertIn('protoPayload.methodName:"oslogin"', query_filter)
+
+    @patch("stopper.gce_client.logging_v2.Client")
+    def test_get_instances_activity_batch_filter_excludes_list_login_profiles(self, mock_logging_cls):
+        """Verify batch query includes ListLoginProfiles exclusion in batch_filter."""
+        mock_logging_client = MagicMock()
+        mock_logging_cls.return_value = mock_logging_client
+        self.client._logging_client = mock_logging_client
+        mock_logging_client.list_entries.return_value = []
+
+        candidates = [
+            ("us-central1-a", MockInstance("vm-1", instance_id="111")),
+            ("us-central1-b", MockInstance("vm-2", instance_id="222")),
+        ]
+        self.client.get_instances_activity(
+            project_id="test-proj",
+            candidate_instances=candidates,
+            since_timestamp=datetime(2026, 8, 20, 0, 0, tzinfo=timezone.utc),
+        )
+
+        mock_logging_client.list_entries.assert_called_once()
+        _, kwargs = mock_logging_client.list_entries.call_args
+        batch_filter = kwargs.get("filter_") or ""
+
+        self.assertIn('NOT protoPayload.methodName:"ListLoginProfiles"', batch_filter)
+        self.assertIn('projects/test-proj/zones/us-central1-a/instances/vm-1', batch_filter)
+        self.assertIn('resource.labels.instance_id="111"', batch_filter)
+
+    @patch("stopper.gce_client.logging_v2.Client")
+    def test_has_recent_activity_evaluates_list_login_profiles_as_idle(self, mock_logging_cls):
+        """Verify instance with only ListLoginProfiles audit entries evaluates as idle (False)."""
+        mock_logging_client = MagicMock()
+        mock_logging_cls.return_value = mock_logging_client
+        self.client._logging_client = mock_logging_client
+
+        def simulate_logging_entries(filter_, **kwargs):
+            # If filter excludes ListLoginProfiles, 0 entries match
+            if 'NOT protoPayload.methodName:"ListLoginProfiles"' in filter_:
+                return []
+            # If filter failed to exclude it, the daemon log is returned
+            daemon_entry = MagicMock()
+            daemon_entry.payload = {"methodName": "ListLoginProfiles"}
+            return [daemon_entry]
+
+        mock_logging_client.list_entries.side_effect = simulate_logging_entries
+
+        has_activity = self.client.has_recent_activity(
+            project_id="test-proj",
+            zone="us-central1-a",
+            instance_name="daemon-vm",
+            instance_id="12345",
+            since_timestamp=datetime(2026, 8, 20, 0, 0, tzinfo=timezone.utc),
+        )
+        self.assertFalse(has_activity, "Instance with only ListLoginProfiles MUST evaluate as idle (False)")
+
+    @patch("stopper.gce_client.logging_v2.Client")
+    def test_has_recent_activity_evaluates_interactive_signals_as_active(self, mock_logging_cls):
+        """Verify interactive login and metadata update audit entries evaluate as active (True)."""
+        mock_logging_client = MagicMock()
+        mock_logging_cls.return_value = mock_logging_client
+        self.client._logging_client = mock_logging_client
+
+        interactive_methods = [
+            ("setMetadata", {"instance_id": "12345"}),
+            ("setInstanceAttributes", {"instance_id": "12345"}),
+            ("setCommonInstanceMetadata", {"instance_id": "12345"}),
+            ("oslogin", {"instance_id": "12345"}),
+        ]
+
+        for method, labels in interactive_methods:
+            entry = MagicMock()
+            entry.resource = MagicMock(type="gce_instance", labels=labels)
+            entry.payload = {"protoPayload": {"methodName": method}}
+            mock_logging_client.list_entries.return_value = [entry]
+
+            has_act = self.client.has_recent_activity(
+                project_id="test-proj",
+                zone="us-central1-a",
+                instance_name="active-vm",
+                instance_id="12345",
+                since_timestamp=datetime(2026, 8, 20, 0, 0, tzinfo=timezone.utc),
+            )
+            self.assertTrue(has_act, f"Interactive method '{method}' MUST evaluate as active (True)")
+
+    @patch("stopper.gce_client.logging_v2.Client")
+    def test_get_instances_activity_batch_distinguishes_daemon_from_interactive(self, mock_logging_cls):
+        """Verify batch query distinguishes daemon polling (idle) from interactive sessions and metadata changes."""
+        mock_logging_client = MagicMock()
+        mock_logging_cls.return_value = mock_logging_client
+        self.client._logging_client = mock_logging_client
+
+        vm_daemon = MockInstance("vm-idle-daemon", instance_id="101")
+        vm_oslogin = MockInstance("vm-active-oslogin", instance_id="102")
+        vm_meta = MockInstance("vm-active-metadata", instance_id="103")
+        vm_silent = MockInstance("vm-silent-idle", instance_id="104")
+
+        candidate_instances = [
+            ("us-central1-a", vm_daemon),
+            ("us-central1-a", vm_oslogin),
+            ("us-central1-b", vm_meta),
+            ("us-central1-c", vm_silent),
+        ]
+
+        # Entry for vm_oslogin: legitimate interactive session (not ListLoginProfiles)
+        entry_oslogin = MagicMock()
+        entry_oslogin.resource = MagicMock(type="audited_resource", labels={})
+        entry_oslogin.payload = {
+            "serviceName": "oslogin.googleapis.com",
+            "resourceName": "projects/test-proj/zones/us-central1-a/instances/vm-active-oslogin",
+        }
+
+        # Entry for vm_meta: activity log for SSH key injection
+        entry_meta = MagicMock()
+        entry_meta.resource = MagicMock(type="gce_instance", labels={"instance_id": "103"})
+        entry_meta.payload = {"protoPayload": {"methodName": "setMetadata"}}
+
+        # Cloud Logging server returns only entries matching the filter (vm_oslogin and vm_meta)
+        mock_logging_client.list_entries.return_value = [entry_oslogin, entry_meta]
+
+        results = self.client.get_instances_activity(
+            project_id="test-proj",
+            candidate_instances=candidate_instances,
+            since_timestamp=datetime(2026, 8, 20, 0, 0, tzinfo=timezone.utc),
+            batch_size=25,
+        )
+
+        # Verify assertions
+        self.assertFalse(results[("us-central1-a", "vm-idle-daemon")], "vm-idle-daemon with only ListLoginProfiles must be idle")
+        self.assertTrue(results[("us-central1-a", "vm-active-oslogin")], "vm-active-oslogin must be active")
+        self.assertTrue(results[("us-central1-b", "vm-active-metadata")], "vm-active-metadata must be active")
+        self.assertFalse(results[("us-central1-c", "vm-silent-idle")], "vm-silent-idle must be idle")
+
+    @patch("stopper.gce_client.logging_v2.Client")
+    def test_get_instances_activity_batch_filter_causation_simulation(self, mock_logging_cls):
+        """Prove that presence of ListLoginProfiles exclusion in batch filter produces idle result."""
+        mock_logging_client = MagicMock()
+        mock_logging_cls.return_value = mock_logging_client
+        self.client._logging_client = mock_logging_client
+
+        vm_daemon = MockInstance("daemon-vm", instance_id="555")
+        candidates = [("us-central1-a", vm_daemon)]
+
+        def mock_list_entries(filter_, **kwargs):
+            self.assertIn('NOT protoPayload.methodName:"ListLoginProfiles"', filter_)
+            # Because filter excludes ListLoginProfiles, Cloud Logging returns empty list
+            return []
+
+        mock_logging_client.list_entries.side_effect = mock_list_entries
+
+        results = self.client.get_instances_activity(
+            project_id="test-proj",
+            candidate_instances=candidates,
+            since_timestamp=datetime(2026, 8, 20, 0, 0, tzinfo=timezone.utc),
+        )
+        self.assertFalse(results[("us-central1-a", "daemon-vm")])
+
 
 class TestVMProcessorLifecycle(unittest.TestCase):
     """Test end-to-end VM evaluation, stopping, deleting, and dry-run sweeps."""
@@ -1116,6 +1298,39 @@ class TestVMProcessorLifecycle(unittest.TestCase):
         mock_client.stop_instance.assert_called_once_with(
             "test-proj", "us-central1-a", "candidate-idle-1"
         )
+
+    def test_running_vm_with_only_list_login_profiles_is_stopped(self):
+        """Verify running instance with only daemon polling is stopped when delete_stopped=False."""
+        config = StopperConfig(project_id="test-proj", idle_days_threshold=7, dry_run=False)
+        processor = VMProcessor(config, gce_client=self.mock_client)
+
+        created_ts = (self.now - timedelta(days=20)).isoformat()
+        daemon_vm = MockInstance(name="daemon-vm", status="RUNNING", creation_timestamp=created_ts)
+
+        # gce_client evaluates daemon-only instance as idle (False)
+        self.mock_client.has_recent_activity.return_value = False
+
+        res = processor.process_single_instance("us-central1-a", daemon_vm, self.now)
+        self.assertEqual(res["category"], "stopped")
+        self.assertEqual(res["action"], "stopped")
+        self.mock_client.stop_instance.assert_called_once_with("test-proj", "us-central1-a", "daemon-vm")
+
+    def test_running_vm_with_only_list_login_profiles_dry_run(self):
+        """Verify dry-run sweep identifies daemon-only running VM as dry_run_stop without stopping it."""
+        config = StopperConfig(project_id="test-proj", idle_days_threshold=7, dry_run=True)
+        processor = VMProcessor(config, gce_client=self.mock_client)
+
+        created_ts = (self.now - timedelta(days=30)).isoformat()
+        target_vm = MockInstance(name="gargnitin-tess-e2std16-us-central1a", status="RUNNING", creation_timestamp=created_ts)
+
+        # Under the updated filter, has_recent_activity returns False
+        self.mock_client.has_recent_activity.return_value = False
+
+        res = processor.process_single_instance("us-central1-a", target_vm, self.now)
+        self.assertEqual(res["category"], "dry_run_stops")
+        self.assertEqual(res["action"], "dry_run_stop")
+        self.assertIn("[DRY RUN] Would stop idle running VM", res["reason"])
+        self.mock_client.stop_instance.assert_not_called()
 
 
 class TestHTTPServiceAndMain(unittest.TestCase):
