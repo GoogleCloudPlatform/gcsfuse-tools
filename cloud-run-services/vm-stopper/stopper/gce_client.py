@@ -275,7 +275,7 @@ class GCEClient:
             entries = self._execute_logging_query_with_retry(
                 project_id=project_id,
                 log_filter=log_filter,
-                page_size=1000,
+                page_size=1,
                 max_results=1,
                 target_description=f"instance {instance_name} in zone {zone}",
             )
