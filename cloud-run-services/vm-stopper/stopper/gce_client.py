@@ -265,6 +265,7 @@ class GCEClient:
             f'    AND (protoPayload.methodName:"oslogin" OR jsonPayload.event_subtype="compute.instances.osLogin")\n'
             f'  )\n'
             f')\n'
+            f'AND NOT protoPayload.methodName:"ListLoginProfiles"\n'
             f'AND NOT protoPayload.authenticationInfo.principalEmail="vm-stopper-sa@{project_id}.iam.gserviceaccount.com"\n'
             f'AND NOT protoPayload.authenticationInfo.principalEmail="vm-stopper-sched@{project_id}.iam.gserviceaccount.com"\n'
             f'AND timestamp >= "{cutoff_iso}"'
@@ -274,7 +275,7 @@ class GCEClient:
             entries = self._execute_logging_query_with_retry(
                 project_id=project_id,
                 log_filter=log_filter,
-                page_size=1,
+                page_size=1000,
                 max_results=1,
                 target_description=f"instance {instance_name} in zone {zone}",
             )
@@ -382,6 +383,7 @@ class GCEClient:
             combined_filters = " OR\n  ".join(filter_parts)
             batch_filter = (
                 f'(\n  {combined_filters}\n)\n'
+                f'AND NOT protoPayload.methodName:"ListLoginProfiles"\n'
                 f'AND NOT protoPayload.authenticationInfo.principalEmail="vm-stopper-sa@{project_id}.iam.gserviceaccount.com"\n'
                 f'AND NOT protoPayload.authenticationInfo.principalEmail="vm-stopper-sched@{project_id}.iam.gserviceaccount.com"\n'
                 f'AND timestamp >= "{cutoff_iso}"'
