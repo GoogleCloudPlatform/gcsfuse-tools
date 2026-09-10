@@ -135,7 +135,10 @@ def _setup_offline_mock_modules() -> None:
 
                 def __init__(self, **kwargs):
                     for k, v in kwargs.items():
-                        setattr(self, k, v)
+                        if k == "alignment_period" and isinstance(v, dict) and "seconds" in v:
+                            setattr(self, k, timedelta(seconds=v["seconds"]))
+                        else:
+                            setattr(self, k, v)
 
             mon_mod.Aggregation = MockAggregation
 
@@ -1510,6 +1513,18 @@ class TestCloudMonitoringNetworkTelemetry(unittest.TestCase):
         self.now = datetime(2026, 9, 10, 12, 0, 0, tzinfo=timezone.utc)
         self.mock_client = MagicMock(spec=GCEClient)
 
+    def _assert_alignment_period_seconds(self, alignment_period: Any, expected_seconds: int) -> None:
+        if isinstance(alignment_period, timedelta):
+            self.assertEqual(int(alignment_period.total_seconds()), expected_seconds)
+        elif isinstance(alignment_period, dict):
+            self.assertEqual(alignment_period.get("seconds"), expected_seconds)
+        elif hasattr(alignment_period, "total_seconds"):
+            self.assertEqual(int(alignment_period.total_seconds()), expected_seconds)
+        elif hasattr(alignment_period, "seconds"):
+            self.assertEqual(alignment_period.seconds, expected_seconds)
+        else:
+            self.assertEqual(alignment_period, expected_seconds)
+
     def test_config_network_telemetry_defaults(self):
         config = StopperConfig(project_id="test-proj")
         self.assertEqual(config.network_bytes_threshold, 10485760)
@@ -1597,7 +1612,7 @@ class TestCloudMonitoringNetworkTelemetry(unittest.TestCase):
         )
         self.assertNotIn("one_of", req.filter)
         self.assertIn("inst-12345", req.filter)
-        self.assertEqual(req.aggregation.alignment_period, {"seconds": 3600})
+        self._assert_alignment_period_seconds(req.aggregation.alignment_period, 3600)
 
     def test_get_instance_network_bytes_alignment_period_ge_1_hour(self):
         mock_mon_client = MagicMock()
@@ -1612,7 +1627,7 @@ class TestCloudMonitoringNetworkTelemetry(unittest.TestCase):
             self.now,
         )
         req = mock_mon_client.list_time_series.call_args[1]["request"]
-        self.assertEqual(req.aggregation.alignment_period, {"seconds": 3600})
+        self._assert_alignment_period_seconds(req.aggregation.alignment_period, 3600)
 
         # Exactly 1 hour interval
         client.get_instance_network_bytes(
@@ -1622,7 +1637,7 @@ class TestCloudMonitoringNetworkTelemetry(unittest.TestCase):
             self.now,
         )
         req = mock_mon_client.list_time_series.call_args[1]["request"]
-        self.assertEqual(req.aggregation.alignment_period, {"seconds": 3600})
+        self._assert_alignment_period_seconds(req.aggregation.alignment_period, 3600)
 
     def test_get_instance_network_bytes_alignment_period_lt_1_hour(self):
         mock_mon_client = MagicMock()
@@ -1637,7 +1652,7 @@ class TestCloudMonitoringNetworkTelemetry(unittest.TestCase):
             self.now,
         )
         req = mock_mon_client.list_time_series.call_args[1]["request"]
-        self.assertEqual(req.aggregation.alignment_period, {"seconds": 60})
+        self._assert_alignment_period_seconds(req.aggregation.alignment_period, 60)
 
         # Explicit interval < 1 hour (e.g. 30 minutes)
         client.get_instance_network_bytes(
@@ -1647,7 +1662,7 @@ class TestCloudMonitoringNetworkTelemetry(unittest.TestCase):
             self.now,
         )
         req = mock_mon_client.list_time_series.call_args[1]["request"]
-        self.assertEqual(req.aggregation.alignment_period, {"seconds": 60})
+        self._assert_alignment_period_seconds(req.aggregation.alignment_period, 60)
 
         # Interval < 60 seconds (e.g. 30s) adjusted to 5 minutes before until_timestamp
         client.get_instance_network_bytes(
@@ -1658,7 +1673,7 @@ class TestCloudMonitoringNetworkTelemetry(unittest.TestCase):
         )
         req = mock_mon_client.list_time_series.call_args[1]["request"]
         self.assertEqual(req.interval.start_time, self.now - timedelta(minutes=5))
-        self.assertEqual(req.aggregation.alignment_period, {"seconds": 60})
+        self._assert_alignment_period_seconds(req.aggregation.alignment_period, 60)
 
     def test_has_network_activity_above_threshold(self):
         client = GCEClient()
