@@ -1781,13 +1781,55 @@ class TestCloudMonitoringNetworkTelemetry(unittest.TestCase):
         point_direct_double = types.SimpleNamespace(value=pb_direct_double)
         self.assertEqual(GCEClient._extract_point_value(point_direct_double), 65536)
 
-        # 3. WhichOneof raises ValueError/TypeError, falls back to attributes
+        # 3. WhichOneof raises ValueError/TypeError/AttributeError, falls back to attributes
         pb_err = MagicMock()
         pb_err.WhichOneof.side_effect = ValueError("Invalid field")
         pb_err.int64_value = 4096
         val_err = types.SimpleNamespace(_pb=pb_err, int64_value=4096)
         point_err = types.SimpleNamespace(value=val_err)
         self.assertEqual(GCEClient._extract_point_value(point_err), 4096)
+
+        pb_attr_err = MagicMock()
+        pb_attr_err.WhichOneof.side_effect = AttributeError("Unexpected attribute error")
+        pb_attr_err.int64_value = 8192
+        val_attr_err = types.SimpleNamespace(_pb=pb_attr_err, int64_value=8192)
+        point_attr_err = types.SimpleNamespace(value=val_attr_err)
+        self.assertEqual(GCEClient._extract_point_value(point_attr_err), 8192)
+
+    def test_extract_point_value_which_oneof_attribute_error_nonexistent_field(self):
+        class NonExistentFieldPb:
+            def WhichOneof(self, field_name):
+                return "non_existent_field"
+            int64_value = 8192
+
+        # 1. WhichOneof returns a field name that does not exist on pb_val, getattr raises AttributeError
+        val_with_fallback = types.SimpleNamespace(_pb=NonExistentFieldPb(), int64_value=8192)
+        point_with_fallback = types.SimpleNamespace(value=val_with_fallback)
+        self.assertEqual(GCEClient._extract_point_value(point_with_fallback), 8192)
+
+        # 2. Direct pb object (without _pb attribute) where WhichOneof returns non-existent field
+        pb_direct = NonExistentFieldPb()
+        point_direct = types.SimpleNamespace(value=pb_direct)
+        self.assertEqual(GCEClient._extract_point_value(point_direct), 8192)
+
+        # 3. Non-existent field on pb with no fallback attributes anywhere returns 0
+        class PbNoFallback:
+            def WhichOneof(self, field_name):
+                return "does_not_exist"
+
+        val_no_fallback = types.SimpleNamespace(_pb=PbNoFallback())
+        point_no_fallback = types.SimpleNamespace(value=val_no_fallback)
+        self.assertEqual(GCEClient._extract_point_value(point_no_fallback), 0)
+
+        # 4. Empty string returned by WhichOneof (e.g. no field set in oneof) skips getattr and falls back
+        class PbEmptyWhichOneof:
+            def WhichOneof(self, field_name):
+                return ""
+            double_value = 1234.5
+
+        val_empty = types.SimpleNamespace(_pb=PbEmptyWhichOneof(), double_value=1234.5)
+        point_empty = types.SimpleNamespace(value=val_empty)
+        self.assertEqual(GCEClient._extract_point_value(point_empty), 1234)
 
         # 4. Fallback attribute access on simple mocks without WhichOneof
         self.assertEqual(GCEClient._extract_point_value(types.SimpleNamespace(value=types.SimpleNamespace(int64_value=123))), 123)
@@ -1899,6 +1941,82 @@ class TestCloudMonitoringNetworkTelemetry(unittest.TestCase):
         self.assertEqual(total, 0)
         req = mock_mon_client.list_time_series.call_args[1]["request"]
         self.assertEqual(req.interval.start_time, end_ts - timedelta(minutes=5))
+
+    def test_get_instance_network_bytes_non_utc_timezone_normalization(self):
+        mock_mon_client = MagicMock()
+        mock_mon_client.list_time_series.return_value = []
+        client = GCEClient(monitoring_client=mock_mon_client)
+
+        tz_plus_5 = timezone(timedelta(hours=5))
+        since_ts = datetime(2026, 9, 10, 10, 0, 0, tzinfo=tz_plus_5)
+        until_ts = datetime(2026, 9, 10, 16, 0, 0, tzinfo=tz_plus_5)
+
+        client.get_instance_network_bytes(
+            project_id="test-proj",
+            instance_id="inst-tz",
+            since_timestamp=since_ts,
+            until_timestamp=until_ts,
+        )
+
+        req = mock_mon_client.list_time_series.call_args[1]["request"]
+        expected_since_utc = since_ts.astimezone(timezone.utc)
+        expected_until_utc = until_ts.astimezone(timezone.utc)
+
+        self.assertEqual(req.interval.start_time, expected_since_utc)
+        self.assertEqual(req.interval.start_time.tzinfo, timezone.utc)
+        self.assertEqual(req.interval.start_time.hour, 5)
+        self.assertEqual(req.interval.end_time, expected_until_utc)
+        self.assertEqual(req.interval.end_time.tzinfo, timezone.utc)
+        self.assertEqual(req.interval.end_time.hour, 11)
+
+        # Naive datetimes (without tzinfo) should be treated as UTC
+        mock_mon_client.reset_mock()
+        naive_since = datetime(2026, 9, 10, 5, 0, 0)
+        naive_until = datetime(2026, 9, 10, 11, 0, 0)
+        client.get_instance_network_bytes(
+            project_id="test-proj",
+            instance_id="inst-tz-naive",
+            since_timestamp=naive_since,
+            until_timestamp=naive_until,
+        )
+        req_naive = mock_mon_client.list_time_series.call_args[1]["request"]
+        self.assertEqual(req_naive.interval.start_time, naive_since.replace(tzinfo=timezone.utc))
+        self.assertEqual(req_naive.interval.start_time.tzinfo, timezone.utc)
+        self.assertEqual(req_naive.interval.end_time, naive_until.replace(tzinfo=timezone.utc))
+        self.assertEqual(req_naive.interval.end_time.tzinfo, timezone.utc)
+
+    def test_monitoring_v3_import_error_when_none(self):
+        with patch("stopper.gce_client.monitoring_v3", None):
+            client = GCEClient()
+            with self.assertRaises(ImportError) as ctx_prop:
+                _ = client.monitoring_client
+            self.assertIn("google-cloud-monitoring is not installed", str(ctx_prop.exception))
+
+            with self.assertRaises(ImportError) as ctx_prop_creds:
+                client_with_creds = GCEClient(credentials=MagicMock())
+                _ = client_with_creds.monitoring_client
+            self.assertIn("google-cloud-monitoring is not installed", str(ctx_prop_creds.exception))
+
+            with self.assertRaises(ImportError) as ctx_method:
+                client.get_instance_network_bytes("test-proj", "inst-12345")
+            self.assertIn("google-cloud-monitoring is not installed", str(ctx_method.exception))
+
+    def test_monitoring_client_lazy_initialization(self):
+        mock_v3 = MagicMock()
+        with patch("stopper.gce_client.monitoring_v3", mock_v3):
+            # Without credentials
+            client = GCEClient()
+            mon_c = client.monitoring_client
+            mock_v3.MetricServiceClient.assert_called_once_with()
+            self.assertEqual(mon_c, mock_v3.MetricServiceClient.return_value)
+
+            # With credentials
+            mock_v3.reset_mock()
+            mock_creds = MagicMock()
+            client_with_creds = GCEClient(credentials=mock_creds)
+            mon_c2 = client_with_creds.monitoring_client
+            mock_v3.MetricServiceClient.assert_called_once_with(credentials=mock_creds)
+            self.assertEqual(mon_c2, mock_v3.MetricServiceClient.return_value)
 
     def test_has_network_activity_explicit_and_keyword_args(self):
         client = GCEClient()

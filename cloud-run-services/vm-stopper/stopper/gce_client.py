@@ -129,7 +129,10 @@ class GCEClient:
     def monitoring_client(self) -> Any:
         """Lazy-initialize and return the Cloud Monitoring MetricServiceClient."""
         if self._monitoring_client is None:
-            from google.cloud import monitoring_v3
+            if monitoring_v3 is None:
+                raise ImportError(
+                    "google-cloud-monitoring is not installed. Please install it to use network monitoring features."
+                )
             if self.credentials:
                 self._monitoring_client = monitoring_v3.MetricServiceClient(credentials=self.credentials)
             else:
@@ -360,9 +363,9 @@ class GCEClient:
             if hasattr(pb_val, "WhichOneof"):
                 try:
                     active_field = pb_val.WhichOneof("value")
-                    if isinstance(active_field, str):
+                    if isinstance(active_field, str) and active_field:
                         return int(getattr(pb_val, active_field))
-                except (ValueError, TypeError):
+                except (ValueError, TypeError, AttributeError):
                     pass
             # Fallback to attribute access for mocks or simple objects
             int_val = getattr(val, "int64_value", None)
@@ -415,6 +418,8 @@ class GCEClient:
             until_timestamp = datetime.now(timezone.utc)
         elif until_timestamp.tzinfo is None:
             until_timestamp = until_timestamp.replace(tzinfo=timezone.utc)
+        else:
+            until_timestamp = until_timestamp.astimezone(timezone.utc)
 
         if since_timestamp is None:
             if lookback_hours is not None and lookback_hours > 0:
@@ -423,11 +428,16 @@ class GCEClient:
                 since_timestamp = until_timestamp - timedelta(hours=24)
         elif since_timestamp.tzinfo is None:
             since_timestamp = since_timestamp.replace(tzinfo=timezone.utc)
+        else:
+            since_timestamp = since_timestamp.astimezone(timezone.utc)
 
         if (until_timestamp - since_timestamp).total_seconds() < 60:
             since_timestamp = until_timestamp - timedelta(minutes=5)
 
-        from google.cloud import monitoring_v3
+        if monitoring_v3 is None:
+            raise ImportError(
+                "google-cloud-monitoring is not installed. Please install it to use network monitoring features."
+            )
 
         interval = monitoring_v3.TimeInterval(
             start_time=since_timestamp,
