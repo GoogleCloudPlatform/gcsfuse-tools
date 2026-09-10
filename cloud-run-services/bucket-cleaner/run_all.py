@@ -1,3 +1,4 @@
+import os
 import sys
 import logging
 from datetime import datetime
@@ -6,7 +7,7 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
     handlers=[
-        logging.FileHandler("cleaner_run.log"),
+        logging.FileHandler("cleaner_run.log", mode="w"),
         logging.StreamHandler(sys.stdout)
     ]
 )
@@ -17,17 +18,18 @@ from cleaner.gcs_client import GCSClient
 from cleaner.bucket_processor import BucketProcessor
 
 def main():
+    concurrency = int(os.environ.get("CONCURRENCY", "16"))
     config = CleanerConfig(
         projects=["gcs-fuse-test", "gcs-fuse-test-ml"],
         bucket_prefix="gcsfuse-e2e-",
         age_days=3,
         max_delete=None,
         dry_run=False,
-        concurrency=32,
+        concurrency=concurrency,
         batch_size=50
     )
 
-    logging.info("Starting background cleanup across projects: %s", config.projects)
+    logging.info("Starting background cleanup across projects: %s (concurrency=%d)", config.projects, concurrency)
     processor = BucketProcessor(config=config, gcs_client=GCSClient())
     result = processor.process_all_projects()
 

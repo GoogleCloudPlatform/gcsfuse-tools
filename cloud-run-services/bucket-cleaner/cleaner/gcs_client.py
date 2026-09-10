@@ -17,8 +17,11 @@
 import csv
 import datetime
 import io
+import json
 import logging
+import os
 import subprocess
+import tempfile
 from typing import Any, Dict, List, Optional
 
 try:
@@ -40,12 +43,34 @@ class MockGCSBucket:
 
     def delete(self, force: bool = True) -> None:
         cmd = ["gcloud", "storage", "rm", "-r", f"gs://{self.name}", "--quiet"]
-        res = subprocess.run(cmd, capture_output=True, text=True)
-        if res.returncode != 0:
-            raise RuntimeError(f"gcloud storage rm failed on gs://{self.name}: {res.stderr}")
+        try:
+            res = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+            if res.returncode != 0:
+                raise RuntimeError(f"gcloud storage rm failed on gs://{self.name}: {res.stderr.strip()}")
+        except subprocess.TimeoutExpired:
+            raise TimeoutError(f"Deletion timed out after 120s (2 minutes) on gs://{self.name} (massive directory); applying OLM fallback.")
 
     def patch(self) -> None:
-        pass
+        if not self.lifecycle_rules:
+            return
+        rule_doc = {"rule": self.lifecycle_rules}
+        with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as tmp:
+            json.dump(rule_doc, tmp)
+            tmp_path = tmp.name
+        try:
+            cmd = ["gcloud", "storage", "buckets", "update", f"gs://{self.name}", f"--lifecycle-file={tmp_path}", "--quiet"]
+            res = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+            if res.returncode != 0:
+                logger.warning("Failed to apply OLM via gcloud to gs://%s: %s", self.name, res.stderr.strip())
+            else:
+                logger.info("Successfully updated OLM lifecycle rules on gs://%s via gcloud", self.name)
+        except Exception as exc:
+            logger.warning("Error applying OLM via gcloud to gs://%s: %s", self.name, exc)
+        finally:
+            try:
+                os.remove(tmp_path)
+            except OSError:
+                pass
 
 
 class GCSClient:

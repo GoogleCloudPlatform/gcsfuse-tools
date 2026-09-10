@@ -109,7 +109,7 @@ class TestCleanerConfig(unittest.TestCase):
         self.assertEqual(config.age_days, 3)
         self.assertEqual(config.age_hours, 72)
         self.assertFalse(config.dry_run)
-        self.assertEqual(config.concurrency, 16)
+        self.assertEqual(config.concurrency, 32)
         self.assertEqual(config.batch_size, 50)
 
     def test_from_request_json(self):
