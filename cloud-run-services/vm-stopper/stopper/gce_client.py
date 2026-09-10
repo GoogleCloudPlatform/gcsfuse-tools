@@ -424,7 +424,7 @@ class GCEClient:
         elif since_timestamp.tzinfo is None:
             since_timestamp = since_timestamp.replace(tzinfo=timezone.utc)
 
-        if since_timestamp >= until_timestamp:
+        if (until_timestamp - since_timestamp).total_seconds() < 60:
             since_timestamp = until_timestamp - timedelta(minutes=5)
 
         from google.cloud import monitoring_v3

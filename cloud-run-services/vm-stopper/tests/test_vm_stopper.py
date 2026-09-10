@@ -1649,6 +1649,17 @@ class TestCloudMonitoringNetworkTelemetry(unittest.TestCase):
         req = mock_mon_client.list_time_series.call_args[1]["request"]
         self.assertEqual(req.aggregation.alignment_period, {"seconds": 60})
 
+        # Interval < 60 seconds (e.g. 30s) adjusted to 5 minutes before until_timestamp
+        client.get_instance_network_bytes(
+            "test-proj",
+            "inst-12345",
+            self.now - timedelta(seconds=30),
+            self.now,
+        )
+        req = mock_mon_client.list_time_series.call_args[1]["request"]
+        self.assertEqual(req.interval.start_time, self.now - timedelta(minutes=5))
+        self.assertEqual(req.aggregation.alignment_period, {"seconds": 60})
+
     def test_has_network_activity_above_threshold(self):
         client = GCEClient()
         with patch.object(client, "get_instance_network_bytes", return_value=15000000):
@@ -1871,6 +1882,18 @@ class TestCloudMonitoringNetworkTelemetry(unittest.TestCase):
             project_id="proj-fallback",
             instance_id="inst-fallback",
             since_timestamp=end_ts,
+            until_timestamp=end_ts,
+        )
+        self.assertEqual(total, 0)
+        req = mock_mon_client.list_time_series.call_args[1]["request"]
+        self.assertEqual(req.interval.start_time, end_ts - timedelta(minutes=5))
+
+        # 6. Fallback when interval < 60 seconds
+        mock_mon_client.reset_mock()
+        total = client.get_instance_network_bytes(
+            project_id="proj-fallback-short",
+            instance_id="inst-fallback-short",
+            since_timestamp=end_ts - timedelta(seconds=30),
             until_timestamp=end_ts,
         )
         self.assertEqual(total, 0)
