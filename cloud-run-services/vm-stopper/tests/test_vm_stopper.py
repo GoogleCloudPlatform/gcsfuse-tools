@@ -1619,6 +1619,240 @@ class TestCloudMonitoringNetworkTelemetry(unittest.TestCase):
             self.assertTrue(is_active)
             self.assertEqual(count, -1)
 
+    def test_extract_point_value_which_oneof_proto_plus(self):
+        # 1. Proto-plus object with _pb attribute supporting WhichOneof
+        # Case A: int64 active
+        pb_int = MagicMock()
+        pb_int.WhichOneof.return_value = "int64_value"
+        pb_int.int64_value = 1048576
+        val_int = types.SimpleNamespace(_pb=pb_int)
+        point_int = types.SimpleNamespace(value=val_int)
+        self.assertEqual(GCEClient._extract_point_value(point_int), 1048576)
+        pb_int.WhichOneof.assert_called_with("value")
+
+        # Case B: double active
+        # Note: on proto-plus objects, accessing unset int64_value returns 0.
+        # Ensure that WhichOneof correctly extracts double_value even when int64_value=0.
+        pb_double = MagicMock()
+        pb_double.WhichOneof.return_value = "double_value"
+        pb_double.double_value = 2097152.0
+        val_double = types.SimpleNamespace(_pb=pb_double, int64_value=0, double_value=2097152.0)
+        point_double = types.SimpleNamespace(value=val_double)
+        self.assertEqual(GCEClient._extract_point_value(point_double), 2097152)
+        pb_double.WhichOneof.assert_called_with("value")
+
+        # 2. Direct protobuf object (without _pb attribute) supporting WhichOneof
+        pb_direct_int = MagicMock()
+        pb_direct_int.WhichOneof.return_value = "int64_value"
+        pb_direct_int.int64_value = 524288
+        del pb_direct_int._pb  # Ensure no _pb
+        point_direct_int = types.SimpleNamespace(value=pb_direct_int)
+        self.assertEqual(GCEClient._extract_point_value(point_direct_int), 524288)
+
+        pb_direct_double = MagicMock()
+        pb_direct_double.WhichOneof.return_value = "double_value"
+        pb_direct_double.double_value = 65536.0
+        del pb_direct_double._pb
+        point_direct_double = types.SimpleNamespace(value=pb_direct_double)
+        self.assertEqual(GCEClient._extract_point_value(point_direct_double), 65536)
+
+        # 3. WhichOneof raises ValueError/TypeError, falls back to attributes
+        pb_err = MagicMock()
+        pb_err.WhichOneof.side_effect = ValueError("Invalid field")
+        pb_err.int64_value = 4096
+        val_err = types.SimpleNamespace(_pb=pb_err, int64_value=4096)
+        point_err = types.SimpleNamespace(value=val_err)
+        self.assertEqual(GCEClient._extract_point_value(point_err), 4096)
+
+        # 4. Fallback attribute access on simple mocks without WhichOneof
+        self.assertEqual(GCEClient._extract_point_value(types.SimpleNamespace(value=types.SimpleNamespace(int64_value=123))), 123)
+        self.assertEqual(GCEClient._extract_point_value(types.SimpleNamespace(value=types.SimpleNamespace(double_value=456.7))), 456)
+        self.assertEqual(GCEClient._extract_point_value(types.SimpleNamespace(value=types.SimpleNamespace(int64Value=789))), 789)
+        self.assertEqual(GCEClient._extract_point_value(types.SimpleNamespace(value=types.SimpleNamespace(doubleValue=321.4))), 321)
+
+    def test_extract_point_value_dicts_and_scalars(self):
+        # Dict inputs with nested value dict
+        self.assertEqual(GCEClient._extract_point_value({"value": {"int64Value": 100}}), 100)
+        self.assertEqual(GCEClient._extract_point_value({"value": {"int64_value": 200}}), 200)
+        self.assertEqual(GCEClient._extract_point_value({"value": {"doubleValue": 300.7}}), 300)
+        self.assertEqual(GCEClient._extract_point_value({"value": {"double_value": 400.2}}), 400)
+        self.assertEqual(GCEClient._extract_point_value({"value": {}}), 0)
+        self.assertEqual(GCEClient._extract_point_value({"value": 500}), 500)
+        self.assertEqual(GCEClient._extract_point_value({"value": None}), 0)
+        self.assertEqual(GCEClient._extract_point_value({}), 0)
+
+        # Scalar inputs
+        self.assertEqual(GCEClient._extract_point_value(1024), 1024)
+        self.assertEqual(GCEClient._extract_point_value(2048.9), 2048)
+        self.assertEqual(GCEClient._extract_point_value(None), 0)
+
+        # Object with scalar value attribute
+        self.assertEqual(GCEClient._extract_point_value(types.SimpleNamespace(value=4096)), 4096)
+        self.assertEqual(GCEClient._extract_point_value(types.SimpleNamespace(value=8192.5)), 8192)
+        self.assertEqual(GCEClient._extract_point_value(types.SimpleNamespace(value=None)), 0)
+        self.assertEqual(GCEClient._extract_point_value(object()), 0)
+
+    def test_get_instance_network_bytes_explicit_and_keyword_args(self):
+        mock_mon_client = MagicMock()
+        mock_mon_client.list_time_series.return_value = []
+        client = GCEClient(monitoring_client=mock_mon_client)
+
+        start_ts = self.now - timedelta(hours=12)
+        end_ts = self.now
+
+        # 1. Explicit positional arguments
+        total = client.get_instance_network_bytes("proj-pos", "inst-pos", start_ts, end_ts, "us-central1-a", 12)
+        self.assertEqual(total, 0)
+        req = mock_mon_client.list_time_series.call_args[1]["request"]
+        self.assertEqual(req.name, "projects/proj-pos")
+        self.assertIn("inst-pos", req.filter)
+        self.assertEqual(req.interval.start_time, start_ts)
+        self.assertEqual(req.interval.end_time, end_ts)
+
+        # 2. Keyword arguments
+        mock_mon_client.reset_mock()
+        total = client.get_instance_network_bytes(
+            project_id="proj-kw",
+            instance_id="inst-kw",
+            since_timestamp=start_ts,
+            until_timestamp=end_ts,
+            zone="us-east1-b",
+            lookback_hours=12,
+        )
+        self.assertEqual(total, 0)
+        req = mock_mon_client.list_time_series.call_args[1]["request"]
+        self.assertEqual(req.name, "projects/proj-kw")
+        self.assertIn("inst-kw", req.filter)
+        self.assertEqual(req.interval.start_time, start_ts)
+        self.assertEqual(req.interval.end_time, end_ts)
+
+        # 3. Default arguments with lookback_hours
+        mock_mon_client.reset_mock()
+        total = client.get_instance_network_bytes(
+            project_id="proj-lookback",
+            instance_id="inst-lookback",
+            until_timestamp=end_ts,
+            lookback_hours=6,
+        )
+        self.assertEqual(total, 0)
+        req = mock_mon_client.list_time_series.call_args[1]["request"]
+        self.assertEqual(req.interval.start_time, end_ts - timedelta(hours=6))
+        self.assertEqual(req.interval.end_time, end_ts)
+
+        # 4. Default 24h lookback when since_timestamp is None
+        mock_mon_client.reset_mock()
+        total = client.get_instance_network_bytes(
+            project_id="proj-default",
+            instance_id="inst-default",
+            until_timestamp=end_ts,
+        )
+        self.assertEqual(total, 0)
+        req = mock_mon_client.list_time_series.call_args[1]["request"]
+        self.assertEqual(req.interval.start_time, end_ts - timedelta(hours=24))
+        self.assertEqual(req.interval.end_time, end_ts)
+
+        # 5. Fallback when since_timestamp >= until_timestamp
+        mock_mon_client.reset_mock()
+        total = client.get_instance_network_bytes(
+            project_id="proj-fallback",
+            instance_id="inst-fallback",
+            since_timestamp=end_ts,
+            until_timestamp=end_ts,
+        )
+        self.assertEqual(total, 0)
+        req = mock_mon_client.list_time_series.call_args[1]["request"]
+        self.assertEqual(req.interval.start_time, end_ts - timedelta(minutes=5))
+
+    def test_has_network_activity_explicit_and_keyword_args(self):
+        client = GCEClient()
+
+        # 1. Explicit positional arguments
+        with patch.object(client, "get_instance_network_bytes", return_value=20000000) as mock_get_bytes:
+            start_ts = self.now - timedelta(hours=8)
+            end_ts = self.now
+            is_active, count = client.has_network_activity(
+                "proj-pos",
+                "inst-pos-id",
+                "vm-pos-name",
+                "us-central1-b",
+                start_ts,
+                15000000,
+                end_ts,
+                8,
+            )
+            self.assertTrue(is_active)
+            self.assertEqual(count, 20000000)
+            mock_get_bytes.assert_called_once_with(
+                project_id="proj-pos",
+                instance_id="inst-pos-id",
+                since_timestamp=start_ts,
+                until_timestamp=end_ts,
+                zone="us-central1-b",
+                lookback_hours=8,
+            )
+
+        # 2. Keyword arguments
+        with patch.object(client, "get_instance_network_bytes", return_value=5000000) as mock_get_bytes:
+            start_ts = self.now - timedelta(hours=10)
+            end_ts = self.now
+            is_active, count = client.has_network_activity(
+                project_id="proj-kw",
+                instance_id="inst-kw-id",
+                instance_name="vm-kw-name",
+                zone="europe-west1-b",
+                since_timestamp=start_ts,
+                threshold_bytes=10000000,
+                until_timestamp=end_ts,
+                lookback_hours=10,
+            )
+            self.assertFalse(is_active)
+            self.assertEqual(count, 5000000)
+            mock_get_bytes.assert_called_once_with(
+                project_id="proj-kw",
+                instance_id="inst-kw-id",
+                since_timestamp=start_ts,
+                until_timestamp=end_ts,
+                zone="europe-west1-b",
+                lookback_hours=10,
+            )
+
+        # 3. Defaults when only required args provided
+        with patch.object(client, "get_instance_network_bytes", return_value=10485760) as mock_get_bytes:
+            is_active, count = client.has_network_activity(
+                project_id="proj-req",
+                instance_id="123456789",
+            )
+            self.assertTrue(is_active)
+            self.assertEqual(count, 10485760)
+            mock_get_bytes.assert_called_once_with(
+                project_id="proj-req",
+                instance_id="123456789",
+                since_timestamp=None,
+                until_timestamp=None,
+                zone="unknown",
+                lookback_hours=None,
+            )
+
+        # 4. Explicit None for optional args defaults properly
+        with patch.object(client, "get_instance_network_bytes", return_value=10485759) as mock_get_bytes:
+            is_active, count = client.has_network_activity(
+                project_id="proj-none",
+                instance_id="987654321",
+                instance_name=None,
+                zone=None,
+                threshold_bytes=None,
+            )
+            self.assertFalse(is_active)
+            self.assertEqual(count, 10485759)
+            mock_get_bytes.assert_called_once_with(
+                project_id="proj-none",
+                instance_id="987654321",
+                since_timestamp=None,
+                until_timestamp=None,
+                zone="unknown",
+                lookback_hours=None,
+            )
+
     def test_hierarchical_fallback_logging_active_skips_monitoring(self):
         config = StopperConfig(project_id="test-proj")
         processor = VMProcessor(config, gce_client=self.mock_client)

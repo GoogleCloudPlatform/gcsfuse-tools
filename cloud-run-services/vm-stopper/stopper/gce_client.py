@@ -355,6 +355,16 @@ class GCEClient:
         if val is not None:
             if isinstance(val, (int, float)):
                 return int(val)
+            # Handle protobuf/proto-plus oneof fields robustly
+            pb_val = getattr(val, "_pb", val)
+            if hasattr(pb_val, "WhichOneof"):
+                try:
+                    active_field = pb_val.WhichOneof("value")
+                    if isinstance(active_field, str):
+                        return int(getattr(pb_val, active_field))
+                except (ValueError, TypeError):
+                    pass
+            # Fallback to attribute access for mocks or simple objects
             int_val = getattr(val, "int64_value", None)
             if int_val is not None:
                 return int(int_val)
@@ -373,8 +383,10 @@ class GCEClient:
         self,
         project_id: str,
         instance_id: str,
-        *args: Any,
-        **kwargs: Any,
+        since_timestamp: Optional[datetime] = None,
+        until_timestamp: Optional[datetime] = None,
+        zone: Optional[str] = None,
+        lookback_hours: Optional[int] = None,
     ) -> int:
         """Query Cloud Monitoring for total network bytes (received and sent) for an instance.
 
@@ -383,9 +395,10 @@ class GCEClient:
         Args:
             project_id: Target GCP project ID.
             instance_id: Unique instance ID or instance name.
-            *args: Can supply since_timestamp (datetime), until_timestamp (datetime)
-                   or zone (str), lookback_hours (int).
-            **kwargs: since_timestamp, until_timestamp, zone, lookback_hours.
+            since_timestamp: Start of lookback interval (UTC).
+            until_timestamp: End of lookback interval (UTC). Defaults to now.
+            zone: Optional GCE zone.
+            lookback_hours: Lookback window in hours (default 24 if since_timestamp not provided).
 
         Returns:
             Total bytes (received + sent) across the interval.
@@ -394,25 +407,6 @@ class GCEClient:
             Exception: Propagates any query exception for upstream fail-safe handling.
         """
         from datetime import timedelta
-        since_timestamp: Optional[datetime] = None
-        until_timestamp: Optional[datetime] = None
-        zone: Optional[str] = None
-        lookback_hours: Optional[int] = None
-
-        if args:
-            if isinstance(args[0], datetime):
-                since_timestamp = args[0]
-                if len(args) > 1 and isinstance(args[1], datetime):
-                    until_timestamp = args[1]
-            elif isinstance(args[0], str):
-                zone = args[0]
-                if len(args) > 1 and isinstance(args[1], (int, float)):
-                    lookback_hours = int(args[1])
-
-        since_timestamp = kwargs.get("since_timestamp", since_timestamp)
-        until_timestamp = kwargs.get("until_timestamp", until_timestamp)
-        zone = kwargs.get("zone", zone)
-        lookback_hours = kwargs.get("lookback_hours", lookback_hours)
 
         if until_timestamp is None:
             until_timestamp = datetime.now(timezone.utc)
@@ -495,8 +489,12 @@ class GCEClient:
         self,
         project_id: str,
         instance_id: str,
-        *args: Any,
-        **kwargs: Any,
+        instance_name: Optional[str] = None,
+        zone: str = "unknown",
+        since_timestamp: Optional[datetime] = None,
+        threshold_bytes: int = 10485760,
+        until_timestamp: Optional[datetime] = None,
+        lookback_hours: Optional[int] = None,
     ) -> Tuple[bool, int]:
         """Check Cloud Monitoring for instance network activity exceeding threshold.
 
@@ -505,40 +503,25 @@ class GCEClient:
         PermissionDenied, timeout, quota exhaustion, network error), logs a warning
         and returns (True, -1) (assumes ACTIVE) to prevent accidental stopping of workloads.
 
+        Args:
+            project_id: Target GCP project ID.
+            instance_id: Unique instance ID or instance name.
+            instance_name: VM instance name. Defaults to str(instance_id) if None.
+            zone: Compute zone name (e.g. 'us-central1-a'). Defaults to "unknown" if None.
+            since_timestamp: UTC datetime cutoff for network telemetry.
+            threshold_bytes: Network traffic threshold in bytes. Defaults to 10485760 (10MB).
+            until_timestamp: UTC datetime end of interval.
+            lookback_hours: Lookback window in hours.
+
         Returns:
             Tuple of (is_active: bool, bytes_count: int).
         """
-        instance_name: Optional[str] = None
-        zone: Optional[str] = None
-        since_timestamp: Optional[datetime] = None
-        until_timestamp: Optional[datetime] = None
-        threshold_bytes: Optional[int] = None
-        lookback_hours: Optional[int] = None
-
-        if len(args) == 3:
-            zone = str(args[0])
-            if isinstance(args[1], (int, float)):
-                lookback_hours = int(args[1])
-            if isinstance(args[2], (int, float)):
-                threshold_bytes = int(args[2])
-        elif len(args) >= 4:
-            instance_name = str(args[0])
-            zone = str(args[1])
-            if isinstance(args[2], datetime):
-                since_timestamp = args[2]
-            elif isinstance(args[2], (int, float)):
-                lookback_hours = int(args[2])
-            if isinstance(args[3], (int, float)):
-                threshold_bytes = int(args[3])
-            if len(args) > 4 and isinstance(args[4], datetime):
-                until_timestamp = args[4]
-
-        instance_name = kwargs.get("instance_name", instance_name or str(instance_id))
-        zone = kwargs.get("zone", zone or "unknown")
-        threshold_bytes = kwargs.get("threshold_bytes", threshold_bytes if threshold_bytes is not None else 10485760)
-        lookback_hours = kwargs.get("lookback_hours", lookback_hours)
-        since_timestamp = kwargs.get("since_timestamp", since_timestamp)
-        until_timestamp = kwargs.get("until_timestamp", until_timestamp)
+        if instance_name is None:
+            instance_name = str(instance_id)
+        if zone is None:
+            zone = "unknown"
+        if threshold_bytes is None:
+            threshold_bytes = 10485760
 
         try:
             total_bytes = self.get_instance_network_bytes(
