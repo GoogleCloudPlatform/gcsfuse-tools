@@ -436,8 +436,10 @@ class GCEClient:
             "ALIGN_DELTA",
             "ALIGN_DELTA",
         )
+        interval_seconds = int((until_timestamp - since_timestamp).total_seconds())
+        alignment_seconds = 3600 if interval_seconds >= 3600 else 60
         aggregation = monitoring_v3.Aggregation(
-            alignment_period={"seconds": 3600},
+            alignment_period={"seconds": alignment_seconds},
             per_series_aligner=aligner,
         )
 

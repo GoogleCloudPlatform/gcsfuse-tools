@@ -1534,6 +1534,57 @@ class TestCloudMonitoringNetworkTelemetry(unittest.TestCase):
         self.assertIn("compute.googleapis.com/instance/network/received_bytes_count", req.filter)
         self.assertIn("compute.googleapis.com/instance/network/sent_bytes_count", req.filter)
         self.assertIn("inst-12345", req.filter)
+        self.assertEqual(req.aggregation.alignment_period, {"seconds": 3600})
+
+    def test_get_instance_network_bytes_alignment_period_ge_1_hour(self):
+        mock_mon_client = MagicMock()
+        mock_mon_client.list_time_series.return_value = []
+        client = GCEClient(monitoring_client=mock_mon_client)
+
+        # 24 hours interval
+        client.get_instance_network_bytes(
+            "test-proj",
+            "inst-12345",
+            self.now - timedelta(hours=24),
+            self.now,
+        )
+        req = mock_mon_client.list_time_series.call_args[1]["request"]
+        self.assertEqual(req.aggregation.alignment_period, {"seconds": 3600})
+
+        # Exactly 1 hour interval
+        client.get_instance_network_bytes(
+            "test-proj",
+            "inst-12345",
+            self.now - timedelta(hours=1),
+            self.now,
+        )
+        req = mock_mon_client.list_time_series.call_args[1]["request"]
+        self.assertEqual(req.aggregation.alignment_period, {"seconds": 3600})
+
+    def test_get_instance_network_bytes_alignment_period_lt_1_hour(self):
+        mock_mon_client = MagicMock()
+        mock_mon_client.list_time_series.return_value = []
+        client = GCEClient(monitoring_client=mock_mon_client)
+
+        # 5-minute fallback when since_timestamp >= until_timestamp
+        client.get_instance_network_bytes(
+            "test-proj",
+            "inst-12345",
+            self.now,
+            self.now,
+        )
+        req = mock_mon_client.list_time_series.call_args[1]["request"]
+        self.assertEqual(req.aggregation.alignment_period, {"seconds": 60})
+
+        # Explicit interval < 1 hour (e.g. 30 minutes)
+        client.get_instance_network_bytes(
+            "test-proj",
+            "inst-12345",
+            self.now - timedelta(minutes=30),
+            self.now,
+        )
+        req = mock_mon_client.list_time_series.call_args[1]["request"]
+        self.assertEqual(req.aggregation.alignment_period, {"seconds": 60})
 
     def test_has_network_activity_above_threshold(self):
         client = GCEClient()
