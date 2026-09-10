@@ -101,6 +101,49 @@ def _setup_offline_mock_modules() -> None:
             if "google.cloud" in sys.modules:
                 setattr(sys.modules["google.cloud"], "logging_v2", logging_mod)
 
+    if "google.cloud.monitoring_v3" not in sys.modules or not hasattr(sys.modules.get("google.cloud", None), "monitoring_v3"):
+        try:
+            import google.cloud.monitoring_v3
+        except (ImportError, AttributeError):
+            mon_mod = types.ModuleType("google.cloud.monitoring_v3")
+            mon_mod.MetricServiceClient = MagicMock
+
+            class MockView:
+                FULL = 2
+
+            class MockListTimeSeriesRequest:
+                TimeSeriesView = MockView
+
+                def __init__(self, **kwargs):
+                    for k, v in kwargs.items():
+                        setattr(self, k, v)
+
+            mon_mod.ListTimeSeriesRequest = MockListTimeSeriesRequest
+
+            class MockTimeInterval:
+                def __init__(self, **kwargs):
+                    for k, v in kwargs.items():
+                        setattr(self, k, v)
+
+            mon_mod.TimeInterval = MockTimeInterval
+
+            class MockAligner:
+                ALIGN_DELTA = "ALIGN_DELTA"
+
+            class MockAggregation:
+                Aligner = MockAligner
+
+                def __init__(self, **kwargs):
+                    for k, v in kwargs.items():
+                        setattr(self, k, v)
+
+            mon_mod.Aggregation = MockAggregation
+
+            sys.modules["google.cloud.monitoring_v3"] = mon_mod
+            if "google.cloud" in sys.modules:
+                setattr(sys.modules["google.cloud"], "monitoring_v3", mon_mod)
+
+
     if "functions_framework" not in sys.modules:
         try:
             import functions_framework
@@ -1399,6 +1442,270 @@ class TestHTTPServiceAndMain(unittest.TestCase):
         with self.app.app_context():
             resp, status = main.check_and_stop_idle_vms(mock_req)
             self.assertEqual(status, 200)
+
+
+class TestCloudMonitoringNetworkTelemetry(unittest.TestCase):
+    """Unit tests for Cloud Monitoring network metrics telemetry, hierarchical fallback, and fail-safe error handling."""
+
+    def setUp(self):
+        self.now = datetime(2026, 9, 10, 12, 0, 0, tzinfo=timezone.utc)
+        self.mock_client = MagicMock(spec=GCEClient)
+
+    def test_config_network_telemetry_defaults(self):
+        config = StopperConfig(project_id="test-proj")
+        self.assertEqual(config.network_bytes_threshold, 10485760)
+        self.assertIsNone(config.network_lookback_hours)
+        self.assertTrue(config.enable_network_monitoring)
+
+    def test_config_network_telemetry_env_vars(self):
+        env = {
+            "PROJECT_ID": "env-proj",
+            "NETWORK_BYTES_THRESHOLD": "52428800",
+            "NETWORK_LOOKBACK_HOURS": "48",
+            "ENABLE_NETWORK_MONITORING": "false",
+        }
+        config = StopperConfig.from_request(env=env)
+        self.assertEqual(config.project_id, "env-proj")
+        self.assertEqual(config.network_bytes_threshold, 52428800)
+        self.assertEqual(config.network_lookback_hours, 48)
+        self.assertFalse(config.enable_network_monitoring)
+
+    def test_config_network_bytes_suffix_parsing(self):
+        # 10MB -> 10 * 1024 * 1024
+        c1 = StopperConfig.from_request(request_data={"project": "p", "network_bytes_threshold": "10MB"})
+        self.assertEqual(c1.network_bytes_threshold, 10485760)
+
+        # 500KB -> 500 * 1024
+        c2 = StopperConfig.from_request(request_data={"project": "p", "network_bytes_threshold": "500KB"})
+        self.assertEqual(c2.network_bytes_threshold, 512000)
+
+        # 1GB -> 1073741824
+        c3 = StopperConfig.from_request(request_data={"project": "p", "network_bytes_threshold": "1GB"})
+        self.assertEqual(c3.network_bytes_threshold, 1073741824)
+
+        # Raw int
+        c4 = StopperConfig.from_request(request_data={"project": "p", "network_bytes_threshold": 2048})
+        self.assertEqual(c4.network_bytes_threshold, 2048)
+
+    def test_config_validation_negative_threshold(self):
+        config = StopperConfig(project_id="test-proj", network_bytes_threshold=-100)
+        with self.assertRaises(ValueError) as ctx:
+            config.validate()
+        self.assertIn("network_bytes_threshold must be >= 0", str(ctx.exception))
+
+    def test_config_validation_invalid_lookback(self):
+        c1 = StopperConfig(project_id="test-proj", network_lookback_hours=0)
+        with self.assertRaises(ValueError) as ctx1:
+            c1.validate()
+        self.assertIn("network_lookback_hours must be > 0", str(ctx1.exception))
+
+        c2 = StopperConfig(project_id="test-proj", network_lookback_hours=-10)
+        with self.assertRaises(ValueError) as ctx2:
+            c2.validate()
+        self.assertIn("network_lookback_hours must be > 0", str(ctx2.exception))
+
+    def test_get_instance_network_bytes_aggregation(self):
+        mock_mon_client = MagicMock()
+        mock_series_rx = {
+            "points": [
+                {"value": {"int64Value": 4000000}},
+                {"value": {"int64Value": 1000000}},
+            ]
+        }
+        mock_series_tx = {
+            "points": [
+                {"value": {"int64Value": 7000000}},
+            ]
+        }
+        mock_mon_client.list_time_series.return_value = [mock_series_rx, mock_series_tx]
+
+        client = GCEClient(monitoring_client=mock_mon_client)
+        total = client.get_instance_network_bytes(
+            "test-proj",
+            "inst-12345",
+            self.now - timedelta(hours=24),
+            self.now,
+        )
+        self.assertEqual(total, 12000000)
+        mock_mon_client.list_time_series.assert_called_once()
+        call_kwargs = mock_mon_client.list_time_series.call_args[1]
+        req = call_kwargs["request"]
+        self.assertEqual(req.name, "projects/test-proj")
+        self.assertIn("compute.googleapis.com/instance/network/received_bytes_count", req.filter)
+        self.assertIn("compute.googleapis.com/instance/network/sent_bytes_count", req.filter)
+        self.assertIn("inst-12345", req.filter)
+
+    def test_has_network_activity_above_threshold(self):
+        client = GCEClient()
+        with patch.object(client, "get_instance_network_bytes", return_value=15000000):
+            is_active, count = client.has_network_activity(
+                "test-proj",
+                "inst-1",
+                "vm-test",
+                "us-central1-a",
+                self.now - timedelta(hours=24),
+                10485760,
+            )
+            self.assertTrue(is_active)
+            self.assertEqual(count, 15000000)
+
+    def test_has_network_activity_below_threshold(self):
+        client = GCEClient()
+        with patch.object(client, "get_instance_network_bytes", return_value=5000000):
+            is_active, count = client.has_network_activity(
+                "test-proj",
+                "inst-1",
+                "vm-test",
+                "us-central1-a",
+                self.now - timedelta(hours=24),
+                10485760,
+            )
+            self.assertFalse(is_active)
+            self.assertEqual(count, 5000000)
+
+    def test_has_network_activity_empty_series(self):
+        client = GCEClient()
+        with patch.object(client, "get_instance_network_bytes", return_value=0):
+            is_active, count = client.has_network_activity(
+                "test-proj",
+                "inst-1",
+                "vm-test",
+                "us-central1-a",
+                self.now - timedelta(hours=24),
+                10485760,
+            )
+            self.assertFalse(is_active)
+            self.assertEqual(count, 0)
+
+    def test_has_network_activity_fail_safe_on_403(self):
+        client = GCEClient()
+        with patch.object(client, "get_instance_network_bytes", side_effect=Exception("403 Forbidden")):
+            is_active, count = client.has_network_activity(
+                "test-proj",
+                "inst-1",
+                "vm-test",
+                "us-central1-a",
+                self.now - timedelta(hours=24),
+                10485760,
+            )
+            self.assertTrue(is_active)
+            self.assertEqual(count, -1)
+
+    def test_has_network_activity_fail_safe_on_timeout(self):
+        client = GCEClient()
+        with patch.object(client, "get_instance_network_bytes", side_effect=Exception("DeadlineExceeded")):
+            is_active, count = client.has_network_activity(
+                "test-proj",
+                "inst-1",
+                "vm-test",
+                "us-central1-a",
+                self.now - timedelta(hours=24),
+                10485760,
+            )
+            self.assertTrue(is_active)
+            self.assertEqual(count, -1)
+
+    def test_has_network_activity_fail_safe_on_generic_exception(self):
+        client = GCEClient()
+        with patch.object(client, "get_instance_network_bytes", side_effect=RuntimeError("Connection reset")):
+            is_active, count = client.has_network_activity(
+                "test-proj",
+                "inst-1",
+                "vm-test",
+                "us-central1-a",
+                self.now - timedelta(hours=24),
+                10485760,
+            )
+            self.assertTrue(is_active)
+            self.assertEqual(count, -1)
+
+    def test_hierarchical_fallback_logging_active_skips_monitoring(self):
+        config = StopperConfig(project_id="test-proj")
+        processor = VMProcessor(config, gce_client=self.mock_client)
+
+        created_ts = (self.now - timedelta(days=15)).isoformat()
+        vm = MockInstance(name="active-log-vm", status="RUNNING", creation_timestamp=created_ts)
+
+        self.mock_client.has_recent_activity.return_value = True
+        self.mock_client.has_network_activity = MagicMock()
+
+        res = processor.process_single_instance("us-central1-a", vm, self.now)
+        self.assertEqual(res["category"], "skipped_active")
+        self.mock_client.has_network_activity.assert_not_called()
+        self.mock_client.stop_instance.assert_not_called()
+
+    def test_hierarchical_fallback_logging_idle_monitoring_active_retains_vm(self):
+        config = StopperConfig(project_id="test-proj")
+        processor = VMProcessor(config, gce_client=self.mock_client)
+
+        created_ts = (self.now - timedelta(days=15)).isoformat()
+        vm = MockInstance(name="active-net-vm", status="RUNNING", creation_timestamp=created_ts)
+
+        self.mock_client.has_recent_activity.return_value = False
+        self.mock_client.has_network_activity.return_value = (True, 25000000)
+
+        res = processor.process_single_instance("us-central1-a", vm, self.now)
+        self.assertEqual(res["category"], "skipped_active")
+        self.assertIn("Active network traffic detected", res["reason"])
+        self.mock_client.stop_instance.assert_not_called()
+
+    def test_hierarchical_fallback_logging_idle_monitoring_idle_stops_vm(self):
+        config = StopperConfig(project_id="test-proj")
+        processor = VMProcessor(config, gce_client=self.mock_client)
+
+        created_ts = (self.now - timedelta(days=15)).isoformat()
+        vm = MockInstance(name="idle-vm", status="RUNNING", creation_timestamp=created_ts)
+
+        self.mock_client.has_recent_activity.return_value = False
+        self.mock_client.has_network_activity.return_value = (False, 1500000)
+
+        res = processor.process_single_instance("us-central1-a", vm, self.now)
+        self.assertEqual(res["category"], "stopped")
+        self.assertEqual(res["action"], "stopped")
+        self.mock_client.stop_instance.assert_called_once_with("test-proj", "us-central1-a", "idle-vm")
+
+    def test_hierarchical_fallback_monitoring_error_retains_vm(self):
+        config = StopperConfig(project_id="test-proj")
+        processor = VMProcessor(config, gce_client=self.mock_client)
+
+        created_ts = (self.now - timedelta(days=15)).isoformat()
+        vm = MockInstance(name="err-net-vm", status="RUNNING", creation_timestamp=created_ts)
+
+        self.mock_client.has_recent_activity.return_value = False
+        self.mock_client.has_network_activity.return_value = (True, -1)
+
+        res = processor.process_single_instance("us-central1-a", vm, self.now)
+        self.assertEqual(res["category"], "skipped_active")
+        self.assertIn("failing safe (assuming active)", res["reason"])
+        self.mock_client.stop_instance.assert_not_called()
+
+    def test_hierarchical_fallback_disabled_monitoring_bypasses_query(self):
+        config = StopperConfig(project_id="test-proj", enable_network_monitoring=False)
+        processor = VMProcessor(config, gce_client=self.mock_client)
+
+        created_ts = (self.now - timedelta(days=15)).isoformat()
+        vm = MockInstance(name="no-net-mon-vm", status="RUNNING", creation_timestamp=created_ts)
+
+        self.mock_client.has_recent_activity.return_value = False
+        self.mock_client.has_network_activity = MagicMock()
+
+        res = processor.process_single_instance("us-central1-a", vm, self.now)
+        self.assertEqual(res["category"], "stopped")
+        self.mock_client.has_network_activity.assert_not_called()
+        self.mock_client.stop_instance.assert_called_once()
+
+    def test_unconfigured_mock_backward_compatibility(self):
+        config = StopperConfig(project_id="test-proj")
+        unconfigured_client = MagicMock(spec=GCEClient)
+        unconfigured_client.has_recent_activity.return_value = False
+        processor = VMProcessor(config, gce_client=unconfigured_client)
+
+        created_ts = (self.now - timedelta(days=15)).isoformat()
+        vm = MockInstance(name="unconfigured-mock-vm", status="RUNNING", creation_timestamp=created_ts)
+
+        res = processor.process_single_instance("us-central1-a", vm, self.now)
+        self.assertEqual(res["category"], "stopped")
+        unconfigured_client.stop_instance.assert_called_once()
 
 
 class TestDeploymentScriptSyntax(unittest.TestCase):

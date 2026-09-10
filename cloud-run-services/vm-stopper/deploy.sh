@@ -212,6 +212,7 @@ enable_apis() {
     artifactregistry.googleapis.com \
     compute.googleapis.com \
     logging.googleapis.com \
+    monitoring.googleapis.com \
     iam.googleapis.com \
     --project "${PROJECT_ID}"
   log "Required APIs enabled/verified."
@@ -366,7 +367,7 @@ setup_service_accounts() {
   fi
 
   # Verify and assign roles to Runner SA
-  for role in "roles/compute.instanceAdmin.v1" "roles/logging.viewer" "roles/logging.logWriter"; do
+  for role in "roles/compute.instanceAdmin.v1" "roles/logging.viewer" "roles/logging.logWriter" "roles/monitoring.viewer"; do
     ensure_project_iam_role "${PROJECT_ID}" "serviceAccount:${RUNNER_SA_EMAIL}" "${role}"
   done
 

@@ -26,10 +26,20 @@ from __future__ import annotations
 
 import datetime
 from datetime import timezone
+from pathlib import Path
 import random
 import sys
 import unittest
 from unittest.mock import MagicMock, patch
+
+# Bootstrap sys.path so the test script runs standalone without external PYTHONPATH
+_REPO_ROOT = Path(__file__).resolve().parent
+for _sub in ["cluster-scaler", "gcsfuse-reservation-cleaner", "vm-stopper"]:
+    _p = str(_REPO_ROOT / _sub)
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
 
 # --- Service 1 Imports: GKE Cluster Scaler ---
 from scaler.config import ScalerConfig
