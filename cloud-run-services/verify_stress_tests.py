@@ -26,10 +26,20 @@ from __future__ import annotations
 
 import datetime
 from datetime import timezone
+from pathlib import Path
 import random
 import sys
 import unittest
 from unittest.mock import MagicMock, patch
+
+# Bootstrap sys.path so the test script runs standalone without external PYTHONPATH
+_REPO_ROOT = Path(__file__).resolve().parent
+for _sub in ["cluster-scaler", "gcsfuse-reservation-cleaner", "vm-stopper"]:
+    _p = str(_REPO_ROOT / _sub)
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
 
 # --- Service 1 Imports: GKE Cluster Scaler ---
 from scaler.config import ScalerConfig
@@ -652,6 +662,7 @@ class EmpiricalGCEVMStopperTests(unittest.TestCase):
         """Verify transitional statuses, young VMs, and multi-threaded sweep concurrency."""
         now_utc = datetime.datetime.now(timezone.utc)
         mock_client = MagicMock(spec=GCEClient)
+        mock_client.has_network_activity.return_value = (False, 0)
         processor = VMProcessor(config=self.config, gce_client=mock_client)
 
         # 1. Transitional VM statuses

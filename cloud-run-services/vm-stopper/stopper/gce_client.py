@@ -24,6 +24,14 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 import google.auth
 from google.cloud import compute_v1
 from google.cloud import logging_v2
+try:
+    from google.cloud import monitoring_v3
+except (ImportError, AttributeError):
+    monitoring_v3 = None  # type: ignore
+
+METRIC_RECEIVED_BYTES = "compute.googleapis.com/instance/network/received_bytes_count"
+METRIC_SENT_BYTES = "compute.googleapis.com/instance/network/sent_bytes_count"
+
 
 logger = logging.getLogger(__name__)
 
@@ -97,6 +105,7 @@ class GCEClient:
         rate_limit_per_minute: int = 40,
         max_retries: int = 4,
         backoff_base: float = 2.0,
+        monitoring_client: Optional[Any] = None,
     ):
         self.credentials = credentials
         self.max_retries = max(0, max_retries)
@@ -104,6 +113,7 @@ class GCEClient:
         self.rate_limiter = RateLimiter(max_per_minute=rate_limit_per_minute)
         self._instances_client: Optional[compute_v1.InstancesClient] = None
         self._logging_client: Optional[logging_v2.Client] = None
+        self._monitoring_client: Optional[Any] = monitoring_client
 
     @property
     def instances_client(self) -> compute_v1.InstancesClient:
@@ -114,6 +124,25 @@ class GCEClient:
             else:
                 self._instances_client = compute_v1.InstancesClient()
         return self._instances_client
+
+    @property
+    def monitoring_client(self) -> Any:
+        """Lazy-initialize and return the Cloud Monitoring MetricServiceClient."""
+        if self._monitoring_client is None:
+            if monitoring_v3 is None:
+                raise ImportError(
+                    "google-cloud-monitoring is not installed. Please install it to use network monitoring features."
+                )
+            if self.credentials:
+                self._monitoring_client = monitoring_v3.MetricServiceClient(credentials=self.credentials)
+            else:
+                self._monitoring_client = monitoring_v3.MetricServiceClient()
+        return self._monitoring_client
+
+    @monitoring_client.setter
+    def monitoring_client(self, client: Any) -> None:
+        self._monitoring_client = client
+
 
     def get_logging_client(self, project_id: str) -> logging_v2.Client:
         """Return a Cloud Logging client for the specified project."""
@@ -303,6 +332,249 @@ class GCEClient:
                 exc,
             )
             return True
+
+    @staticmethod
+    def _extract_point_value(point: Any) -> int:
+        """Extract numeric byte value from a Point proto-plus object, dict, or scalar."""
+        if point is None:
+            return 0
+        if isinstance(point, (int, float)):
+            return int(point)
+        if isinstance(point, dict):
+            val = point.get("value", {})
+            if isinstance(val, dict):
+                return int(
+                    val.get("int64Value")
+                    or val.get("int64_value")
+                    or val.get("doubleValue")
+                    or val.get("double_value")
+                    or 0
+                )
+            if isinstance(val, (int, float)):
+                return int(val)
+            return 0
+
+        val = getattr(point, "value", None)
+        if val is not None:
+            if isinstance(val, (int, float)):
+                return int(val)
+            # Handle protobuf/proto-plus oneof fields robustly
+            pb_val = getattr(val, "_pb", val)
+            if hasattr(pb_val, "WhichOneof"):
+                try:
+                    active_field = pb_val.WhichOneof("value")
+                    if isinstance(active_field, str) and active_field:
+                        return int(getattr(pb_val, active_field))
+                except (ValueError, TypeError, AttributeError):
+                    pass
+            # Fallback to attribute access for mocks or simple objects
+            int_val = getattr(val, "int64_value", None)
+            if int_val is not None:
+                return int(int_val)
+            double_val = getattr(val, "double_value", None)
+            if double_val is not None:
+                return int(double_val)
+            int_val_camel = getattr(val, "int64Value", None)
+            if int_val_camel is not None:
+                return int(int_val_camel)
+            double_val_camel = getattr(val, "doubleValue", None)
+            if double_val_camel is not None:
+                return int(double_val_camel)
+        return 0
+
+    def get_instance_network_bytes(
+        self,
+        project_id: str,
+        instance_id: str,
+        since_timestamp: Optional[datetime] = None,
+        until_timestamp: Optional[datetime] = None,
+        zone: Optional[str] = None,
+        lookback_hours: Optional[int] = None,
+    ) -> int:
+        """Query Cloud Monitoring for total network bytes (received and sent) for an instance.
+
+        Uses ALIGN_DELTA to aggregate cumulative byte counters across the lookback window.
+
+        Args:
+            project_id: Target GCP project ID.
+            instance_id: Unique instance ID or instance name.
+            since_timestamp: Start of lookback interval (UTC).
+            until_timestamp: End of lookback interval (UTC). Defaults to now.
+            zone: Optional GCE zone.
+            lookback_hours: Lookback window in hours (default 24 if since_timestamp not provided).
+
+        Returns:
+            Total bytes (received + sent) across the interval.
+
+        Raises:
+            Exception: API exceptions (e.g. GoogleAPICallError, timeouts, 403, 429)
+                are intentionally propagated so that callers like has_network_activity
+                can implement their domain-specific fail-safe policy (failing open to
+                avoid stopping active VMs).
+        """
+        from datetime import timedelta
+
+        if until_timestamp is None:
+            until_timestamp = datetime.now(timezone.utc)
+        elif until_timestamp.tzinfo is None:
+            until_timestamp = until_timestamp.replace(tzinfo=timezone.utc)
+        else:
+            until_timestamp = until_timestamp.astimezone(timezone.utc)
+
+        if since_timestamp is None:
+            if lookback_hours is not None and lookback_hours > 0:
+                since_timestamp = until_timestamp - timedelta(hours=lookback_hours)
+            else:
+                since_timestamp = until_timestamp - timedelta(hours=24)
+        elif since_timestamp.tzinfo is None:
+            since_timestamp = since_timestamp.replace(tzinfo=timezone.utc)
+        else:
+            since_timestamp = since_timestamp.astimezone(timezone.utc)
+
+        if (until_timestamp - since_timestamp).total_seconds() < 60:
+            since_timestamp = until_timestamp - timedelta(minutes=5)
+
+        if monitoring_v3 is None:
+            raise ImportError(
+                "google-cloud-monitoring is not installed. Please install it to use network monitoring features."
+            )
+
+        interval = monitoring_v3.TimeInterval(
+            start_time=since_timestamp,
+            end_time=until_timestamp,
+        )
+
+        aligner = getattr(
+            getattr(monitoring_v3.Aggregation, "Aligner", None),
+            "ALIGN_DELTA",
+            "ALIGN_DELTA",
+        )
+        interval_seconds = int((until_timestamp - since_timestamp).total_seconds())
+        alignment_seconds = 3600 if interval_seconds >= 3600 else 60
+        aggregation = monitoring_v3.Aggregation(
+            alignment_period={"seconds": alignment_seconds},
+            per_series_aligner=aligner,
+        )
+
+        filter_expr = (
+            f'(metric.type = "{METRIC_RECEIVED_BYTES}" OR metric.type = "{METRIC_SENT_BYTES}") '
+            f'AND resource.type = "gce_instance" '
+            f'AND resource.labels.instance_id = "{instance_id}"'
+        )
+
+        if self.rate_limiter:
+            self.rate_limiter.acquire()
+
+        view = getattr(
+            getattr(monitoring_v3.ListTimeSeriesRequest, "TimeSeriesView", None),
+            "FULL",
+            2,
+        )
+        request = monitoring_v3.ListTimeSeriesRequest(
+            name=f"projects/{project_id}",
+            filter=filter_expr,
+            interval=interval,
+            aggregation=aggregation,
+            view=view,
+        )
+
+        pager = self.monitoring_client.list_time_series(request=request)
+        total_bytes = 0
+
+        if pager is not None:
+            try:
+                for series in pager:
+                    if isinstance(series, dict):
+                        points = series.get("points", [])
+                    else:
+                        points = getattr(series, "points", [])
+                    for pt in points:
+                        total_bytes += self._extract_point_value(pt)
+            except (TypeError, AttributeError):
+                pass
+
+        return total_bytes
+
+    def has_network_activity(
+        self,
+        project_id: str,
+        instance_id: str,
+        instance_name: Optional[str] = None,
+        zone: str = "unknown",
+        since_timestamp: Optional[datetime] = None,
+        threshold_bytes: int = 10485760,
+        until_timestamp: Optional[datetime] = None,
+        lookback_hours: Optional[int] = None,
+    ) -> Tuple[bool, int]:
+        """Check Cloud Monitoring for instance network activity exceeding threshold.
+
+        Fail-Safe Guard:
+        If Cloud Monitoring query fails or raises any exception (e.g. HTTP 403
+        PermissionDenied, timeout, quota exhaustion, network error), logs a warning
+        and returns (True, -1) (assumes ACTIVE) to prevent accidental stopping of workloads.
+
+        Args:
+            project_id: Target GCP project ID.
+            instance_id: Unique instance ID or instance name.
+            instance_name: VM instance name. Defaults to str(instance_id) if None.
+            zone: Compute zone name (e.g. 'us-central1-a'). Defaults to "unknown" if None.
+            since_timestamp: UTC datetime cutoff for network telemetry.
+            threshold_bytes: Network traffic threshold in bytes. Defaults to 10485760 (10MB).
+            until_timestamp: UTC datetime end of interval.
+            lookback_hours: Lookback window in hours.
+
+        Returns:
+            Tuple of (is_active: bool, bytes_count: int).
+        """
+        if instance_name is None:
+            instance_name = str(instance_id)
+        if zone is None:
+            zone = "unknown"
+        if threshold_bytes is None:
+            threshold_bytes = 10485760
+
+        try:
+            total_bytes = self.get_instance_network_bytes(
+                project_id=project_id,
+                instance_id=instance_id,
+                since_timestamp=since_timestamp,
+                until_timestamp=until_timestamp,
+                zone=zone,
+                lookback_hours=lookback_hours,
+            )
+            if total_bytes >= threshold_bytes:
+                logger.info(
+                    "Active network traffic detected for instance %s (id: %s) in zone %s: "
+                    "%d bytes >= threshold %d bytes.",
+                    instance_name,
+                    instance_id,
+                    zone,
+                    total_bytes,
+                    threshold_bytes,
+                )
+                return True, total_bytes
+            else:
+                logger.info(
+                    "Low network traffic for instance %s (id: %s) in zone %s: "
+                    "%d bytes < threshold %d bytes.",
+                    instance_name,
+                    instance_id,
+                    zone,
+                    total_bytes,
+                    threshold_bytes,
+                )
+                return False, total_bytes
+        except Exception as exc:
+            logger.warning(
+                "Cloud Monitoring network query failed for instance %s (id: %s) in zone %s: %s. "
+                "Failing safe: assuming instance is ACTIVE to prevent accidental stop.",
+                instance_name,
+                instance_id,
+                zone,
+                exc,
+            )
+            return True, -1
+
 
     def get_instances_activity(
         self,

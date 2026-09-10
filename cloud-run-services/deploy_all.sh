@@ -382,7 +382,7 @@ check_prerequisites_and_apis() {
         apis+=("compute.googleapis.com" "monitoring.googleapis.com")
         ;;
       vm-stopper)
-        apis+=("compute.googleapis.com")
+        apis+=("compute.googleapis.com" "monitoring.googleapis.com")
         ;;
     esac
   done
@@ -604,7 +604,7 @@ deploy_service() {
     vm-stopper)
       default_runner_sa_name="vm-stopper-sa"
       default_sched_sa_name="vm-stopper-sched"
-      iam_roles=("roles/compute.instanceAdmin.v1" "roles/logging.viewer" "roles/logging.logWriter")
+      iam_roles=("roles/compute.instanceAdmin.v1" "roles/logging.viewer" "roles/logging.logWriter" "roles/monitoring.viewer")
       cron_schedule="${VM_STOPPER_SCHEDULE}"
       ;;
   esac
