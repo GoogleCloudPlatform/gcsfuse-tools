@@ -474,15 +474,10 @@ class GCEClient:
         if pager is not None:
             try:
                 for series in pager:
-                    points = []
                     if isinstance(series, dict):
                         points = series.get("points", [])
-                    elif hasattr(series, "points"):
-                        pts = getattr(series, "points", None)
-                        if isinstance(pts, (list, tuple)):
-                            points = pts
-                        elif pts is not None:
-                            points = list(pts)
+                    else:
+                        points = getattr(series, "points", [])
                     for pt in points:
                         total_bytes += self._extract_point_value(pt)
             except (TypeError, AttributeError):
