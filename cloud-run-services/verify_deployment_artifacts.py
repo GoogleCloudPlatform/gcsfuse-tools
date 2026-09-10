@@ -264,11 +264,13 @@ class TestShellScripts(unittest.TestCase):
         self.cluster_scaler_deploy = os.path.join(SCRIPT_DIR, "cluster-scaler", "deploy.sh")
         self.cleaner_deploy = os.path.join(SCRIPT_DIR, "gcsfuse-reservation-cleaner", "deploy.sh")
         self.vm_stopper_deploy = os.path.join(SCRIPT_DIR, "vm-stopper", "deploy.sh")
+        self.bucket_cleaner_deploy = os.path.join(SCRIPT_DIR, "bucket-cleaner", "deploy.sh")
         self.all_scripts = [
             self.deploy_all_script,
             self.cluster_scaler_deploy,
             self.cleaner_deploy,
             self.vm_stopper_deploy,
+            self.bucket_cleaner_deploy,
         ]
 
     def test_bash_syntax_on_all_deploy_scripts(self):
@@ -325,6 +327,8 @@ class TestShellScripts(unittest.TestCase):
         self.assertIn("cluster-scaler", output)
         self.assertIn("gcsfuse-reservation-cleaner", output)
         self.assertIn("vm-stopper", output)
+        self.assertIn("bucket-cleaner", output)
+        self.assertIn("bucket-cleaner", output)
         # Check flags
         self.assertIn("--project", output)
         self.assertIn("--region", output)
@@ -336,6 +340,9 @@ class TestShellScripts(unittest.TestCase):
         self.assertIn("--cluster-scaler-schedule", output)
         self.assertIn("--cleaner-schedule", output)
         self.assertIn("--vm-stopper-schedule", output)
+        self.assertIn("--bucket-cleaner-schedule", output)
+        self.assertIn("--cleaner-age-days", output)
+        self.assertIn("--cleaner-bucket-prefix", output)
         self.assertIn("--threshold", output)
 
     def test_unknown_and_invalid_flags_rejected(self):
@@ -386,6 +393,8 @@ class TestShellScripts(unittest.TestCase):
             "cluster-scaler,vm-stopper",
             "cluster-scaler vm-stopper",
             "gcsfuse-reservation-cleaner,cluster-scaler",
+            "bucket-cleaner",
+            "cluster-scaler,bucket-cleaner",
         ]
         for svc in valid_service_inputs:
             result = subprocess.run(
@@ -479,6 +488,7 @@ class TestShellScripts(unittest.TestCase):
         self.assertIn("cluster-scaler", output)
         self.assertIn("gcsfuse-reservation-cleaner", output)
         self.assertIn("vm-stopper", output)
+        self.assertIn("bucket-cleaner", output)
 
     def test_schedule_and_threshold_customizations(self):
         """Verifies customized cron schedules and threshold arguments propagate in dry-run mode."""
@@ -563,11 +573,12 @@ class TestCloudBuildConfig(unittest.TestCase):
         self.assertIn("cluster-scaler", args_str, "Test gating step must test cluster-scaler.")
         self.assertIn("gcsfuse-reservation-cleaner", args_str, "Test gating step must test gcsfuse-reservation-cleaner.")
         self.assertIn("vm-stopper", args_str, "Test gating step must test vm-stopper.")
+        self.assertIn("bucket-cleaner", args_str, "Test gating step must test bucket-cleaner.")
 
     def test_parallel_image_build_steps(self):
         """Validates that build steps exist for all 3 services."""
         steps = self.config.get("steps", [])
-        services = ["cluster-scaler", "gcsfuse-reservation-cleaner", "vm-stopper"]
+        services = ["cluster-scaler", "gcsfuse-reservation-cleaner", "vm-stopper", "bucket-cleaner"]
         
         for svc in services:
             # Match docker builder step for service (ignoring non-docker test steps)
@@ -589,7 +600,7 @@ class TestCloudBuildConfig(unittest.TestCase):
     def test_image_push_or_artifact_registry_images(self):
         """Validates that the images block lists container image targets for all 3 services."""
         images = self.config.get("images", [])
-        services = ["cluster-scaler", "gcsfuse-reservation-cleaner", "vm-stopper"]
+        services = ["cluster-scaler", "gcsfuse-reservation-cleaner", "vm-stopper", "bucket-cleaner"]
         
         for svc in services:
             found = any(svc in img for img in images)
@@ -598,7 +609,7 @@ class TestCloudBuildConfig(unittest.TestCase):
     def test_cloud_run_deploy_steps(self):
         """Validates that Cloud Run deployment steps exist and enforce required security settings."""
         steps = self.config.get("steps", [])
-        services = ["cluster-scaler", "gcsfuse-reservation-cleaner", "vm-stopper"]
+        services = ["cluster-scaler", "gcsfuse-reservation-cleaner", "vm-stopper", "bucket-cleaner"]
         
         deploy_step = next(
             (s for s in steps if "deploy-cloud-run" in s.get("id", "") or any("gcloud run deploy" in a for a in s.get("args", []))),
@@ -624,7 +635,7 @@ class TestCloudBuildConfig(unittest.TestCase):
         self.assertIsNotNone(sched_step, "Missing Cloud Scheduler configuration step in cloudbuild.yaml.")
         args_str = " ".join(sched_step.get("args", []))
         
-        services = ["cluster-scaler", "gcsfuse-reservation-cleaner", "vm-stopper"]
+        services = ["cluster-scaler", "gcsfuse-reservation-cleaner", "vm-stopper", "bucket-cleaner"]
         for svc in services:
             self.assertIn(svc, args_str, f"Scheduler step must reference service '{svc}'")
         
@@ -651,6 +662,12 @@ class TestCloudBuildConfig(unittest.TestCase):
             "_CLEANER_SCHEDULER_SA": "gcsfuse-res-cleaner-sched",
             "_VM_STOPPER_SA": "vm-stopper-sa",
             "_VM_STOPPER_SCHEDULER_SA": "vm-stopper-sched",
+            "_BUCKET_CLEANER_SCHEDULE": "0 0 * * *",
+            "_BUCKET_CLEANER_SA": "bucket-cleaner-sa",
+            "_BUCKET_CLEANER_SCHEDULER_SA": "bucket-cleaner-sched",
+            "_CLEANER_PROJECTS": "gcs-fuse-test,gcs-fuse-test-ml",
+            "_CLEANER_BUCKET_PREFIX": "gcsfuse-e2e-",
+            "_CLEANER_AGE_DAYS": "3",
         }
         
         for var_name, expected_val in expected_subs.items():
@@ -904,6 +921,22 @@ class TestServiceUnitSuites(unittest.TestCase):
             result.returncode,
             0,
             f"vm-stopper unit tests failed:\n{result.stderr}\n{result.stdout}",
+        )
+
+    def test_bucket_cleaner_unit_tests(self):
+        """Executes bucket-cleaner unit test suite."""
+        service_dir = os.path.join(SCRIPT_DIR, "bucket-cleaner")
+        result = subprocess.run(
+            [sys.executable, "-m", "unittest", "discover", "-s", "tests", "-v"],
+            cwd=service_dir,
+            capture_output=True,
+            text=True,
+            env={**os.environ, "PYTHONPATH": "."},
+        )
+        self.assertEqual(
+            result.returncode,
+            0,
+            f"bucket-cleaner unit tests failed:\n{result.stderr}\n{result.stdout}",
         )
 
     def test_adversarial_stress_tests(self):
