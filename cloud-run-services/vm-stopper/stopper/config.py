@@ -117,11 +117,6 @@ def _parse_bytes(val: Any, default: int = 10485760) -> int:
         val_clean = val.strip()
         if not val_clean:
             return default
-        if val_clean.startswith("-"):
-            try:
-                return int(float(val_clean))
-            except (ValueError, TypeError):
-                pass
         val_upper = val_clean.upper()
         multiplier = 1
         num_part = val_upper

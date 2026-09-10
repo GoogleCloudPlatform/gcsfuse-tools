@@ -481,7 +481,7 @@ class GCEClient:
                         pts = getattr(series, "points", None)
                         if isinstance(pts, (list, tuple)):
                             points = pts
-                        elif pts is not None and not hasattr(pts, "_mock_return_value"):
+                        elif pts is not None:
                             points = list(pts)
                     for pt in points:
                         total_bytes += self._extract_point_value(pt)

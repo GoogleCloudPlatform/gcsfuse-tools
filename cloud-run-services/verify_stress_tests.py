@@ -662,6 +662,7 @@ class EmpiricalGCEVMStopperTests(unittest.TestCase):
         """Verify transitional statuses, young VMs, and multi-threaded sweep concurrency."""
         now_utc = datetime.datetime.now(timezone.utc)
         mock_client = MagicMock(spec=GCEClient)
+        mock_client.has_network_activity.return_value = (False, 0)
         processor = VMProcessor(config=self.config, gce_client=mock_client)
 
         # 1. Transitional VM statuses

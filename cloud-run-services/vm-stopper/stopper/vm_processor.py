@@ -331,46 +331,29 @@ class VMProcessor:
                     else idle_cutoff
                 )
 
-                # Detect unconfigured test mocks from existing test harnesses
-                net_method = getattr(self.client, "has_network_activity", None)
-                is_unconfigured_mock = False
                 try:
-                    import unittest.mock
-                    if isinstance(net_method, (unittest.mock.Mock, unittest.mock.MagicMock)):
-                        if (
-                            not getattr(net_method, "_mock_side_effect", None)
-                            and getattr(net_method, "_mock_return_value", None) is unittest.mock.DEFAULT
-                        ):
-                            is_unconfigured_mock = True
-                except ImportError:
-                    pass
-
-                if is_unconfigured_mock:
-                    has_net_activity, net_bytes = False, 0
-                else:
-                    try:
-                        net_result = self.client.has_network_activity(
-                            project_id=self.config.project_id,
-                            instance_id=inst_id,
-                            instance_name=name,
-                            zone=zone,
-                            since_timestamp=network_cutoff,
-                            threshold_bytes=self.config.network_bytes_threshold,
-                        )
-                        if isinstance(net_result, tuple):
-                            has_net_activity, net_bytes = net_result
-                        else:
-                            has_net_activity = bool(net_result)
-                            net_bytes = self.config.network_bytes_threshold if has_net_activity else 0
-                    except Exception as exc:
-                        logger.warning(
-                            "Cloud Monitoring query failed for instance %s in zone %s: %s. "
-                            "Failing safe: assuming instance is ACTIVE.",
-                            name,
-                            zone,
-                            exc,
-                        )
-                        has_net_activity, net_bytes = True, -1
+                    net_result = self.client.has_network_activity(
+                        project_id=self.config.project_id,
+                        instance_id=inst_id,
+                        instance_name=name,
+                        zone=zone,
+                        since_timestamp=network_cutoff,
+                        threshold_bytes=self.config.network_bytes_threshold,
+                    )
+                    if isinstance(net_result, tuple):
+                        has_net_activity, net_bytes = net_result
+                    else:
+                        has_net_activity = bool(net_result)
+                        net_bytes = self.config.network_bytes_threshold if has_net_activity else 0
+                except Exception as exc:
+                    logger.warning(
+                        "Cloud Monitoring query failed for instance %s in zone %s: %s. "
+                        "Failing safe: assuming instance is ACTIVE.",
+                        name,
+                        zone,
+                        exc,
+                    )
+                    has_net_activity, net_bytes = True, -1
 
                 if has_net_activity:
                     result["category"] = "skipped_active"

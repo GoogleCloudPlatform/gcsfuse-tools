@@ -1081,6 +1081,7 @@ class TestVMProcessorLifecycle(unittest.TestCase):
 
     def setUp(self):
         self.mock_client = MagicMock(spec=GCEClient)
+        self.mock_client.has_network_activity.return_value = (False, 0)
         self.now = datetime.now(timezone.utc)
 
     def test_young_running_vm_is_skipped(self):
@@ -1373,7 +1374,7 @@ class TestVMProcessorLifecycle(unittest.TestCase):
             dry_run=False,
             cloud_logging_batch_size=10,
         )
-        mock_client = MagicMock(spec=GCEClient)
+        mock_client = self.mock_client
         processor = VMProcessor(config, gce_client=mock_client)
 
         idle_vm1 = MockInstance("candidate-idle-1", status="RUNNING", creation_timestamp=(self.now - timedelta(days=20)).isoformat())
@@ -2040,19 +2041,6 @@ class TestCloudMonitoringNetworkTelemetry(unittest.TestCase):
         self.assertEqual(res["category"], "stopped")
         self.mock_client.has_network_activity.assert_not_called()
         self.mock_client.stop_instance.assert_called_once()
-
-    def test_unconfigured_mock_backward_compatibility(self):
-        config = StopperConfig(project_id="test-proj")
-        unconfigured_client = MagicMock(spec=GCEClient)
-        unconfigured_client.has_recent_activity.return_value = False
-        processor = VMProcessor(config, gce_client=unconfigured_client)
-
-        created_ts = (self.now - timedelta(days=15)).isoformat()
-        vm = MockInstance(name="unconfigured-mock-vm", status="RUNNING", creation_timestamp=created_ts)
-
-        res = processor.process_single_instance("us-central1-a", vm, self.now)
-        self.assertEqual(res["category"], "stopped")
-        unconfigured_client.stop_instance.assert_called_once()
 
 
 class TestDeploymentScriptSyntax(unittest.TestCase):
