@@ -404,7 +404,10 @@ class GCEClient:
             Total bytes (received + sent) across the interval.
 
         Raises:
-            Exception: Propagates any query exception for upstream fail-safe handling.
+            Exception: API exceptions (e.g. GoogleAPICallError, timeouts, 403, 429)
+                are intentionally propagated so that callers like has_network_activity
+                can implement their domain-specific fail-safe policy (failing open to
+                avoid stopping active VMs).
         """
         from datetime import timedelta
 

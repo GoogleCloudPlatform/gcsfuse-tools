@@ -191,6 +191,7 @@ if _PACKAGE_ROOT not in sys.path:
 from stopper.config import (
     StopperConfig,
     _parse_bool,
+    _parse_bytes,
     _parse_dict,
     _parse_float,
     _parse_int,
@@ -421,6 +422,63 @@ class TestStopperConfig(unittest.TestCase):
 
         self.assertEqual(_parse_dict('{"k": "v"}'), {"k": "v"})
         self.assertEqual(_parse_dict({"a": 1}), {"a": "1"})
+
+    def test_parse_bytes(self):
+        # Suffix handling for GiB, GB, G, MiB, MB, M, KiB, KB, K, B (case-insensitive)
+        self.assertEqual(_parse_bytes("2GiB"), 2 * 1024 * 1024 * 1024)
+        self.assertEqual(_parse_bytes("2gib"), 2 * 1024 * 1024 * 1024)
+        self.assertEqual(_parse_bytes("1GB"), 1024 * 1024 * 1024)
+        self.assertEqual(_parse_bytes("1gb"), 1024 * 1024 * 1024)
+        self.assertEqual(_parse_bytes("3G"), 3 * 1024 * 1024 * 1024)
+        self.assertEqual(_parse_bytes("3g"), 3 * 1024 * 1024 * 1024)
+
+        self.assertEqual(_parse_bytes("10MiB"), 10 * 1024 * 1024)
+        self.assertEqual(_parse_bytes("10mib"), 10 * 1024 * 1024)
+        self.assertEqual(_parse_bytes("5MB"), 5 * 1024 * 1024)
+        self.assertEqual(_parse_bytes("5mb"), 5 * 1024 * 1024)
+        self.assertEqual(_parse_bytes("8M"), 8 * 1024 * 1024)
+        self.assertEqual(_parse_bytes("8m"), 8 * 1024 * 1024)
+
+        self.assertEqual(_parse_bytes("64KiB"), 64 * 1024)
+        self.assertEqual(_parse_bytes("64kib"), 64 * 1024)
+        self.assertEqual(_parse_bytes("32KB"), 32 * 1024)
+        self.assertEqual(_parse_bytes("32kb"), 32 * 1024)
+        self.assertEqual(_parse_bytes("16K"), 16 * 1024)
+        self.assertEqual(_parse_bytes("16k"), 16 * 1024)
+
+        self.assertEqual(_parse_bytes("1024B"), 1024)
+        self.assertEqual(_parse_bytes("512b"), 512)
+
+        # Plain numbers (int, float, numeric string)
+        self.assertEqual(_parse_bytes(1048576), 1048576)
+        self.assertEqual(_parse_bytes(2097152.0), 2097152)
+        self.assertEqual(_parse_bytes("4096"), 4096)
+        self.assertEqual(_parse_bytes("0"), 0)
+        self.assertEqual(_parse_bytes("-1"), -1)
+
+        # Whitespace handling
+        self.assertEqual(_parse_bytes("  10  MB  "), 10 * 1024 * 1024)
+        self.assertEqual(_parse_bytes(" 512 B "), 512)
+        self.assertEqual(_parse_bytes("   100   "), 100)
+
+        # Ensure internal characters are not trimmed (e.g. strings containing suffix chars)
+        self.assertEqual(_parse_bytes("1008B"), 1008)
+        self.assertEqual(_parse_bytes("10.5 MB"), int(10.5 * 1024 * 1024))
+        self.assertEqual(_parse_bytes("1.5 GiB"), int(1.5 * 1024 * 1024 * 1024))
+
+        # Invalid inputs fallback to default
+        self.assertEqual(_parse_bytes(""), 10485760)
+        self.assertEqual(_parse_bytes("   "), 10485760)
+        self.assertEqual(_parse_bytes("invalid"), 10485760)
+        self.assertEqual(_parse_bytes("MB"), 10485760)
+        self.assertEqual(_parse_bytes("GiB"), 10485760)
+        self.assertEqual(_parse_bytes("B"), 10485760)
+        self.assertEqual(_parse_bytes(None), 10485760)
+        self.assertEqual(_parse_bytes(True), 10485760)
+        self.assertEqual(_parse_bytes(False), 10485760)
+        self.assertEqual(_parse_bytes([], default=100), 100)
+        self.assertEqual(_parse_bytes({}, default=100), 100)
+        self.assertEqual(_parse_bytes("abcGB", default=100), 100)
 
 
 class TestGkeAndMigFiltering(unittest.TestCase):

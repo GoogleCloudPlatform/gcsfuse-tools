@@ -124,20 +124,37 @@ def _parse_bytes(val: Any, default: int = 10485760) -> int:
                 pass
         val_upper = val_clean.upper()
         multiplier = 1
-        if val_upper.endswith("GIB") or val_upper.endswith("GB") or val_upper.endswith("G"):
+        num_part = val_upper
+        if val_upper.endswith("GIB"):
             multiplier = 1024 * 1024 * 1024
-            num_part = val_upper.rstrip("GIB").rstrip("GB").rstrip("G").strip()
-        elif val_upper.endswith("MIB") or val_upper.endswith("MB") or val_upper.endswith("M"):
+            num_part = val_upper[:-3].strip()
+        elif val_upper.endswith("GB"):
+            multiplier = 1024 * 1024 * 1024
+            num_part = val_upper[:-2].strip()
+        elif val_upper.endswith("G"):
+            multiplier = 1024 * 1024 * 1024
+            num_part = val_upper[:-1].strip()
+        elif val_upper.endswith("MIB"):
             multiplier = 1024 * 1024
-            num_part = val_upper.rstrip("MIB").rstrip("MB").rstrip("M").strip()
-        elif val_upper.endswith("KIB") or val_upper.endswith("KB") or val_upper.endswith("K"):
+            num_part = val_upper[:-3].strip()
+        elif val_upper.endswith("MB"):
+            multiplier = 1024 * 1024
+            num_part = val_upper[:-2].strip()
+        elif val_upper.endswith("M"):
+            multiplier = 1024 * 1024
+            num_part = val_upper[:-1].strip()
+        elif val_upper.endswith("KIB"):
             multiplier = 1024
-            num_part = val_upper.rstrip("KIB").rstrip("KB").rstrip("K").strip()
+            num_part = val_upper[:-3].strip()
+        elif val_upper.endswith("KB"):
+            multiplier = 1024
+            num_part = val_upper[:-2].strip()
+        elif val_upper.endswith("K"):
+            multiplier = 1024
+            num_part = val_upper[:-1].strip()
         elif val_upper.endswith("B"):
             multiplier = 1
-            num_part = val_upper.rstrip("B").strip()
-        else:
-            num_part = val_upper
+            num_part = val_upper[:-1].strip()
         try:
             return int(float(num_part) * multiplier)
         except (ValueError, TypeError):
