@@ -447,7 +447,7 @@ class GCEClient:
         )
 
         filter_expr = (
-            f'metric.type = one_of("{METRIC_RECEIVED_BYTES}", "{METRIC_SENT_BYTES}") '
+            f'(metric.type = "{METRIC_RECEIVED_BYTES}" OR metric.type = "{METRIC_SENT_BYTES}") '
             f'AND resource.type = "gce_instance" '
             f'AND resource.labels.instance_id = "{instance_id}"'
         )

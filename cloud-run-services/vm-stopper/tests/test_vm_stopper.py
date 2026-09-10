@@ -1589,8 +1589,12 @@ class TestCloudMonitoringNetworkTelemetry(unittest.TestCase):
         call_kwargs = mock_mon_client.list_time_series.call_args[1]
         req = call_kwargs["request"]
         self.assertEqual(req.name, "projects/test-proj")
-        self.assertIn("compute.googleapis.com/instance/network/received_bytes_count", req.filter)
-        self.assertIn("compute.googleapis.com/instance/network/sent_bytes_count", req.filter)
+        self.assertIn(
+            '(metric.type = "compute.googleapis.com/instance/network/received_bytes_count" OR '
+            'metric.type = "compute.googleapis.com/instance/network/sent_bytes_count")',
+            req.filter,
+        )
+        self.assertNotIn("one_of", req.filter)
         self.assertIn("inst-12345", req.filter)
         self.assertEqual(req.aggregation.alignment_period, {"seconds": 3600})
 
