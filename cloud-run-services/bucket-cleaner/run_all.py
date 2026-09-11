@@ -36,8 +36,8 @@ def main():
     logging.info("=" * 50)
     logging.info("FINAL CLEANUP SUMMARY:")
     for proj, stats in result.get("projects", {}).items():
-        logging.info("  Project %s: scanned=%d, deleted=%d, failed=%d", proj, stats["scanned"], stats["deleted"], stats["failed"])
-    logging.info("Overall: total_deleted=%d, total_failed=%d", result["summary"]["total_deleted"], result["summary"]["total_failed"])
+        logging.info("  Project %s: scanned=%d, found=%d, deleted=%d, olm=%d, failed=%d", proj, stats["scanned"], stats.get("eligible", 0), stats.get("deleted_count", 0), stats.get("olm_count", 0), stats.get("failed_count", 0))
+    logging.info("Overall: total_found=%d, total_deleted=%d, total_olm=%d, total_failed=%d", result["summary"].get("total_eligible", 0), result["summary"].get("deleted_count", 0), result["summary"].get("olm_count", 0), result["summary"].get("failed_count", 0))
     logging.info("=" * 50)
 
 if __name__ == "__main__":

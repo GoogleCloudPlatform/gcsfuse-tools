@@ -271,7 +271,7 @@ ensure_project_iam_role() {
 
   if [[ "${DRY_RUN}" == "true" ]]; then
     log_dry_run "Checking IAM role '${role}' on '${member}' in project '${project}'..."
-    log_dry_run "If missing, would prompt user for permission and execute: gcloud projects add-iam-policy-binding ${project} --member=${member} --role=${role} --condition=None --quiet"
+    log_dry_run "If missing, would prompt user for permission and execute: gcloud projects add-iam-policy-binding ${project} --member=${member} --role=${role} --quiet"
     return 0
   fi
 
@@ -291,7 +291,6 @@ ensure_project_iam_role() {
     if gcloud projects add-iam-policy-binding "${project}" \
         --member="${member}" \
         --role="${role}" \
-        --condition=None \
         --quiet >/dev/null; then
       log "Successfully granted IAM role '${role}' to '${member}'."
     else
@@ -369,6 +368,13 @@ setup_service_accounts() {
   for role in "roles/storage.admin" "roles/logging.logWriter"; do
     ensure_project_iam_role "${PROJECT_ID}" "serviceAccount:${RUNNER_SA_EMAIL}" "${role}"
   done
+
+  # Assign BigQuery roles on gcs-fuse-test-ml for daily metrics logging
+  if [[ "${PROJECT_ID}" != "gcs-fuse-test-ml" ]]; then
+    for role in "roles/bigquery.dataEditor" "roles/bigquery.jobUser"; do
+      ensure_project_iam_role "gcs-fuse-test-ml" "serviceAccount:${RUNNER_SA_EMAIL}" "${role}" || true
+    done
+  fi
 
   # 2. Scheduler Service Account (Invoker)
   if [[ "${DRY_RUN}" == "true" ]]; then

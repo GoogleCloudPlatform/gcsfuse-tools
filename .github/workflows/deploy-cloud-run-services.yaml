@@ -57,6 +57,7 @@ jobs:
           pip install -r cloud-run-services/cluster-scaler/requirements.txt
           pip install -r cloud-run-services/gcsfuse-reservation-cleaner/requirements.txt
           pip install -r cloud-run-services/vm-stopper/requirements.txt
+          pip install -r cloud-run-services/bucket-cleaner/requirements.txt
 
       - name: Run cluster-scaler unit tests
         run: |
@@ -69,6 +70,10 @@ jobs:
       - name: Run vm-stopper unit tests
         run: |
           python -m unittest discover -s cloud-run-services/vm-stopper/tests -v
+
+      - name: Run bucket-cleaner unit tests
+        run: |
+          python -m unittest discover -s cloud-run-services/bucket-cleaner/tests -v
 
       - name: Run stress test verification suite
         run: |

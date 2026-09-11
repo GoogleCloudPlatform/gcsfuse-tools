@@ -84,6 +84,16 @@ def _setup_offline_mock_modules() -> None:
             if "google.cloud" in sys.modules:
                 setattr(sys.modules["google.cloud"], "storage", storage_mod)
 
+    if "google.cloud.bigquery" not in sys.modules or not hasattr(sys.modules.get("google.cloud", None), "bigquery"):
+        try:
+            import google.cloud.bigquery
+        except (ImportError, AttributeError):
+            bq_mod = types.ModuleType("google.cloud.bigquery")
+            bq_mod.Client = MagicMock
+            sys.modules["google.cloud.bigquery"] = bq_mod
+            if "google.cloud" in sys.modules:
+                setattr(sys.modules["google.cloud"], "bigquery", bq_mod)
+
 
 _setup_offline_mock_modules()
 
@@ -111,6 +121,10 @@ class TestCleanerConfig(unittest.TestCase):
         self.assertFalse(config.dry_run)
         self.assertEqual(config.concurrency, 32)
         self.assertEqual(config.batch_size, 50)
+        self.assertEqual(config.bq_project, "gcs-fuse-test-ml")
+        self.assertEqual(config.bq_dataset, "bucket_cleaner_metrics")
+        self.assertEqual(config.bq_table, "daily_metrics")
+        self.assertTrue(config.enable_bq_logging)
 
     def test_from_request_json(self):
         req = {
@@ -174,7 +188,7 @@ class TestBucketProcessor(unittest.TestCase):
 
         mock_gcs_client.list_buckets.return_value = [b_old_1, b_old_2, b_new]
 
-        config = CleanerConfig(projects=["test-proj"], age_days=3, dry_run=False)
+        config = CleanerConfig(projects=["test-proj"], age_days=3, dry_run=False, enable_bq_logging=False)
         processor = BucketProcessor(config=config, gcs_client=mock_gcs_client)
 
         result = processor.process_all_projects()
@@ -196,7 +210,7 @@ class TestBucketProcessor(unittest.TestCase):
         b_old = self._create_mock_bucket("gcsfuse-e2e-old", self.old_time)
         mock_gcs_client.list_buckets.return_value = [b_old]
 
-        config = CleanerConfig(projects=["test-proj"], age_days=3, dry_run=True)
+        config = CleanerConfig(projects=["test-proj"], age_days=3, dry_run=True, enable_bq_logging=False)
         processor = BucketProcessor(config=config, gcs_client=mock_gcs_client)
 
         result = processor.process_all_projects()
@@ -212,15 +226,71 @@ class TestBucketProcessor(unittest.TestCase):
         mock_gcs_client.list_buckets.return_value = [b_old]
         mock_gcs_client.delete_bucket.side_effect = RuntimeError("409 BucketNotEmpty / ManagedFolders")
 
-        config = CleanerConfig(projects=["test-proj"], age_days=3, dry_run=False, apply_olm_fallback=True)
+        config = CleanerConfig(projects=["test-proj"], age_days=3, dry_run=False, apply_olm_fallback=True, enable_bq_logging=False)
+        processor = BucketProcessor(config=config, gcs_client=mock_gcs_client)
+
+        result = processor.process_all_projects()
+
+        self.assertEqual(result["summary"]["olm_count"], 1)
+        self.assertEqual(result["summary"]["failed_count"], 0)
+        self.assertEqual(result["summary"]["deleted_count"], 0)
+        # Verify OLM fallback rule was applied
+        mock_gcs_client.apply_lifecycle_rule.assert_called_once_with(b_old, age_days=1)
+
+    def test_deletion_failure_without_olm(self):
+        mock_gcs_client = MagicMock(spec=GCSClient)
+        b_old = self._create_mock_bucket("gcsfuse-e2e-failed-bucket", self.old_time)
+        mock_gcs_client.list_buckets.return_value = [b_old]
+        mock_gcs_client.delete_bucket.side_effect = RuntimeError("Permission denied")
+
+        config = CleanerConfig(projects=["test-proj"], age_days=3, dry_run=False, apply_olm_fallback=False, enable_bq_logging=False)
         processor = BucketProcessor(config=config, gcs_client=mock_gcs_client)
 
         result = processor.process_all_projects()
 
         self.assertEqual(result["summary"]["failed_count"], 1)
+        self.assertEqual(result["summary"]["olm_count"], 0)
         self.assertEqual(result["summary"]["deleted_count"], 0)
-        # Verify OLM fallback rule was applied
-        mock_gcs_client.apply_lifecycle_rule.assert_called_once_with(b_old, age_days=1)
+        mock_gcs_client.apply_lifecycle_rule.assert_not_called()
+
+    def test_csv_metrics_generation(self):
+        mock_gcs_client = MagicMock(spec=GCSClient)
+        b1 = self._create_mock_bucket("gcsfuse-e2e-b1", self.old_time)
+        mock_gcs_client.list_buckets.return_value = [b1]
+
+        config = CleanerConfig(projects=["test-proj"], age_days=3, dry_run=False, enable_bq_logging=False)
+        processor = BucketProcessor(config=config, gcs_client=mock_gcs_client)
+
+        result = processor.process_all_projects()
+        self.assertIn("csv_metrics", result)
+        self.assertIn("date,project,found,deleted,olm,failed", result["csv_metrics"])
+        self.assertIn("test-proj,1,1,0,0", result["csv_metrics"])
+        self.assertIn("total,1,1,0,0", result["csv_metrics"])
+
+    @patch("cleaner.bucket_processor.BucketProcessor._record_metrics_to_bigquery")
+    def test_bigquery_metrics_recording_called(self, mock_record_bq):
+        mock_gcs_client = MagicMock(spec=GCSClient)
+        b1 = self._create_mock_bucket("gcsfuse-e2e-b1", self.old_time)
+        mock_gcs_client.list_buckets.return_value = [b1]
+
+        config = CleanerConfig(
+            projects=["gcs-fuse-test", "gcs-fuse-test-ml"],
+            age_days=3,
+            dry_run=False,
+            enable_bq_logging=True,
+            bq_project="gcs-fuse-test-ml",
+            bq_dataset="bucket_cleaner_metrics",
+            bq_table="daily_metrics",
+        )
+        processor = BucketProcessor(config=config, gcs_client=mock_gcs_client)
+
+        result = processor.process_all_projects()
+        self.assertEqual(result["status"], "success")
+        mock_record_bq.assert_called_once()
+        args, _ = mock_record_bq.call_args
+        # Second argument is project_results dict with 2 projects
+        self.assertIn("gcs-fuse-test", args[1])
+        self.assertIn("gcs-fuse-test-ml", args[1])
 
 
 class TestServiceLayer(unittest.TestCase):

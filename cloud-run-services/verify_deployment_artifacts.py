@@ -328,7 +328,6 @@ class TestShellScripts(unittest.TestCase):
         self.assertIn("gcsfuse-reservation-cleaner", output)
         self.assertIn("vm-stopper", output)
         self.assertIn("bucket-cleaner", output)
-        self.assertIn("bucket-cleaner", output)
         # Check flags
         self.assertIn("--project", output)
         self.assertIn("--region", output)

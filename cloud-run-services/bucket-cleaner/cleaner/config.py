@@ -31,6 +31,10 @@ class CleanerConfig:
     batch_size: int = 50
     apply_olm_fallback: bool = True
     max_delete: Optional[int] = None
+    bq_project: str = "gcs-fuse-test-ml"
+    bq_dataset: str = "bucket_cleaner_metrics"
+    bq_table: str = "daily_metrics"
+    enable_bq_logging: bool = True
 
     @property
     def age_hours(self) -> int:
@@ -50,7 +54,7 @@ class CleanerConfig:
         data: Dict[str, Any] = {}
 
         # 1. Environment variables
-        env_projects = os.environ.get("PROJECTS") or os.environ.get("PROJECT_ID")
+        env_projects = os.environ.get("PROJECTS") or os.environ.get("TARGET_PROJECTS") or os.environ.get("PROJECT_ID")
         if env_projects:
             data["projects"] = [p.strip() for p in env_projects.split(",") if p.strip()]
 
@@ -84,6 +88,21 @@ class CleanerConfig:
             except ValueError:
                 pass
 
+        if "MAX_DELETE" in os.environ:
+            try:
+                data["max_delete"] = int(os.environ["MAX_DELETE"])
+            except ValueError:
+                pass
+
+        if "BQ_PROJECT" in os.environ:
+            data["bq_project"] = os.environ["BQ_PROJECT"]
+        if "BQ_DATASET" in os.environ:
+            data["bq_dataset"] = os.environ["BQ_DATASET"]
+        if "BQ_TABLE" in os.environ:
+            data["bq_table"] = os.environ["BQ_TABLE"]
+        if "ENABLE_BQ_LOGGING" in os.environ:
+            data["enable_bq_logging"] = os.environ["ENABLE_BQ_LOGGING"].strip().lower() in ("true", "1", "yes")
+
         # 2. Query Arguments
         if query_args:
             if "project" in query_args:
@@ -114,6 +133,15 @@ class CleanerConfig:
                 data["max_delete"] = int(query_args["max_delete"])
             elif "max_buckets" in query_args:
                 data["max_delete"] = int(query_args["max_buckets"])
+
+            if "bq_project" in query_args:
+                data["bq_project"] = str(query_args["bq_project"])
+            if "bq_dataset" in query_args:
+                data["bq_dataset"] = str(query_args["bq_dataset"])
+            if "bq_table" in query_args:
+                data["bq_table"] = str(query_args["bq_table"])
+            if "enable_bq_logging" in query_args:
+                data["enable_bq_logging"] = str(query_args["enable_bq_logging"]).strip().lower() in ("true", "1", "yes")
 
         # 3. Request Body JSON (Highest priority)
         if request_data:
@@ -162,6 +190,15 @@ class CleanerConfig:
             elif "max_buckets" in request_data:
                 val = request_data["max_buckets"]
                 data["max_delete"] = int(val) if val is not None else None
+
+            if "bq_project" in request_data:
+                data["bq_project"] = str(request_data["bq_project"])
+            if "bq_dataset" in request_data:
+                data["bq_dataset"] = str(request_data["bq_dataset"])
+            if "bq_table" in request_data:
+                data["bq_table"] = str(request_data["bq_table"])
+            if "enable_bq_logging" in request_data:
+                data["enable_bq_logging"] = bool(request_data["enable_bq_logging"])
 
         # Construct and validate
         config = cls(**data)

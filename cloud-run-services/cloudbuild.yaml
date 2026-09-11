@@ -208,7 +208,6 @@ steps:
             gcloud projects add-iam-policy-binding "${_PROJECT_ID}" \
               --member="serviceAccount:${email}" \
               --role="${role}" \
-              --condition=None \
               --quiet >/dev/null
           done
         done
@@ -293,7 +292,7 @@ steps:
           --no-allow-unauthenticated \
           --timeout=3600s \
           --memory=512Mi \
-          --set-env-vars="TARGET_PROJECTS=${_CLEANER_PROJECTS},BUCKET_PREFIX=${_CLEANER_BUCKET_PREFIX},AGE_DAYS=${_CLEANER_AGE_DAYS},DRY_RUN=${_DRY_RUN}" \
+          --set-env-vars="PROJECTS=${_CLEANER_PROJECTS},BUCKET_PREFIX=${_CLEANER_BUCKET_PREFIX},AGE_DAYS=${_CLEANER_AGE_DAYS},DRY_RUN=${_DRY_RUN}" \
           --quiet
 
         echo "=== Cloud Run services deployed successfully ==="
@@ -366,7 +365,7 @@ steps:
         deploy_job "cluster-scaler" "${_CLUSTER_SCALER_SCHEDULER_SA}" "${_CLUSTER_SCALER_SCHEDULE}" "{\"project\":\"${_PROJECT_ID}\",\"idle_days_threshold\":${_IDLE_DAYS_THRESHOLD},\"dry_run\":${_DRY_RUN}}"
         deploy_job "gcsfuse-reservation-cleaner" "${_CLEANER_SCHEDULER_SA}" "${_CLEANER_SCHEDULE}" "{\"project\":\"${_PROJECT_ID}\",\"dry_run\":${_DRY_RUN}}"
         deploy_job "vm-stopper" "${_VM_STOPPER_SCHEDULER_SA}" "${_VM_STOPPER_SCHEDULE}" "{\"project\":\"${_PROJECT_ID}\",\"dry_run\":${_DRY_RUN}}"
-        deploy_job "bucket-cleaner" "${_BUCKET_CLEANER_SCHEDULER_SA}" "${_BUCKET_CLEANER_SCHEDULE}" "{\"projects\":[\"${_PROJECT_ID}\"],\"age_days\":${_CLEANER_AGE_DAYS},\"bucket_prefix\":\"${_CLEANER_BUCKET_PREFIX}\",\"dry_run\":${_DRY_RUN}}"
+        deploy_job "bucket-cleaner" "${_BUCKET_CLEANER_SCHEDULER_SA}" "${_BUCKET_CLEANER_SCHEDULE}" "{\"projects\":[\"gcs-fuse-test\",\"gcs-fuse-test-ml\"],\"age_days\":${_CLEANER_AGE_DAYS},\"bucket_prefix\":\"${_CLEANER_BUCKET_PREFIX}\",\"dry_run\":${_DRY_RUN}}"
 
         echo "=== Cloud Scheduler HTTP triggers configured successfully ==="
 

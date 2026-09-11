@@ -17,11 +17,18 @@
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import datetime
 import logging
+import os
+import subprocess
 import threading
 from typing import Any, Dict, List, Optional, Tuple
 
 from cleaner.config import CleanerConfig
-from cleaner.gcs_client import GCSClient
+from cleaner.gcs_client import GCSClient, storage
+
+try:
+    from google.cloud import bigquery
+except ImportError:
+    bigquery = None
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +59,9 @@ class BucketProcessor:
         overall_summary = {
             "total_scanned": 0,
             "total_eligible": 0,
+            "total_found": 0,
             "deleted_count": 0,
+            "olm_count": 0,
             "failed_count": 0,
             "skipped_count": 0,
             "max_delete_limit": self.config.max_delete,
@@ -71,8 +80,8 @@ class BucketProcessor:
                 if remaining_quota == 0:
                     logger.info("Reached maximum delete quota of %d buckets. Skipping project '%s'.", self.config.max_delete, project_id)
                     project_results[project_id] = {
-                        "scanned": 0, "eligible": 0, "deleted_count": 0, "failed_count": 0, "skipped_count": 0,
-                        "deleted_buckets": [], "failed_buckets": [], "note": "skipped_due_to_max_delete_limit"
+                        "scanned": 0, "eligible": 0, "found": 0, "deleted_count": 0, "olm_count": 0, "failed_count": 0, "skipped_count": 0,
+                        "deleted_buckets": [], "olm_buckets": [], "failed_buckets": [], "note": "skipped_due_to_max_delete_limit"
                     }
                     continue
 
@@ -81,7 +90,9 @@ class BucketProcessor:
 
             overall_summary["total_scanned"] += proj_data["scanned"]
             overall_summary["total_eligible"] += proj_data["eligible"]
+            overall_summary["total_found"] += proj_data.get("found", proj_data["eligible"])
             overall_summary["deleted_count"] += proj_data["deleted_count"]
+            overall_summary["olm_count"] += proj_data.get("olm_count", 0)
             overall_summary["failed_count"] += proj_data["failed_count"]
             overall_summary["skipped_count"] += proj_data["skipped_count"]
 
@@ -89,14 +100,91 @@ class BucketProcessor:
 
         status = "success"
         if overall_summary["failed_count"] > 0:
-            status = "partial_success" if overall_summary["deleted_count"] > 0 else "error"
+            status = "partial_success" if (overall_summary["deleted_count"] > 0 or overall_summary["olm_count"] > 0) else "error"
+
+        # Generate simple daily CSV metrics
+        today_str = now_utc.strftime("%Y-%m-%d")
+        csv_header = "date,project,found,deleted,olm,failed"
+        csv_lines = [csv_header]
+        csv_rows = []
+
+        for project_id, proj_data in project_results.items():
+            row_str = f"{today_str},{project_id},{proj_data.get('eligible', 0)},{proj_data.get('deleted_count', 0)},{proj_data.get('olm_count', 0)},{proj_data.get('failed_count', 0)}"
+            csv_lines.append(row_str)
+            csv_rows.append(row_str)
+
+        total_row = f"{today_str},total,{overall_summary['total_eligible']},{overall_summary['deleted_count']},{overall_summary['olm_count']},{overall_summary['failed_count']}"
+        csv_lines.append(total_row)
+        csv_rows.append(total_row)
+
+        csv_content = "\n".join(csv_lines)
+
+        logger.info("=== DAILY BUCKET CLEANER METRICS (CSV) ===")
+        for line in csv_lines:
+            logger.info(line)
+        logger.info("==========================================")
+
+        if self.config.enable_bq_logging:
+            self._record_metrics_to_bigquery(now_utc, project_results)
 
         return {
             "status": status,
             "service": "bucket-cleaner",
             "summary": overall_summary,
             "projects": project_results,
+            "csv_metrics": csv_content,
         }
+
+    def _record_metrics_to_bigquery(
+        self, now_utc: datetime.datetime, project_results: Dict[str, Any]
+    ) -> None:
+        """Insert exactly 1 row per target project into BigQuery daily_metrics table."""
+        today_str = now_utc.strftime("%Y-%m-%d")
+        timestamp_str = now_utc.strftime("%Y-%m-%d %H:%M:%S")
+
+        rows_to_insert = []
+        for project_id, proj_data in project_results.items():
+            rows_to_insert.append({
+                "date": today_str,
+                "project": project_id,
+                "found": int(proj_data.get("eligible", 0)),
+                "deleted": int(proj_data.get("deleted_count", 0)),
+                "olm": int(proj_data.get("olm_count", 0)),
+                "failed": int(proj_data.get("failed_count", 0)),
+                "timestamp": timestamp_str,
+            })
+
+        if not rows_to_insert:
+            return
+
+        table_id = f"{self.config.bq_project}.{self.config.bq_dataset}.{self.config.bq_table}"
+
+        # 1. Attempt insertion via google-cloud-bigquery SDK
+        if bigquery:
+            try:
+                client = bigquery.Client(project=self.config.bq_project)
+                errors = client.insert_rows_json(table_id, rows_to_insert)
+                if not errors:
+                    logger.info("Successfully recorded %d metrics rows to BigQuery table: %s", len(rows_to_insert), table_id)
+                    return
+                logger.warning("BigQuery SDK insert encountered errors: %s, falling back to CLI...", errors)
+            except Exception as bq_err:
+                logger.warning("BigQuery SDK insert failed (%s), falling back to CLI...", bq_err)
+
+        # 2. Fallback to bq query CLI
+        try:
+            val_strs = [
+                f"(DATE '{r['date']}', '{r['project']}', {r['found']}, {r['deleted']}, {r['olm']}, {r['failed']}, TIMESTAMP '{r['timestamp']}')"
+                for r in rows_to_insert
+            ]
+            sql = f"INSERT INTO `{table_id}` (date, project, found, deleted, olm, failed, timestamp) VALUES {', '.join(val_strs)}"
+            res = subprocess.run(["bq", "query", "--use_legacy_sql=false", sql], capture_output=True, text=True, timeout=60)
+            if res.returncode == 0:
+                logger.info("Successfully recorded %d metrics rows to BigQuery via bq CLI: %s", len(rows_to_insert), table_id)
+            else:
+                logger.warning("Failed to insert rows to BigQuery via bq CLI: %s", res.stderr.strip())
+        except Exception as cli_err:
+            logger.warning("Error running bq CLI for BigQuery metric recording: %s", cli_err)
 
     def _process_single_project(
         self, project_id: str, cutoff_time: datetime.datetime, max_to_delete: Optional[int] = None
@@ -155,38 +243,49 @@ class BucketProcessor:
         if len(eligible_buckets) == 0:
             return {
                 "scanned": total_scanned,
-                "eligible": total_eligible,
+                "eligible": 0,
+                "found": 0,
                 "deleted_count": 0,
+                "olm_count": 0,
                 "failed_count": 0,
                 "skipped_count": skipped_count,
                 "deleted_buckets": [],
+                "olm_buckets": [],
                 "failed_buckets": [],
             }
 
         deleted_buckets: List[str] = []
+        olm_buckets: List[str] = []
         failed_buckets: List[Dict[str, str]] = []
 
         counter_lock = threading.Lock()
         completed_count = 0
 
-        def _delete_worker(bucket: Any) -> Tuple[bool, str, Optional[str]]:
+        def _delete_worker(bucket: Any) -> Tuple[str, str, Optional[str]]:
+            """Returns (status, bucket_name, error_message).
+
+            status is one of:
+            - 'deleted': Bucket was successfully deleted directly.
+            - 'olm': Deletion failed/timed out, but 1-day OLM lifecycle rule was applied.
+            - 'failed': Both deletion and OLM fallback failed.
+            """
             b_name = bucket.name
             if self.config.dry_run:
-                return True, b_name, None
+                return "deleted", b_name, None
 
             try:
                 self.client.delete_bucket(bucket, force=True)
-                return True, b_name, None
+                return "deleted", b_name, None
             except Exception as del_err:
                 err_str = str(del_err)
                 logger.warning("Deletion failed for gs://%s: %s", b_name, err_str)
                 if self.config.apply_olm_fallback:
                     try:
                         self.client.apply_lifecycle_rule(bucket, age_days=1)
-                        err_str += " (Fallback 1-day OLM rule applied)"
+                        return "olm", b_name, f"{err_str} (Fallback 1-day OLM rule applied)"
                     except Exception as olm_err:
                         err_str += f" (OLM fallback failed: {olm_err})"
-                return False, b_name, err_str
+                return "failed", b_name, err_str
 
         with ThreadPoolExecutor(max_workers=self.config.concurrency) as executor:
             future_to_bucket = {
@@ -194,11 +293,13 @@ class BucketProcessor:
             }
 
             for future in as_completed(future_to_bucket):
-                success, name, err = future.result()
+                status, name, err = future.result()
                 with counter_lock:
                     completed_count += 1
-                    if success:
+                    if status == "deleted":
                         deleted_buckets.append(name)
+                    elif status == "olm":
+                        olm_buckets.append(name)
                     else:
                         failed_buckets.append({"bucket": name, "error": err or "unknown error"})
 
@@ -207,19 +308,24 @@ class BucketProcessor:
                         or completed_count == len(eligible_buckets)
                     ):
                         logger.info(
-                            "[%s Progress] Deleted %d/%d targeted buckets (%d failed)...",
+                            "[%s Progress] Processed %d/%d targeted buckets (deleted=%d, olm=%d, failed=%d)...",
                             project_id,
-                            len(deleted_buckets),
+                            completed_count,
                             len(eligible_buckets),
+                            len(deleted_buckets),
+                            len(olm_buckets),
                             len(failed_buckets),
                         )
 
         return {
             "scanned": total_scanned,
             "eligible": total_eligible,
+            "found": total_eligible,
             "deleted_count": len(deleted_buckets),
+            "olm_count": len(olm_buckets),
             "failed_count": len(failed_buckets),
             "skipped_count": skipped_count,
             "deleted_buckets": deleted_buckets,
+            "olm_buckets": olm_buckets,
             "failed_buckets": failed_buckets,
         }
