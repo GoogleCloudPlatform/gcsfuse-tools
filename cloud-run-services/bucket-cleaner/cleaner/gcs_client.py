@@ -12,17 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Google Cloud Storage API client wrapper supporting both Cloud Storage SDK and CLI fallback."""
+"""Google Cloud Storage API client wrapper supporting multi-project operations."""
 
-import csv
-import datetime
-import io
-import json
 import logging
-import os
-import subprocess
-import tempfile
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 try:
     from google.cloud import storage
@@ -30,47 +23,6 @@ except ImportError:
     storage = None
 
 logger = logging.getLogger(__name__)
-
-
-class MockGCSBucket:
-    """Lightweight bucket representation when running without the full Python SDK."""
-
-    def __init__(self, name: str, time_created: datetime.datetime, project: str) -> None:
-        self.name = name
-        self.time_created = time_created
-        self.project = project
-        self.lifecycle_rules: List[Dict[str, Any]] = []
-
-    def delete(self, force: bool = True) -> None:
-        cmd = ["gcloud", "storage", "rm", "-r", f"gs://{self.name}", "--quiet"]
-        try:
-            res = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
-            if res.returncode != 0:
-                raise RuntimeError(f"gcloud storage rm failed on gs://{self.name}: {res.stderr.strip()}")
-        except subprocess.TimeoutExpired:
-            raise TimeoutError(f"Deletion timed out after 120s (2 minutes) on gs://{self.name} (massive directory); applying OLM fallback.")
-
-    def patch(self) -> None:
-        if not self.lifecycle_rules:
-            return
-        rule_doc = {"rule": self.lifecycle_rules}
-        with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as tmp:
-            json.dump(rule_doc, tmp)
-            tmp_path = tmp.name
-        try:
-            cmd = ["gcloud", "storage", "buckets", "update", f"gs://{self.name}", f"--lifecycle-file={tmp_path}", "--quiet"]
-            res = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
-            if res.returncode != 0:
-                logger.warning("Failed to apply OLM via gcloud to gs://%s: %s", self.name, res.stderr.strip())
-            else:
-                logger.info("Successfully updated OLM lifecycle rules on gs://%s via gcloud", self.name)
-        except Exception as exc:
-            logger.warning("Error applying OLM via gcloud to gs://%s: %s", self.name, exc)
-        finally:
-            try:
-                os.remove(tmp_path)
-            except OSError:
-                pass
 
 
 class GCSClient:
@@ -86,56 +38,33 @@ class GCSClient:
         if project_id not in self._clients:
             if self._client_factory:
                 self._clients[project_id] = self._client_factory(project_id)
-        return self._clients.get(project_id)
+            if not self._clients.get(project_id):
+                raise RuntimeError(
+                    f"Google Cloud Storage client could not be initialized for project '{project_id}'. "
+                    "Ensure 'google-cloud-storage' is installed and GCP credentials are configured."
+                )
+        return self._clients[project_id]
 
     def list_buckets(self, project_id: str, prefix: str) -> List[Any]:
         """List all buckets in project matching the given prefix."""
         client = self.get_client(project_id)
-        if client:
-            logger.info("Querying GCS buckets in '%s' via Google Cloud SDK...", project_id)
-            return list(client.list_buckets(prefix=prefix))
-
-        # Fallback to gcloud CLI when Python SDK is not installed
-        logger.info("Querying GCS buckets in '%s' via gcloud CLI fallback...", project_id)
-        cmd = [
-            "gcloud", "storage", "buckets", "list",
-            f"--project={project_id}",
-            f"--filter=name ~ ^{prefix}",
-            "--format=csv[no-heading](name,creation_time)"
-        ]
-        res = subprocess.run(cmd, capture_output=True, text=True)
-        if res.returncode != 0:
-            raise RuntimeError(f"Failed to list buckets via gcloud for project {project_id}: {res.stderr}")
-
-        buckets: List[Any] = []
-        reader = csv.reader(io.StringIO(res.stdout))
-        for row in reader:
-            if not row or len(row) < 1:
-                continue
-            name = row[0].strip()
-            c_time_str = row[1].strip() if len(row) > 1 else ""
-            c_time = None
-            if c_time_str:
-                try:
-                    c_time = datetime.datetime.fromisoformat(c_time_str.replace("Z", "+00:00"))
-                except Exception:
-                    pass
-            if not c_time:
-                c_time = datetime.datetime.now(datetime.timezone.utc)
-            buckets.append(MockGCSBucket(name=name, time_created=c_time, project=project_id))
-
-        return buckets
+        logger.info("Querying GCS buckets in '%s' matching prefix '%s'...", project_id, prefix)
+        return list(client.list_buckets(prefix=prefix))
 
     def delete_bucket(self, bucket: Any, force: bool = True) -> None:
+        """Delete a bucket directly, optionally forcing deletion of remaining objects."""
         bucket.delete(force=force)
 
-    def apply_lifecycle_rule(self, bucket: Any, age_days: int = 1) -> None:
+    def apply_lifecycle_rule(self, bucket: Any, age_days: Union[int, float] = 1) -> None:
+        """Apply an Object Lifecycle Management (OLM) rule to auto-delete objects and bucket."""
+        days_int = max(1, int(round(age_days)))
         rule = {
             "action": {"type": "Delete"},
-            "condition": {"age": age_days},
+            "condition": {"age": days_int},
         }
         existing_rules = list(getattr(bucket, "lifecycle_rules", []) or [])
         existing_rules.append(rule)
         bucket.lifecycle_rules = existing_rules
         bucket.patch()
-        logger.info("Applied fallback %d-day OLM deletion rule to gs://%s", age_days, bucket.name)
+        logger.info("Applied fallback %d-day OLM deletion rule to gs://%s", days_int, bucket.name)
+

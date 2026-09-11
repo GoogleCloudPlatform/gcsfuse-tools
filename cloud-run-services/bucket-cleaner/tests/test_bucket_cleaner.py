@@ -154,6 +154,23 @@ class TestCleanerConfig(unittest.TestCase):
         self.assertEqual(config.age_days, 2)
         self.assertTrue(config.dry_run)
 
+    def test_age_hours_sub_day_resolution(self):
+        # 12 hours should resolve to 0.5 days without integer truncation
+        config1 = CleanerConfig.from_request(request_data={"age_hours": 12})
+        self.assertEqual(config1.age_days, 0.5)
+        self.assertEqual(config1.age_hours, 12)
+
+        # 36 hours should resolve to 1.5 days
+        config2 = CleanerConfig.from_request(query_args={"age_hours": "36"})
+        self.assertEqual(config2.age_days, 1.5)
+        self.assertEqual(config2.age_hours, 36)
+
+        # Whole day conversion (48 hours -> 2 days int)
+        config3 = CleanerConfig.from_request(request_data={"age_hours": 48})
+        self.assertEqual(config3.age_days, 2)
+        self.assertIsInstance(config3.age_days, int)
+        self.assertEqual(config3.age_hours, 48)
+
     def test_invalid_configuration(self):
         with self.assertRaises(ValueError):
             CleanerConfig(projects=[]).validate()
@@ -163,6 +180,9 @@ class TestCleanerConfig(unittest.TestCase):
 
         with self.assertRaises(ValueError):
             CleanerConfig(concurrency=0).validate()
+
+        with self.assertRaises(ValueError):
+            CleanerConfig(bucket_delete_timeout=0).validate()
 
 
 class TestBucketProcessor(unittest.TestCase):
@@ -235,6 +255,29 @@ class TestBucketProcessor(unittest.TestCase):
         self.assertEqual(result["summary"]["failed_count"], 0)
         self.assertEqual(result["summary"]["deleted_count"], 0)
         # Verify OLM fallback rule was applied
+        mock_gcs_client.apply_lifecycle_rule.assert_called_once_with(b_old, age_days=1)
+
+    def test_deletion_timeout_with_olm_fallback(self):
+        mock_gcs_client = MagicMock(spec=GCSClient)
+        b_old = self._create_mock_bucket("gcsfuse-e2e-timeout-bucket", self.old_time)
+        mock_gcs_client.list_buckets.return_value = [b_old]
+        mock_gcs_client.delete_bucket.side_effect = TimeoutError("Simulated deletion timeout")
+
+        config = CleanerConfig(
+            projects=["test-proj"],
+            age_days=3,
+            dry_run=False,
+            apply_olm_fallback=True,
+            bucket_delete_timeout=1,
+            enable_bq_logging=False,
+        )
+        processor = BucketProcessor(config=config, gcs_client=mock_gcs_client)
+
+        result = processor.process_all_projects()
+
+        self.assertEqual(result["summary"]["olm_count"], 1)
+        self.assertEqual(result["summary"]["failed_count"], 0)
+        self.assertEqual(result["summary"]["deleted_count"], 0)
         mock_gcs_client.apply_lifecycle_rule.assert_called_once_with(b_old, age_days=1)
 
     def test_deletion_failure_without_olm(self):

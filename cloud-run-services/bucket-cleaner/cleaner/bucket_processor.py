@@ -18,7 +18,6 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import datetime
 import logging
 import os
-import subprocess
 import threading
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -46,7 +45,7 @@ class BucketProcessor:
         cutoff_time = now_utc - datetime.timedelta(days=self.config.age_days)
 
         logger.info(
-            "Starting Bucket Cleaner sweep: projects=%s, prefix='%s', cutoff=%s (age >= %d days, max_delete=%s, dry_run=%s, concurrency=%d)",
+            "Starting Bucket Cleaner sweep: projects=%s, prefix='%s', cutoff=%s (age >= %s days, max_delete=%s, dry_run=%s, concurrency=%d)",
             self.config.projects,
             self.config.bucket_prefix,
             cutoff_time.isoformat(),
@@ -55,6 +54,7 @@ class BucketProcessor:
             self.config.dry_run,
             self.config.concurrency,
         )
+
 
         overall_summary = {
             "total_scanned": 0,
@@ -159,32 +159,19 @@ class BucketProcessor:
 
         table_id = f"{self.config.bq_project}.{self.config.bq_dataset}.{self.config.bq_table}"
 
-        # 1. Attempt insertion via google-cloud-bigquery SDK
-        if bigquery:
-            try:
-                client = bigquery.Client(project=self.config.bq_project)
-                errors = client.insert_rows_json(table_id, rows_to_insert)
-                if not errors:
-                    logger.info("Successfully recorded %d metrics rows to BigQuery table: %s", len(rows_to_insert), table_id)
-                    return
-                logger.warning("BigQuery SDK insert encountered errors: %s, falling back to CLI...", errors)
-            except Exception as bq_err:
-                logger.warning("BigQuery SDK insert failed (%s), falling back to CLI...", bq_err)
+        if not bigquery:
+            logger.warning("google-cloud-bigquery library is not installed; skipping BigQuery metrics logging.")
+            return
 
-        # 2. Fallback to bq query CLI
         try:
-            val_strs = [
-                f"(DATE '{r['date']}', '{r['project']}', {r['found']}, {r['deleted']}, {r['olm']}, {r['failed']}, TIMESTAMP '{r['timestamp']}')"
-                for r in rows_to_insert
-            ]
-            sql = f"INSERT INTO `{table_id}` (date, project, found, deleted, olm, failed, timestamp) VALUES {', '.join(val_strs)}"
-            res = subprocess.run(["bq", "query", "--use_legacy_sql=false", sql], capture_output=True, text=True, timeout=60)
-            if res.returncode == 0:
-                logger.info("Successfully recorded %d metrics rows to BigQuery via bq CLI: %s", len(rows_to_insert), table_id)
+            client = bigquery.Client(project=self.config.bq_project)
+            errors = client.insert_rows_json(table_id, rows_to_insert)
+            if not errors:
+                logger.info("Successfully recorded %d metrics rows to BigQuery table: %s", len(rows_to_insert), table_id)
             else:
-                logger.warning("Failed to insert rows to BigQuery via bq CLI: %s", res.stderr.strip())
-        except Exception as cli_err:
-            logger.warning("Error running bq CLI for BigQuery metric recording: %s", cli_err)
+                logger.error("BigQuery SDK insert_rows_json returned errors: %s", errors)
+        except Exception as bq_err:
+            logger.error("Failed to record metrics to BigQuery table '%s': %s", table_id, bq_err)
 
     def _process_single_project(
         self, project_id: str, cutoff_time: datetime.datetime, max_to_delete: Optional[int] = None
@@ -261,6 +248,9 @@ class BucketProcessor:
         counter_lock = threading.Lock()
         completed_count = 0
 
+        # Dedicated executor for bucket deletion calls to enforce per-bucket timeout
+        deleter_executor = ThreadPoolExecutor(max_workers=self.config.concurrency)
+
         def _delete_worker(bucket: Any) -> Tuple[str, str, Optional[str]]:
             """Returns (status, bucket_name, error_message).
 
@@ -274,11 +264,20 @@ class BucketProcessor:
                 return "deleted", b_name, None
 
             try:
-                self.client.delete_bucket(bucket, force=True)
+                delete_future = deleter_executor.submit(self.client.delete_bucket, bucket, force=True)
+                delete_future.result(timeout=self.config.bucket_delete_timeout)
                 return "deleted", b_name, None
             except Exception as del_err:
-                err_str = str(del_err)
-                logger.warning("Deletion failed for gs://%s: %s", b_name, err_str)
+                if isinstance(del_err, (TimeoutError, TimeoutError.__class__)) or type(del_err).__name__ == "TimeoutError":
+                    err_str = (
+                        f"Deletion timed out after {self.config.bucket_delete_timeout}s on gs://{b_name} "
+                        "(large bucket with many objects); applying OLM fallback."
+                    )
+                    logger.warning(err_str)
+                else:
+                    err_str = str(del_err)
+                    logger.warning("Deletion failed for gs://%s: %s", b_name, err_str)
+
                 if self.config.apply_olm_fallback:
                     try:
                         self.client.apply_lifecycle_rule(bucket, age_days=1)
@@ -287,35 +286,38 @@ class BucketProcessor:
                         err_str += f" (OLM fallback failed: {olm_err})"
                 return "failed", b_name, err_str
 
-        with ThreadPoolExecutor(max_workers=self.config.concurrency) as executor:
-            future_to_bucket = {
-                executor.submit(_delete_worker, b): b for b in eligible_buckets
-            }
+        try:
+            with ThreadPoolExecutor(max_workers=self.config.concurrency) as executor:
+                future_to_bucket = {
+                    executor.submit(_delete_worker, b): b for b in eligible_buckets
+                }
 
-            for future in as_completed(future_to_bucket):
-                status, name, err = future.result()
-                with counter_lock:
-                    completed_count += 1
-                    if status == "deleted":
-                        deleted_buckets.append(name)
-                    elif status == "olm":
-                        olm_buckets.append(name)
-                    else:
-                        failed_buckets.append({"bucket": name, "error": err or "unknown error"})
+                for future in as_completed(future_to_bucket):
+                    status, name, err = future.result()
+                    with counter_lock:
+                        completed_count += 1
+                        if status == "deleted":
+                            deleted_buckets.append(name)
+                        elif status == "olm":
+                            olm_buckets.append(name)
+                        else:
+                            failed_buckets.append({"bucket": name, "error": err or "unknown error"})
 
-                    if (
-                        completed_count % self.config.batch_size == 0
-                        or completed_count == len(eligible_buckets)
-                    ):
-                        logger.info(
-                            "[%s Progress] Processed %d/%d targeted buckets (deleted=%d, olm=%d, failed=%d)...",
-                            project_id,
-                            completed_count,
-                            len(eligible_buckets),
-                            len(deleted_buckets),
-                            len(olm_buckets),
-                            len(failed_buckets),
-                        )
+                        if (
+                            completed_count % self.config.batch_size == 0
+                            or completed_count == len(eligible_buckets)
+                        ):
+                            logger.info(
+                                "[%s Progress] Processed %d/%d targeted buckets (deleted=%d, olm=%d, failed=%d)...",
+                                project_id,
+                                completed_count,
+                                len(eligible_buckets),
+                                len(deleted_buckets),
+                                len(olm_buckets),
+                                len(failed_buckets),
+                            )
+        finally:
+            deleter_executor.shutdown(wait=False, cancel_futures=True)
 
         return {
             "scanned": total_scanned,

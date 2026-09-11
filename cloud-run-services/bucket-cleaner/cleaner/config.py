@@ -16,7 +16,13 @@
 
 from dataclasses import dataclass, field
 import os
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
+
+
+def _parse_age_days(val: Any) -> Union[int, float]:
+    """Parse age in days, returning an int if whole or float for fractional days."""
+    f = float(val)
+    return int(f) if f.is_integer() else f
 
 
 @dataclass(frozen=True)
@@ -25,11 +31,12 @@ class CleanerConfig:
 
     projects: List[str] = field(default_factory=lambda: ["gcs-fuse-test", "gcs-fuse-test-ml"])
     bucket_prefix: str = "gcsfuse-e2e-"
-    age_days: int = 3
+    age_days: Union[int, float] = 3
     dry_run: bool = False
     concurrency: int = 32
     batch_size: int = 50
     apply_olm_fallback: bool = True
+    bucket_delete_timeout: int = 60
     max_delete: Optional[int] = None
     bq_project: str = "gcs-fuse-test-ml"
     bq_dataset: str = "bucket_cleaner_metrics"
@@ -37,9 +44,10 @@ class CleanerConfig:
     enable_bq_logging: bool = True
 
     @property
-    def age_hours(self) -> int:
+    def age_hours(self) -> Union[int, float]:
         """Return the age threshold in hours."""
-        return self.age_days * 24
+        h = self.age_days * 24.0
+        return int(h) if h.is_integer() else h
 
     @classmethod
     def from_request(
@@ -63,7 +71,12 @@ class CleanerConfig:
 
         if "AGE_DAYS" in os.environ:
             try:
-                data["age_days"] = int(os.environ["AGE_DAYS"])
+                data["age_days"] = _parse_age_days(os.environ["AGE_DAYS"])
+            except ValueError:
+                pass
+        elif "AGE_HOURS" in os.environ:
+            try:
+                data["age_days"] = _parse_age_days(float(os.environ["AGE_HOURS"]) / 24.0)
             except ValueError:
                 pass
 
@@ -82,9 +95,9 @@ class CleanerConfig:
             except ValueError:
                 pass
 
-        if "MAX_DELETE" in os.environ:
+        if "BUCKET_DELETE_TIMEOUT" in os.environ:
             try:
-                data["max_delete"] = int(os.environ["MAX_DELETE"])
+                data["bucket_delete_timeout"] = int(os.environ["BUCKET_DELETE_TIMEOUT"])
             except ValueError:
                 pass
 
@@ -116,9 +129,15 @@ class CleanerConfig:
                 data["bucket_prefix"] = str(query_args["prefix"])
 
             if "age_days" in query_args:
-                data["age_days"] = int(query_args["age_days"])
+                try:
+                    data["age_days"] = _parse_age_days(query_args["age_days"])
+                except ValueError:
+                    pass
             elif "age_hours" in query_args:
-                data["age_days"] = max(1, int(int(query_args["age_hours"]) / 24))
+                try:
+                    data["age_days"] = _parse_age_days(float(query_args["age_hours"]) / 24.0)
+                except ValueError:
+                    pass
 
             if "dry_run" in query_args:
                 data["dry_run"] = str(query_args["dry_run"]).strip().lower() in ("true", "1", "yes")
@@ -128,6 +147,12 @@ class CleanerConfig:
 
             if "batch_size" in query_args:
                 data["batch_size"] = int(query_args["batch_size"])
+
+            if "bucket_delete_timeout" in query_args:
+                try:
+                    data["bucket_delete_timeout"] = int(query_args["bucket_delete_timeout"])
+                except ValueError:
+                    pass
 
             if "max_delete" in query_args:
                 data["max_delete"] = int(query_args["max_delete"])
@@ -164,9 +189,15 @@ class CleanerConfig:
                 data["bucket_prefix"] = str(request_data["prefix"])
 
             if "age_days" in request_data:
-                data["age_days"] = int(request_data["age_days"])
+                try:
+                    data["age_days"] = _parse_age_days(request_data["age_days"])
+                except ValueError:
+                    pass
             elif "age_hours" in request_data:
-                data["age_days"] = max(1, int(int(request_data["age_hours"]) / 24))
+                try:
+                    data["age_days"] = _parse_age_days(float(request_data["age_hours"]) / 24.0)
+                except ValueError:
+                    pass
 
             if "dry_run" in request_data:
                 d_val = request_data["dry_run"]
@@ -183,6 +214,12 @@ class CleanerConfig:
 
             if "apply_olm_fallback" in request_data:
                 data["apply_olm_fallback"] = bool(request_data["apply_olm_fallback"])
+
+            if "bucket_delete_timeout" in request_data:
+                try:
+                    data["bucket_delete_timeout"] = int(request_data["bucket_delete_timeout"])
+                except ValueError:
+                    pass
 
             if "max_delete" in request_data:
                 val = request_data["max_delete"]
@@ -225,5 +262,9 @@ class CleanerConfig:
         if self.batch_size < 1:
             raise ValueError(f"batch_size must be at least 1, got {self.batch_size}")
 
+        if self.bucket_delete_timeout < 1:
+            raise ValueError(f"bucket_delete_timeout must be at least 1 second, got {self.bucket_delete_timeout}")
+
         if self.max_delete is not None and self.max_delete < 1:
             raise ValueError(f"max_delete must be at least 1 if specified, got {self.max_delete}")
+
