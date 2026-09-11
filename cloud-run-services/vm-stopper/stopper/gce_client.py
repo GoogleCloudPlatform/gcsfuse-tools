@@ -456,42 +456,47 @@ class GCEClient:
             per_series_aligner=aligner,
         )
 
-        filter_expr = (
-            f'(metric.type = "{METRIC_RECEIVED_BYTES}" OR metric.type = "{METRIC_SENT_BYTES}") '
-            f'AND resource.type = "gce_instance" '
-            f'AND resource.labels.instance_id = "{instance_id}"'
-        )
-
-        if self.rate_limiter:
-            self.rate_limiter.acquire()
-
         view = getattr(
             getattr(monitoring_v3.ListTimeSeriesRequest, "TimeSeriesView", None),
             "FULL",
             2,
         )
-        request = monitoring_v3.ListTimeSeriesRequest(
-            name=f"projects/{project_id}",
-            filter=filter_expr,
-            interval=interval,
-            aggregation=aggregation,
-            view=view,
-        )
-
-        pager = self.monitoring_client.list_time_series(request=request)
         total_bytes = 0
 
-        if pager is not None:
-            try:
-                for series in pager:
-                    if isinstance(series, dict):
-                        points = series.get("points", [])
-                    else:
-                        points = getattr(series, "points", [])
-                    for pt in points:
-                        total_bytes += self._extract_point_value(pt)
-            except (TypeError, AttributeError):
-                pass
+        # Cloud Monitoring ListTimeSeries filter syntax enforces at most ONE metric.type comparison
+        # per request. Disjunctions ('OR') between different metric types are rejected with HTTP 400 Bad Request
+        # ("Within the 'metric' prefix, OR can only be used to connect a list of 'labels' restrictions").
+        # Therefore, we query received and sent bytes in separate requests and aggregate their totals.
+        for metric_type in (METRIC_RECEIVED_BYTES, METRIC_SENT_BYTES):
+            filter_expr = (
+                f'metric.type = "{metric_type}" '
+                f'AND resource.type = "gce_instance" '
+                f'AND resource.labels.instance_id = "{instance_id}"'
+            )
+
+            if self.rate_limiter:
+                self.rate_limiter.acquire()
+
+            request = monitoring_v3.ListTimeSeriesRequest(
+                name=f"projects/{project_id}",
+                filter=filter_expr,
+                interval=interval,
+                aggregation=aggregation,
+                view=view,
+            )
+
+            pager = self.monitoring_client.list_time_series(request=request)
+            if pager is not None:
+                try:
+                    for series in pager:
+                        if isinstance(series, dict):
+                            points = series.get("points", [])
+                        else:
+                            points = getattr(series, "points", [])
+                        for pt in points:
+                            total_bytes += self._extract_point_value(pt)
+                except (TypeError, AttributeError):
+                    pass
 
         return total_bytes
 

@@ -331,29 +331,19 @@ class VMProcessor:
                     else idle_cutoff
                 )
 
-                try:
-                    net_result = self.client.has_network_activity(
-                        project_id=self.config.project_id,
-                        instance_id=inst_id,
-                        instance_name=name,
-                        zone=zone,
-                        since_timestamp=network_cutoff,
-                        threshold_bytes=self.config.network_bytes_threshold,
-                    )
-                    if isinstance(net_result, tuple):
-                        has_net_activity, net_bytes = net_result
-                    else:
-                        has_net_activity = bool(net_result)
-                        net_bytes = self.config.network_bytes_threshold if has_net_activity else 0
-                except Exception as exc:
-                    logger.warning(
-                        "Cloud Monitoring query failed for instance %s in zone %s: %s. "
-                        "Failing safe: assuming instance is ACTIVE.",
-                        name,
-                        zone,
-                        exc,
-                    )
-                    has_net_activity, net_bytes = True, -1
+                net_result = self.client.has_network_activity(
+                    project_id=self.config.project_id,
+                    instance_id=inst_id,
+                    instance_name=name,
+                    zone=zone,
+                    since_timestamp=network_cutoff,
+                    threshold_bytes=self.config.network_bytes_threshold,
+                )
+                if isinstance(net_result, tuple):
+                    has_net_activity, net_bytes = net_result
+                else:
+                    has_net_activity = bool(net_result)
+                    net_bytes = self.config.network_bytes_threshold if has_net_activity else 0
 
                 if has_net_activity:
                     result["category"] = "skipped_active"
