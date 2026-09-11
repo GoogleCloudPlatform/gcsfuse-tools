@@ -53,7 +53,3 @@ def record_benchmark_id_for_user(benchmark_id, bench_type, artifacts_bucket):
         print(f"Uploaded updated runs.json to {gcs_runs_file}")
     except Exception as e:
         print(f"Error uploading updated JSON file to GCS: {e}")
-
-
-if __name__ == '__main__':
-    record_benchmark_id_for_user("test-benchmark-123", "feature", "random-non-existent-bucket")
