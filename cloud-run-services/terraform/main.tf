@@ -65,6 +65,7 @@ locals {
     "roles/compute.instanceAdmin.v1",
     "roles/logging.viewer",
     "roles/logging.logWriter",
+    "roles/monitoring.viewer",
   ]
 }
 

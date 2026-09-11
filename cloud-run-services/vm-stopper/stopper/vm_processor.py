@@ -321,8 +321,46 @@ class VMProcessor:
                 )
                 return result
 
+            # Tier 2: Cloud Monitoring Network Metrics Fallback
+            # Evaluated ONLY when Cloud Logging detects NO recent activity
+            net_bytes = 0
+            if self.config.enable_network_monitoring:
+                network_cutoff = (
+                    now_utc - timedelta(hours=self.config.network_lookback_hours)
+                    if self.config.network_lookback_hours and self.config.network_lookback_hours > 0
+                    else idle_cutoff
+                )
+
+                net_result = self.client.has_network_activity(
+                    project_id=self.config.project_id,
+                    instance_id=inst_id,
+                    instance_name=name,
+                    zone=zone,
+                    since_timestamp=network_cutoff,
+                    threshold_bytes=self.config.network_bytes_threshold,
+                )
+                if isinstance(net_result, tuple):
+                    has_net_activity, net_bytes = net_result
+                else:
+                    has_net_activity = bool(net_result)
+                    net_bytes = self.config.network_bytes_threshold if has_net_activity else 0
+
+                if has_net_activity:
+                    result["category"] = "skipped_active"
+                    if net_bytes >= 0:
+                        result["reason"] = (
+                            f"Active network traffic detected ({net_bytes} bytes >= threshold "
+                            f"{self.config.network_bytes_threshold} bytes)"
+                        )
+                    else:
+                        result["reason"] = (
+                            "Cloud Monitoring network query failed; failing safe (assuming active)"
+                        )
+                    return result
+
             # Confirmed Idle -> STOP VM
             if self.config.dry_run:
+
                 result["action"] = "dry_run_stop"
                 result["category"] = "dry_run_stops"
                 result["reason"] = (

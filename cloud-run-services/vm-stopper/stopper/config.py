@@ -105,6 +105,60 @@ def _parse_float(val: Any, default: float, min_val: float = 0.0) -> float:
         return default
 
 
+def _parse_bytes(val: Any, default: int = 10485760) -> int:
+    """Parse byte value supporting integers, strings, and unit suffixes (B, KB, MB, GB)."""
+    if val is None:
+        return default
+    if isinstance(val, bool):
+        return default
+    if isinstance(val, (int, float)):
+        return int(val)
+    if isinstance(val, str):
+        val_clean = val.strip()
+        if not val_clean:
+            return default
+        val_upper = val_clean.upper()
+        multiplier = 1
+        num_part = val_upper
+        if val_upper.endswith("GIB"):
+            multiplier = 1024 * 1024 * 1024
+            num_part = val_upper[:-3].strip()
+        elif val_upper.endswith("GB"):
+            multiplier = 1024 * 1024 * 1024
+            num_part = val_upper[:-2].strip()
+        elif val_upper.endswith("G"):
+            multiplier = 1024 * 1024 * 1024
+            num_part = val_upper[:-1].strip()
+        elif val_upper.endswith("MIB"):
+            multiplier = 1024 * 1024
+            num_part = val_upper[:-3].strip()
+        elif val_upper.endswith("MB"):
+            multiplier = 1024 * 1024
+            num_part = val_upper[:-2].strip()
+        elif val_upper.endswith("M"):
+            multiplier = 1024 * 1024
+            num_part = val_upper[:-1].strip()
+        elif val_upper.endswith("KIB"):
+            multiplier = 1024
+            num_part = val_upper[:-3].strip()
+        elif val_upper.endswith("KB"):
+            multiplier = 1024
+            num_part = val_upper[:-2].strip()
+        elif val_upper.endswith("K"):
+            multiplier = 1024
+            num_part = val_upper[:-1].strip()
+        elif val_upper.endswith("B"):
+            multiplier = 1
+            num_part = val_upper[:-1].strip()
+        try:
+            return int(float(num_part) * multiplier)
+        except (ValueError, TypeError):
+            logger.warning("Failed to parse byte string '%s', falling back to default %d", val, default)
+            return default
+    return default
+
+
+
 def _parse_list(val: Any, default: Optional[List[str]] = None) -> List[str]:
     """Parse list of strings from list, JSON string, or comma-separated string."""
     if default is None:
@@ -178,6 +232,9 @@ class StopperConfig:
     cloud_logging_rate_limit: int = 40
     cloud_logging_max_retries: int = 4
     cloud_logging_retry_backoff: float = 2.0
+    network_bytes_threshold: int = 10485760
+    network_lookback_hours: Optional[int] = None
+    enable_network_monitoring: bool = True
 
     def validate(self) -> None:
         """Validate configuration integrity."""
@@ -200,6 +257,11 @@ class StopperConfig:
             raise ValueError(f"cloud_logging_max_retries must be >= 0, got {self.cloud_logging_max_retries}")
         if self.cloud_logging_retry_backoff < 0:
             raise ValueError(f"cloud_logging_retry_backoff must be >= 0, got {self.cloud_logging_retry_backoff}")
+        if self.network_bytes_threshold < 0:
+            raise ValueError(f"network_bytes_threshold must be >= 0, got {self.network_bytes_threshold}")
+        if self.network_lookback_hours is not None and self.network_lookback_hours <= 0:
+            raise ValueError(f"network_lookback_hours must be > 0, got {self.network_lookback_hours}")
+
 
     @classmethod
     def from_request(
@@ -324,6 +386,49 @@ class StopperConfig:
         )
         cloud_logging_retry_backoff = _parse_float(raw_retry_backoff, default=2.0, min_val=0.1)
 
+        # 6. Network Telemetry Settings
+        raw_net_bytes = _get_val(
+            [
+                "network_bytes_threshold",
+                "network_threshold",
+                "networkBytesThreshold",
+                "bytes_threshold",
+            ],
+            ["NETWORK_BYTES_THRESHOLD", "NETWORK_THRESHOLD", "BYTES_THRESHOLD"],
+        )
+        network_bytes_threshold = _parse_bytes(raw_net_bytes, default=10485760)
+
+        raw_net_lookback = _get_val(
+            [
+                "network_lookback_hours",
+                "network_lookback",
+                "networkLookbackHours",
+                "lookback_hours",
+            ],
+            ["NETWORK_LOOKBACK_HOURS", "NETWORK_LOOKBACK", "LOOKBACK_HOURS"],
+        )
+        network_lookback_hours: Optional[int] = None
+        if raw_net_lookback is not None and str(raw_net_lookback).strip():
+            try:
+                network_lookback_hours = int(raw_net_lookback)
+            except (ValueError, TypeError):
+                logger.warning(
+                    "Failed to parse network_lookback_hours from '%s', falling back to None",
+                    raw_net_lookback,
+                )
+                network_lookback_hours = None
+
+        raw_enable_net = _get_val(
+            [
+                "enable_network_monitoring",
+                "enable_network_telemetry",
+                "enableNetworkMonitoring",
+                "enableNetworkTelemetry",
+            ],
+            ["ENABLE_NETWORK_MONITORING", "ENABLE_NETWORK_TELEMETRY"],
+        )
+        enable_network_monitoring = _parse_bool(raw_enable_net, default=True)
+
         config = cls(
             project_id=project_id,
             idle_days_threshold=idle_days_threshold,
@@ -339,6 +444,10 @@ class StopperConfig:
             cloud_logging_rate_limit=cloud_logging_rate_limit,
             cloud_logging_max_retries=cloud_logging_max_retries,
             cloud_logging_retry_backoff=cloud_logging_retry_backoff,
+            network_bytes_threshold=network_bytes_threshold,
+            network_lookback_hours=network_lookback_hours,
+            enable_network_monitoring=enable_network_monitoring,
         )
         config.validate()
         return config
+
