@@ -208,6 +208,7 @@ steps:
             gcloud projects add-iam-policy-binding "${_PROJECT_ID}" \
               --member="serviceAccount:${email}" \
               --role="${role}" \
+              --condition=None \
               --quiet >/dev/null
           done
         done

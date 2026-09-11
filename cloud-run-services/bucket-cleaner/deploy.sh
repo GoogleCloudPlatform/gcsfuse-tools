@@ -271,7 +271,7 @@ ensure_project_iam_role() {
 
   if [[ "${DRY_RUN}" == "true" ]]; then
     log_dry_run "Checking IAM role '${role}' on '${member}' in project '${project}'..."
-    log_dry_run "If missing, would prompt user for permission and execute: gcloud projects add-iam-policy-binding ${project} --member=${member} --role=${role} --quiet"
+    log_dry_run "If missing, would prompt user for permission and execute: gcloud projects add-iam-policy-binding ${project} --member=${member} --role=${role} --condition=None --quiet"
     return 0
   fi
 
@@ -291,12 +291,13 @@ ensure_project_iam_role() {
     if gcloud projects add-iam-policy-binding "${project}" \
         --member="${member}" \
         --role="${role}" \
+        --condition=None \
         --quiet >/dev/null; then
       log "Successfully granted IAM role '${role}' to '${member}'."
     else
       log "WARNING: Failed to grant IAM role '${role}' to '${member}'."
       log "If you lack 'resourcemanager.projects.setIamPolicy', please request a Project IAM Admin run:"
-      log "  gcloud projects add-iam-policy-binding ${project} --member=\"${member}\" --role=\"${role}\""
+      log "  gcloud projects add-iam-policy-binding ${project} --member=\"${member}\" --role=\"${role}\" --condition=None"
     fi
   else
     log "Permission declined by user for role '${role}' on '${member}'. Proceeding without granting."
