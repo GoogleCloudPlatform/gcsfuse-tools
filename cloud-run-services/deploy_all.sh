@@ -108,12 +108,15 @@ NO_GRANT_ROLES="${NO_GRANT_ROLES:-false}"
 CLUSTER_SCALER_SCHEDULE="${CLUSTER_SCALER_SCHEDULE:-0 2 * * *}"
 CLEANER_SCHEDULE="${CLEANER_SCHEDULE:-0 0 * * *}"
 VM_STOPPER_SCHEDULE="${VM_STOPPER_SCHEDULE:-0 20 * * *}"
+BUCKET_CLEANER_SCHEDULE="${BUCKET_CLEANER_SCHEDULE:-0 0 * * *}"
 
 # Parameters
 IDLE_DAYS_THRESHOLD="${IDLE_DAYS_THRESHOLD:-7}"
+CLEANER_AGE_DAYS="${CLEANER_AGE_DAYS:-3}"
+CLEANER_BUCKET_PREFIX="${CLEANER_BUCKET_PREFIX:-gcsfuse-e2e-}"
 
 # Supported Canonical Services
-SUPPORTED_SERVICES=("cluster-scaler" "gcsfuse-reservation-cleaner" "vm-stopper")
+SUPPORTED_SERVICES=("cluster-scaler" "gcsfuse-reservation-cleaner" "vm-stopper" "bucket-cleaner")
 
 # --- Usage & Help Menu ---
 usage() {
@@ -124,12 +127,13 @@ Unified deployment and scheduling orchestrator for GCSFuse Cloud Run Services:
   - cluster-scaler                 (GKE Idle Cluster & Node Pool Scaler)
   - gcsfuse-reservation-cleaner    (GCE Compute Reservation Cleaner & Cost Engine)
   - vm-stopper                     (GCE Idle VM Stopper & Lifecycle Remediation)
+  - bucket-cleaner                 (GCS Orphan Test Bucket Purge & Lifecycle Recovery)
 
 Options:
   -p, --project PROJECT_ID          Target GCP Project ID (Default: active gcloud project)
   -r, --region REGION               GCP Region for Cloud Run & Scheduler (Default: us-central1)
   -s, --services SERVICES           Comma- or space-separated list of services to deploy:
-                                    'all', 'cluster-scaler', 'gcsfuse-reservation-cleaner', 'vm-stopper'
+                                    'all', 'cluster-scaler', 'gcsfuse-reservation-cleaner', 'vm-stopper', 'bucket-cleaner'
                                     (Default: all)
   -a, --service-account EMAIL       Override runtime Service Account email across services
       --scheduler-sa EMAIL          Override scheduler invoker Service Account email across services
@@ -144,7 +148,10 @@ Schedule Customization:
       --cluster-scaler-schedule CRON    Cron schedule for cluster-scaler (Default: "0 2 * * *")
       --cleaner-schedule CRON           Cron schedule for reservation-cleaner (Default: "0 0 * * *")
       --vm-stopper-schedule CRON        Cron schedule for vm-stopper (Default: "0 20 * * *")
+      --bucket-cleaner-schedule CRON    Cron schedule for bucket-cleaner (Default: "0 0 * * *")
   -t, --threshold DAYS                  Idle days threshold for cluster-scaler (Default: 7)
+      --cleaner-age-days DAYS           Retention days threshold for bucket-cleaner (Default: 3)
+      --cleaner-bucket-prefix PREFIX    Bucket name prefix filter for bucket-cleaner (Default: "gcsfuse-e2e-")
 
 General:
   -h, --help                        Show this detailed help message and exit
@@ -235,6 +242,21 @@ parse_args() {
         VM_STOPPER_SCHEDULE="$2"
         shift 2
         ;;
+      --bucket-cleaner-schedule)
+        [[ $# -ge 2 && ! "$2" =~ ^- ]] || error_exit "Missing argument for $1"
+        BUCKET_CLEANER_SCHEDULE="$2"
+        shift 2
+        ;;
+      --cleaner-age-days)
+        [[ $# -ge 2 && ! "$2" =~ ^- ]] || error_exit "Missing argument for $1"
+        CLEANER_AGE_DAYS="$2"
+        shift 2
+        ;;
+      --cleaner-bucket-prefix)
+        [[ $# -ge 2 && ! "$2" =~ ^- ]] || error_exit "Missing argument for $1"
+        CLEANER_BUCKET_PREFIX="$2"
+        shift 2
+        ;;
       -t|--threshold)
         [[ $# -ge 2 && ! "$2" =~ ^- ]] || error_exit "Missing argument for $1"
         IDLE_DAYS_THRESHOLD="$2"
@@ -274,8 +296,11 @@ resolve_and_validate_services() {
       vm-stopper|stopper)
         parsed_list+=("vm-stopper")
         ;;
+      bucket-cleaner|bucket)
+        parsed_list+=("bucket-cleaner")
+        ;;
       *)
-        error_exit "Unknown service: '${item}'. Supported: cluster-scaler, gcsfuse-reservation-cleaner, vm-stopper, all"
+        error_exit "Unknown service: '${item}'. Supported: cluster-scaler, gcsfuse-reservation-cleaner, vm-stopper, bucket-cleaner, all"
         ;;
     esac
   done
@@ -383,6 +408,9 @@ check_prerequisites_and_apis() {
         ;;
       vm-stopper)
         apis+=("compute.googleapis.com" "monitoring.googleapis.com")
+        ;;
+      bucket-cleaner)
+        apis+=("storage.googleapis.com")
         ;;
     esac
   done
@@ -607,6 +635,14 @@ deploy_service() {
       iam_roles=("roles/compute.instanceAdmin.v1" "roles/logging.viewer" "roles/logging.logWriter" "roles/monitoring.viewer")
       cron_schedule="${VM_STOPPER_SCHEDULE}"
       ;;
+    bucket-cleaner)
+      default_runner_sa_name="bucket-cleaner-sa"
+      default_sched_sa_name="bucket-cleaner-sched"
+      iam_roles=("roles/storage.admin" "roles/logging.logWriter")
+      cron_schedule="${BUCKET_CLEANER_SCHEDULE}"
+      env_vars="PROJECT_ID=${PROJECT_ID},BUCKET_PREFIX=${CLEANER_BUCKET_PREFIX},AGE_DAYS=${CLEANER_AGE_DAYS},DRY_RUN=${DRY_RUN}"
+      payload="{\"projects\":[\"${PROJECT_ID}\"],\"age_days\":${CLEANER_AGE_DAYS},\"bucket_prefix\":\"${CLEANER_BUCKET_PREFIX}\",\"dry_run\":${DRY_RUN}}"
+      ;;
   esac
 
   local runner_sa_email="${GLOBAL_RUNNER_SA}"
@@ -660,7 +696,14 @@ deploy_service() {
     --tag="${image_uri}"
 
   # 5. Deploy Cloud Run Service
-  log_info "Deploying Cloud Run service '${svc}' to region '${REGION}'..."
+  local svc_timeout="540s"
+  local svc_deadline="540s"
+  if [[ "${svc}" == "bucket-cleaner" ]]; then
+    svc_timeout="3600s"
+    svc_deadline="1800s"
+  fi
+
+  log_info "Deploying Cloud Run service '${svc}' to region '${REGION}' (timeout: ${svc_timeout})..."
   execute_cmd gcloud run deploy "${svc}" \
     --project="${PROJECT_ID}" \
     --region="${REGION}" \
@@ -668,7 +711,7 @@ deploy_service() {
     --platform=managed \
     --service-account="${runner_sa_email}" \
     --no-allow-unauthenticated \
-    --timeout=540s \
+    --timeout="${svc_timeout}" \
     --memory=512Mi \
     --set-env-vars="${env_vars}" \
     --quiet
@@ -701,7 +744,7 @@ deploy_service() {
     --message-body="${payload}"
     --oidc-service-account-email="${sched_sa_email}"
     --oidc-token-audience="${service_url}"
-    --attempt-deadline="540s"
+    --attempt-deadline="${svc_deadline}"
   )
 
   if [[ "${DRY_RUN}" == "true" ]]; then

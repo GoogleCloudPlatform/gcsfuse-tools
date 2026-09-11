@@ -41,7 +41,7 @@ The suite provides a **hybrid 3-tier deployment model**:
 
 ## 1. Executive Overview & Multi-Tool Architecture
 
-In cloud development, continuous integration, and large-scale AI/ML testing environments, cloud infrastructure is frequently provisioned dynamically and left running long after workloads finish. Over time, abandoned GKE node pools, unattached GCE compute reservations, and idle standalone VMs accumulate significant recurring costs.
+In cloud development, continuous integration, and large-scale AI/ML testing environments, cloud infrastructure is frequently provisioned dynamically and left running long after workloads finish. Over time, abandoned GKE node pools, unattached GCE compute reservations, idle standalone VMs, and leaked test Cloud Storage buckets accumulate significant recurring costs and quota bloat.
 
 The **Cloud Run Automation Suite** provides three independent, specialized automation services:
 
@@ -105,11 +105,11 @@ flowchart TD
 
 ## 2. Tool Capability & Comparison Matrix
 
-| Capability / Attribute | `cluster-scaler` | `gcsfuse-reservation-cleaner` | `vm-stopper` |
-| :--- | :--- | :--- | :--- |
-| **Target Infrastructure** | Google Kubernetes Engine (GKE) Clusters & Node Pools | Google Compute Engine (GCE) Reservations | Google Compute Engine (GCE) VM Instances |
-| **Primary Remediation Action** | Resizes idle node pools to size 0 (sets autoscaling min to 0) | Deletes stale or abandoned compute reservations | Stops idle running VMs (optional deletion of long-stopped VMs) |
-| **Default Schedule** | Daily at 02:00 UTC (`0 2 * * *`) | Daily at 00:00 UTC (`0 0 * * *`) | Daily at 20:00 UTC (`0 20 * * *`) |
+| Capability / Attribute | `cluster-scaler` | `gcsfuse-reservation-cleaner` | `vm-stopper` | `bucket-cleaner` |
+| :--- | :--- | :--- | :--- | :--- |
+| **Target Infrastructure** | Google Kubernetes Engine (GKE) Clusters & Node Pools | Google Compute Engine (GCE) Reservations | Google Compute Engine (GCE) VM Instances | Google Cloud Storage (GCS) E2E Test Buckets |
+| **Primary Remediation Action** | Resizes idle node pools to size 0 (sets autoscaling min to 0) | Deletes stale or abandoned compute reservations | Stops idle running VMs (optional deletion of long-stopped VMs) | Deletes orphaned `gcsfuse-e2e-*` buckets (>3 days old) with OLM fallback |
+| **Default Schedule** | Daily at 02:00 UTC (`0 2 * * *`) | Daily at 00:00 UTC (`0 0 * * *`) | Daily at 20:00 UTC (`0 20 * * *`) | Daily at 00:00 UTC (`0 0 * * *`) |
 | **Idle Detection Method** | K8s API pod inspection across non-system namespaces | Cloud Monitoring metrics (`compute.googleapis.com/reservation/used`) | Cloud Logging OSLogin audit events and instance metadata events |
 | **Idle Threshold Parameter** | `idle_days_threshold` (Default: `7` days) | `delete_idle_days` (Default: `60` days) | `idle_days_threshold` (Default: `7` days) |
 | **Lifecycle State Tracking** | Stamped GKE cluster labels: `idle_since=YYYY-MM-DD` | Historical utilization lookback (Default: `730` days) | Instance `creationTimestamp` + Cloud Logging timestamp |
