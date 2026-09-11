@@ -200,7 +200,13 @@ from stopper.config import (
     _parse_int,
     _parse_list,
 )
-from stopper.gce_client import GCEClient, RateLimiter, is_rate_limit_error
+from stopper.gce_client import (
+    GCEClient,
+    METRIC_RECEIVED_BYTES,
+    METRIC_SENT_BYTES,
+    RateLimiter,
+    is_rate_limit_error,
+)
 from stopper.service import process_request
 from stopper.vm_processor import (
     VMProcessor,
@@ -1591,7 +1597,16 @@ class TestCloudMonitoringNetworkTelemetry(unittest.TestCase):
                 {"value": {"int64Value": 7000000}},
             ]
         }
-        mock_mon_client.list_time_series.return_value = [mock_series_rx, mock_series_tx]
+
+        def list_time_series_side_effect(*args, **kwargs):
+            req = kwargs.get("request") if "request" in kwargs else (args[0] if args else None)
+            if req and METRIC_RECEIVED_BYTES in req.filter:
+                return [mock_series_rx]
+            if req and METRIC_SENT_BYTES in req.filter:
+                return [mock_series_tx]
+            return []
+
+        mock_mon_client.list_time_series.side_effect = list_time_series_side_effect
 
         client = GCEClient(monitoring_client=mock_mon_client)
         total = client.get_instance_network_bytes(
@@ -1601,18 +1616,25 @@ class TestCloudMonitoringNetworkTelemetry(unittest.TestCase):
             self.now,
         )
         self.assertEqual(total, 12000000)
-        mock_mon_client.list_time_series.assert_called_once()
-        call_kwargs = mock_mon_client.list_time_series.call_args[1]
-        req = call_kwargs["request"]
-        self.assertEqual(req.name, "projects/test-proj")
-        self.assertIn(
-            '(metric.type = "compute.googleapis.com/instance/network/received_bytes_count" OR '
-            'metric.type = "compute.googleapis.com/instance/network/sent_bytes_count")',
-            req.filter,
-        )
-        self.assertNotIn("one_of", req.filter)
-        self.assertIn("inst-12345", req.filter)
-        self._assert_alignment_period_seconds(req.aggregation.alignment_period, 3600)
+        self.assertEqual(mock_mon_client.list_time_series.call_count, 2)
+
+        call_0_req = mock_mon_client.list_time_series.call_args_list[0][1]["request"]
+        call_1_req = mock_mon_client.list_time_series.call_args_list[1][1]["request"]
+
+        # Verify call 0 queries METRIC_RECEIVED_BYTES and call 1 queries METRIC_SENT_BYTES
+        self.assertIn(METRIC_RECEIVED_BYTES, call_0_req.filter)
+        self.assertNotIn(METRIC_SENT_BYTES, call_0_req.filter)
+        self.assertIn(METRIC_SENT_BYTES, call_1_req.filter)
+        self.assertNotIn(METRIC_RECEIVED_BYTES, call_1_req.filter)
+
+        # Verify that neither request filter contains OR or one_of
+        for req in (call_0_req, call_1_req):
+            self.assertEqual(req.name, "projects/test-proj")
+            self.assertNotIn("OR", req.filter)
+            self.assertNotIn("one_of", req.filter)
+            self.assertIn("inst-12345", req.filter)
+            self.assertIn('resource.type = "gce_instance"', req.filter)
+            self._assert_alignment_period_seconds(req.aggregation.alignment_period, 3600)
 
     def test_get_instance_network_bytes_alignment_period_ge_1_hour(self):
         mock_mon_client = MagicMock()
