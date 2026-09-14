@@ -321,8 +321,54 @@ class VMProcessor:
                 )
                 return result
 
-            # Tier 2: Cloud Monitoring Network Metrics Fallback
-            # Evaluated ONLY when Cloud Logging detects NO recent activity
+            # Tier 2: Cloud Monitoring CPU Metrics — primary "real work" signal.
+            # Evaluated ONLY when Cloud Logging detects NO recent login activity.
+            #
+            # Peak absolute cores cleanly separates genuine workloads from
+            # idle-but-powered-on VMs: on a real fleet, idle machines peaked
+            # below 2 cores while an actively used one peaked near 100.
+            peak_cores = 0.0
+            if self.config.enable_cpu_monitoring:
+                cpu_cutoff = (
+                    now_utc - timedelta(hours=self.config.network_lookback_hours)
+                    if self.config.network_lookback_hours and self.config.network_lookback_hours > 0
+                    else idle_cutoff
+                )
+
+                cpu_result = self.client.has_cpu_activity(
+                    project_id=self.config.project_id,
+                    instance_id=inst_id,
+                    instance_name=name,
+                    zone=zone,
+                    since_timestamp=cpu_cutoff,
+                    peak_cores_threshold=self.config.cpu_peak_cores_threshold,
+                    alignment_seconds=self.config.cpu_alignment_seconds,
+                )
+                if isinstance(cpu_result, tuple):
+                    has_cpu_act, peak_cores = cpu_result
+                else:
+                    has_cpu_act = bool(cpu_result)
+                    peak_cores = (
+                        self.config.cpu_peak_cores_threshold if has_cpu_act else 0.0
+                    )
+
+                if has_cpu_act:
+                    result["category"] = "skipped_active"
+                    if peak_cores >= 0:
+                        result["reason"] = (
+                            f"Active CPU workload detected (peak {peak_cores:.2f} cores "
+                            f">= threshold {self.config.cpu_peak_cores_threshold:.2f} cores)"
+                        )
+                    else:
+                        result["reason"] = (
+                            "Cloud Monitoring CPU query failed; failing safe (assuming active)"
+                        )
+                    return result
+
+            # Tier 3: Cloud Monitoring Network Metrics — backstop for I/O-bound
+            # workloads that move large volumes of data without burning CPU
+            # (e.g. gcsfuse transfer benchmarks). Deliberately a high threshold;
+            # see StopperConfig.network_bytes_threshold for rationale.
             net_bytes = 0
             if self.config.enable_network_monitoring:
                 network_cutoff = (

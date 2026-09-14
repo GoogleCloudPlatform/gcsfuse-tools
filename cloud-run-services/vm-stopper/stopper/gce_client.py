@@ -32,6 +32,17 @@ except (ImportError, AttributeError):
 METRIC_RECEIVED_BYTES = "compute.googleapis.com/instance/network/received_bytes_count"
 METRIC_SENT_BYTES = "compute.googleapis.com/instance/network/sent_bytes_count"
 
+# CPU-seconds consumed (DELTA metric). Aligned with ALIGN_RATE this yields
+# CPU-seconds per second, i.e. the absolute number of cores in use.
+#
+# We deliberately use usage_time rather than instance/cpu/utilization:
+# utilization is a RATIO of the instance's total vCPUs, so it is normalized by
+# exactly the quantity we care about. A 192-vCPU machine saturating 100 cores
+# reports only ~0.52 utilization, while an idle 2-vCPU e2-medium can report
+# >1.0. Shared-core (e2-medium) and accelerator (ct6e-*) types are especially
+# misleading. usage_time is absolute and needs no machine-type lookup.
+METRIC_CPU_USAGE_TIME = "compute.googleapis.com/instance/cpu/usage_time"
+
 
 logger = logging.getLogger(__name__)
 
@@ -580,6 +591,250 @@ class GCEClient:
             )
             return True, -1
 
+    def get_instance_peak_cores(
+        self,
+        project_id: str,
+        instance_id: str,
+        since_timestamp: Optional[datetime] = None,
+        until_timestamp: Optional[datetime] = None,
+        alignment_seconds: int = 300,
+        lookback_hours: Optional[int] = None,
+    ) -> float:
+        """Query Cloud Monitoring for the peak absolute CPU core usage of an instance.
+
+        Uses ALIGN_RATE over the CPU usage_time counter, which yields
+        CPU-seconds consumed per second, i.e. the number of cores actively
+        running. The maximum across all alignment buckets is returned.
+
+        A short alignment period is important: averaging over an hour smears
+        brief interactive bursts into nothing (a 10-minute compile on a
+        192-vCPU machine averages to ~0.5 cores over an hour). Measurements on
+        a real fleet showed hourly alignment understating peaks by up to 7.6x.
+
+        Args:
+            project_id: Target GCP project ID.
+            instance_id: Unique instance ID.
+            since_timestamp: Start of lookback interval (UTC).
+            until_timestamp: End of lookback interval (UTC). Defaults to now.
+            alignment_seconds: Alignment bucket width in seconds (default 300).
+            lookback_hours: Lookback window in hours, used when since_timestamp
+                is not supplied.
+
+        Returns:
+            Peak core count observed across the interval (0.0 if no data).
+
+        Raises:
+            Exception: API errors are propagated so callers can apply their own
+                fail-safe policy.
+        """
+        from datetime import timedelta
+
+        if until_timestamp is None:
+            until_timestamp = datetime.now(timezone.utc)
+        elif until_timestamp.tzinfo is None:
+            until_timestamp = until_timestamp.replace(tzinfo=timezone.utc)
+        else:
+            until_timestamp = until_timestamp.astimezone(timezone.utc)
+
+        if since_timestamp is None:
+            hours = lookback_hours if lookback_hours and lookback_hours > 0 else 24
+            since_timestamp = until_timestamp - timedelta(hours=hours)
+        elif since_timestamp.tzinfo is None:
+            since_timestamp = since_timestamp.replace(tzinfo=timezone.utc)
+        else:
+            since_timestamp = since_timestamp.astimezone(timezone.utc)
+
+        if (until_timestamp - since_timestamp).total_seconds() < 60:
+            since_timestamp = until_timestamp - timedelta(minutes=5)
+
+        if monitoring_v3 is None:
+            raise ImportError(
+                "google-cloud-monitoring is not installed. Please install it to use CPU monitoring features."
+            )
+
+        alignment_seconds = max(60, int(alignment_seconds or 300))
+
+        interval = monitoring_v3.TimeInterval(
+            start_time=since_timestamp,
+            end_time=until_timestamp,
+        )
+        aligner = getattr(
+            getattr(monitoring_v3.Aggregation, "Aligner", None),
+            "ALIGN_RATE",
+            "ALIGN_RATE",
+        )
+        aggregation = monitoring_v3.Aggregation(
+            alignment_period={"seconds": alignment_seconds},
+            per_series_aligner=aligner,
+        )
+        view = getattr(
+            getattr(monitoring_v3.ListTimeSeriesRequest, "TimeSeriesView", None),
+            "FULL",
+            2,
+        )
+
+        filter_expr = (
+            f'metric.type = "{METRIC_CPU_USAGE_TIME}" '
+            f'AND resource.type = "gce_instance" '
+            f'AND resource.labels.instance_id = "{instance_id}"'
+        )
+
+        if self.rate_limiter:
+            self.rate_limiter.acquire()
+
+        request = monitoring_v3.ListTimeSeriesRequest(
+            name=f"projects/{project_id}",
+            filter=filter_expr,
+            interval=interval,
+            aggregation=aggregation,
+            view=view,
+        )
+
+        peak_cores = 0.0
+        pager = self.monitoring_client.list_time_series(request=request)
+        if pager is not None:
+            try:
+                for series in pager:
+                    if isinstance(series, dict):
+                        points = series.get("points", [])
+                    else:
+                        points = getattr(series, "points", [])
+                    for pt in points:
+                        # usage_time is reported across all vCPUs; a single
+                        # series may be split by the 'state' metric label
+                        # (e.g. idle/used) on some machine families, so take
+                        # the max rather than summing.
+                        peak_cores = max(peak_cores, float(self._extract_point_float(pt)))
+            except (TypeError, AttributeError):
+                pass
+
+        return peak_cores
+
+    @staticmethod
+    def _extract_point_float(point: Any) -> float:
+        """Extract a float value from a Point proto-plus object, dict, or scalar."""
+        if point is None:
+            return 0.0
+        if isinstance(point, (int, float)):
+            return float(point)
+        if isinstance(point, dict):
+            val = point.get("value", {})
+            if isinstance(val, dict):
+                return float(
+                    val.get("doubleValue")
+                    or val.get("double_value")
+                    or val.get("int64Value")
+                    or val.get("int64_value")
+                    or 0.0
+                )
+            if isinstance(val, (int, float)):
+                return float(val)
+            return 0.0
+
+        val = getattr(point, "value", None)
+        if val is None:
+            return 0.0
+        if isinstance(val, (int, float)):
+            return float(val)
+
+        pb_val = getattr(val, "_pb", val)
+        if hasattr(pb_val, "WhichOneof"):
+            try:
+                active_field = pb_val.WhichOneof("value")
+                if isinstance(active_field, str) and active_field:
+                    return float(getattr(pb_val, active_field))
+            except (ValueError, TypeError, AttributeError):
+                pass
+
+        for attr in ("double_value", "int64_value", "doubleValue", "int64Value"):
+            candidate = getattr(val, attr, None)
+            if candidate is not None:
+                try:
+                    return float(candidate)
+                except (TypeError, ValueError):
+                    continue
+        return 0.0
+
+    def has_cpu_activity(
+        self,
+        project_id: str,
+        instance_id: str,
+        instance_name: Optional[str] = None,
+        zone: str = "unknown",
+        since_timestamp: Optional[datetime] = None,
+        peak_cores_threshold: float = 4.0,
+        until_timestamp: Optional[datetime] = None,
+        alignment_seconds: int = 300,
+        lookback_hours: Optional[int] = None,
+    ) -> Tuple[bool, float]:
+        """Check Cloud Monitoring for meaningful CPU work on an instance.
+
+        Fail-Safe Guard:
+        If the Cloud Monitoring query fails for any reason, logs a warning and
+        returns (True, -1.0) (assumes ACTIVE) to prevent accidental stopping of
+        a workload we could not measure.
+
+        Args:
+            project_id: Target GCP project ID.
+            instance_id: Unique instance ID.
+            instance_name: VM instance name, for logging.
+            zone: Compute zone name, for logging.
+            since_timestamp: UTC datetime cutoff.
+            peak_cores_threshold: Minimum peak cores to consider the VM active.
+            until_timestamp: UTC datetime end of interval.
+            alignment_seconds: Alignment bucket width in seconds.
+            lookback_hours: Lookback window in hours.
+
+        Returns:
+            Tuple of (is_active, peak_cores). peak_cores is -1.0 on query error.
+        """
+        if instance_name is None:
+            instance_name = str(instance_id)
+        if zone is None:
+            zone = "unknown"
+        if peak_cores_threshold is None:
+            peak_cores_threshold = 4.0
+
+        try:
+            peak_cores = self.get_instance_peak_cores(
+                project_id=project_id,
+                instance_id=instance_id,
+                since_timestamp=since_timestamp,
+                until_timestamp=until_timestamp,
+                alignment_seconds=alignment_seconds,
+                lookback_hours=lookback_hours,
+            )
+            if peak_cores >= peak_cores_threshold:
+                logger.info(
+                    "Active CPU workload detected for instance %s (id: %s) in zone %s: "
+                    "peak %.2f cores >= threshold %.2f cores.",
+                    instance_name,
+                    instance_id,
+                    zone,
+                    peak_cores,
+                    peak_cores_threshold,
+                )
+                return True, peak_cores
+            logger.info(
+                "Low CPU activity for instance %s (id: %s) in zone %s: "
+                "peak %.2f cores < threshold %.2f cores.",
+                instance_name,
+                instance_id,
+                zone,
+                peak_cores,
+                peak_cores_threshold,
+            )
+            return False, peak_cores
+        except Exception as exc:
+            logger.warning(
+                "Cloud Monitoring CPU query failed for instance %s (id: %s) in zone %s: %s. "
+                "Failing safe: assuming instance is ACTIVE to prevent accidental stop.",
+                instance_name,
+                instance_id,
+                zone,
+                exc,
+            )
+            return True, -1.0
 
     def get_instances_activity(
         self,
