@@ -1091,6 +1091,9 @@ class TestVMProcessorLifecycle(unittest.TestCase):
     def setUp(self):
         self.mock_client = MagicMock(spec=GCEClient)
         self.mock_client.has_network_activity.return_value = (False, 0)
+        # Tier 2 defaults to "no CPU workload" so these lifecycle tests keep
+        # exercising the Tier 3 network path they were written for.
+        self.mock_client.has_cpu_activity.return_value = (False, 0.0)
         self.now = datetime.now(timezone.utc)
 
     def test_young_running_vm_is_skipped(self):
@@ -1518,6 +1521,8 @@ class TestCloudMonitoringNetworkTelemetry(unittest.TestCase):
     def setUp(self):
         self.now = datetime(2026, 9, 10, 12, 0, 0, tzinfo=timezone.utc)
         self.mock_client = MagicMock(spec=GCEClient)
+        # Tier 2 defaults to "no CPU workload" so these tests exercise Tier 3.
+        self.mock_client.has_cpu_activity.return_value = (False, 0.0)
 
     def _assert_alignment_period_seconds(self, alignment_period: Any, expected_seconds: int) -> None:
         if isinstance(alignment_period, timedelta):
@@ -1533,9 +1538,16 @@ class TestCloudMonitoringNetworkTelemetry(unittest.TestCase):
 
     def test_config_network_telemetry_defaults(self):
         config = StopperConfig(project_id="test-proj")
-        self.assertEqual(config.network_bytes_threshold, 10485760)
+        # Network is a high backstop, not the primary signal: 100 GiB.
+        self.assertEqual(config.network_bytes_threshold, 107374182400)
         self.assertIsNone(config.network_lookback_hours)
         self.assertTrue(config.enable_network_monitoring)
+
+    def test_config_cpu_telemetry_defaults(self):
+        config = StopperConfig(project_id="test-proj")
+        self.assertEqual(config.cpu_peak_cores_threshold, 4.0)
+        self.assertEqual(config.cpu_alignment_seconds, 300)
+        self.assertTrue(config.enable_cpu_monitoring)
 
     def test_config_network_telemetry_env_vars(self):
         env = {
@@ -2219,6 +2231,191 @@ class TestCloudMonitoringNetworkTelemetry(unittest.TestCase):
         self.assertEqual(res["category"], "stopped")
         self.mock_client.has_network_activity.assert_not_called()
         self.mock_client.stop_instance.assert_called_once()
+
+
+class TestCloudMonitoringCpuTelemetry(unittest.TestCase):
+    """Unit tests for the Tier 2 CPU peak-cores signal."""
+
+    def setUp(self):
+        self.now = datetime(2026, 9, 10, 12, 0, 0, tzinfo=timezone.utc)
+        self.mock_client = MagicMock(spec=GCEClient)
+        # Tier 3 defaults to quiet so these tests isolate Tier 2.
+        self.mock_client.has_network_activity.return_value = (False, 0)
+
+    def _make_point(self, value: float):
+        point = MagicMock()
+        point.value.double_value = value
+        point.value.int64_value = 0
+        return point
+
+    def test_peak_cores_uses_align_rate_and_takes_max(self):
+        """ALIGN_RATE on usage_time yields cores directly; we want the peak."""
+        mock_mon_client = MagicMock()
+        series = MagicMock()
+        series.points = [self._make_point(0.4), self._make_point(96.5), self._make_point(1.2)]
+        mock_mon_client.list_time_series.return_value = [series]
+
+        client = GCEClient(monitoring_client=mock_mon_client)
+        peak = client.get_instance_peak_cores(
+            project_id="p",
+            instance_id="iid",
+            since_timestamp=self.now - timedelta(days=7),
+            until_timestamp=self.now,
+            alignment_seconds=300,
+        )
+        self.assertAlmostEqual(peak, 96.5)
+
+        request = mock_mon_client.list_time_series.call_args.kwargs["request"]
+        self.assertIn("cpu/usage_time", request.filter)
+        self.assertIn('resource.labels.instance_id = "iid"', request.filter)
+        aligner = request.aggregation.per_series_aligner
+        self.assertEqual(
+            getattr(aligner, "name", str(aligner)).replace("Aligner.", ""), "ALIGN_RATE"
+        )
+        self.assertEqual(request.aggregation.alignment_period.seconds, 300)
+
+    def test_alignment_period_floor_is_enforced(self):
+        """Cloud Monitoring rejects sub-60s alignment; clamp rather than fail."""
+        mock_mon_client = MagicMock()
+        mock_mon_client.list_time_series.return_value = []
+        client = GCEClient(monitoring_client=mock_mon_client)
+        client.get_instance_peak_cores(
+            project_id="p", instance_id="iid", alignment_seconds=5
+        )
+        request = mock_mon_client.list_time_series.call_args.kwargs["request"]
+        self.assertEqual(request.aggregation.alignment_period.seconds, 60)
+
+    def test_has_cpu_activity_threshold_boundaries(self):
+        client = GCEClient(monitoring_client=MagicMock())
+
+        with patch.object(client, "get_instance_peak_cores", return_value=4.0):
+            active, cores = client.has_cpu_activity(
+                project_id="p", instance_id="i", peak_cores_threshold=4.0
+            )
+            self.assertTrue(active, "peak == threshold should count as active")
+            self.assertAlmostEqual(cores, 4.0)
+
+        with patch.object(client, "get_instance_peak_cores", return_value=3.99):
+            active, cores = client.has_cpu_activity(
+                project_id="p", instance_id="i", peak_cores_threshold=4.0
+            )
+            self.assertFalse(active)
+            self.assertAlmostEqual(cores, 3.99)
+
+    def test_has_cpu_activity_fails_open_on_error(self):
+        """A query failure must never cause a VM to be stopped."""
+        client = GCEClient(monitoring_client=MagicMock())
+        with patch.object(
+            client, "get_instance_peak_cores", side_effect=RuntimeError("403 denied")
+        ):
+            active, cores = client.has_cpu_activity(project_id="p", instance_id="i")
+        self.assertTrue(active)
+        self.assertEqual(cores, -1.0)
+
+    def test_cpu_active_short_circuits_before_network(self):
+        """Tier 2 firing must skip the Tier 3 network query entirely."""
+        config = StopperConfig(project_id="test-proj")
+        processor = VMProcessor(config, gce_client=self.mock_client)
+
+        created_ts = (self.now - timedelta(days=15)).isoformat()
+        vm = MockInstance(name="busy-cpu-vm", status="RUNNING", creation_timestamp=created_ts)
+
+        self.mock_client.has_recent_activity.return_value = False
+        self.mock_client.has_cpu_activity.return_value = (True, 96.5)
+        self.mock_client.has_network_activity = MagicMock()
+
+        res = processor.process_single_instance("us-central1-a", vm, self.now)
+        self.assertEqual(res["category"], "skipped_active")
+        self.assertIn("96.50 cores", res["reason"])
+        self.mock_client.has_network_activity.assert_not_called()
+        self.mock_client.stop_instance.assert_not_called()
+
+    def test_cpu_error_fails_safe_in_processor(self):
+        config = StopperConfig(project_id="test-proj")
+        processor = VMProcessor(config, gce_client=self.mock_client)
+
+        created_ts = (self.now - timedelta(days=15)).isoformat()
+        vm = MockInstance(name="cpu-err-vm", status="RUNNING", creation_timestamp=created_ts)
+
+        self.mock_client.has_recent_activity.return_value = False
+        self.mock_client.has_cpu_activity.return_value = (True, -1.0)
+
+        res = processor.process_single_instance("us-central1-a", vm, self.now)
+        self.assertEqual(res["category"], "skipped_active")
+        self.assertIn("failing safe (assuming active)", res["reason"])
+        self.mock_client.stop_instance.assert_not_called()
+
+    def test_disabled_cpu_monitoring_bypasses_query(self):
+        config = StopperConfig(project_id="test-proj", enable_cpu_monitoring=False)
+        processor = VMProcessor(config, gce_client=self.mock_client)
+
+        created_ts = (self.now - timedelta(days=15)).isoformat()
+        vm = MockInstance(name="no-cpu-mon-vm", status="RUNNING", creation_timestamp=created_ts)
+
+        self.mock_client.has_recent_activity.return_value = False
+        self.mock_client.has_cpu_activity = MagicMock()
+
+        res = processor.process_single_instance("us-central1-a", vm, self.now)
+        self.assertEqual(res["category"], "stopped")
+        self.mock_client.has_cpu_activity.assert_not_called()
+
+    def test_idle_vm_with_background_agent_noise_is_stopped(self):
+        """Regression for the bug this change fixes.
+
+        A VM with no logins, negligible CPU, and ~10 GiB/week of Ops Agent
+        chatter used to be spared by the old 10 MiB network threshold. It must
+        now be stopped: 1.09 peak cores < 4.0, and 10 GiB < 100 GiB.
+        """
+        config = StopperConfig(project_id="test-proj")
+        processor = VMProcessor(config, gce_client=self.mock_client)
+
+        created_ts = (self.now - timedelta(days=400)).isoformat()
+        vm = MockInstance(name="alleaditya-like", status="RUNNING", creation_timestamp=created_ts)
+
+        self.mock_client.has_recent_activity.return_value = False
+        self.mock_client.has_cpu_activity.return_value = (False, 1.09)
+        self.mock_client.has_network_activity.return_value = (False, 10936016881)
+
+        res = processor.process_single_instance("us-west1-a", vm, self.now)
+        self.assertEqual(res["category"], "stopped")
+        self.mock_client.stop_instance.assert_called_once()
+
+    def test_io_bound_workload_is_spared_by_network_backstop(self):
+        """Low CPU but huge data movement must still count as active."""
+        config = StopperConfig(project_id="test-proj")
+        processor = VMProcessor(config, gce_client=self.mock_client)
+
+        created_ts = (self.now - timedelta(days=400)).isoformat()
+        vm = MockInstance(name="transfer-vm", status="RUNNING", creation_timestamp=created_ts)
+
+        self.mock_client.has_recent_activity.return_value = False
+        self.mock_client.has_cpu_activity.return_value = (False, 0.5)
+        # 75 TiB
+        self.mock_client.has_network_activity.return_value = (True, 82463372083200)
+
+        res = processor.process_single_instance("us-west4-a", vm, self.now)
+        self.assertEqual(res["category"], "skipped_active")
+        self.mock_client.stop_instance.assert_not_called()
+
+    def test_config_cpu_env_vars_and_validation(self):
+        env = {
+            "PROJECT_ID": "env-proj",
+            "CPU_PEAK_CORES_THRESHOLD": "8.5",
+            "CPU_ALIGNMENT_SECONDS": "600",
+            "ENABLE_CPU_MONITORING": "false",
+        }
+        config = StopperConfig.from_request(env=env)
+        self.assertAlmostEqual(config.cpu_peak_cores_threshold, 8.5)
+        self.assertEqual(config.cpu_alignment_seconds, 600)
+        self.assertFalse(config.enable_cpu_monitoring)
+
+        with self.assertRaises(ValueError) as ctx:
+            StopperConfig(project_id="p", cpu_alignment_seconds=30).validate()
+        self.assertIn("cpu_alignment_seconds must be >= 60", str(ctx.exception))
+
+        with self.assertRaises(ValueError) as ctx2:
+            StopperConfig(project_id="p", cpu_peak_cores_threshold=-1.0).validate()
+        self.assertIn("cpu_peak_cores_threshold must be >= 0", str(ctx2.exception))
 
 
 class TestDeploymentScriptSyntax(unittest.TestCase):

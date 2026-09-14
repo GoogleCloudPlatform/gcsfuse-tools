@@ -232,9 +232,27 @@ class StopperConfig:
     cloud_logging_rate_limit: int = 40
     cloud_logging_max_retries: int = 4
     cloud_logging_retry_backoff: float = 2.0
-    network_bytes_threshold: int = 10485760
+    # Network is a BACKSTOP signal only, for I/O-bound workloads that move a lot
+    # of data without burning CPU (e.g. gcsfuse transfer benchmarks).
+    #
+    # The previous default of 10 MiB was effectively useless: spread over the
+    # 7-day idle window it is ~17 bytes/sec sustained, which any powered-on
+    # Linux VM exceeds through guest-agent polling and Ops Agent log shipping
+    # alone. Fleet measurements found idle VMs at 0.2-10 GiB per week while a
+    # genuinely busy VM moved 75 TiB, so 100 GiB sits comfortably in the gap.
+    network_bytes_threshold: int = 107374182400  # 100 GiB
     network_lookback_hours: Optional[int] = None
     enable_network_monitoring: bool = True
+
+    # Primary "is real work happening" signal: peak absolute cores in use.
+    # Fleet measurements showed idle-but-running VMs peaking below 2.0 cores
+    # while the one genuinely busy VM peaked at ~100 cores, a ~50x separation.
+    # 4.0 sits in that gap with margin on both sides.
+    cpu_peak_cores_threshold: float = 4.0
+    # Alignment bucket for the peak calculation. Hourly averaging hides short
+    # interactive bursts (observed up to 7.6x understatement), so default to 5m.
+    cpu_alignment_seconds: int = 300
+    enable_cpu_monitoring: bool = True
 
     def validate(self) -> None:
         """Validate configuration integrity."""
@@ -261,6 +279,15 @@ class StopperConfig:
             raise ValueError(f"network_bytes_threshold must be >= 0, got {self.network_bytes_threshold}")
         if self.network_lookback_hours is not None and self.network_lookback_hours <= 0:
             raise ValueError(f"network_lookback_hours must be > 0, got {self.network_lookback_hours}")
+        if self.cpu_peak_cores_threshold < 0:
+            raise ValueError(
+                f"cpu_peak_cores_threshold must be >= 0, got {self.cpu_peak_cores_threshold}"
+            )
+        # Cloud Monitoring rejects alignment periods below 60s for this metric.
+        if self.cpu_alignment_seconds < 60:
+            raise ValueError(
+                f"cpu_alignment_seconds must be >= 60, got {self.cpu_alignment_seconds}"
+            )
 
 
     @classmethod
@@ -396,7 +423,7 @@ class StopperConfig:
             ],
             ["NETWORK_BYTES_THRESHOLD", "NETWORK_THRESHOLD", "BYTES_THRESHOLD"],
         )
-        network_bytes_threshold = _parse_bytes(raw_net_bytes, default=10485760)
+        network_bytes_threshold = _parse_bytes(raw_net_bytes, default=107374182400)
 
         raw_net_lookback = _get_val(
             [
@@ -429,6 +456,39 @@ class StopperConfig:
         )
         enable_network_monitoring = _parse_bool(raw_enable_net, default=True)
 
+        # 7. CPU Telemetry Settings
+        raw_cpu_cores = _get_val(
+            [
+                "cpu_peak_cores_threshold",
+                "cpu_cores_threshold",
+                "peak_cores_threshold",
+                "cpuPeakCoresThreshold",
+            ],
+            ["CPU_PEAK_CORES_THRESHOLD", "CPU_CORES_THRESHOLD", "PEAK_CORES_THRESHOLD"],
+        )
+        cpu_peak_cores_threshold = _parse_float(raw_cpu_cores, default=4.0, min_val=0.0)
+
+        raw_cpu_align = _get_val(
+            [
+                "cpu_alignment_seconds",
+                "cpu_alignment",
+                "cpuAlignmentSeconds",
+            ],
+            ["CPU_ALIGNMENT_SECONDS", "CPU_ALIGNMENT"],
+        )
+        cpu_alignment_seconds = _parse_int(raw_cpu_align, default=300, min_val=60)
+
+        raw_enable_cpu = _get_val(
+            [
+                "enable_cpu_monitoring",
+                "enable_cpu_telemetry",
+                "enableCpuMonitoring",
+                "enableCpuTelemetry",
+            ],
+            ["ENABLE_CPU_MONITORING", "ENABLE_CPU_TELEMETRY"],
+        )
+        enable_cpu_monitoring = _parse_bool(raw_enable_cpu, default=True)
+
         config = cls(
             project_id=project_id,
             idle_days_threshold=idle_days_threshold,
@@ -447,6 +507,9 @@ class StopperConfig:
             network_bytes_threshold=network_bytes_threshold,
             network_lookback_hours=network_lookback_hours,
             enable_network_monitoring=enable_network_monitoring,
+            cpu_peak_cores_threshold=cpu_peak_cores_threshold,
+            cpu_alignment_seconds=cpu_alignment_seconds,
+            enable_cpu_monitoring=enable_cpu_monitoring,
         )
         config.validate()
         return config

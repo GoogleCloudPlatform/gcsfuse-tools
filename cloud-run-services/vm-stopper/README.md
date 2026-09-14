@@ -124,6 +124,43 @@ The service dynamically resolves configuration parameters with the following pre
 | **Logging Rate Limit** | `cloud_logging_rate_limit` | `rate_limit` | `CLOUD_LOGGING_RATE_LIMIT` | int | `40` | Max Cloud Logging queries per minute (safely below GCP's 60 req/min quota limit) |
 | **Logging Max Retries** | `cloud_logging_max_retries` | `max_retries` | `CLOUD_LOGGING_MAX_RETRIES` | int | `4` | Max retry attempts with exponential backoff on HTTP 429 quota exhaustion |
 | **Logging Retry Backoff** | `cloud_logging_retry_backoff` | `retry_backoff` | `CLOUD_LOGGING_RETRY_BACKOFF` | float | `2.0` | Base duration (seconds) for exponential backoff on 429 rate limit errors |
+| **CPU Peak Cores Threshold** | `cpu_peak_cores_threshold` | `peak_cores_threshold` | `CPU_PEAK_CORES_THRESHOLD` | float | `4.0` | Peak **absolute cores** in use before a VM counts as running a workload |
+| **CPU Alignment Seconds** | `cpu_alignment_seconds` | `cpu_alignment` | `CPU_ALIGNMENT_SECONDS` | int | `300` | Alignment bucket for the peak calculation (min `60`) |
+| **Enable CPU Monitoring** | `enable_cpu_monitoring` | `enable_cpu_monitoring` | `ENABLE_CPU_MONITORING` | bool | `true` | Toggle the Tier 2 CPU workload check |
+| **Network Bytes Threshold** | `network_bytes_threshold` | `network_threshold` | `NETWORK_BYTES_THRESHOLD` | bytes | `100 GiB` | Backstop for I/O-bound workloads. Accepts suffixes (`100GB`, `500MiB`) |
+| **Network Lookback Hours** | `network_lookback_hours` | `lookback_hours` | `NETWORK_LOOKBACK_HOURS` | int | *`idle_days_threshold`* | Telemetry window for both CPU and network checks |
+| **Enable Network Monitoring** | `enable_network_monitoring` | `enable_network_monitoring` | `ENABLE_NETWORK_MONITORING` | bool | `true` | Toggle the Tier 3 network backstop check |
+
+### 5.1 Activity Signal Hierarchy
+
+A **running** VM is evaluated against three tiers. The first tier that fires marks
+the VM active and short-circuits the rest:
+
+| Tier | Signal | Question it answers |
+| :--- | :--- | :--- |
+| **1** | Cloud Logging OS Login / SSH / metadata events | *Does a human want this VM?* |
+| **2** | Peak absolute CPU cores (`cpu/usage_time` + `ALIGN_RATE`) | *Is unattended work running?* |
+| **3** | Total network bytes | *Is it moving data without using CPU?* |
+
+If none fire, the VM is stopped. Every tier **fails open**: if its query errors
+out, the VM is assumed active so a workload is never stopped on bad telemetry.
+
+> **Why not CPU utilization percentage?**
+> `instance/cpu/utilization` is a *ratio* of the instance's total vCPUs, so it is
+> normalized by exactly the quantity that matters. Measured on a real fleet, a
+> `c4-standard-192` saturating ~100 cores reported just **0.53 %** utilization,
+> while idle 2-vCPU `e2-medium` nodes reported **15–25 %**. A percentage
+> threshold would stop the busy machine and spare the idle ones. Shared-core
+> (`e2-medium`) and accelerator (`ct6e-*`) families are especially misleading —
+> one reported *2.02 cores* by utilization versus *0.32* actual.
+> `cpu/usage_time` is absolute, needs no machine-type lookup, and was verified
+> to match `utilization x vCPU` exactly on all standard machine types.
+
+> **Why is the network threshold so high?**
+> The previous `10 MiB` default was ~17 bytes/sec sustained across a 7-day
+> window — below the floor of guest-agent polling and Ops Agent log shipping, so
+> essentially every powered-on VM tripped it. Idle VMs were measured at
+> 0.2–10 GiB/week; a genuinely busy one moved 75 TiB. `100 GiB` sits in that gap.
 
 ---
 

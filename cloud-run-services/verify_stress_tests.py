@@ -663,6 +663,10 @@ class EmpiricalGCEVMStopperTests(unittest.TestCase):
         now_utc = datetime.datetime.now(timezone.utc)
         mock_client = MagicMock(spec=GCEClient)
         mock_client.has_network_activity.return_value = (False, 0)
+        # Tier 2 CPU check must also report "no workload", otherwise the
+        # spec'd MagicMock returns a truthy object and every VM is treated
+        # as active.
+        mock_client.has_cpu_activity.return_value = (False, 0.0)
         processor = VMProcessor(config=self.config, gce_client=mock_client)
 
         # 1. Transitional VM statuses
