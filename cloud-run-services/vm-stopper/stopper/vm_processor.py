@@ -292,15 +292,36 @@ class VMProcessor:
         # 3. Running VM Evaluation
         if status == "RUNNING":
             creation_ts = parse_timestamp(getattr(instance, "creation_timestamp", None))
+            last_start_ts = parse_timestamp(getattr(instance, "last_start_timestamp", None))
             idle_cutoff = now_utc - timedelta(days=self.config.idle_days_threshold)
 
-            # Check if VM is too young
-            if creation_ts and creation_ts > idle_cutoff:
-                result["category"] = "skipped_recently_created"
-                result["reason"] = (
-                    f"VM created recently at {creation_ts.isoformat()} "
-                    f"(< {self.config.idle_days_threshold} days old)"
-                )
+            # A VM can only be judged idle across a window it has actually been
+            # RUNNING for. Telemetry does not exist while an instance is
+            # stopped, so a machine created months ago but restarted an hour
+            # ago has no idle history to evaluate -- every metric tier would
+            # read near-zero and vote to stop it immediately.
+            #
+            # Use the later of creation and last start as the point from which
+            # idleness can be measured.
+            running_since = max(
+                (ts for ts in (creation_ts, last_start_ts) if ts is not None),
+                default=None,
+            )
+
+            if running_since and running_since > idle_cutoff:
+                if last_start_ts and (not creation_ts or last_start_ts > creation_ts):
+                    result["category"] = "skipped_recently_started"
+                    result["reason"] = (
+                        f"VM started recently at {last_start_ts.isoformat()} "
+                        f"(running for < {self.config.idle_days_threshold} days, "
+                        "insufficient history to judge idleness)"
+                    )
+                else:
+                    result["category"] = "skipped_recently_created"
+                    result["reason"] = (
+                        f"VM created recently at {running_since.isoformat()} "
+                        f"(< {self.config.idle_days_threshold} days old)"
+                    )
                 return result
 
             # Check Cloud Logging for recent login/SSH/metadata activity if not pre-computed
@@ -578,6 +599,7 @@ class VMProcessor:
             "skipped_whitelisted": 0,
             "skipped_active": 0,
             "skipped_recently_created": 0,
+            "skipped_recently_started": 0,
             "skipped_stopped": 0,
             "skipped_other": 0,
             "errors_count": 0,

@@ -2418,6 +2418,111 @@ class TestCloudMonitoringCpuTelemetry(unittest.TestCase):
         self.assertIn("cpu_peak_cores_threshold must be >= 0", str(ctx2.exception))
 
 
+class TestRecentlyStartedVmGuard(unittest.TestCase):
+    """A VM can only be judged idle over a window it has been RUNNING for.
+
+    Telemetry does not accumulate while an instance is stopped, so an old VM
+    that was just restarted reads near-zero on every metric tier. Without an
+    explicit guard it would be stopped again within hours of the owner
+    bringing it back.
+    """
+
+    def setUp(self):
+        self.now = datetime(2026, 9, 14, 12, 0, 0, tzinfo=timezone.utc)
+        self.mock_client = MagicMock(spec=GCEClient)
+        self.mock_client.has_recent_activity.return_value = False
+        self.mock_client.has_cpu_activity.return_value = (False, 0.19)
+        self.mock_client.has_network_activity.return_value = (False, 13_207_024_435)
+        self.config = StopperConfig(project_id="test-proj", idle_days_threshold=7)
+
+    def test_old_vm_restarted_minutes_ago_is_spared(self):
+        """Regression: matches vipin-n2-standard-128-usc1-a observed in prod."""
+        vm = MockInstance(
+            name="old-vm-just-restarted",
+            status="RUNNING",
+            creation_timestamp=(self.now - timedelta(days=35)).isoformat(),
+        )
+        vm.last_start_timestamp = (self.now - timedelta(minutes=10)).isoformat()
+
+        processor = VMProcessor(self.config, gce_client=self.mock_client)
+        res = processor.process_single_instance("us-central1-a", vm, self.now)
+
+        self.assertEqual(res["category"], "skipped_recently_started")
+        self.assertEqual(res["action"], "none")
+        self.mock_client.stop_instance.assert_not_called()
+
+    def test_old_vm_restarted_hours_ago_is_spared(self):
+        """Regression: matches swethv-c4-192-cos observed in prod."""
+        vm = MockInstance(
+            name="old-vm-restarted-12h",
+            status="RUNNING",
+            creation_timestamp=(self.now - timedelta(days=68)).isoformat(),
+        )
+        vm.last_start_timestamp = (self.now - timedelta(hours=12)).isoformat()
+
+        processor = VMProcessor(self.config, gce_client=self.mock_client)
+        res = processor.process_single_instance("us-central1-a", vm, self.now)
+
+        self.assertEqual(res["category"], "skipped_recently_started")
+        self.mock_client.stop_instance.assert_not_called()
+
+    def test_vm_running_longer_than_idle_window_is_still_stoppable(self):
+        """The guard must not become a blanket exemption."""
+        vm = MockInstance(
+            name="long-running-idle-vm",
+            status="RUNNING",
+            creation_timestamp=(self.now - timedelta(days=200)).isoformat(),
+        )
+        vm.last_start_timestamp = (self.now - timedelta(days=30)).isoformat()
+
+        processor = VMProcessor(self.config, gce_client=self.mock_client)
+        res = processor.process_single_instance("us-central1-a", vm, self.now)
+
+        self.assertEqual(res["category"], "stopped")
+        self.mock_client.stop_instance.assert_called_once()
+
+    def test_boundary_just_outside_idle_window_is_stoppable(self):
+        vm = MockInstance(
+            name="boundary-vm",
+            status="RUNNING",
+            creation_timestamp=(self.now - timedelta(days=90)).isoformat(),
+        )
+        vm.last_start_timestamp = (self.now - timedelta(days=7, minutes=1)).isoformat()
+
+        processor = VMProcessor(self.config, gce_client=self.mock_client)
+        res = processor.process_single_instance("us-central1-a", vm, self.now)
+        self.assertEqual(res["category"], "stopped")
+
+    def test_never_restarted_vm_falls_back_to_creation(self):
+        """No last_start_timestamp (never stopped) must behave as before."""
+        vm = MockInstance(
+            name="never-restarted-vm",
+            status="RUNNING",
+            creation_timestamp=(self.now - timedelta(days=2)).isoformat(),
+        )
+        vm.last_start_timestamp = None
+
+        processor = VMProcessor(self.config, gce_client=self.mock_client)
+        res = processor.process_single_instance("us-central1-a", vm, self.now)
+        self.assertEqual(res["category"], "skipped_recently_created")
+
+    def test_restart_guard_counted_in_sweep_summary(self):
+        vm = MockInstance(
+            name="restarted-fleet-vm",
+            status="RUNNING",
+            creation_timestamp=(self.now - timedelta(days=50)).isoformat(),
+        )
+        vm.last_start_timestamp = (self.now - timedelta(hours=3)).isoformat()
+
+        self.mock_client.list_instances.return_value = [("us-central1-a", vm)]
+        processor = VMProcessor(self.config, gce_client=self.mock_client)
+        sweep = processor.sweep()
+
+        self.assertEqual(sweep["summary"]["skipped_recently_started"], 1)
+        self.assertEqual(sweep["summary"]["stopped"], 0)
+        self.assertEqual(sweep["summary"]["skipped_other"], 0)
+
+
 class TestDeploymentScriptSyntax(unittest.TestCase):
     """Static validation of deploy.sh syntax and CLI flags."""
 
