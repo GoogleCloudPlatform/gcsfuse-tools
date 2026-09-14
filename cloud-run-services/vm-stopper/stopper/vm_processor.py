@@ -222,6 +222,25 @@ def parse_timestamp(ts_val: Any) -> Optional[datetime]:
         return None
 
 
+def get_running_since(instance: Any) -> Optional[datetime]:
+    """Return the point in time from which an instance has been continuously RUNNING.
+
+    A VM can only be judged idle across a window it has actually been running
+    for: telemetry does not exist while an instance is stopped. A machine
+    created months ago but restarted an hour ago therefore has no idle history
+    to evaluate, and every metric tier would read near-zero and vote to stop it.
+
+    The later of ``creation_timestamp`` and ``last_start_timestamp`` is the
+    correct reference point. Returns ``None`` if neither can be parsed.
+    """
+    creation_ts = parse_timestamp(getattr(instance, "creation_timestamp", None))
+    last_start_ts = parse_timestamp(getattr(instance, "last_start_timestamp", None))
+    return max(
+        (ts for ts in (creation_ts, last_start_ts) if ts is not None),
+        default=None,
+    )
+
+
 class VMProcessor:
     """Evaluates and processes GCE instances for idle stopping and lifecycle cleanup."""
 
@@ -292,15 +311,27 @@ class VMProcessor:
         # 3. Running VM Evaluation
         if status == "RUNNING":
             creation_ts = parse_timestamp(getattr(instance, "creation_timestamp", None))
+            last_start_ts = parse_timestamp(getattr(instance, "last_start_timestamp", None))
             idle_cutoff = now_utc - timedelta(days=self.config.idle_days_threshold)
 
-            # Check if VM is too young
-            if creation_ts and creation_ts > idle_cutoff:
-                result["category"] = "skipped_recently_created"
-                result["reason"] = (
-                    f"VM created recently at {creation_ts.isoformat()} "
-                    f"(< {self.config.idle_days_threshold} days old)"
-                )
+            # A VM can only be judged idle across a window it has actually been
+            # RUNNING for. See get_running_since() for the full rationale.
+            running_since = get_running_since(instance)
+
+            if running_since and running_since > idle_cutoff:
+                if last_start_ts and (not creation_ts or last_start_ts > creation_ts):
+                    result["category"] = "skipped_recently_started"
+                    result["reason"] = (
+                        f"VM started recently at {last_start_ts.isoformat()} "
+                        f"(running for < {self.config.idle_days_threshold} days, "
+                        "insufficient history to judge idleness)"
+                    )
+                else:
+                    result["category"] = "skipped_recently_created"
+                    result["reason"] = (
+                        f"VM created recently at {running_since.isoformat()} "
+                        f"(< {self.config.idle_days_threshold} days old)"
+                    )
                 return result
 
             # Check Cloud Logging for recent login/SSH/metadata activity if not pre-computed
@@ -537,8 +568,11 @@ class VMProcessor:
             if status == "RUNNING" and not is_part_of_gke_or_mig(inst):
                 whitelisted, _ = is_whitelisted(inst, self.config)
                 if not whitelisted:
-                    creation_ts = parse_timestamp(getattr(inst, "creation_timestamp", None))
-                    if not (creation_ts and creation_ts > idle_cutoff):
+                    # Mirror the recency guard in process_single_instance so we
+                    # do not spend Cloud Logging quota on instances that will be
+                    # skipped anyway.
+                    running_since = get_running_since(inst)
+                    if not (running_since and running_since > idle_cutoff):
                         candidate_instances.append((zone, inst))
 
         # Batch-evaluate candidate running instances if supported
@@ -578,6 +612,7 @@ class VMProcessor:
             "skipped_whitelisted": 0,
             "skipped_active": 0,
             "skipped_recently_created": 0,
+            "skipped_recently_started": 0,
             "skipped_stopped": 0,
             "skipped_other": 0,
             "errors_count": 0,
