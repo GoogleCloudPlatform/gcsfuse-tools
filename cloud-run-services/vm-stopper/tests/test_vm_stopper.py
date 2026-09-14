@@ -2516,11 +2516,28 @@ class TestRecentlyStartedVmGuard(unittest.TestCase):
 
         self.mock_client.list_instances.return_value = [("us-central1-a", vm)]
         processor = VMProcessor(self.config, gce_client=self.mock_client)
-        sweep = processor.sweep()
+        sweep = processor.sweep(self.now)
 
         self.assertEqual(sweep["summary"]["skipped_recently_started"], 1)
         self.assertEqual(sweep["summary"]["stopped"], 0)
         self.assertEqual(sweep["summary"]["skipped_other"], 0)
+
+    def test_recently_started_vm_is_not_sent_to_cloud_logging(self):
+        """The sweep pre-filter must spare Cloud Logging quota for skipped VMs."""
+        vm = MockInstance(
+            name="restarted-fleet-vm",
+            status="RUNNING",
+            creation_timestamp=(self.now - timedelta(days=50)).isoformat(),
+        )
+        vm.last_start_timestamp = (self.now - timedelta(hours=3)).isoformat()
+
+        self.mock_client.list_instances.return_value = [("us-central1-a", vm)]
+        self.mock_client.get_instances_activity.return_value = {}
+        processor = VMProcessor(self.config, gce_client=self.mock_client)
+        processor.sweep(self.now)
+
+        self.mock_client.get_instances_activity.assert_not_called()
+        self.mock_client.has_recent_activity.assert_not_called()
 
 
 class TestDeploymentScriptSyntax(unittest.TestCase):

@@ -222,6 +222,25 @@ def parse_timestamp(ts_val: Any) -> Optional[datetime]:
         return None
 
 
+def get_running_since(instance: Any) -> Optional[datetime]:
+    """Return the point in time from which an instance has been continuously RUNNING.
+
+    A VM can only be judged idle across a window it has actually been running
+    for: telemetry does not exist while an instance is stopped. A machine
+    created months ago but restarted an hour ago therefore has no idle history
+    to evaluate, and every metric tier would read near-zero and vote to stop it.
+
+    The later of ``creation_timestamp`` and ``last_start_timestamp`` is the
+    correct reference point. Returns ``None`` if neither can be parsed.
+    """
+    creation_ts = parse_timestamp(getattr(instance, "creation_timestamp", None))
+    last_start_ts = parse_timestamp(getattr(instance, "last_start_timestamp", None))
+    return max(
+        (ts for ts in (creation_ts, last_start_ts) if ts is not None),
+        default=None,
+    )
+
+
 class VMProcessor:
     """Evaluates and processes GCE instances for idle stopping and lifecycle cleanup."""
 
@@ -296,17 +315,8 @@ class VMProcessor:
             idle_cutoff = now_utc - timedelta(days=self.config.idle_days_threshold)
 
             # A VM can only be judged idle across a window it has actually been
-            # RUNNING for. Telemetry does not exist while an instance is
-            # stopped, so a machine created months ago but restarted an hour
-            # ago has no idle history to evaluate -- every metric tier would
-            # read near-zero and vote to stop it immediately.
-            #
-            # Use the later of creation and last start as the point from which
-            # idleness can be measured.
-            running_since = max(
-                (ts for ts in (creation_ts, last_start_ts) if ts is not None),
-                default=None,
-            )
+            # RUNNING for. See get_running_since() for the full rationale.
+            running_since = get_running_since(instance)
 
             if running_since and running_since > idle_cutoff:
                 if last_start_ts and (not creation_ts or last_start_ts > creation_ts):
@@ -558,8 +568,11 @@ class VMProcessor:
             if status == "RUNNING" and not is_part_of_gke_or_mig(inst):
                 whitelisted, _ = is_whitelisted(inst, self.config)
                 if not whitelisted:
-                    creation_ts = parse_timestamp(getattr(inst, "creation_timestamp", None))
-                    if not (creation_ts and creation_ts > idle_cutoff):
+                    # Mirror the recency guard in process_single_instance so we
+                    # do not spend Cloud Logging quota on instances that will be
+                    # skipped anyway.
+                    running_since = get_running_since(inst)
+                    if not (running_since and running_since > idle_cutoff):
                         candidate_instances.append((zone, inst))
 
         # Batch-evaluate candidate running instances if supported
