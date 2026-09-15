@@ -10,6 +10,7 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 cd "$SCRIPT_DIR"
 
 BENCHMARK_ID="benchmark-$(date +%s)"
+RUN_TABLE_SUFFIX=$(date -u +%Y%m%d_%H)
 TEST_DATA_BUCKET_READ="kokoro-regional-test-data-hns-bucket"
 TEST_DATA_BUCKET_WRITE="kokoro-regional-test-data-hns-bucket-write"
 ARTIFACTS_BUCKET="kokoro-perf-artifacts-bucket"
@@ -292,6 +293,7 @@ run_benchmark() {
       --results-dir "$RESULTS_DIR" \
       --project-id "$PROJECT" \
       --report-name "$REPORT_NAME" \
+      --table-suffix "$RUN_TABLE_SUFFIX" \
       $IS_KOKORO_FLAG || echo "WARNING: BigQuery upload failed. Continuing..."
   fi
 }

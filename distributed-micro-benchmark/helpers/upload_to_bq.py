@@ -140,7 +140,7 @@ def process_and_write_temp_csv(report_path, config_map, bench_id):
 
     return temp_csv.name, rows_processed
 
-def upload_results_to_bq(results_dir, project_id, dataset_id, table_prefix, report_name):
+def upload_results_to_bq(results_dir, project_id, dataset_id, table_prefix, report_name, table_suffix=None):
     """Main execution block combining config reading, processing, and BQ upload."""
     report_path = os.path.join(results_dir, report_name)
     if not os.path.exists(report_path):
@@ -174,7 +174,8 @@ def upload_results_to_bq(results_dir, project_id, dataset_id, table_prefix, repo
             logging.info(f"Creating dataset {dataset_id}")
             client.create_dataset(bigquery.Dataset(dataset_ref))
 
-        table_id = f"{table_prefix}_{datetime.datetime.utcnow().strftime('%Y%m%d_%H%M%S')}"
+        suffix = table_suffix if table_suffix else datetime.datetime.utcnow().strftime('%Y%m%d_%H%M%S')
+        table_id = f"{table_prefix}_{suffix}"
         full_table_id = f"{project_id}.{dataset_id}.{table_id}"
         
         job_config = bigquery.LoadJobConfig(
@@ -204,9 +205,10 @@ if __name__ == "__main__":
     parser.add_argument("--project-id", default="gcs-fuse-test-ml")
     parser.add_argument("--report-name", default="combined_report.csv")
     parser.add_argument("--is-kokoro", action="store_true")
+    parser.add_argument("--table-suffix", help="Custom table suffix (e.g. YYYYMMDD_HH)")
     args = parser.parse_args()
 
     dataset = "periodic_benchmarks" if args.is_kokoro else "adhoc_benchmarks"
     prefix = "kokoro_run" if args.is_kokoro else "local_run"
 
-    upload_results_to_bq(args.results_dir, args.project_id, dataset, prefix, args.report_name)
+    upload_results_to_bq(args.results_dir, args.project_id, dataset, prefix, args.report_name, table_suffix=args.table_suffix)

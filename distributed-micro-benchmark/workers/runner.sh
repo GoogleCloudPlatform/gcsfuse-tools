@@ -97,13 +97,14 @@ run_test_iterations() {
         # --- TIME START ---
         START_TIME=$(date +%s)
 
-        # Run FIO wrapped in an OS-level timeout (30 minutes / 1800s) to prevent infinite hanging
+        # Run FIO wrapped in an OS-level timeout (45 minutes / 2700s) to prevent infinite hanging
         OUTPUT_FILE="${TEST_DIR}/fio_output_${i}.json"
         FIO_EXIT_CODE=0
-        timeout -k 30 1800 fio "$FIO_JOB" --alloc-size=$((2 * 1024 * 1024)) --output-format=json --output="$OUTPUT_FILE" || FIO_EXIT_CODE=$?
+        timeout -k 30 2700 fio "$FIO_JOB" --alloc-size=$((2 * 1024 * 1024)) --output-format=json --output="$OUTPUT_FILE" || FIO_EXIT_CODE=$?
         
         if [ $FIO_EXIT_CODE -ne 0 ]; then
             echo "WARNING: FIO failed or OS TIMEOUT REACHED (Exit Code $FIO_EXIT_CODE). Ignoring to continue the orchestrator..." >&2
+            TEST_STATUS="timeout"
             stop_monitoring "$MONITOR_PID" "$MONITOR_STOP_FLAG"
             if [[ "$IO_TYPE" == *"write"* ]]; then
                 find "$TEST_DATA_DIR" -mindepth 1 -delete 2>/dev/null || rm -rf "${TEST_DATA_DIR:?}"/* 2>/dev/null || true
@@ -176,6 +177,7 @@ execute_test() {
     MONITOR_FILE="$TEST_DIR/monitor.log"
     echo "timestamp,cpu_percent,mem_rss_mb,mem_vsz_mb,page_cache_gb,system_cpu_percent,net_rx_mbps,net_tx_mbps" > "$MONITOR_FILE"
     
+    TEST_STATUS="success"
     if ! run_test_iterations "$TEST_DIR" "$FIO_JOB" "$MONITOR_FILE" "$GCSFUSE_BIN_PATH" "$MOUNT_ARGS"; then
         echo "Test failed, uploading logs for debugging..." >&2
         gcloud storage cp -r "$TEST_DIR" "${RESULT_BASE}/"
@@ -197,7 +199,7 @@ execute_test() {
 
     TEST_PARAMS="{\"test_id\":\"$TEST_ID\",\"bs\":\"$BS\",\"file_size\":\"$FILE_SIZE\",\"io_depth\":\"$IO_DEPTH\",\"io_type\":\"$IO_TYPE\",\"threads\":\"$THREADS\",\"nrfiles\":\"$NRFILES\",\"direct\":\"$DIRECT\",\"config_id\":\"$CONFIG_ID\",\"config_label\":\"$CONFIG_LABEL\",\"commit\":\"$COMMIT\",\"mount_args\":\"$MOUNT_ARGS\",\"avg_cpu\":\"$AVG_CPU\",\"peak_cpu\":\"$MAX_CPU\",\"avg_mem_mb\":\"$AVG_MEM_RSS\",\"peak_mem_mb\":\"$MAX_MEM_RSS\",\"avg_page_cache_gb\":\"$AVG_PAGE_CACHE\",\"peak_page_cache_gb\":\"$MAX_PAGE_CACHE\",\"avg_sys_cpu\":\"$AVG_SYS_CPU\",\"peak_sys_cpu\":\"$MAX_SYS_CPU\",\"avg_net_rx_mbps\":\"$AVG_NET_RX\",\"peak_net_rx_mbps\":\"$MAX_NET_RX\",\"avg_net_tx_mbps\":\"$AVG_NET_TX\",\"peak_net_tx_mbps\":\"$MAX_NET_TX\"}"
     
-    jq ".tests += [{\"matrix_id\":$MATRIX_ID,\"test_id\":$TEST_ID,\"config_id\":$CONFIG_ID,\"status\":\"success\",\"params\":$TEST_PARAMS}]" manifest.json > manifest_tmp.json
+    jq ".tests += [{\"matrix_id\":$MATRIX_ID,\"test_id\":$TEST_ID,\"config_id\":$CONFIG_ID,\"status\":\"$TEST_STATUS\",\"params\":$TEST_PARAMS}]" manifest.json > manifest_tmp.json
     mv manifest_tmp.json manifest.json
     
     gcloud storage cp -r "$TEST_DIR" "${RESULT_BASE}/"
