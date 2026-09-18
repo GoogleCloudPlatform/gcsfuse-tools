@@ -298,9 +298,7 @@ class ReservationClient:
                 "error": None,
             }
 
-        # Sort points chronologically (empty timestamps sort first without TypeError)
-        active_points.sort(key=lambda p: p["time"])
-        valid_times = [p["time"] for p in active_points if p["time"]]
+        valid_times = sorted(p["time"] for p in active_points if p["time"])
         first_used = valid_times[0] if valid_times else None
         last_used = valid_times[-1] if valid_times else None
         max_usage = max(p["usage"] for p in active_points)
