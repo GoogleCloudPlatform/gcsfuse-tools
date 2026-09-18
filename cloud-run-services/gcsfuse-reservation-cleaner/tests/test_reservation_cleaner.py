@@ -646,15 +646,129 @@ class TestReservationClient(unittest.TestCase):
         self.assertIsNone(usage["error"])
 
     def test_query_reservation_usage_never_used(self):
-        mock_response = MagicMock()
-        mock_response.status = 200
-        mock_response.data = json.dumps({"timeSeries": []}).encode("utf-8")
-        self.mock_http.request.return_value = mock_response
+        for payload in (
+            {"timeSeries": []},
+            {"timeSeries": None},
+            {"timeSeries": "not-a-list"},
+            {"timeSeries": [{"points": None}]},
+            {"timeSeries": [{"points": [{"value": None, "interval": None}]}]},
+            {
+                "timeSeries": [
+                    None,
+                    "bad",
+                    {
+                        "points": [
+                            None,
+                            "bad",
+                            {"value": "bad", "interval": "bad"},
+                            {"value": {"int64Value": "0"}, "interval": "bad"},
+                            {"value": {"int64Value": "not-an-int", "doubleValue": "invalid"}, "interval": "bad"},
+                        ]
+                    },
+                ]
+            },
+        ):
+            with self.subTest(payload=payload):
+                mock_response = MagicMock()
+                mock_response.status = 200
+                mock_response.data = json.dumps(payload).encode("utf-8")
+                self.mock_http.request.return_value = mock_response
 
-        usage = self.client.query_reservation_usage("my-project", "1002")
-        self.assertTrue(usage["is_never_used"])
-        self.assertIsNone(usage["last_used_timestamp"])
-        self.assertEqual(usage["total_active_hours"], 0)
+                usage = self.client.query_reservation_usage("my-project", "1002")
+                self.assertTrue(usage["is_never_used"])
+                self.assertIsNone(usage["last_used_timestamp"])
+                self.assertEqual(usage["total_active_hours"], 0)
+
+    def test_query_reservation_usage_active_with_missing_or_bad_interval(self):
+        # Case 1: Active point with invalid interval returns is_never_used=False and last_used_timestamp=None
+        payload_bad_interval = {
+            "timeSeries": [
+                {
+                    "points": [
+                        {"value": {"int64Value": "1"}, "interval": "bad"},
+                    ]
+                }
+            ]
+        }
+        mock_response1 = MagicMock()
+        mock_response1.status = 200
+        mock_response1.data = json.dumps(payload_bad_interval).encode("utf-8")
+        self.mock_http.request.return_value = mock_response1
+
+        usage1 = self.client.query_reservation_usage("my-project", "1002-bad-interval")
+        self.assertFalse(usage1["is_never_used"])
+        self.assertIsNone(usage1["last_used_timestamp"])
+        self.assertIsNone(usage1["first_used_timestamp"])
+        self.assertEqual(usage1["total_active_hours"], 1)
+        self.assertEqual(usage1["max_usage_count"], 1)
+
+        # Case 2: Mixing an active point with interval: None and an active point with valid endTime sorts cleanly
+        payload_mixed = {
+            "timeSeries": [
+                {
+                    "points": [
+                        {"value": {"int64Value": "2"}, "interval": None},
+                        {
+                            "value": {"int64Value": "1"},
+                            "interval": {"endTime": "2026-07-01T01:00:00Z"},
+                        },
+                    ]
+                }
+            ]
+        }
+        mock_response2 = MagicMock()
+        mock_response2.status = 200
+        mock_response2.data = json.dumps(payload_mixed).encode("utf-8")
+        self.mock_http.request.return_value = mock_response2
+
+        usage2 = self.client.query_reservation_usage("my-project", "1002-mixed-interval")
+        self.assertFalse(usage2["is_never_used"])
+        self.assertEqual(usage2["last_used_timestamp"], "2026-07-01T01:00:00Z")
+        self.assertEqual(usage2["first_used_timestamp"], "2026-07-01T01:00:00Z")
+        self.assertEqual(usage2["total_active_hours"], 2)
+        self.assertEqual(usage2["max_usage_count"], 2)
+
+    def test_query_reservation_usage_multi_page(self):
+        page_1 = MagicMock()
+        page_1.status = 200
+        page_1.data = json.dumps(
+            {
+                "nextPageToken": "token-2",
+                "timeSeries": [
+                    {
+                        "points": [
+                            {
+                                "interval": {"startTime": "2026-06-01T00:00:00Z", "endTime": "2026-06-01T01:00:00Z"},
+                                "value": {"int64Value": "0"},
+                            }
+                        ]
+                    }
+                ],
+            }
+        ).encode("utf-8")
+
+        page_2 = MagicMock()
+        page_2.status = 200
+        page_2.data = json.dumps(
+            {
+                "timeSeries": [
+                    {
+                        "points": [
+                            {
+                                "interval": {"startTime": "2026-07-15T00:00:00Z", "endTime": "2026-07-15T01:00:00Z"},
+                                "value": {"int64Value": "1"},
+                            }
+                        ]
+                    }
+                ],
+            }
+        ).encode("utf-8")
+
+        self.mock_http.request.side_effect = [page_1, page_2]
+        usage = self.client.query_reservation_usage("my-project", "1002-multi")
+        self.assertFalse(usage["is_never_used"])
+        self.assertEqual(usage["last_used_timestamp"], "2026-07-15T01:00:00Z")
+        self.assertEqual(usage["total_active_hours"], 1)
 
     def test_query_reservation_usage_http_error(self):
         err_response = MagicMock()
@@ -665,6 +779,66 @@ class TestReservationClient(unittest.TestCase):
         usage = self.client.query_reservation_usage("my-project", "1003")
         self.assertIsNotNone(usage["error"])
         self.assertFalse(usage["is_never_used"])
+
+    def test_query_reservation_usage_pagination_bounded(self):
+        infinite_page = MagicMock()
+        infinite_page.status = 200
+        infinite_page.data = json.dumps(
+            {
+                "nextPageToken": "infinite-token",
+                "timeSeries": [],
+            }
+        ).encode("utf-8")
+        self.mock_http.request.return_value = infinite_page
+
+        usage = self.client.query_reservation_usage("my-project", "1003-infinite")
+        self.assertEqual(self.mock_http.request.call_count, 100)
+        self.assertIsNotNone(usage["error"])
+        self.assertIn("Pagination limit", usage["error"])
+        self.assertFalse(usage["is_never_used"])
+
+    def test_query_reservation_usage_invalid_utf8_bytes_handled(self):
+        err_response = MagicMock()
+        err_response.status = 500
+        err_response.data = b"Error with non-utf8 bytes: \xff\xfe"
+        self.mock_http.request.return_value = err_response
+
+        usage = self.client.query_reservation_usage("my-project", "1003-utf8")
+        self.assertIsNotNone(usage["error"])
+        self.assertIn("\ufffd", usage["error"])
+
+        ok_response = MagicMock()
+        ok_response.status = 200
+        ok_response.data = b'{"timeSeries": [], "extra": "\xff\xfe"}'
+        self.mock_http.request.return_value = ok_response
+
+        usage_ok = self.client.query_reservation_usage("my-project", "1003-utf8-ok")
+        self.assertIsNone(usage_ok["error"])
+        self.assertTrue(usage_ok["is_never_used"])
+
+    def test_query_reservation_usage_malformed_json(self):
+        bad_json_resp = MagicMock()
+        bad_json_resp.status = 200
+        bad_json_resp.data = b"{malformed-json"
+        self.mock_http.request.return_value = bad_json_resp
+
+        usage = self.client.query_reservation_usage("my-project", "1003-bad-json")
+        self.assertIsNotNone(usage["error"])
+        self.assertTrue(usage["error"].startswith("Failed to parse monitoring metrics JSON:"))
+        self.assertFalse(usage["is_never_used"])
+
+    def test_query_reservation_usage_non_dict_json(self):
+        for payload in (b"null", b"[]", b'"string-response"'):
+            with self.subTest(payload=payload):
+                non_dict_resp = MagicMock()
+                non_dict_resp.status = 200
+                non_dict_resp.data = payload
+                self.mock_http.request.return_value = non_dict_resp
+
+                usage = self.client.query_reservation_usage("my-project", "1003-non-dict")
+                self.assertIsNotNone(usage["error"])
+                self.assertIn("expected a dictionary", usage["error"])
+                self.assertFalse(usage["is_never_used"])
 
     def test_delete_reservation_success(self):
         mock_resp = MagicMock()
@@ -974,6 +1148,39 @@ class TestReservationProcessor(unittest.TestCase):
         self.assertFalse(evaluated["is_candidate"])
         self.assertEqual(evaluated["action"], "retained_never_used")
 
+    def test_never_used_young_reservation_retained_even_when_policy_enabled(self):
+        """Never used reservation created < delete_idle_days ago must be retained even if delete_never_used=True."""
+        self.config.delete_never_used = True
+        self.config.delete_idle_days = 60.0
+
+        never_used_1_day_old = {
+            "id": "1005-new",
+            "name": "release-test-centos-stream-10-arm64",
+            "zone": "europe-west4-a",
+            "creationTimestamp": "2026-08-30T12:00:00Z",  # 1 day old (< 60 day threshold)
+            "specificReservation": {
+                "count": "1",
+                "inUseCount": "0",
+                "instanceProperties": {"machineType": "t2a-standard-4"},
+            },
+        }
+
+        self.mock_client.query_reservation_usage.return_value = {
+            "is_never_used": True,
+            "last_used_timestamp": None,
+            "first_used_timestamp": None,
+            "total_active_hours": 0,
+            "max_usage_count": 0,
+            "error": None,
+        }
+
+        evaluated = self.processor.evaluate_reservation(never_used_1_day_old, now=self.ref_now)
+        self.assertEqual(evaluated["status"], "Never Used")
+        self.assertFalse(evaluated["is_candidate"])
+        self.assertEqual(evaluated["action"], "retained_never_used")
+        self.assertIn("created recently", evaluated["reason"])
+        self.mock_client.delete_reservation.assert_not_called()
+
     def test_dry_run_mode_never_deletes(self):
         """Dry-run mode records candidate and savings without calling delete API."""
         self.config.dry_run = True
@@ -1033,6 +1240,84 @@ class TestReservationProcessor(unittest.TestCase):
         self.assertEqual(evaluated["status"], "Query Error")
         self.assertFalse(evaluated["is_candidate"])
         self.assertEqual(evaluated["action"], "retained_error")
+
+    def test_never_used_unknown_age_is_safely_retained(self):
+        """Never-used reservation with missing or invalid creationTimestamp is retained as retained_error."""
+        self.config.delete_never_used = True
+
+        # Case 1: Missing creationTimestamp with is_never_used=True
+        missing_ts_res = {
+            "id": "1008a",
+            "name": "missing-ts-res",
+            "zone": "us-central1-a",
+            "specificReservation": {
+                "count": "1",
+                "inUseCount": "0",
+                "instanceProperties": {"machineType": "n2-standard-4"},
+            },
+        }
+        self.mock_client.query_reservation_usage.return_value = {
+            "is_never_used": True,
+            "last_used_timestamp": None,
+            "first_used_timestamp": None,
+            "total_active_hours": 0,
+            "max_usage_count": 0,
+            "error": None,
+        }
+        evaluated1 = self.processor.evaluate_reservation(missing_ts_res, now=self.ref_now)
+        self.assertEqual(evaluated1["status"], "Never Used")
+        self.assertFalse(evaluated1["is_candidate"])
+        self.assertEqual(evaluated1["action"], "retained_error")
+        self.assertIn("unknown (missing or invalid creation timestamp)", evaluated1["reason"])
+
+        # Case 2: Unparseable creationTimestamp with is_never_used=True
+        invalid_ts_res = {
+            "id": "1008b",
+            "name": "invalid-ts-res",
+            "zone": "us-central1-a",
+            "creationTimestamp": "not-a-valid-timestamp",
+            "specificReservation": {
+                "count": "1",
+                "inUseCount": "0",
+                "instanceProperties": {"machineType": "n2-standard-4"},
+            },
+        }
+        evaluated2 = self.processor.evaluate_reservation(invalid_ts_res, now=self.ref_now)
+        self.assertEqual(evaluated2["status"], "Never Used")
+        self.assertFalse(evaluated2["is_candidate"])
+        self.assertEqual(evaluated2["action"], "retained_error")
+        self.assertIn("unknown (missing or invalid creation timestamp)", evaluated2["reason"])
+
+        # Case 3: Fallback else branch (is_never_used=False, last_used_timestamp=None) -> Timestamp Error
+        fallback_missing_ts_res = {
+            "id": "1008c",
+            "name": "fallback-missing-ts-res",
+            "zone": "us-central1-a",
+            "creationTimestamp": "2025-01-01T00:00:00Z",
+            "specificReservation": {
+                "count": "1",
+                "inUseCount": "0",
+                "instanceProperties": {"machineType": "n2-standard-4"},
+            },
+        }
+        self.mock_client.query_reservation_usage.return_value = {
+            "is_never_used": False,
+            "last_used_timestamp": None,
+            "first_used_timestamp": None,
+            "total_active_hours": 0,
+            "max_usage_count": 0,
+            "error": None,
+        }
+        evaluated3 = self.processor.evaluate_reservation(fallback_missing_ts_res, now=self.ref_now)
+        self.assertEqual(evaluated3["status"], "Timestamp Error")
+        self.assertFalse(evaluated3["is_candidate"])
+        self.assertEqual(evaluated3["action"], "retained_error")
+        self.assertEqual(
+            evaluated3["reason"],
+            "Active usage was detected, but the last used timestamp is missing or invalid.",
+        )
+
+        self.mock_client.delete_reservation.assert_not_called()
 
 
 class TestReservationCleanerService(unittest.TestCase):
@@ -1142,6 +1427,7 @@ class TestReservationCleanerService(unittest.TestCase):
                 "id": "101",
                 "name": "active-res",
                 "zone": "us-central1-a",
+                "creationTimestamp": "2025-01-01T00:00:00Z",
                 "specificReservation": {
                     "count": "2",
                     "inUseCount": "2",
@@ -1152,6 +1438,7 @@ class TestReservationCleanerService(unittest.TestCase):
                 "id": "102",
                 "name": "idle-res",
                 "zone": "us-central1-b",
+                "creationTimestamp": "2025-01-01T00:00:00Z",
                 "specificReservation": {
                     "count": "1",
                     "inUseCount": "0",
@@ -1162,6 +1449,7 @@ class TestReservationCleanerService(unittest.TestCase):
                 "id": "103",
                 "name": "never-used-res",
                 "zone": "europe-west4-a",
+                "creationTimestamp": "2025-01-01T00:00:00Z",
                 "specificReservation": {
                     "count": "1",
                     "inUseCount": "0",
@@ -1172,6 +1460,7 @@ class TestReservationCleanerService(unittest.TestCase):
                 "id": "104",
                 "name": "recently-used-res",
                 "zone": "asia-northeast1-a",
+                "creationTimestamp": "2025-01-01T00:00:00Z",
                 "specificReservation": {
                     "count": "1",
                     "inUseCount": "0",

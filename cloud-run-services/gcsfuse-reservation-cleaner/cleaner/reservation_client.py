@@ -30,6 +30,7 @@ COMPUTE_API_BASE = "https://compute.googleapis.com/compute/v1"
 MONITORING_API_BASE = "https://monitoring.googleapis.com/v3"
 DEFAULT_SCOPES = ["https://www.googleapis.com/auth/cloud-platform"]
 DEFAULT_POOL_SIZE = 10
+MAX_PAGINATION_PAGES = 100
 
 
 class ReservationClient:
@@ -180,14 +181,65 @@ class ReservationClient:
             "aggregation.perSeriesAligner": "ALIGN_MAX",
         }
 
-        url = f"{MONITORING_API_BASE}/projects/{project_id}/timeSeries?{urllib.parse.urlencode(params)}"
-        headers = self._get_auth_headers()
+        time_series: List[Dict[str, Any]] = []
+        page_token: Optional[str] = None
 
-        logger.debug("Querying Monitoring usage for reservation_id %s: %s", reservation_id, url)
-        response = self._http.request("GET", url, headers=headers, timeout=30.0)
+        for _ in range(MAX_PAGINATION_PAGES):
+            req_params = dict(params)
+            if page_token:
+                req_params["pageToken"] = page_token
 
-        if response.status != 200:
-            error_msg = f"Failed to query monitoring metrics (HTTP {response.status}): {response.data.decode('utf-8')}"
+            url = f"{MONITORING_API_BASE}/projects/{project_id}/timeSeries?{urllib.parse.urlencode(req_params)}"
+            headers = self._get_auth_headers()
+
+            logger.debug("Querying Monitoring usage for reservation_id %s: %s", reservation_id, url)
+            response = self._http.request("GET", url, headers=headers, timeout=30.0)
+
+            if response.status != 200:
+                error_msg = f"Failed to query monitoring metrics (HTTP {response.status}): {response.data.decode('utf-8', errors='replace')}"
+                logger.error(error_msg)
+                return {
+                    "is_never_used": False,
+                    "last_used_timestamp": None,
+                    "first_used_timestamp": None,
+                    "total_active_hours": 0,
+                    "max_usage_count": 0,
+                    "error": error_msg,
+                }
+
+            try:
+                data = json.loads(response.data.decode("utf-8", errors="replace"))
+            except json.JSONDecodeError as e:
+                error_msg = f"Failed to parse monitoring metrics JSON: {e}"
+                logger.error(error_msg)
+                return {
+                    "is_never_used": False,
+                    "last_used_timestamp": None,
+                    "first_used_timestamp": None,
+                    "total_active_hours": 0,
+                    "max_usage_count": 0,
+                    "error": error_msg,
+                }
+            if not isinstance(data, dict):
+                error_msg = f"Unexpected JSON response format from monitoring metrics: expected a dictionary, got {type(data).__name__}"
+                logger.error(error_msg)
+                return {
+                    "is_never_used": False,
+                    "last_used_timestamp": None,
+                    "first_used_timestamp": None,
+                    "total_active_hours": 0,
+                    "max_usage_count": 0,
+                    "error": error_msg,
+                }
+            ts_list = data.get("timeSeries") or []
+            if isinstance(ts_list, list):
+                time_series.extend(ts_list)
+            raw_token = data.get("nextPageToken")
+            page_token = raw_token if isinstance(raw_token, str) else None
+            if not page_token:
+                break
+        else:
+            error_msg = f"Pagination limit of {MAX_PAGINATION_PAGES} pages exceeded while querying monitoring metrics."
             logger.error(error_msg)
             return {
                 "is_never_used": False,
@@ -198,25 +250,40 @@ class ReservationClient:
                 "error": error_msg,
             }
 
-        data = json.loads(response.data.decode("utf-8"))
-        time_series = data.get("timeSeries", [])
-
         active_points: List[Dict[str, Any]] = []
 
         for series in time_series:
-            points = series.get("points", [])
+            if not isinstance(series, dict):
+                continue
+            points = series.get("points") or []
+            if not isinstance(points, list):
+                continue
             for point in points:
-                val_obj = point.get("value", {})
-                int_val = int(val_obj.get("int64Value", 0)) if "int64Value" in val_obj else 0
-                double_val = float(val_obj.get("doubleValue", 0.0)) if "doubleValue" in val_obj else 0.0
+                if not isinstance(point, dict):
+                    continue
+                val_obj = point.get("value") or {}
+                if not isinstance(val_obj, dict):
+                    continue
+                try:
+                    int_val = int(val_obj.get("int64Value", 0)) if "int64Value" in val_obj and val_obj["int64Value"] is not None else 0
+                except (ValueError, TypeError):
+                    int_val = 0
+                try:
+                    double_val = float(val_obj.get("doubleValue", 0.0)) if "doubleValue" in val_obj and val_obj["doubleValue"] is not None else 0.0
+                except (ValueError, TypeError):
+                    double_val = 0.0
                 usage_val = int_val or int(double_val)
 
                 if usage_val > 0:
-                    end_time_str = point.get("interval", {}).get("endTime")
-                    start_time_str = point.get("interval", {}).get("startTime")
+                    interval_obj = point.get("interval")
+                    if isinstance(interval_obj, dict):
+                        raw_time = interval_obj.get("endTime") or interval_obj.get("startTime")
+                        time_str = raw_time if isinstance(raw_time, str) else ""
+                    else:
+                        time_str = ""
                     active_points.append(
                         {
-                            "time": end_time_str or start_time_str,
+                            "time": time_str,
                             "usage": usage_val,
                         }
                     )
@@ -231,10 +298,9 @@ class ReservationClient:
                 "error": None,
             }
 
-        # Sort points chronologically
-        active_points.sort(key=lambda p: p["time"])
-        first_used = active_points[0]["time"]
-        last_used = active_points[-1]["time"]
+        valid_times = sorted(p["time"] for p in active_points if p["time"])
+        first_used = valid_times[0] if valid_times else None
+        last_used = valid_times[-1] if valid_times else None
         max_usage = max(p["usage"] for p in active_points)
         total_active_hours = len(active_points)
 
