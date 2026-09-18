@@ -649,8 +649,23 @@ class TestReservationClient(unittest.TestCase):
         for payload in (
             {"timeSeries": []},
             {"timeSeries": None},
+            {"timeSeries": "not-a-list"},
             {"timeSeries": [{"points": None}]},
             {"timeSeries": [{"points": [{"value": None, "interval": None}]}]},
+            {
+                "timeSeries": [
+                    None,
+                    "bad",
+                    {
+                        "points": [
+                            None,
+                            "bad",
+                            {"value": "bad", "interval": "bad"},
+                            {"value": {"int64Value": "1"}, "interval": "bad"},
+                        ]
+                    },
+                ]
+            },
         ):
             with self.subTest(payload=payload):
                 mock_response = MagicMock()

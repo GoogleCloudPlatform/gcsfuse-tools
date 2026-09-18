@@ -231,7 +231,9 @@ class ReservationClient:
                     "max_usage_count": 0,
                     "error": error_msg,
                 }
-            time_series.extend(data.get("timeSeries") or [])
+            ts_list = data.get("timeSeries") or []
+            if isinstance(ts_list, list):
+                time_series.extend(ts_list)
             page_token = data.get("nextPageToken")
             if not page_token:
                 break
@@ -250,15 +252,25 @@ class ReservationClient:
         active_points: List[Dict[str, Any]] = []
 
         for series in time_series:
+            if not isinstance(series, dict):
+                continue
             points = series.get("points") or []
+            if not isinstance(points, list):
+                continue
             for point in points:
+                if not isinstance(point, dict):
+                    continue
                 val_obj = point.get("value") or {}
+                if not isinstance(val_obj, dict):
+                    continue
                 int_val = int(val_obj.get("int64Value", 0)) if "int64Value" in val_obj else 0
                 double_val = float(val_obj.get("doubleValue", 0.0)) if "doubleValue" in val_obj else 0.0
                 usage_val = int_val or int(double_val)
 
                 if usage_val > 0:
                     interval_obj = point.get("interval") or {}
+                    if not isinstance(interval_obj, dict):
+                        continue
                     end_time_str = interval_obj.get("endTime")
                     start_time_str = interval_obj.get("startTime")
                     active_points.append(
