@@ -180,26 +180,37 @@ class ReservationClient:
             "aggregation.perSeriesAligner": "ALIGN_MAX",
         }
 
-        url = f"{MONITORING_API_BASE}/projects/{project_id}/timeSeries?{urllib.parse.urlencode(params)}"
-        headers = self._get_auth_headers()
+        time_series: List[Dict[str, Any]] = []
+        page_token: Optional[str] = None
 
-        logger.debug("Querying Monitoring usage for reservation_id %s: %s", reservation_id, url)
-        response = self._http.request("GET", url, headers=headers, timeout=30.0)
+        while True:
+            req_params = dict(params)
+            if page_token:
+                req_params["pageToken"] = page_token
 
-        if response.status != 200:
-            error_msg = f"Failed to query monitoring metrics (HTTP {response.status}): {response.data.decode('utf-8')}"
-            logger.error(error_msg)
-            return {
-                "is_never_used": False,
-                "last_used_timestamp": None,
-                "first_used_timestamp": None,
-                "total_active_hours": 0,
-                "max_usage_count": 0,
-                "error": error_msg,
-            }
+            url = f"{MONITORING_API_BASE}/projects/{project_id}/timeSeries?{urllib.parse.urlencode(req_params)}"
+            headers = self._get_auth_headers()
 
-        data = json.loads(response.data.decode("utf-8"))
-        time_series = data.get("timeSeries", [])
+            logger.debug("Querying Monitoring usage for reservation_id %s: %s", reservation_id, url)
+            response = self._http.request("GET", url, headers=headers, timeout=30.0)
+
+            if response.status != 200:
+                error_msg = f"Failed to query monitoring metrics (HTTP {response.status}): {response.data.decode('utf-8')}"
+                logger.error(error_msg)
+                return {
+                    "is_never_used": False,
+                    "last_used_timestamp": None,
+                    "first_used_timestamp": None,
+                    "total_active_hours": 0,
+                    "max_usage_count": 0,
+                    "error": error_msg,
+                }
+
+            data = json.loads(response.data.decode("utf-8"))
+            time_series.extend(data.get("timeSeries", []))
+            page_token = data.get("nextPageToken")
+            if not page_token:
+                break
 
         active_points: List[Dict[str, Any]] = []
 

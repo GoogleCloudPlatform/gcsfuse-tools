@@ -656,6 +656,48 @@ class TestReservationClient(unittest.TestCase):
         self.assertIsNone(usage["last_used_timestamp"])
         self.assertEqual(usage["total_active_hours"], 0)
 
+    def test_query_reservation_usage_multi_page(self):
+        page_1 = MagicMock()
+        page_1.status = 200
+        page_1.data = json.dumps(
+            {
+                "nextPageToken": "token-2",
+                "timeSeries": [
+                    {
+                        "points": [
+                            {
+                                "interval": {"startTime": "2026-06-01T00:00:00Z", "endTime": "2026-06-01T01:00:00Z"},
+                                "value": {"int64Value": "0"},
+                            }
+                        ]
+                    }
+                ],
+            }
+        ).encode("utf-8")
+
+        page_2 = MagicMock()
+        page_2.status = 200
+        page_2.data = json.dumps(
+            {
+                "timeSeries": [
+                    {
+                        "points": [
+                            {
+                                "interval": {"startTime": "2026-07-15T00:00:00Z", "endTime": "2026-07-15T01:00:00Z"},
+                                "value": {"int64Value": "1"},
+                            }
+                        ]
+                    }
+                ],
+            }
+        ).encode("utf-8")
+
+        self.mock_http.request.side_effect = [page_1, page_2]
+        usage = self.client.query_reservation_usage("my-project", "1002-multi")
+        self.assertFalse(usage["is_never_used"])
+        self.assertEqual(usage["last_used_timestamp"], "2026-07-15T01:00:00Z")
+        self.assertEqual(usage["total_active_hours"], 1)
+
     def test_query_reservation_usage_http_error(self):
         err_response = MagicMock()
         err_response.status = 500
@@ -973,6 +1015,39 @@ class TestReservationProcessor(unittest.TestCase):
         self.assertEqual(evaluated["status"], "Never Used")
         self.assertFalse(evaluated["is_candidate"])
         self.assertEqual(evaluated["action"], "retained_never_used")
+
+    def test_never_used_young_reservation_retained_even_when_policy_enabled(self):
+        """Never used reservation created < delete_idle_days ago must be retained even if delete_never_used=True."""
+        self.config.delete_never_used = True
+        self.config.delete_idle_days = 60.0
+
+        never_used_1_day_old = {
+            "id": "1005-new",
+            "name": "release-test-centos-stream-10-arm64",
+            "zone": "europe-west4-a",
+            "creationTimestamp": "2026-08-30T12:00:00Z",  # 1 day old (< 60 day threshold)
+            "specificReservation": {
+                "count": "1",
+                "inUseCount": "0",
+                "instanceProperties": {"machineType": "t2a-standard-4"},
+            },
+        }
+
+        self.mock_client.query_reservation_usage.return_value = {
+            "is_never_used": True,
+            "last_used_timestamp": None,
+            "first_used_timestamp": None,
+            "total_active_hours": 0,
+            "max_usage_count": 0,
+            "error": None,
+        }
+
+        evaluated = self.processor.evaluate_reservation(never_used_1_day_old, now=self.ref_now)
+        self.assertEqual(evaluated["status"], "Never Used")
+        self.assertFalse(evaluated["is_candidate"])
+        self.assertEqual(evaluated["action"], "retained_never_used")
+        self.assertIn("created recently", evaluated["reason"])
+        self.mock_client.delete_reservation.assert_not_called()
 
     def test_dry_run_mode_never_deletes(self):
         """Dry-run mode records candidate and savings without calling delete API."""

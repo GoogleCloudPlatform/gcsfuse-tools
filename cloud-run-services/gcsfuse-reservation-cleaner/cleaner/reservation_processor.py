@@ -232,7 +232,14 @@ class ReservationProcessor:
         if is_never_used:
             res_record["status"] = "Never Used"
             # Check deletion policy for never-used reservations
-            if self.config.delete_never_used:
+            if age_days is not None and age_days < self.config.delete_idle_days:
+                res_record["is_candidate"] = False
+                res_record["action"] = "retained_never_used"
+                res_record["reason"] = (
+                    f"Never used, but created recently ({age_days} days ago, "
+                    f"under idle threshold {self.config.delete_idle_days} days)."
+                )
+            elif self.config.delete_never_used:
                 res_record["is_candidate"] = True
                 res_record["reason"] = "Never used in monitored historical window (0 active hours)."
             elif (
@@ -276,9 +283,25 @@ class ReservationProcessor:
         else:
             # Fallback if metric returned no error and not marked never used
             res_record["status"] = "Never Used"
-            if self.config.delete_never_used:
+            if age_days is not None and age_days < self.config.delete_idle_days:
+                res_record["is_candidate"] = False
+                res_record["action"] = "retained_never_used"
+                res_record["reason"] = (
+                    f"No active usage recorded, but created recently ({age_days} days ago, "
+                    f"under idle threshold {self.config.delete_idle_days} days)."
+                )
+            elif self.config.delete_never_used:
                 res_record["is_candidate"] = True
                 res_record["reason"] = "No active usage recorded."
+            elif (
+                self.config.max_age_days is not None
+                and age_days is not None
+                and age_days >= self.config.max_age_days
+            ):
+                res_record["is_candidate"] = True
+                res_record["reason"] = (
+                    f"No active usage recorded and exceeds max age threshold ({age_days}d >= {self.config.max_age_days}d)."
+                )
             else:
                 res_record["is_candidate"] = False
                 res_record["action"] = "retained_never_used"
