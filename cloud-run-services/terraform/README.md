@@ -104,7 +104,7 @@ terraform apply tfplan
 | `reservation_cleaner_schedule_name` | `string` | `"gcsfuse-reservation-cleaner-scheduler"` | No | Cloud Scheduler job name for GCE Reservation Cleaner. |
 | `reservation_cleaner_schedule` | `string` | `"0 0 * * *"` | No | Cron schedule for Reservation Cleaner (Daily at 00:00 UTC). |
 | `reservation_cleaner_image` | `string` | `""` | No | Container image URL override for Reservation Cleaner. |
-| `reservation_cleaner_delete_idle_days` | `number` | `60` | No | Days of continuous 0-utilization before an unused reservation is deleted. |
+| `reservation_cleaner_delete_idle_days` | `number` | `90` | No | Days of continuous 0-utilization before an unused reservation is deleted. |
 | `reservation_cleaner_delete_never_used` | `bool` | `true` | No | Whether to delete reservations never used since creation. |
 | `reservation_cleaner_max_age_days` | `number` | `180` | No | Maximum age in days before an idle reservation is deleted. |
 | `reservation_cleaner_lookback_days` | `number` | `730` | No | Cloud Monitoring historical metric lookback window (days). |

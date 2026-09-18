@@ -191,6 +191,7 @@ class TestCleanerConfig(unittest.TestCase):
         with patch.dict(os.environ, {}, clear=True):
             cfg = CleanerConfig.from_dict({})
             self.assertEqual(cfg.project_id, "adc-project-789")
+            self.assertEqual(cfg.delete_idle_days, 90.0)
 
     def test_config_validation_missing_project_raises(self):
         with patch.dict(os.environ, {}, clear=True):
@@ -865,7 +866,7 @@ class TestReservationProcessor(unittest.TestCase):
     def setUp(self):
         self.config = CleanerConfig(
             project_id="test-proj",
-            delete_idle_days=60.0,
+            delete_idle_days=90.0,
             delete_never_used=True,
             max_age_days=180.0,
             dry_run=False,
@@ -915,10 +916,10 @@ class TestReservationProcessor(unittest.TestCase):
             },
         }
 
-        # Last used 90 days ago (> 60 day threshold)
+        # Last used 120 days ago (> 90 day threshold)
         self.mock_client.query_reservation_usage.return_value = {
             "is_never_used": False,
-            "last_used_timestamp": "2026-06-02T12:00:00Z",  # 90 days before 2026-08-31
+            "last_used_timestamp": "2026-05-03T12:00:00Z",  # 120 days before 2026-08-31
             "first_used_timestamp": "2025-02-01T00:00:00Z",
             "total_active_hours": 100,
             "max_usage_count": 2,
@@ -928,7 +929,7 @@ class TestReservationProcessor(unittest.TestCase):
         evaluated = self.processor.evaluate_reservation(idle_res, now=self.ref_now)
         self.assertEqual(evaluated["status"], "Idle")
         self.assertTrue(evaluated["is_candidate"])
-        self.assertAlmostEqual(evaluated["days_since_last_used"], 90.0, places=0)
+        self.assertAlmostEqual(evaluated["days_since_last_used"], 120.0, places=0)
 
         # Process deletion
         self.mock_client.delete_reservation.return_value = True
@@ -955,7 +956,7 @@ class TestReservationProcessor(unittest.TestCase):
             },
         }
 
-        # Last used 10 days ago (< 60 day threshold)
+        # Last used 10 days ago (< 90 day threshold)
         self.mock_client.query_reservation_usage.return_value = {
             "is_never_used": False,
             "last_used_timestamp": "2026-08-21T12:00:00Z",
@@ -1151,13 +1152,13 @@ class TestReservationProcessor(unittest.TestCase):
     def test_never_used_young_reservation_retained_even_when_policy_enabled(self):
         """Never used reservation created < delete_idle_days ago must be retained even if delete_never_used=True."""
         self.config.delete_never_used = True
-        self.config.delete_idle_days = 60.0
+        self.config.delete_idle_days = 90.0
 
         never_used_1_day_old = {
             "id": "1005-new",
             "name": "release-test-centos-stream-10-arm64",
             "zone": "europe-west4-a",
-            "creationTimestamp": "2026-08-30T12:00:00Z",  # 1 day old (< 60 day threshold)
+            "creationTimestamp": "2026-08-30T12:00:00Z",  # 1 day old (< 90 day threshold)
             "specificReservation": {
                 "count": "1",
                 "inUseCount": "0",
@@ -1326,7 +1327,7 @@ class TestReservationCleanerService(unittest.TestCase):
     def setUp(self):
         self.config = CleanerConfig(
             project_id="test-fleet-project",
-            delete_idle_days=60.0,
+            delete_idle_days=90.0,
             delete_never_used=True,
             dry_run=False,
             max_workers=4,

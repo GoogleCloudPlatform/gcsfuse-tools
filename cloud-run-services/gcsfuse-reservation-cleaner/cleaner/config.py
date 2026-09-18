@@ -79,7 +79,7 @@ class CleanerConfig:
     """Runtime configuration for Reservation Cleaner."""
 
     project_id: str
-    delete_idle_days: float = 60.0
+    delete_idle_days: float = 90.0
     delete_never_used: bool = True
     max_age_days: Optional[float] = 180.0
     lookback_days: int = 730
@@ -189,7 +189,7 @@ class CleanerConfig:
             ["delete_idle_days", "idle_days", "idleDaysThreshold"],
             ["DELETE_IDLE_DAYS", "IDLE_DAYS"],
         )
-        delete_idle_days = float(raw_idle_days) if raw_idle_days is not None else 60.0
+        delete_idle_days = float(raw_idle_days) if raw_idle_days is not None else 90.0
 
         # 3. Resolve delete_never_used
         raw_never_used = _get_val(
