@@ -224,6 +224,17 @@ class ReservationClient:
             page_token = data.get("nextPageToken")
             if not page_token:
                 break
+        else:
+            error_msg = f"Pagination limit of {MAX_PAGINATION_PAGES} pages exceeded while querying monitoring metrics."
+            logger.error(error_msg)
+            return {
+                "is_never_used": False,
+                "last_used_timestamp": None,
+                "first_used_timestamp": None,
+                "total_active_hours": 0,
+                "max_usage_count": 0,
+                "error": error_msg,
+            }
 
         active_points: List[Dict[str, Any]] = []
 

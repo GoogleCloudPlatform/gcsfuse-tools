@@ -721,7 +721,9 @@ class TestReservationClient(unittest.TestCase):
 
         usage = self.client.query_reservation_usage("my-project", "1003-infinite")
         self.assertEqual(self.mock_http.request.call_count, 100)
-        self.assertTrue(usage["is_never_used"])
+        self.assertIsNotNone(usage["error"])
+        self.assertIn("Pagination limit", usage["error"])
+        self.assertFalse(usage["is_never_used"])
 
     def test_query_reservation_usage_invalid_utf8_bytes_handled(self):
         err_response = MagicMock()
