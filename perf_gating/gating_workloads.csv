@@ -1,0 +1,9 @@
+io_type,file_size,block_size,num_jobs,config,direct
+read,1m,1m,48,http1,0
+read,1m,1m,48,grpc,0
+read,1g,1m,48,http1,0
+read,1g,1m,48,grpc,0
+write,1m,1m,48,http1,0
+write,1m,1m,48,grpc,0
+write,1g,1m,48,http1,0
+write,1g,1m,48,grpc,0
