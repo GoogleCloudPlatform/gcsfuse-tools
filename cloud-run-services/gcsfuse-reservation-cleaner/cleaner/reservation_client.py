@@ -30,6 +30,7 @@ COMPUTE_API_BASE = "https://compute.googleapis.com/compute/v1"
 MONITORING_API_BASE = "https://monitoring.googleapis.com/v3"
 DEFAULT_SCOPES = ["https://www.googleapis.com/auth/cloud-platform"]
 DEFAULT_POOL_SIZE = 10
+MAX_PAGINATION_PAGES = 100
 
 
 class ReservationClient:
@@ -183,7 +184,7 @@ class ReservationClient:
         time_series: List[Dict[str, Any]] = []
         page_token: Optional[str] = None
 
-        while True:
+        for _ in range(MAX_PAGINATION_PAGES):
             req_params = dict(params)
             if page_token:
                 req_params["pageToken"] = page_token
@@ -195,7 +196,7 @@ class ReservationClient:
             response = self._http.request("GET", url, headers=headers, timeout=30.0)
 
             if response.status != 200:
-                error_msg = f"Failed to query monitoring metrics (HTTP {response.status}): {response.data.decode('utf-8')}"
+                error_msg = f"Failed to query monitoring metrics (HTTP {response.status}): {response.data.decode('utf-8', errors='replace')}"
                 logger.error(error_msg)
                 return {
                     "is_never_used": False,
@@ -206,7 +207,7 @@ class ReservationClient:
                     "error": error_msg,
                 }
 
-            data = json.loads(response.data.decode("utf-8"))
+            data = json.loads(response.data.decode("utf-8", errors="replace"))
             time_series.extend(data.get("timeSeries", []))
             page_token = data.get("nextPageToken")
             if not page_token:

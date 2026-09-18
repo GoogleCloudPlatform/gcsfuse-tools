@@ -708,6 +708,40 @@ class TestReservationClient(unittest.TestCase):
         self.assertIsNotNone(usage["error"])
         self.assertFalse(usage["is_never_used"])
 
+    def test_query_reservation_usage_pagination_bounded(self):
+        infinite_page = MagicMock()
+        infinite_page.status = 200
+        infinite_page.data = json.dumps(
+            {
+                "nextPageToken": "infinite-token",
+                "timeSeries": [],
+            }
+        ).encode("utf-8")
+        self.mock_http.request.return_value = infinite_page
+
+        usage = self.client.query_reservation_usage("my-project", "1003-infinite")
+        self.assertEqual(self.mock_http.request.call_count, 100)
+        self.assertTrue(usage["is_never_used"])
+
+    def test_query_reservation_usage_invalid_utf8_bytes_handled(self):
+        err_response = MagicMock()
+        err_response.status = 500
+        err_response.data = b"Error with non-utf8 bytes: \xff\xfe"
+        self.mock_http.request.return_value = err_response
+
+        usage = self.client.query_reservation_usage("my-project", "1003-utf8")
+        self.assertIsNotNone(usage["error"])
+        self.assertIn("\ufffd", usage["error"])
+
+        ok_response = MagicMock()
+        ok_response.status = 200
+        ok_response.data = b'{"timeSeries": [], "extra": "\xff\xfe"}'
+        self.mock_http.request.return_value = ok_response
+
+        usage_ok = self.client.query_reservation_usage("my-project", "1003-utf8-ok")
+        self.assertIsNone(usage_ok["error"])
+        self.assertTrue(usage_ok["is_never_used"])
+
     def test_delete_reservation_success(self):
         mock_resp = MagicMock()
         mock_resp.status = 200
@@ -1109,6 +1143,80 @@ class TestReservationProcessor(unittest.TestCase):
         self.assertFalse(evaluated["is_candidate"])
         self.assertEqual(evaluated["action"], "retained_error")
 
+    def test_never_used_unknown_age_is_safely_retained(self):
+        """Never-used reservation with missing or invalid creationTimestamp is retained as retained_error."""
+        self.config.delete_never_used = True
+
+        # Case 1: Missing creationTimestamp with is_never_used=True
+        missing_ts_res = {
+            "id": "1008a",
+            "name": "missing-ts-res",
+            "zone": "us-central1-a",
+            "specificReservation": {
+                "count": "1",
+                "inUseCount": "0",
+                "instanceProperties": {"machineType": "n2-standard-4"},
+            },
+        }
+        self.mock_client.query_reservation_usage.return_value = {
+            "is_never_used": True,
+            "last_used_timestamp": None,
+            "first_used_timestamp": None,
+            "total_active_hours": 0,
+            "max_usage_count": 0,
+            "error": None,
+        }
+        evaluated1 = self.processor.evaluate_reservation(missing_ts_res, now=self.ref_now)
+        self.assertEqual(evaluated1["status"], "Never Used")
+        self.assertFalse(evaluated1["is_candidate"])
+        self.assertEqual(evaluated1["action"], "retained_error")
+        self.assertIn("unknown (missing or invalid creation timestamp)", evaluated1["reason"])
+
+        # Case 2: Unparseable creationTimestamp with is_never_used=True
+        invalid_ts_res = {
+            "id": "1008b",
+            "name": "invalid-ts-res",
+            "zone": "us-central1-a",
+            "creationTimestamp": "not-a-valid-timestamp",
+            "specificReservation": {
+                "count": "1",
+                "inUseCount": "0",
+                "instanceProperties": {"machineType": "n2-standard-4"},
+            },
+        }
+        evaluated2 = self.processor.evaluate_reservation(invalid_ts_res, now=self.ref_now)
+        self.assertEqual(evaluated2["status"], "Never Used")
+        self.assertFalse(evaluated2["is_candidate"])
+        self.assertEqual(evaluated2["action"], "retained_error")
+        self.assertIn("unknown (missing or invalid creation timestamp)", evaluated2["reason"])
+
+        # Case 3: Fallback else branch (is_never_used=False, last_used_timestamp=None) with missing creationTimestamp
+        fallback_missing_ts_res = {
+            "id": "1008c",
+            "name": "fallback-missing-ts-res",
+            "zone": "us-central1-a",
+            "specificReservation": {
+                "count": "1",
+                "inUseCount": "0",
+                "instanceProperties": {"machineType": "n2-standard-4"},
+            },
+        }
+        self.mock_client.query_reservation_usage.return_value = {
+            "is_never_used": False,
+            "last_used_timestamp": None,
+            "first_used_timestamp": None,
+            "total_active_hours": 0,
+            "max_usage_count": 0,
+            "error": None,
+        }
+        evaluated3 = self.processor.evaluate_reservation(fallback_missing_ts_res, now=self.ref_now)
+        self.assertEqual(evaluated3["status"], "Never Used")
+        self.assertFalse(evaluated3["is_candidate"])
+        self.assertEqual(evaluated3["action"], "retained_error")
+        self.assertIn("unknown (missing or invalid creation timestamp)", evaluated3["reason"])
+
+        self.mock_client.delete_reservation.assert_not_called()
+
 
 class TestReservationCleanerService(unittest.TestCase):
     """Tests for full sweep coordination and aggregate financial reporting."""
@@ -1217,6 +1325,7 @@ class TestReservationCleanerService(unittest.TestCase):
                 "id": "101",
                 "name": "active-res",
                 "zone": "us-central1-a",
+                "creationTimestamp": "2025-01-01T00:00:00Z",
                 "specificReservation": {
                     "count": "2",
                     "inUseCount": "2",
@@ -1227,6 +1336,7 @@ class TestReservationCleanerService(unittest.TestCase):
                 "id": "102",
                 "name": "idle-res",
                 "zone": "us-central1-b",
+                "creationTimestamp": "2025-01-01T00:00:00Z",
                 "specificReservation": {
                     "count": "1",
                     "inUseCount": "0",
@@ -1237,6 +1347,7 @@ class TestReservationCleanerService(unittest.TestCase):
                 "id": "103",
                 "name": "never-used-res",
                 "zone": "europe-west4-a",
+                "creationTimestamp": "2025-01-01T00:00:00Z",
                 "specificReservation": {
                     "count": "1",
                     "inUseCount": "0",
@@ -1247,6 +1358,7 @@ class TestReservationCleanerService(unittest.TestCase):
                 "id": "104",
                 "name": "recently-used-res",
                 "zone": "asia-northeast1-a",
+                "creationTimestamp": "2025-01-01T00:00:00Z",
                 "specificReservation": {
                     "count": "1",
                     "inUseCount": "0",

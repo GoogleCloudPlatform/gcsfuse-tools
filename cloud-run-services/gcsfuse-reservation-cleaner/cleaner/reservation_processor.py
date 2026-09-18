@@ -232,7 +232,11 @@ class ReservationProcessor:
         if is_never_used:
             res_record["status"] = "Never Used"
             # Check deletion policy for never-used reservations
-            if age_days is not None and age_days < self.config.delete_idle_days:
+            if age_days is None:
+                res_record["is_candidate"] = False
+                res_record["action"] = "retained_error"
+                res_record["reason"] = "Never used, but reservation age is unknown (missing or invalid creation timestamp)."
+            elif age_days < self.config.delete_idle_days:
                 res_record["is_candidate"] = False
                 res_record["action"] = "retained_never_used"
                 res_record["reason"] = (
@@ -283,7 +287,11 @@ class ReservationProcessor:
         else:
             # Fallback if metric returned no error and not marked never used
             res_record["status"] = "Never Used"
-            if age_days is not None and age_days < self.config.delete_idle_days:
+            if age_days is None:
+                res_record["is_candidate"] = False
+                res_record["action"] = "retained_error"
+                res_record["reason"] = "No active usage recorded, but reservation age is unknown (missing or invalid creation timestamp)."
+            elif age_days < self.config.delete_idle_days:
                 res_record["is_candidate"] = False
                 res_record["action"] = "retained_never_used"
                 res_record["reason"] = (
