@@ -162,7 +162,7 @@ variable "reservation_cleaner_image" {
 variable "reservation_cleaner_delete_idle_days" {
   type        = number
   description = "Days of continuous zero-utilization before an unused reservation is considered stale for deletion."
-  default     = 60
+  default     = 90
 }
 
 variable "reservation_cleaner_delete_never_used" {

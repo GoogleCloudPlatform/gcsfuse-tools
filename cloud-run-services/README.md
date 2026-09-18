@@ -111,7 +111,7 @@ flowchart TD
 | **Primary Remediation Action** | Resizes idle node pools to size 0 (sets autoscaling min to 0) | Deletes stale or abandoned compute reservations | Stops idle running VMs (optional deletion of long-stopped VMs) | Deletes orphaned `gcsfuse-e2e-*` buckets (>3 days old) with OLM fallback |
 | **Default Schedule** | Daily at 02:00 UTC (`0 2 * * *`) | Daily at 00:00 UTC (`0 0 * * *`) | Daily at 20:00 UTC (`0 20 * * *`) | Daily at 00:00 UTC (`0 0 * * *`) |
 | **Idle Detection Method** | K8s API pod inspection across non-system namespaces | Cloud Monitoring metrics (`compute.googleapis.com/reservation/used`) | Cloud Logging OSLogin audit events and instance metadata events |
-| **Idle Threshold Parameter** | `idle_days_threshold` (Default: `7` days) | `delete_idle_days` (Default: `60` days) | `idle_days_threshold` (Default: `7` days) |
+| **Idle Threshold Parameter** | `idle_days_threshold` (Default: `7` days) | `delete_idle_days` (Default: `90` days) | `idle_days_threshold` (Default: `7` days) |
 | **Lifecycle State Tracking** | Stamped GKE cluster labels: `idle_since=YYYY-MM-DD` | Historical utilization lookback (Default: `730` days) | Instance `creationTimestamp` + Cloud Logging timestamp |
 | **System Workload Safety** | Automatically ignores `kube-*`, `gke-*`, CSI drivers, and add-on namespaces | **Strict Guarantee**: Reservations with `in_use_now > 0` are never deleted | Automatically excludes GKE nodes (`gke-`, `gk3-`) and MIG instances (`created-by`) |
 | **Autopilot Support** | Detects Autopilot clusters and marks `autopilot-managed` | N/A | N/A |

@@ -141,7 +141,7 @@ The service dynamically resolves configuration parameters with the following pre
 | Parameter | JSON Payload Field | URL Query Param | Environment Variable | Type | Default | Description |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | **Target Project ID** | `project` / `project_id` | `project` / `project_id` | `PROJECT_ID` | `str` | *ADC Project* | Target GCP Project ID to sweep. |
-| **Idle Threshold (Days)** | `delete_idle_days` | `delete_idle_days` | `DELETE_IDLE_DAYS` | `float` | `60.0` | Days of continuous non-use before an idle reservation is eligible for deletion. |
+| **Idle Threshold (Days)** | `delete_idle_days` | `delete_idle_days` | `DELETE_IDLE_DAYS` | `float` | `90.0` | Days of continuous non-use before an idle reservation is eligible for deletion. |
 | **Delete Never Used** | `delete_never_used` | `delete_never_used` | `DELETE_NEVER_USED` | `bool` | `true` | Whether reservations with 0 lifetime active hours should be deleted. |
 | **Max Age (Days)** | `max_age_days` | `max_age_days` | `MAX_AGE_DAYS` | `float` | `180.0` | Maximum reservation age threshold for never-used reservations. |
 | **Monitoring Lookback** | `lookback_days` / `days` | `lookback_days` / `days` | `LOOKBACK_DAYS` | `int` | `730` | Number of past days to query in Cloud Monitoring time-series metrics. |
@@ -224,7 +224,7 @@ python3 -m unittest discover -s tests -v
 
 ### Test Coverage Highlights
 - **Active Safety**: Confirms reservations with `in_use_now > 0` are never deleted.
-- **Stale Detection**: Confirms reservations idle > 60 days trigger deletion.
+- **Stale Detection**: Confirms reservations idle > 90 days trigger deletion.
 - **Never Used Policy**: Confirms 0-usage reservations are deleted when enabled and retained when disabled.
 - **Dry-Run Integrity**: Verifies zero deletion API calls occur in dry-run mode.
 - **Pricing Model**: Validates monthly ($/mo) and annual ($/yr) formulas across diverse machine types and GPUs.
