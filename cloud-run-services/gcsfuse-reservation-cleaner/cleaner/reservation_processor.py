@@ -284,34 +284,12 @@ class ReservationProcessor:
                 res_record["action"] = "retained_error"
                 res_record["reason"] = f"Invalid last_used timestamp: {last_used_str}"
         else:
-            # Fallback if metric returned no error and not marked never used
-            res_record["status"] = "Never Used"
-            if age_days is None:
-                res_record["is_candidate"] = False
-                res_record["action"] = "retained_error"
-                res_record["reason"] = "No active usage recorded, but reservation age is unknown (missing or invalid creation timestamp)."
-            elif age_days < self.config.delete_idle_days:
-                res_record["is_candidate"] = False
-                res_record["action"] = "retained_never_used"
-                res_record["reason"] = (
-                    f"No active usage recorded, but created recently ({age_days} days ago, "
-                    f"under idle threshold {self.config.delete_idle_days} days)."
-                )
-            elif self.config.delete_never_used:
-                res_record["is_candidate"] = True
-                res_record["reason"] = "No active usage recorded."
-            elif (
-                self.config.max_age_days is not None
-                and age_days >= self.config.max_age_days
-            ):
-                res_record["is_candidate"] = True
-                res_record["reason"] = (
-                    f"No active usage recorded and exceeds max age threshold ({age_days}d >= {self.config.max_age_days}d)."
-                )
-            else:
-                res_record["is_candidate"] = False
-                res_record["action"] = "retained_never_used"
-                res_record["reason"] = "No active usage recorded, delete_never_used is disabled."
+            # Fallback if metric returned no error and not marked never used, but last_used_str is missing.
+            # Since is_never_used is False, some usage was detected, so we must not delete it.
+            res_record["status"] = "Timestamp Error"
+            res_record["is_candidate"] = False
+            res_record["action"] = "retained_error"
+            res_record["reason"] = "Active usage was detected, but the last used timestamp is missing or invalid."
 
         return res_record
 

@@ -755,6 +755,19 @@ class TestReservationClient(unittest.TestCase):
         self.assertTrue(usage["error"].startswith("Failed to parse monitoring metrics JSON:"))
         self.assertFalse(usage["is_never_used"])
 
+    def test_query_reservation_usage_non_dict_json(self):
+        for payload in (b"null", b"[]", b'"string-response"'):
+            with self.subTest(payload=payload):
+                non_dict_resp = MagicMock()
+                non_dict_resp.status = 200
+                non_dict_resp.data = payload
+                self.mock_http.request.return_value = non_dict_resp
+
+                usage = self.client.query_reservation_usage("my-project", "1003-non-dict")
+                self.assertIsNotNone(usage["error"])
+                self.assertIn("expected a dictionary", usage["error"])
+                self.assertFalse(usage["is_never_used"])
+
     def test_delete_reservation_success(self):
         mock_resp = MagicMock()
         mock_resp.status = 200
@@ -1203,11 +1216,12 @@ class TestReservationProcessor(unittest.TestCase):
         self.assertEqual(evaluated2["action"], "retained_error")
         self.assertIn("unknown (missing or invalid creation timestamp)", evaluated2["reason"])
 
-        # Case 3: Fallback else branch (is_never_used=False, last_used_timestamp=None) with missing creationTimestamp
+        # Case 3: Fallback else branch (is_never_used=False, last_used_timestamp=None) -> Timestamp Error
         fallback_missing_ts_res = {
             "id": "1008c",
             "name": "fallback-missing-ts-res",
             "zone": "us-central1-a",
+            "creationTimestamp": "2025-01-01T00:00:00Z",
             "specificReservation": {
                 "count": "1",
                 "inUseCount": "0",
@@ -1223,10 +1237,13 @@ class TestReservationProcessor(unittest.TestCase):
             "error": None,
         }
         evaluated3 = self.processor.evaluate_reservation(fallback_missing_ts_res, now=self.ref_now)
-        self.assertEqual(evaluated3["status"], "Never Used")
+        self.assertEqual(evaluated3["status"], "Timestamp Error")
         self.assertFalse(evaluated3["is_candidate"])
         self.assertEqual(evaluated3["action"], "retained_error")
-        self.assertIn("unknown (missing or invalid creation timestamp)", evaluated3["reason"])
+        self.assertEqual(
+            evaluated3["reason"],
+            "Active usage was detected, but the last used timestamp is missing or invalid.",
+        )
 
         self.mock_client.delete_reservation.assert_not_called()
 
