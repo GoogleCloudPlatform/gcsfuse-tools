@@ -13,7 +13,7 @@
 # limitations under the License.
 
 GCSFUSE_VERSION ?= v3.9.0
-GO_VERSION=1.26.4
+GO_VERSION ?= 1.27.0
 UBUNTU_VERSION=24.04
 REGISTRY=us-docker.pkg.dev
 PROJECT=gcs-fuse-test
@@ -25,4 +25,4 @@ IMAGE_VERSION ?= latest
 .PHONY: build
 
 build:
-	gcloud builds submit --project $(PROJECT) --config cloudbuild.yaml . --substitutions=_GCSFUSE_VERSION=$(GCSFUSE_VERSION),_GO_VERSION=$(GO_VERSION),_UBUNTU_VERSION=$(UBUNTU_VERSION),_REGISTRY=$(REGISTRY),_PROJECT=$(PROJECT),_IMAGE_VERSION=$(IMAGE_VERSION)
+	gcloud builds submit --project $(PROJECT) --gcs-log-dir=gs://$(PROJECT)_cloudbuild/logs --config cloudbuild.yaml . --substitutions=_GCSFUSE_VERSION=$(GCSFUSE_VERSION),_GO_VERSION=$(GO_VERSION),_UBUNTU_VERSION=$(UBUNTU_VERSION),_REGISTRY=$(REGISTRY),_PROJECT=$(PROJECT),_IMAGE_VERSION=$(IMAGE_VERSION)

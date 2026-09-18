@@ -14,7 +14,7 @@
 
 substitutions:
   _GCSFUSE_VERSION: 'master'
-  _GO_VERSION: '1.25.0'
+  _GO_VERSION: '1.27.0'
   _UBUNTU_VERSION: '24.04'
   _REGISTRY: 'us-docker.pkg.dev'
   _PROJECT: 'gcs-fuse-test'
@@ -106,6 +106,30 @@ steps:
       - '-t'
       - '${_REGISTRY}/${_PROJECT}/gcsfuse-benchmarks/go-client-read-benchmark:${_IMAGE_VERSION}'
       - 'go-client'
+
+  # Build and push the go-grpc-verify image.
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'go-grpc-verify'
+    waitFor: ['base']
+    args:
+      - 'buildx'
+      - 'build'
+      - '--push'
+      - '-f'
+      - 'go-grpc-verify/go-grpc-verify.dockerfile'
+      - '--platform'
+      - 'linux/amd64,linux/arm64'
+      - '--build-arg'
+      - 'GO_VERSION=${_GO_VERSION}'
+      - '--build-arg'
+      - 'REGISTRY=${_REGISTRY}'
+      - '--build-arg'
+      - 'PROJECT=${_PROJECT}'
+      - '--build-arg'
+      - 'IMAGE_VERSION=${_IMAGE_VERSION}'
+      - '-t'
+      - '${_REGISTRY}/${_PROJECT}/gcsfuse-benchmarks/go-grpc-verify:${_IMAGE_VERSION}'
+      - 'go-grpc-verify'
 
   # Build and push the write-benchmark image.
   - name: 'gcr.io/cloud-builders/docker'

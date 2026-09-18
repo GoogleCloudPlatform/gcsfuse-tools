@@ -354,7 +354,7 @@ def main():
     parser.add_argument("--subnet-name", default="grpc-verify-subnet", help="Subnet name.")
     parser.add_argument("--region", default="europe-west4", help="GCP region.")
     parser.add_argument("--zone", default="europe-west4-a", help="GCP zone.")
-    parser.add_argument("--gke-version", default="1.35.3-gke.2190000", help="GKE version.")
+    parser.add_argument("--gke-version", default="1.35", help="GKE version.")
     parser.add_argument("--tpu-machine-type", default="ct6e-standard-4t", help="TPU machine type for node pool.")
     parser.add_argument("--gcsfuse-version", default="master", help="GCSFuse branch/version to build images for.")
     parser.add_argument("--keep-cluster", action="store_true", help="Keep cluster alive after run (do not delete it).")
@@ -388,6 +388,22 @@ def main():
 
     if args.reservation_affinity == "specific" and not args.reservation:
         parser.error("--reservation is required when --reservation-affinity is set to specific.")
+
+    if args.action in ("run-verify", "run-all") and not args.no_tpu and args.reservation_affinity == "specific":
+        res = subprocess.run(
+            ["gcloud", "compute", "reservations", "describe", args.reservation, f"--zone={args.zone}", f"--project={args.project_id}"],
+            capture_output=True, text=True
+        )
+        if res.returncode != 0:
+            list_res = subprocess.run(
+                ["gcloud", "compute", "reservations", "list", f"--project={args.project_id}", f"--filter=zone:{args.zone}"],
+                capture_output=True, text=True
+            )
+            avail = list_res.stdout.strip() or "(none found)"
+            parser.error(
+                f"Reservation '{args.reservation}' was not found in project '{args.project_id}' zone '{args.zone}'.\n"
+                f"Available reservations in {args.zone}:\n{avail}"
+            )
 
     def run_verify_sequence(args):
         try:

@@ -1,11 +1,12 @@
 ARG UBUNTU_VERSION=24.04
-ARG GO_VERSION=1.26.4
+ARG GO_VERSION=1.27.0
 ARG REGISTRY=us-docker.pkg.dev
 ARG PROJECT=gcs-fuse-test
 ARG IMAGE_VERSION=latest
 
 # Builder stage to compile the Go benchmark binary
 FROM golang:${GO_VERSION} AS builder
+ENV GOTOOLCHAIN=auto
 WORKDIR /app
 COPY go.mod go.sum ./
 RUN go mod download
