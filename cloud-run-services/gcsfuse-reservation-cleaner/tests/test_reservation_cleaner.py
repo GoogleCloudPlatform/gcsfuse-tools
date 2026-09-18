@@ -646,15 +646,22 @@ class TestReservationClient(unittest.TestCase):
         self.assertIsNone(usage["error"])
 
     def test_query_reservation_usage_never_used(self):
-        mock_response = MagicMock()
-        mock_response.status = 200
-        mock_response.data = json.dumps({"timeSeries": []}).encode("utf-8")
-        self.mock_http.request.return_value = mock_response
+        for payload in (
+            {"timeSeries": []},
+            {"timeSeries": None},
+            {"timeSeries": [{"points": None}]},
+            {"timeSeries": [{"points": [{"value": None, "interval": None}]}]},
+        ):
+            with self.subTest(payload=payload):
+                mock_response = MagicMock()
+                mock_response.status = 200
+                mock_response.data = json.dumps(payload).encode("utf-8")
+                self.mock_http.request.return_value = mock_response
 
-        usage = self.client.query_reservation_usage("my-project", "1002")
-        self.assertTrue(usage["is_never_used"])
-        self.assertIsNone(usage["last_used_timestamp"])
-        self.assertEqual(usage["total_active_hours"], 0)
+                usage = self.client.query_reservation_usage("my-project", "1002")
+                self.assertTrue(usage["is_never_used"])
+                self.assertIsNone(usage["last_used_timestamp"])
+                self.assertEqual(usage["total_active_hours"], 0)
 
     def test_query_reservation_usage_multi_page(self):
         page_1 = MagicMock()
