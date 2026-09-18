@@ -207,7 +207,19 @@ class ReservationClient:
                     "error": error_msg,
                 }
 
-            data = json.loads(response.data.decode("utf-8", errors="replace"))
+            try:
+                data = json.loads(response.data.decode("utf-8", errors="replace"))
+            except json.JSONDecodeError as e:
+                error_msg = f"Failed to parse monitoring metrics JSON: {e}"
+                logger.error(error_msg)
+                return {
+                    "is_never_used": False,
+                    "last_used_timestamp": None,
+                    "first_used_timestamp": None,
+                    "total_active_hours": 0,
+                    "max_usage_count": 0,
+                    "error": error_msg,
+                }
             time_series.extend(data.get("timeSeries", []))
             page_token = data.get("nextPageToken")
             if not page_token:

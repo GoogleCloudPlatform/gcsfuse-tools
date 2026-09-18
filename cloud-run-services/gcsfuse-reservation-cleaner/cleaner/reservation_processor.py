@@ -248,7 +248,6 @@ class ReservationProcessor:
                 res_record["reason"] = "Never used in monitored historical window (0 active hours)."
             elif (
                 self.config.max_age_days is not None
-                and age_days is not None
                 and age_days >= self.config.max_age_days
             ):
                 res_record["is_candidate"] = True
@@ -303,7 +302,6 @@ class ReservationProcessor:
                 res_record["reason"] = "No active usage recorded."
             elif (
                 self.config.max_age_days is not None
-                and age_days is not None
                 and age_days >= self.config.max_age_days
             ):
                 res_record["is_candidate"] = True

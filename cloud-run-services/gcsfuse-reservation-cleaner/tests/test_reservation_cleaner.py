@@ -742,6 +742,17 @@ class TestReservationClient(unittest.TestCase):
         self.assertIsNone(usage_ok["error"])
         self.assertTrue(usage_ok["is_never_used"])
 
+    def test_query_reservation_usage_malformed_json(self):
+        bad_json_resp = MagicMock()
+        bad_json_resp.status = 200
+        bad_json_resp.data = b"{malformed-json"
+        self.mock_http.request.return_value = bad_json_resp
+
+        usage = self.client.query_reservation_usage("my-project", "1003-bad-json")
+        self.assertIsNotNone(usage["error"])
+        self.assertTrue(usage["error"].startswith("Failed to parse monitoring metrics JSON:"))
+        self.assertFalse(usage["is_never_used"])
+
     def test_delete_reservation_success(self):
         mock_resp = MagicMock()
         mock_resp.status = 200
