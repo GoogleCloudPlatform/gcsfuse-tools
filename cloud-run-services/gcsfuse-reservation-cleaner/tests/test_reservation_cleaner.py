@@ -661,7 +661,8 @@ class TestReservationClient(unittest.TestCase):
                             None,
                             "bad",
                             {"value": "bad", "interval": "bad"},
-                            {"value": {"int64Value": "1"}, "interval": "bad"},
+                            {"value": {"int64Value": "0"}, "interval": "bad"},
+                            {"value": {"int64Value": "not-an-int", "doubleValue": "invalid"}, "interval": "bad"},
                         ]
                     },
                 ]
@@ -677,6 +678,55 @@ class TestReservationClient(unittest.TestCase):
                 self.assertTrue(usage["is_never_used"])
                 self.assertIsNone(usage["last_used_timestamp"])
                 self.assertEqual(usage["total_active_hours"], 0)
+
+    def test_query_reservation_usage_active_with_missing_or_bad_interval(self):
+        # Case 1: Active point with invalid interval returns is_never_used=False and last_used_timestamp=None
+        payload_bad_interval = {
+            "timeSeries": [
+                {
+                    "points": [
+                        {"value": {"int64Value": "1"}, "interval": "bad"},
+                    ]
+                }
+            ]
+        }
+        mock_response1 = MagicMock()
+        mock_response1.status = 200
+        mock_response1.data = json.dumps(payload_bad_interval).encode("utf-8")
+        self.mock_http.request.return_value = mock_response1
+
+        usage1 = self.client.query_reservation_usage("my-project", "1002-bad-interval")
+        self.assertFalse(usage1["is_never_used"])
+        self.assertIsNone(usage1["last_used_timestamp"])
+        self.assertIsNone(usage1["first_used_timestamp"])
+        self.assertEqual(usage1["total_active_hours"], 1)
+        self.assertEqual(usage1["max_usage_count"], 1)
+
+        # Case 2: Mixing an active point with interval: None and an active point with valid endTime sorts cleanly
+        payload_mixed = {
+            "timeSeries": [
+                {
+                    "points": [
+                        {"value": {"int64Value": "2"}, "interval": None},
+                        {
+                            "value": {"int64Value": "1"},
+                            "interval": {"endTime": "2026-07-01T01:00:00Z"},
+                        },
+                    ]
+                }
+            ]
+        }
+        mock_response2 = MagicMock()
+        mock_response2.status = 200
+        mock_response2.data = json.dumps(payload_mixed).encode("utf-8")
+        self.mock_http.request.return_value = mock_response2
+
+        usage2 = self.client.query_reservation_usage("my-project", "1002-mixed-interval")
+        self.assertFalse(usage2["is_never_used"])
+        self.assertEqual(usage2["last_used_timestamp"], "2026-07-01T01:00:00Z")
+        self.assertEqual(usage2["first_used_timestamp"], "2026-07-01T01:00:00Z")
+        self.assertEqual(usage2["total_active_hours"], 2)
+        self.assertEqual(usage2["max_usage_count"], 2)
 
     def test_query_reservation_usage_multi_page(self):
         page_1 = MagicMock()

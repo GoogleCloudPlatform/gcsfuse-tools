@@ -234,7 +234,8 @@ class ReservationClient:
             ts_list = data.get("timeSeries") or []
             if isinstance(ts_list, list):
                 time_series.extend(ts_list)
-            page_token = data.get("nextPageToken")
+            raw_token = data.get("nextPageToken")
+            page_token = raw_token if isinstance(raw_token, str) else None
             if not page_token:
                 break
         else:
@@ -263,19 +264,26 @@ class ReservationClient:
                 val_obj = point.get("value") or {}
                 if not isinstance(val_obj, dict):
                     continue
-                int_val = int(val_obj.get("int64Value", 0)) if "int64Value" in val_obj else 0
-                double_val = float(val_obj.get("doubleValue", 0.0)) if "doubleValue" in val_obj else 0.0
+                try:
+                    int_val = int(val_obj.get("int64Value", 0)) if "int64Value" in val_obj and val_obj["int64Value"] is not None else 0
+                except (ValueError, TypeError):
+                    int_val = 0
+                try:
+                    double_val = float(val_obj.get("doubleValue", 0.0)) if "doubleValue" in val_obj and val_obj["doubleValue"] is not None else 0.0
+                except (ValueError, TypeError):
+                    double_val = 0.0
                 usage_val = int_val or int(double_val)
 
                 if usage_val > 0:
-                    interval_obj = point.get("interval") or {}
-                    if not isinstance(interval_obj, dict):
-                        continue
-                    end_time_str = interval_obj.get("endTime")
-                    start_time_str = interval_obj.get("startTime")
+                    interval_obj = point.get("interval")
+                    if isinstance(interval_obj, dict):
+                        raw_time = interval_obj.get("endTime") or interval_obj.get("startTime")
+                        time_str = raw_time if isinstance(raw_time, str) else ""
+                    else:
+                        time_str = ""
                     active_points.append(
                         {
-                            "time": end_time_str or start_time_str,
+                            "time": time_str,
                             "usage": usage_val,
                         }
                     )
@@ -290,10 +298,11 @@ class ReservationClient:
                 "error": None,
             }
 
-        # Sort points chronologically
+        # Sort points chronologically (empty timestamps sort first without TypeError)
         active_points.sort(key=lambda p: p["time"])
-        first_used = active_points[0]["time"]
-        last_used = active_points[-1]["time"]
+        valid_times = [p["time"] for p in active_points if p["time"]]
+        first_used = valid_times[0] if valid_times else None
+        last_used = valid_times[-1] if valid_times else None
         max_usage = max(p["usage"] for p in active_points)
         total_active_hours = len(active_points)
 
