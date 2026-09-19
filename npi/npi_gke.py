@@ -472,6 +472,30 @@ def main():
         default=None,
         help="Override FIO/Go-client numjobs concurrency count."
     )
+    parser.add_argument(
+        "--min-iterations",
+        type=int,
+        default=None,
+        help="Minimum number of steady-state iterations before checking convergence."
+    )
+    parser.add_argument(
+        "--max-iterations",
+        type=int,
+        default=None,
+        help="Maximum number of iterations before terminating."
+    )
+    parser.add_argument(
+        "--convergence-threshold",
+        type=float,
+        default=None,
+        help="Target relative confidence interval margin of error threshold (e.g. 0.05)."
+    )
+    parser.add_argument(
+        "--confidence-level",
+        type=float,
+        default=0.95,
+        help="Confidence level for Student's t interval estimation (default: 0.95)."
+    )
     
     args = parser.parse_args()
 
@@ -614,6 +638,27 @@ def main():
                 cmd_args.append(f"--numjobs={args.numjobs}")
             elif args.is_rapid_bucket:
                 cmd_args.append("--numjobs=48")
+
+        if bench_type != "host_info":
+            min_iter = getattr(args, "min_iterations", None)
+            max_iter = getattr(args, "max_iterations", None)
+            conv_thresh = getattr(args, "convergence_threshold", None)
+            conf_level = getattr(args, "confidence_level", 0.95)
+
+            has_min_iter = isinstance(min_iter, int) and not isinstance(min_iter, bool)
+            has_max_iter = isinstance(max_iter, int) and not isinstance(max_iter, bool)
+            has_threshold = isinstance(conv_thresh, (int, float)) and not isinstance(conv_thresh, bool)
+            eff_conf = conf_level if (isinstance(conf_level, (int, float)) and not isinstance(conf_level, bool)) else 0.95
+            any_conv_active = has_min_iter or has_max_iter or has_threshold
+
+            if has_min_iter:
+                cmd_args.append(f"--min-iterations={min_iter}")
+            if has_max_iter:
+                cmd_args.append(f"--max-iterations={max_iter}")
+            if has_threshold:
+                cmd_args.append(f"--convergence-threshold={conv_thresh}")
+            if any_conv_active or eff_conf != 0.95:
+                cmd_args.append(f"--confidence-level={eff_conf}")
             
         if runner_args:
             cmd_args.append(runner_args)

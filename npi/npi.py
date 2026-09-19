@@ -51,7 +51,7 @@ class BenchmarkFactory:
         mount_path (str): The path to an already mounted GCS bucket.
     """
 
-    def __init__(self, bucket_name, project_id, bq_dataset_id, iterations, mount_path=None, image_version="latest", buffer_mount_path=None, file_cache_size_mb=2097152, smoke_mode=False, extra_mount_options=None, is_rapid_bucket=False, numjobs=None):
+    def __init__(self, bucket_name, project_id, bq_dataset_id, iterations, mount_path=None, image_version="latest", buffer_mount_path=None, file_cache_size_mb=2097152, smoke_mode=False, extra_mount_options=None, is_rapid_bucket=False, numjobs=None, min_iterations=None, max_iterations=None, convergence_threshold=None, confidence_level=0.95):
         """Initializes the BenchmarkFactory.
 
         Args:
@@ -67,6 +67,10 @@ class BenchmarkFactory:
             extra_mount_options (str, optional): Extra mount options for GCSFuse.
             is_rapid_bucket (bool, optional): Whether the bucket is a RAPID bucket.
             numjobs (int, optional): Explicit override for numjobs concurrency count.
+            min_iterations (int, optional): Minimum steady-state iterations before checking convergence.
+            max_iterations (int, optional): Maximum iterations cap for adaptive convergence mode.
+            convergence_threshold (float, optional): Target relative margin of error threshold.
+            confidence_level (float, optional): Confidence level for Student's t interval estimation.
         """
         self.bucket_name = bucket_name
         self.project_id = project_id
@@ -80,6 +84,10 @@ class BenchmarkFactory:
         self.extra_mount_options = extra_mount_options
         self.is_rapid_bucket = is_rapid_bucket
         self.numjobs = numjobs
+        self.min_iterations = min_iterations
+        self.max_iterations = max_iterations
+        self.convergence_threshold = convergence_threshold
+        self.confidence_level = confidence_level
         self._benchmark_definitions = self._get_benchmark_definitions()
 
     def _format_extra_mount_options(self, extra_opts):
@@ -219,6 +227,21 @@ class BenchmarkFactory:
             f"--bq-dataset-id={bq_dataset_id} "
             f"--bq-table-id={bq_table_id}"
         )
+
+        has_min_iter = isinstance(self.min_iterations, int) and not isinstance(self.min_iterations, bool)
+        has_max_iter = isinstance(self.max_iterations, int) and not isinstance(self.max_iterations, bool)
+        has_threshold = isinstance(self.convergence_threshold, (int, float)) and not isinstance(self.convergence_threshold, bool)
+        eff_conf = self.confidence_level if (isinstance(self.confidence_level, (int, float)) and not isinstance(self.confidence_level, bool)) else 0.95
+        any_conv_active = has_min_iter or has_max_iter or has_threshold
+
+        if has_min_iter:
+            base_cmd += f" --min-iterations={self.min_iterations}"
+        if has_max_iter:
+            base_cmd += f" --max-iterations={self.max_iterations}"
+        if has_threshold:
+            base_cmd += f" --convergence-threshold={self.convergence_threshold}"
+        if any_conv_active or eff_conf != 0.95:
+            base_cmd += f" --confidence-level={eff_conf}"
 
         if runner_args:
             base_cmd += f" {runner_args}"
@@ -547,6 +570,30 @@ def main():
         default=None,
         help="Extra mount options to pass to GCSFuse (comma-separated or space-separated, e.g., 'congestion-threshold=384,max-background=512')."
     )
+    parser.add_argument(
+        "--min-iterations",
+        type=int,
+        default=None,
+        help="Minimum number of steady-state iterations before checking convergence."
+    )
+    parser.add_argument(
+        "--max-iterations",
+        type=int,
+        default=None,
+        help="Maximum number of iterations before terminating."
+    )
+    parser.add_argument(
+        "--convergence-threshold",
+        type=float,
+        default=None,
+        help="Target relative confidence interval margin of error threshold (e.g. 0.05)."
+    )
+    parser.add_argument(
+        "--confidence-level",
+        type=float,
+        default=0.95,
+        help="Confidence level for Student's t interval estimation (default: 0.95)."
+    )
 
     args = parser.parse_args()
 
@@ -577,6 +624,20 @@ def main():
         os.makedirs(os.path.join(args.buffer_mount_path, "write"), exist_ok=True)
         os.makedirs(os.path.join(args.buffer_mount_path, "file-cache"), exist_ok=True)
 
+    min_iter = getattr(args, "min_iterations", None)
+    max_iter = getattr(args, "max_iterations", None)
+    conv_thresh = getattr(args, "convergence_threshold", None)
+    conf_level = getattr(args, "confidence_level", 0.95)
+    factory_kwargs = {}
+    if isinstance(min_iter, int) and not isinstance(min_iter, bool):
+        factory_kwargs["min_iterations"] = min_iter
+    if isinstance(max_iter, int) and not isinstance(max_iter, bool):
+        factory_kwargs["max_iterations"] = max_iter
+    if isinstance(conv_thresh, (int, float)) and not isinstance(conv_thresh, bool):
+        factory_kwargs["convergence_threshold"] = conv_thresh
+    if isinstance(conf_level, (int, float)) and not isinstance(conf_level, bool):
+        factory_kwargs["confidence_level"] = conf_level
+
     factory = BenchmarkFactory(
         bucket_name=args.bucket_name,
         project_id=args.project_id,
@@ -589,7 +650,8 @@ def main():
         smoke_mode=args.smoke_mode,
         extra_mount_options=args.extra_mount_options,
         is_rapid_bucket=args.is_rapid_bucket,
-        numjobs=args.numjobs
+        numjobs=args.numjobs,
+        **factory_kwargs
     )
 
     available_benchmarks = factory.get_available_benchmarks()
