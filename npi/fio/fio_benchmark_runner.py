@@ -129,6 +129,10 @@ def parse_fio_output(filename):
         logging.error(f"Could not read or parse FIO output {filename}: {e}")
         return []
 
+    if not isinstance(data, dict):
+        logging.error(f"FIO JSON output from {filename} is not a dictionary.")
+        return []
+
     results = []
     global_options = data.get("global options") or {}
     for job in (data.get("jobs") or []):

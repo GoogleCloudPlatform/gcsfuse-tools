@@ -317,6 +317,18 @@ class TestAdaptiveConvergenceRunner(unittest.TestCase):
                 self.assertEqual(kwargs2.get("convergence_threshold"), 0.04)
                 self.assertEqual(kwargs2.get("confidence_level"), 0.90)
 
+    def test_parse_fio_output_non_dict_json(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            out_path = os.path.join(tmpdir, "non_dict.json")
+            with open(out_path, "w") as f:
+                f.write("[1, 2, 3]")
+            with self.assertLogs(level="ERROR") as log_ctx:
+                res = fio_benchmark_runner.parse_fio_output(out_path)
+            self.assertEqual(res, [])
+            self.assertTrue(
+                any("is not a dictionary" in msg for msg in log_ctx.output)
+            )
+
 
 if __name__ == '__main__':
     unittest.main()

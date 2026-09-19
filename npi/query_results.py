@@ -192,7 +192,10 @@ def get_table_metrics(
     ]
     try:
         res = subprocess.run(cmd, capture_output=True, text=True, check=True)
-        results = json.loads(res.stdout)
+        try:
+            results = json.loads(res.stdout)
+        except json.JSONDecodeError:
+            results, _ = json.JSONDecoder().raw_decode(res.stdout)
         if results and isinstance(results, list):
             bw_samples, lat_samples, fio_ver = _extract_samples_from_rows(results)
             workloads = {}
@@ -227,8 +230,8 @@ def get_table_metrics(
                 "fio_version": fio_ver,
                 "workloads": workloads,
             }
-    except Exception:
-        pass
+    except Exception as e:
+        sys.stderr.write(f"Error retrieving table metrics: {e}\n")
     return dict(_FALLBACK_METRICS)
 
 
@@ -297,7 +300,10 @@ def get_detailed_table_metrics(
     ]
     try:
         res = subprocess.run(cmd, capture_output=True, text=True, check=True)
-        results = json.loads(res.stdout)
+        try:
+            results = json.loads(res.stdout)
+        except json.JSONDecodeError:
+            results, _ = json.JSONDecoder().raw_decode(res.stdout)
         if results and isinstance(results, list):
             grouped = {}
             group_order = []
@@ -421,8 +427,8 @@ def get_detailed_table_metrics(
                     "converged": primary_bw_sum.converged,
                 })
             return out_rows
-    except Exception:
-        pass
+    except Exception as e:
+        sys.stderr.write(f"Error retrieving detailed table metrics: {e}\n")
     return []
 
 

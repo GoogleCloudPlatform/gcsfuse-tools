@@ -457,7 +457,15 @@ def main():
                     out_f.write(json_output)
 
                 # Parse output to add to summary
-                data = json.loads(json_output)
+                try:
+                    data = json.loads(json_output)
+                except json.JSONDecodeError:
+                    try:
+                        data, _ = json.JSONDecoder().raw_decode(json_output)
+                    except json.JSONDecodeError:
+                        data = {}
+                if not isinstance(data, dict):
+                    data = {}
                 iter_bw_total = 0.0
                 has_job = False
                 for job in (data.get("jobs") or []):

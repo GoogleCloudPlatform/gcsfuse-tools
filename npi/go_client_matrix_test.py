@@ -442,6 +442,46 @@ class TestGoClientMatrixAdaptiveConvergence(unittest.TestCase):
             ):
                 run_go_matrix.main()
 
+    def test_json_output_decoding_fallback_and_non_dict_guard(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            csv_path = os.path.join(tmpdir, "matrix.csv")
+            with open(csv_path, "w") as f:
+                f.write("READ_TYPE,FILE_SIZE,BLOCK_SIZE,NR_FILES\nseq,1G,1M,10\n")
+
+            payloads = [
+                _make_go_json(3000.0) + "\ntrailing warning text",
+                "[1, 2, 3]",
+                "completely invalid json",
+            ]
+            call_idx = {"n": 0}
+
+            def fake_run_cmd(cmd, check=True, cwd=None):
+                res = MagicMock()
+                res.stdout = payloads[call_idx["n"]]
+                call_idx["n"] += 1
+                return res
+
+            with (
+                patch.object(os.path, "exists", return_value=True),
+                patch.object(subprocess, "run"),
+                patch.object(run_go_matrix, "run_command", side_effect=fake_run_cmd),
+                patch.object(
+                    sys,
+                    "argv",
+                    [
+                        "run_go_matrix.py",
+                        "--bucket-name", "test-b",
+                        "--matrix-config", csv_path,
+                        "--output-dir", tmpdir,
+                        "--min-iterations", "3",
+                        "--max-iterations", "3",
+                    ],
+                ),
+            ):
+                run_go_matrix.main()
+
+            self.assertEqual(call_idx["n"], 3)
+
 
 if __name__ == "__main__":
     unittest.main()

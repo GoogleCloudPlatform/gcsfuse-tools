@@ -589,6 +589,43 @@ class TestQueryResultsMainCLI(unittest.TestCase):
         self.assertIn("Detailed Table: fio_read_grpc", output)
         self.assertIn("2400.00", output)
 
+    @patch("subprocess.run")
+    def test_05_raw_decode_fallback_and_stderr_logging(self, mock_run):
+        summary_rows = _make_per_iter_rows(
+            {"read": ([2400.0, 2405.0, 2395.0], [1.1, 1.1, 1.1])}
+        )
+        detailed_rows = [
+            {
+                "iteration": 1,
+                "workload_type": "read",
+                "block_size": "1M",
+                "file_size": "1G",
+                "read_bw_mbs": 2400.0,
+                "read_lat_ms": 1.1,
+            }
+        ]
+        mock_run.return_value = MagicMock(
+            stdout=json.dumps(summary_rows) + "\ntrailing warning"
+        )
+        metrics = query_results.get_table_metrics("proj", "ds", "fio_read_grpc")
+        self.assertAlmostEqual(metrics["seq_read_bw_mbs"], 2400.0, delta=1e-3)
+
+        mock_run.return_value = MagicMock(
+            stdout=json.dumps(detailed_rows) + "\ntrailing warning"
+        )
+        detailed = query_results.get_detailed_table_metrics("proj", "ds", "fio_read_grpc")
+        self.assertEqual(len(detailed), 1)
+        self.assertAlmostEqual(detailed[0]["read_bw_mbs"], 2400.0, delta=1e-3)
+
+        mock_run.side_effect = subprocess.CalledProcessError(1, "bq")
+        err_buf = io.StringIO()
+        with patch.object(sys, "stderr", err_buf):
+            query_results.get_table_metrics("proj", "ds", "fio_read_grpc")
+            query_results.get_detailed_table_metrics("proj", "ds", "fio_read_grpc")
+        err_text = err_buf.getvalue()
+        self.assertIn("Error retrieving table metrics:", err_text)
+        self.assertIn("Error retrieving detailed table metrics:", err_text)
+
 
 if __name__ == "__main__":
     unittest.main()
