@@ -1641,6 +1641,410 @@ class TestOrchestratorExtraMountOptions(unittest.TestCase):
         self.assertIn("--extra-mount-options", res.stdout)
 
 
+class TestBenchmarkFactoryConvergenceFlags(unittest.TestCase):
+    """Tests for convergence CLI flag propagation and guards in BenchmarkFactory and npi.main()."""
+
+    def test_factory_propagates_all_convergence_flags_to_fio_and_go_commands(self):
+        factory = npi.BenchmarkFactory(
+            bucket_name="test-bucket",
+            project_id="test-project",
+            bq_dataset_id="test_dataset",
+            iterations=5,
+            buffer_mount_path="/fio-cache",
+            min_iterations=3,
+            max_iterations=10,
+            convergence_threshold=0.05,
+            confidence_level=0.95,
+        )
+        for bench in ("read_http1", "read_grpc", "write_grpc", "read_file_cache_grpc", "go_read_grpc"):
+            cmd, _ = factory.get_benchmark_command(bench)
+            self.assertIn("--min-iterations=3", cmd)
+            self.assertIn("--max-iterations=10", cmd)
+            self.assertIn("--convergence-threshold=0.05", cmd)
+            self.assertIn("--confidence-level=0.95", cmd)
+
+    def test_factory_omits_convergence_flags_in_legacy_default_mode(self):
+        factory = npi.BenchmarkFactory(
+            bucket_name="test-bucket",
+            project_id="test-project",
+            bq_dataset_id="test_dataset",
+            iterations=5,
+            buffer_mount_path="/fio-cache",
+        )
+        cmd, _ = factory.get_benchmark_command("read_http1")
+        self.assertIn("--iterations=5", cmd)
+        self.assertNotIn("--min-iterations", cmd)
+        self.assertNotIn("--max-iterations", cmd)
+        self.assertNotIn("--convergence-threshold", cmd)
+        self.assertNotIn("--confidence-level", cmd)
+
+    def test_factory_host_info_never_receives_convergence_flags(self):
+        factory = npi.BenchmarkFactory(
+            bucket_name="test-bucket",
+            project_id="test-project",
+            bq_dataset_id="test_dataset",
+            iterations=5,
+            buffer_mount_path="/fio-cache",
+            min_iterations=3,
+            max_iterations=10,
+            convergence_threshold=0.05,
+            confidence_level=0.90,
+        )
+        cmd, _ = factory.get_benchmark_command("host_info")
+        self.assertNotIn("--iterations", cmd)
+        self.assertNotIn("--min-iterations", cmd)
+        self.assertNotIn("--max-iterations", cmd)
+        self.assertNotIn("--convergence-threshold", cmd)
+        self.assertNotIn("--confidence-level", cmd)
+
+    def test_factory_guards_against_magicmock_and_bool_values(self):
+        factory_mock = npi.BenchmarkFactory(
+            bucket_name="test-bucket",
+            project_id="test-project",
+            bq_dataset_id="test_dataset",
+            iterations=5,
+            buffer_mount_path="/fio-cache",
+            min_iterations=MagicMock(),
+            max_iterations=MagicMock(),
+            convergence_threshold=MagicMock(),
+            confidence_level=MagicMock(),
+        )
+        cmd_mock, _ = factory_mock.get_benchmark_command("read_grpc")
+        self.assertNotIn("--min-iterations", cmd_mock)
+        self.assertNotIn("--max-iterations", cmd_mock)
+        self.assertNotIn("--convergence-threshold", cmd_mock)
+        self.assertNotIn("--confidence-level", cmd_mock)
+        self.assertNotIn("MagicMock", cmd_mock)
+
+        factory_bool = npi.BenchmarkFactory(
+            bucket_name="test-bucket",
+            project_id="test-project",
+            bq_dataset_id="test_dataset",
+            iterations=5,
+            buffer_mount_path="/fio-cache",
+            min_iterations=True,
+            max_iterations=False,
+            convergence_threshold=True,
+            confidence_level=False,
+        )
+        cmd_bool, _ = factory_bool.get_benchmark_command("read_grpc")
+        self.assertNotIn("--min-iterations", cmd_bool)
+        self.assertNotIn("--max-iterations", cmd_bool)
+        self.assertNotIn("--convergence-threshold", cmd_bool)
+        self.assertNotIn("--confidence-level", cmd_bool)
+
+    def test_factory_partial_convergence_flags(self):
+        factory = npi.BenchmarkFactory(
+            bucket_name="test-bucket",
+            project_id="test-project",
+            bq_dataset_id="test_dataset",
+            iterations=5,
+            buffer_mount_path="/fio-cache",
+            min_iterations=4,
+        )
+        cmd, _ = factory.get_benchmark_command("read_grpc")
+        self.assertIn("--min-iterations=4", cmd)
+        self.assertIn("--confidence-level=0.95", cmd)
+        self.assertNotIn("--max-iterations", cmd)
+        self.assertNotIn("--convergence-threshold", cmd)
+
+    def test_main_passes_convergence_flags_to_factory_and_cli_help(self):
+        res = subprocess.run(
+            ["python3", "npi.py", "--help"],
+            capture_output=True,
+            text=True,
+            cwd=os.path.dirname(os.path.abspath(npi.__file__)),
+        )
+        self.assertEqual(res.returncode, 0)
+        self.assertIn("--min-iterations", res.stdout)
+        self.assertIn("--max-iterations", res.stdout)
+        self.assertIn("--convergence-threshold", res.stdout)
+        self.assertIn("--confidence-level", res.stdout)
+
+    def test_factory_active_convergence_with_unconfigured_confidence_level_emits_095_fallback(self):
+        """When any convergence flag is active (e.g. min_iterations=3) and confidence_level
+        is None, MagicMock, or bool, eff_conf normalizes to 0.95 and emits --confidence-level=0.95."""
+        for invalid_conf in (None, MagicMock(), True, False):
+            factory = npi.BenchmarkFactory(
+                bucket_name="test-bucket",
+                project_id="test-project",
+                bq_dataset_id="test_dataset",
+                iterations=5,
+                buffer_mount_path="/fio-cache",
+                min_iterations=3,
+                confidence_level=invalid_conf,
+            )
+            cmd, _ = factory.get_benchmark_command("read_grpc")
+            self.assertIn("--min-iterations=3", cmd)
+            self.assertIn(
+                "--confidence-level=0.95",
+                cmd,
+                f"Expected --confidence-level=0.95 fallback when confidence_level={invalid_conf!r}, got: {cmd}",
+            )
+            self.assertNotIn("MagicMock", cmd)
+            self.assertNotIn("True", cmd)
+            self.assertNotIn("False", cmd)
+
+    def test_factory_non_default_confidence_level_without_other_convergence_flags(self):
+        """When only a non-default confidence_level (e.g. 0.90) is set, --confidence-level=0.9 is emitted."""
+        factory = npi.BenchmarkFactory(
+            bucket_name="test-bucket",
+            project_id="test-project",
+            bq_dataset_id="test_dataset",
+            iterations=5,
+            buffer_mount_path="/fio-cache",
+            confidence_level=0.90,
+        )
+        cmd, _ = factory.get_benchmark_command("read_grpc")
+        self.assertIn("--confidence-level=0.9", cmd)
+        self.assertNotIn("--min-iterations", cmd)
+        self.assertNotIn("--max-iterations", cmd)
+        self.assertNotIn("--convergence-threshold", cmd)
+
+
+class TestOrchestratorConvergenceFlags(unittest.TestCase):
+    """Tests for convergence CLI flag propagation and guards in npi_orchestrator.py."""
+
+    def _run_execute_target(self, target, args):
+        state = {target["name"]: {"status": "PENDING"}}
+        state_lock = MagicMock()
+        captured_cmds = []
+
+        def mock_ssh(socket_path, vm_name, zone, cmd, timeout=60):
+            captured_cmds.append(cmd)
+            return (0, "", "")
+
+        with patch('npi_orchestrator.cleanup_remote_run'), \
+             patch('npi_orchestrator.prep_vm'), \
+             patch('npi_orchestrator.run_ssh_cmd', side_effect=mock_ssh), \
+             patch('npi_orchestrator.monitor_run'):
+            npi_orchestrator.execute_target(target, args, state_lock, state)
+
+        return captured_cmds
+
+    def test_execute_target_gce_and_gke_propagate_convergence_flags(self):
+        gce_target = {
+            "name": "test-gce",
+            "type": "gce",
+            "vm_name": "test-vm",
+            "zone": "us-central1-a",
+            "bucket": "test-bucket",
+            "dataset": "test_ds",
+            "has_ssd": True,
+        }
+        gke_target = {
+            "name": "test-gke",
+            "type": "gke",
+            "vm_name": "test-runner",
+            "zone": "us-central1-a",
+            "cluster_name": "test-cluster",
+            "location": "us-central1-a",
+            "bucket": "test-bucket",
+            "dataset": "test_ds",
+            "has_ssd": True,
+        }
+        args = MagicMock()
+        args.benchmarks = "read_grpc"
+        args.project = "test-project"
+        args.image_version = "latest"
+        args.iterations = 5
+        args.smoke_mode = False
+        args.extra_mount_options = None
+        args.min_iterations = 3
+        args.max_iterations = 9
+        args.convergence_threshold = 0.04
+        args.confidence_level = 0.90
+
+        for target, script_name in ((gce_target, "npi.py"), (gke_target, "npi_gke.py")):
+            cmds = self._run_execute_target(target, args)
+            triggered = [c for c in cmds if script_name in c]
+            self.assertEqual(len(triggered), 1)
+            self.assertIn("--min-iterations", triggered[0])
+            self.assertIn("--max-iterations", triggered[0])
+            self.assertIn("--convergence-threshold", triggered[0])
+            self.assertIn("--confidence-level", triggered[0])
+
+    def test_execute_target_gce_and_gke_magicmock_args_guard(self):
+        gce_target = {
+            "name": "test-gce",
+            "type": "gce",
+            "vm_name": "test-vm",
+            "zone": "us-central1-a",
+            "bucket": "test-bucket",
+            "dataset": "test_ds",
+            "has_ssd": True,
+        }
+        args = MagicMock()
+        args.benchmarks = "read_grpc"
+        args.project = "test-project"
+        args.image_version = "latest"
+        args.iterations = 5
+        args.smoke_mode = False
+        args.extra_mount_options = None
+
+        cmds = self._run_execute_target(gce_target, args)
+        triggered = [c for c in cmds if "npi.py" in c]
+        self.assertEqual(len(triggered), 1)
+        self.assertNotIn("--min-iterations", triggered[0])
+        self.assertNotIn("--max-iterations", triggered[0])
+        self.assertNotIn("--convergence-threshold", triggered[0])
+        self.assertNotIn("--confidence-level", triggered[0])
+        self.assertNotIn("MagicMock", triggered[0])
+
+    def test_orchestrator_cli_help_documents_convergence_flags(self):
+        res = subprocess.run(
+            ["python3", "npi_orchestrator.py", "--help"],
+            capture_output=True,
+            text=True,
+            cwd=os.path.dirname(os.path.abspath(npi_orchestrator.__file__)),
+        )
+        self.assertEqual(res.returncode, 0)
+        self.assertIn("--min-iterations", res.stdout)
+        self.assertIn("--max-iterations", res.stdout)
+        self.assertIn("--convergence-threshold", res.stdout)
+        self.assertIn("--confidence-level", res.stdout)
+
+    def test_target_dict_confidence_level_not_clobbered_by_default_cli_095(self):
+        """Regression test (stress_test_m4 test_03): When CLI has argparse default
+        confidence_level=0.95 and target dict sets confidence_level=0.99, target's 0.99 wins."""
+        import argparse
+        target = {
+            "name": "gce-target-conf",
+            "type": "gce",
+            "vm_name": "vm1",
+            "zone": "us-central1-a",
+            "bucket": "bkt",
+            "dataset": "ds",
+            "has_ssd": True,
+            "min_iterations": 3,
+            "max_iterations": 10,
+            "convergence_threshold": 0.05,
+            "confidence_level": 0.99,
+        }
+        args = argparse.Namespace(
+            benchmarks="read_grpc",
+            project="proj",
+            image_version="v1",
+            iterations=5,
+            smoke_mode=False,
+            extra_mount_options=None,
+            min_iterations=None,
+            max_iterations=None,
+            convergence_threshold=None,
+            confidence_level=0.95,
+        )
+        cmds = self._run_execute_target(target, args)
+        npi_cmds = [c for c in cmds if "npi.py" in c]
+        self.assertEqual(len(npi_cmds), 1)
+        self.assertIn("--min-iterations 3", npi_cmds[0])
+        self.assertIn("--max-iterations 10", npi_cmds[0])
+        self.assertIn("--convergence-threshold 0.05", npi_cmds[0])
+        self.assertIn("--confidence-level 0.99", npi_cmds[0])
+
+    def test_target_dict_only_confidence_level_090_preserved_with_default_cli_095(self):
+        """Regression test (stress_test_m4 test_04): When target dict sets ONLY
+        confidence_level=0.90 and CLI has default 0.95, --confidence-level 0.9 is emitted."""
+        import argparse
+        target = {
+            "name": "gce-target-only-conf",
+            "type": "gce",
+            "vm_name": "vm1",
+            "zone": "us-central1-a",
+            "bucket": "bkt",
+            "dataset": "ds",
+            "has_ssd": True,
+            "confidence_level": 0.90,
+        }
+        args = argparse.Namespace(
+            benchmarks="read_grpc",
+            project="proj",
+            image_version="v1",
+            iterations=5,
+            smoke_mode=False,
+            extra_mount_options=None,
+            min_iterations=None,
+            max_iterations=None,
+            convergence_threshold=None,
+            confidence_level=0.95,
+        )
+        cmds = self._run_execute_target(target, args)
+        npi_cmds = [c for c in cmds if "npi.py" in c]
+        self.assertEqual(len(npi_cmds), 1)
+        self.assertIn("--confidence-level 0.9", npi_cmds[0])
+
+    def test_cli_explicit_non_default_confidence_level_overrides_target_dict(self):
+        """Regression test (stress_test_m4 test_05): Explicit non-default CLI confidence_level=0.99
+        overrides target['confidence_level']=0.90."""
+        import argparse
+        target = {
+            "name": "gce-override",
+            "type": "gce",
+            "vm_name": "vm1",
+            "zone": "us-central1-a",
+            "bucket": "bkt",
+            "dataset": "ds",
+            "has_ssd": True,
+            "min_iterations": 2,
+            "max_iterations": 6,
+            "convergence_threshold": 0.08,
+            "confidence_level": 0.90,
+        }
+        args = argparse.Namespace(
+            benchmarks="read_grpc",
+            project="proj",
+            image_version="v1",
+            iterations=5,
+            smoke_mode=False,
+            extra_mount_options=None,
+            min_iterations=4,
+            max_iterations=12,
+            convergence_threshold=0.02,
+            confidence_level=0.99,
+        )
+        cmds = self._run_execute_target(target, args)
+        npi_cmds = [c for c in cmds if "npi.py" in c]
+        self.assertEqual(len(npi_cmds), 1)
+        self.assertIn("--min-iterations 4", npi_cmds[0])
+        self.assertIn("--max-iterations 12", npi_cmds[0])
+        self.assertIn("--convergence-threshold 0.02", npi_cmds[0])
+        self.assertIn("--confidence-level 0.99", npi_cmds[0])
+
+    def test_active_convergence_with_unconfigured_confidence_level_emits_095_fallback(self):
+        """Regression test (stress_test_m4 test_06): When any convergence flag is active
+        (min_iterations=3) and args.confidence_level is MagicMock/None/bool, --confidence-level 0.95 is emitted."""
+        target = {
+            "name": "gce-conv-active",
+            "type": "gce",
+            "vm_name": "vm1",
+            "zone": "us-central1-a",
+            "bucket": "bkt",
+            "dataset": "ds",
+            "has_ssd": True,
+        }
+        for invalid_conf in (MagicMock(), None, True, False):
+            args = MagicMock()
+            args.benchmarks = "read_grpc"
+            args.project = "proj"
+            args.image_version = "v1"
+            args.iterations = 5
+            args.smoke_mode = False
+            args.extra_mount_options = None
+            args.min_iterations = 3
+            args.max_iterations = None
+            args.convergence_threshold = None
+            args.confidence_level = invalid_conf
+
+            cmds = self._run_execute_target(target, args)
+            npi_cmds = [c for c in cmds if "npi.py" in c]
+            self.assertEqual(len(npi_cmds), 1)
+            self.assertIn("--min-iterations 3", npi_cmds[0])
+            self.assertIn(
+                "--confidence-level 0.95",
+                npi_cmds[0],
+                f"Expected --confidence-level 0.95 when confidence_level={invalid_conf!r}, got: {npi_cmds[0]}",
+            )
+
+
 if __name__ == '__main__':
     unittest.main()
 

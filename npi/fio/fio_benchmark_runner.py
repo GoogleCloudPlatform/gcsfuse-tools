@@ -17,12 +17,22 @@
 
 import json
 import logging
+import math
 import os
 import shlex
 import shutil
 import subprocess
 import sys
 import time
+
+_FIO_DIR = os.path.dirname(os.path.abspath(__file__))
+_REPO_ROOT = os.path.dirname(_FIO_DIR)
+if _REPO_ROOT not in sys.path:
+    sys.path.insert(0, _REPO_ROOT)
+if _FIO_DIR not in sys.path:
+    sys.path.insert(0, _FIO_DIR)
+
+import convergence
 
 try:
     from google.cloud import bigquery
@@ -120,30 +130,33 @@ def parse_fio_output(filename):
         return []
 
     results = []
-    for job in data.get("jobs", []):
+    global_options = data.get("global options") or {}
+    for job in (data.get("jobs") or []):
+        if not isinstance(job, dict):
+            continue
         job_name = job.get("jobname", "unnamed_job")
         for op in ["read", "write"]:
             if op in job:
-                stats = job[op]
-                options = job.get("job options", {})
+                stats = job[op] or {}
+                options = job.get("job options") or {}
                 # Bandwidth is in KiB/s, convert to MiB/s
-                bw_mibps = stats.get("bw", 0) / 1024.0
+                bw_mibps = (stats.get("bw") or 0) / 1024.0
                 if bw_mibps == 0:
                     continue
-                iops = stats.get("iops", 0)
+                iops = stats.get("iops") or 0
 
                 # Latency can be under 'lat_ns', 'clat_ns', etc.
                 lat_stats = stats.get("lat_ns") or {}
 
                 # Convert from ns to ms
-                mean_lat_ms = lat_stats.get("mean", 0) / 1_000_000.0
+                mean_lat_ms = (lat_stats.get("mean") or 0) / 1_000_000.0
 
                 # Percentiles are in a sub-dict with string keys
-                percentiles = lat_stats.get("percentiles", {})  # FIO 3.x
-                
+                percentiles = lat_stats.get("percentiles") or {}  # FIO 3.x
+
                 p99_key = next((k for k in percentiles if k.startswith("99.00")), None)
                 p99_lat_ms = (
-                    percentiles.get(p99_key, 0) / 1_000_000.0 if p99_key else 0
+                    (percentiles.get(p99_key) or 0) / 1_000_000.0 if p99_key else 0
                 )
 
                 results.append({
@@ -151,9 +164,9 @@ def parse_fio_output(filename):
                     "block_size": options.get("bs", 0),
                     "file_size": options.get("filesize", 0),
                     "nr_files": options.get("nrfiles", 0),
-                    "queue_depth": data["global options"].get("iodepth", 0),
+                    "queue_depth": global_options.get("iodepth", 0),
                     "num_jobs": options.get("numjobs", 0),
-                    "operation": data["global options"].get("rw", "unknown"),
+                    "operation": global_options.get("rw", "unknown"),
                     "bw_mibps": bw_mibps,
                     "iops": iops,
                     "mean_lat_ms": mean_lat_ms,
@@ -162,8 +175,15 @@ def parse_fio_output(filename):
     return results
 
 
-def print_summary(all_results, summary_file=None):
-    """Prints a summary of all FIO iterations and optionally writes to a file."""
+def print_summary(
+    all_results,
+    summary_file=None,
+    min_iterations=3,
+    convergence_threshold=0.05,
+    confidence_level=0.95,
+    warmup_iterations=0,
+):
+    """Prints a summary of all FIO iterations and canonical statistical convergence metrics."""
     if not all_results:
         logging.warning("No results to summarize.")
         return
@@ -173,24 +193,86 @@ def print_summary(all_results, summary_file=None):
 
     summary_lines.append("--- FIO Benchmark Summary ---")
 
-    header = (f"{'Iter':<5} {'Job Name':<20} {'Op':<8} {'Block Size':<10} {'File Size':<10} {'NR_Files':<3} {'Queue Depth':<12} {'Num Jobs':<8} "
-              f"{'Bandwidth (MiB/s)':<20} "
-              f"{'IOPS':<12} {'Mean Latency (ms)':<20}")
+    header = (
+        f"{'Iter':<5} {'Job Name':<20} {'Op':<8} {'Block Size':<10} {'File Size':<10} "
+        f"{'NR_Files':<3} {'Queue Depth':<12} {'Num Jobs':<8} "
+        f"{'Bandwidth (MiB/s)':<20} "
+        f"{'IOPS':<12} {'Mean Latency (ms)':<20}"
+    )
     separator = "-" * len(header)
     summary_lines.append(header)
     summary_lines.append(separator)
 
+    # Track per-(job_name, operation) series across iterations for statistical summary
+    workload_series = {}
     for i, iteration_results in enumerate(all_results, 1):
         if not iteration_results:
             line = f"{i:<5} No results for this iteration."
             summary_lines.append(line)
             continue
         for result in iteration_results:
-            line = (f"{i:<5} {result['job_name']:<20} {result['operation']:<8} {result['block_size']:<10} {result['file_size']:<10} {result['nr_files']:<8} {result['queue_depth']:<12} {result['num_jobs']:<8}"
-                    f"{result['bw_mibps']:<20.2f} {result['iops']:<12.2f} "
-                    f"{result['mean_lat_ms']:<20.4f}")
+            line = (
+                f"{i:<5} {result['job_name']:<20} {result['operation']:<8} "
+                f"{result['block_size']:<10} {result['file_size']:<10} "
+                f"{result['nr_files']:<8} {result['queue_depth']:<12} {result['num_jobs']:<8}"
+                f"{result['bw_mibps']:<20.2f} {result['iops']:<12.2f} "
+                f"{result['mean_lat_ms']:<20.4f}"
+            )
             summary_lines.append(line)
+            key = (result["job_name"], result["operation"])
+            entry = workload_series.setdefault(key, {"bw": [], "lat": []})
+            entry["bw"].append(result["bw_mibps"])
+            entry["lat"].append(result["mean_lat_ms"])
+
     summary_lines.append(separator)
+
+    # Append Canonical Statistical Convergence Summary Section
+    if workload_series:
+        summary_lines.append("")
+        summary_lines.append("--- Statistical Convergence Summary ---")
+        stat_header = (
+            f"{'Job Name':<20} {'Op':<8} {'Rep BW (MiB/s)':<18} {'Median BW (MiB/s)':<18} "
+            f"{'95% CI (±MiB/s)':<16} {'RMoE (%)':<10} {'Rep Lat (ms)':<14} "
+            f"{'Samples (T/S/I/O)':<18} {'Converged':<10}"
+        )
+        stat_sep = "-" * len(stat_header)
+        summary_lines.append(stat_header)
+        summary_lines.append(stat_sep)
+
+        for (job_name, op), series in workload_series.items():
+            bw_conv = convergence.evaluate_convergence(
+                series["bw"],
+                min_iterations=min_iterations,
+                convergence_threshold=convergence_threshold,
+                confidence_level=confidence_level,
+                warmup_iterations=warmup_iterations,
+            )
+            lat_conv = convergence.evaluate_convergence(
+                series["lat"],
+                min_iterations=min_iterations,
+                convergence_threshold=convergence_threshold,
+                confidence_level=confidence_level,
+                warmup_iterations=warmup_iterations,
+            )
+            ci_val = bw_conv.ci_half_width if math.isfinite(bw_conv.ci_half_width) else 0.0
+            rmoe_pct = (
+                bw_conv.relative_margin_of_error * 100.0
+                if math.isfinite(bw_conv.relative_margin_of_error)
+                else 0.0
+            )
+            counts_str = (
+                f"{bw_conv.n_total}/{bw_conv.n_steady}/"
+                f"{bw_conv.n_inliers}/{len(bw_conv.outliers_removed)}"
+            )
+            conv_str = "YES" if bw_conv.converged else "NO"
+            stat_line = (
+                f"{job_name:<20} {op:<8} {bw_conv.representative_value:<18.2f} "
+                f"{bw_conv.median:<18.2f} {ci_val:<16.2f} {rmoe_pct:<10.2f} "
+                f"{lat_conv.representative_value:<14.4f} {counts_str:<18} {conv_str:<10}"
+            )
+            summary_lines.append(stat_line)
+        summary_lines.append(stat_sep)
+
     output = "\n".join(summary_lines)
     print(output)
 
@@ -240,15 +322,18 @@ def upload_results_to_bq(
 
     try:
         full_table_id = f"{project_id}.{dataset_id}.{table_id}"
-        dataset_ref = client.dataset(dataset_id)
-        table_ref = dataset_ref.table(table_id)
+        if hasattr(client, "dataset"):
+            dataset_ref = client.dataset(dataset_id)
+            table_ref = dataset_ref.table(table_id)
 
-        # Create dataset if it doesn't exist
-        try:
-            client.get_dataset(dataset_ref)
-        except exceptions.NotFound:
-            logging.info(f"Dataset {dataset_id} not found, creating it.")
-            client.create_dataset(bigquery.Dataset(dataset_ref))
+            # Create dataset if it doesn't exist
+            try:
+                client.get_dataset(dataset_ref)
+            except exceptions.NotFound:
+                logging.info(f"Dataset {dataset_id} not found, creating it.")
+                client.create_dataset(bigquery.Dataset(dataset_ref))
+        else:
+            table_ref = full_table_id
 
         # Define schema
         schema = [
@@ -359,11 +444,76 @@ def precreate_benchmark_directories(mount_point, fio_env, fio_config):
 
 
 def run_benchmark(
-    gcsfuse_flags, bucket_name, iterations, fio_config, work_dir, output_dir, project_id, 
-    fio_env=None, summary_file=None, cpu_limit_list=None, bind_fio=False, bq_dataset_id=None, bq_table_id=None, mount_path=None,
-    keep_mount=False
+    gcsfuse_flags,
+    bucket_name,
+    iterations,
+    fio_config,
+    work_dir,
+    output_dir,
+    project_id,
+    fio_env=None,
+    summary_file=None,
+    cpu_limit_list=None,
+    bind_fio=False,
+    bq_dataset_id=None,
+    bq_table_id=None,
+    mount_path=None,
+    keep_mount=False,
+    min_iterations=None,
+    max_iterations=None,
+    convergence_threshold=None,
+    confidence_level=0.95,
 ):
     """Runs the full FIO benchmark suite."""
+    # 1. Determine whether adaptive convergence mode is active
+    adaptive_mode = (
+        min_iterations is not None
+        or max_iterations is not None
+        or convergence_threshold is not None
+    )
+
+    # 2. Validate explicit min_iterations vs max_iterations bounds
+    if (
+        min_iterations is not None
+        and max_iterations is not None
+        and min_iterations > max_iterations
+    ):
+        raise ValueError(
+            f"min_iterations ({min_iterations}) cannot be greater than max_iterations ({max_iterations})."
+        )
+
+    # 3. Resolve effective iteration limits, threshold, confidence level, and warmup count
+    eff_confidence = float(confidence_level) if confidence_level is not None else 0.95
+    eff_threshold = float(convergence_threshold) if convergence_threshold is not None else 0.05
+    warmup_iters = 1 if keep_mount else 0
+
+    if not adaptive_mode:
+        # Legacy Fixed Mode: execute exact fixed count `iterations`
+        min_iter = max(1, int(iterations))
+        max_iter = max(1, int(iterations))
+    else:
+        # Adaptive Mode:
+        if min_iterations is not None:
+            min_iter = int(min_iterations)
+        else:
+            min_iter = max(
+                3,
+                min(
+                    int(iterations),
+                    int(max_iterations) if max_iterations is not None else int(iterations),
+                ),
+            )
+
+        if max_iterations is not None:
+            max_iter = int(max_iterations)
+        else:
+            max_iter = max(int(iterations), min_iter)
+
+        if min_iter < 1 or min_iter > max_iter:
+            raise ValueError(
+                f"Invalid resolved iteration bounds: min_iter={min_iter}, max_iter={max_iter}."
+            )
+
     os.makedirs(work_dir, exist_ok=True)
     os.makedirs(output_dir, exist_ok=True)
 
@@ -396,9 +546,13 @@ def run_benchmark(
     # Resolve the concurrent_delete.py script path dynamically for portability
     script_dir = os.path.dirname(os.path.realpath(__file__))
     local_delete_script = os.path.join(script_dir, "concurrent_delete.py")
-    fio_run_env["DELETE_SCRIPT"] = local_delete_script if os.path.exists(local_delete_script) else "/concurrent_delete.py"
+    fio_run_env["DELETE_SCRIPT"] = (
+        local_delete_script if os.path.exists(local_delete_script) else "/concurrent_delete.py"
+    )
 
     all_results = []
+    bw_samples = []
+    conv_result = None
 
     # Keep track of local mount state
     is_mounted_locally = False
@@ -407,13 +561,18 @@ def run_benchmark(
         # If keep_mount is True, mount GCSFuse once before the iterations loop.
         # This allows the GCSFuse file-cache to persist across iterations.
         if keep_mount and not mount_path:
-            mount_gcsfuse(gcsfuse_bin, gcsfuse_flags, bucket_name, mount_point, cpu_limit_list=cpu_limit_list)
+            mount_gcsfuse(
+                gcsfuse_bin,
+                gcsfuse_flags,
+                bucket_name,
+                mount_point,
+                cpu_limit_list=cpu_limit_list,
+            )
             is_mounted_locally = True
 
-        for i in range(1, iterations + 1):
-            logging.info(f"--- Starting Iteration {i}/{iterations} ---")
-            output_filename = os.path.join(output_dir,
-                                           f"fio_results_iter_{i}.json")
+        for i in range(1, max_iter + 1):
+            logging.info(f"--- Starting Iteration {i}/{max_iter} ---")
+            output_filename = os.path.join(output_dir, f"fio_results_iter_{i}.json")
             if os.path.exists(output_filename):
                 os.remove(output_filename)
             try:
@@ -421,7 +580,13 @@ def run_benchmark(
                 run_command(["sh", "-c", "echo 3 > /proc/sys/vm/drop_caches"])
 
                 if not mount_path and not keep_mount:
-                    mount_gcsfuse(gcsfuse_bin, gcsfuse_flags, bucket_name, mount_point, cpu_limit_list=cpu_limit_list)
+                    mount_gcsfuse(
+                        gcsfuse_bin,
+                        gcsfuse_flags,
+                        bucket_name,
+                        mount_point,
+                        cpu_limit_list=cpu_limit_list,
+                    )
                     is_mounted_locally = True
 
                 # Pre-create benchmark directories sequentially to avoid GCSFuse deadlocks on startup
@@ -429,8 +594,14 @@ def run_benchmark(
 
                 fio_cpu_list = cpu_limit_list if bind_fio else None
 
-                run_fio_test(fio_config, mount_point, i, output_dir,
-                             fio_env=fio_run_env, cpu_limit_list=fio_cpu_list)
+                run_fio_test(
+                    fio_config,
+                    mount_point,
+                    i,
+                    output_dir,
+                    fio_env=fio_run_env,
+                    cpu_limit_list=fio_cpu_list,
+                )
 
                 iteration_results = parse_fio_output(output_filename)
                 all_results.append(iteration_results)
@@ -445,12 +616,44 @@ def run_benchmark(
                         iteration=i,
                         gcsfuse_flags=gcsfuse_flags,
                         fio_env=fio_run_env,
-                        cpu_limit_list=cpu_limit_list)
+                        cpu_limit_list=cpu_limit_list,
+                    )
+
+                # Extract iteration aggregate bandwidth (MiB/s) across jobs in this iteration
+                if iteration_results:
+                    iter_bw = sum(r["bw_mibps"] for r in iteration_results)
+                    bw_samples.append(iter_bw)
             finally:
                 if not mount_path and not keep_mount and is_mounted_locally:
                     unmount_gcsfuse(mount_point)
                     is_mounted_locally = False
-            logging.info(f"--- Finished Iteration {i}/{iterations} ---")
+            logging.info(f"--- Finished Iteration {i}/{max_iter} ---")
+
+            if bw_samples:
+                conv_result = convergence.evaluate_convergence(
+                    bw_samples,
+                    min_iterations=min_iter,
+                    convergence_threshold=eff_threshold,
+                    confidence_level=eff_confidence,
+                    warmup_iterations=warmup_iters,
+                )
+                logging.info(
+                    f"Convergence check after iter {i}: n_total={conv_result.n_total}, "
+                    f"n_steady={conv_result.n_steady}, n_inliers={conv_result.n_inliers}, "
+                    f"rep_bw={conv_result.representative_value:.2f} MiB/s, "
+                    f"RMoE={conv_result.relative_margin_of_error * 100.0:.2f}%, "
+                    f"converged={conv_result.converged}"
+                )
+                if (
+                    adaptive_mode
+                    and conv_result.converged
+                    and conv_result.n_inliers >= min(3, min_iter)
+                ):
+                    logging.info(
+                        f"Statistical convergence achieved at iteration {i} "
+                        f"(RMoE {conv_result.relative_margin_of_error * 100.0:.2f}% <= {eff_threshold * 100.0:.2f}%)."
+                    )
+                    break
 
     finally:
         # Ensure unmount at the very end if keep_mount was used
@@ -458,4 +661,12 @@ def run_benchmark(
             unmount_gcsfuse(mount_point)
             is_mounted_locally = False
 
-    print_summary(all_results, summary_file=summary_file)
+    print_summary(
+        all_results,
+        summary_file=summary_file,
+        min_iterations=min_iter,
+        convergence_threshold=eff_threshold,
+        confidence_level=eff_confidence,
+        warmup_iterations=warmup_iters,
+    )
+    return conv_result
