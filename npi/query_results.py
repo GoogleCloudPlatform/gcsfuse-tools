@@ -79,21 +79,34 @@ def _extract_samples_from_rows(results):
                 if isinstance(fio_data, dict):
                     if fio_version == "unknown" and fio_data.get("fio version"):
                         fio_version = str(fio_data["fio version"])
-                    rw = (fio_data.get("global options") or {}).get("rw") or "read"
+                    global_opts = fio_data.get("global options")
+                    if not isinstance(global_opts, dict):
+                        global_opts = {}
+                    rw = global_opts.get("rw") or "read"
                     for job in (fio_data.get("jobs") or []):
                         if not isinstance(job, dict):
                             continue
-                        read_dict = job.get("read") or {}
-                        write_dict = job.get("write") or {}
+                        read_dict = job.get("read")
+                        if not isinstance(read_dict, dict):
+                            read_dict = {}
+                        write_dict = job.get("write")
+                        if not isinstance(write_dict, dict):
+                            write_dict = {}
                         if rw in ("read", "randread") and read_dict:
                             bw_kib = _safe_float(read_dict.get("bw"))
-                            lat_ns = _safe_float((read_dict.get("lat_ns") or {}).get("mean"))
+                            lat_ns_dict = read_dict.get("lat_ns")
+                            if not isinstance(lat_ns_dict, dict):
+                                lat_ns_dict = {}
+                            lat_ns = _safe_float(lat_ns_dict.get("mean"))
                             if bw_kib is not None and bw_kib > 0.0:
                                 bw_samples[rw].append(bw_kib * 1024.0 / 1000000.0)
                                 lat_samples[rw].append((lat_ns or 0.0) / 1000000.0)
                         if write_dict:
                             bw_kib = _safe_float(write_dict.get("bw"))
-                            lat_ns = _safe_float((write_dict.get("lat_ns") or {}).get("mean"))
+                            lat_ns_dict = write_dict.get("lat_ns")
+                            if not isinstance(lat_ns_dict, dict):
+                                lat_ns_dict = {}
+                            lat_ns = _safe_float(lat_ns_dict.get("mean"))
                             if bw_kib is not None and bw_kib > 0.0:
                                 bw_samples["write"].append(bw_kib * 1024.0 / 1000000.0)
                                 lat_samples["write"].append((lat_ns or 0.0) / 1000000.0)

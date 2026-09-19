@@ -471,10 +471,18 @@ def main():
                 for job in (data.get("jobs") or []):
                     if not isinstance(job, dict):
                         continue
-                    stats = job.get("read") or {}
-                    options = job.get("job options") or {}
-                    lat_ns = stats.get("lat_ns") or {}
-                    percentiles = lat_ns.get("percentiles") or {}
+                    stats = job.get("read")
+                    if not isinstance(stats, dict):
+                        stats = {}
+                    options = job.get("job options")
+                    if not isinstance(options, dict):
+                        options = {}
+                    lat_ns = stats.get("lat_ns")
+                    if not isinstance(lat_ns, dict):
+                        lat_ns = {}
+                    percentiles = lat_ns.get("percentiles")
+                    if not isinstance(percentiles, dict):
+                        percentiles = {}
                     p99_lat_ns = (
                         percentiles.get("99.000000", lat_ns.get("99.000000", 0.0))
                         or 0.0

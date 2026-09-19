@@ -118,53 +118,6 @@ def _log_beta(a: float, b: float) -> float:
     return math.lgamma(p) + lgamma_q_minus_qp
 
 
-def _betacf(a: float, b: float, x: float, oneminusx: float | None = None) -> float:
-    """Evaluates continued fraction for incomplete beta function via Modified Lentz's method."""
-    max_iter = 500
-    eps = 3.0e-16
-    fpmin = 1.0e-300
-
-    if oneminusx is None:
-        oneminusx = 1.0 - x
-
-    qab = a + b
-    qap = a + 1.0
-    qam = a - 1.0
-    c = 1.0
-    d = (a * oneminusx + (1.0 - b * x)) / qap
-    if abs(d) < fpmin:
-        d = fpmin
-    d = 1.0 / d
-    h = d
-
-    for m in range(1, max_iter + 1):
-        m2 = 2.0 * m
-        aa = m * (b - m) * x / ((qam + m2) * (a + m2))
-        d = 1.0 + aa * d
-        if abs(d) < fpmin:
-            d = fpmin
-        c = 1.0 + aa / c
-        if abs(c) < fpmin:
-            c = fpmin
-        d = 1.0 / d
-        h *= d * c
-
-        aa = -(a + m) * (qab + m) * x / ((a + m2) * (qap + m2))
-        d = 1.0 + aa * d
-        if abs(d) < fpmin:
-            d = fpmin
-        c = 1.0 + aa / c
-        if abs(c) < fpmin:
-            c = fpmin
-        d = 1.0 / d
-        delta = d * c
-        h *= delta
-        if abs(delta - 1.0) < eps:
-            break
-
-    return h
-
-
 def _dec_ln_gamma(z: Decimal) -> Decimal:
     """Arbitrary-precision log-gamma via recurrence shift + 13-term Stirling series."""
     if z == Decimal("0.5"):

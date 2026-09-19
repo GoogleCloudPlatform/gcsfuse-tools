@@ -134,15 +134,21 @@ def parse_fio_output(filename):
         return []
 
     results = []
-    global_options = data.get("global options") or {}
+    global_options = data.get("global options")
+    if not isinstance(global_options, dict):
+        global_options = {}
     for job in (data.get("jobs") or []):
         if not isinstance(job, dict):
             continue
         job_name = job.get("jobname", "unnamed_job")
         for op in ["read", "write"]:
             if op in job:
-                stats = job[op] or {}
-                options = job.get("job options") or {}
+                stats = job[op]
+                if not isinstance(stats, dict):
+                    stats = {}
+                options = job.get("job options")
+                if not isinstance(options, dict):
+                    options = {}
                 # Bandwidth is in KiB/s, convert to MiB/s
                 bw_mibps = (stats.get("bw") or 0) / 1024.0
                 if bw_mibps == 0:
@@ -150,13 +156,17 @@ def parse_fio_output(filename):
                 iops = stats.get("iops") or 0
 
                 # Latency can be under 'lat_ns', 'clat_ns', etc.
-                lat_stats = stats.get("lat_ns") or {}
+                lat_stats = stats.get("lat_ns")
+                if not isinstance(lat_stats, dict):
+                    lat_stats = {}
 
                 # Convert from ns to ms
                 mean_lat_ms = (lat_stats.get("mean") or 0) / 1_000_000.0
 
                 # Percentiles are in a sub-dict with string keys
-                percentiles = lat_stats.get("percentiles") or {}  # FIO 3.x
+                percentiles = lat_stats.get("percentiles")
+                if not isinstance(percentiles, dict):
+                    percentiles = {}
 
                 p99_key = next((k for k in percentiles if k.startswith("99.00")), None)
                 p99_lat_ms = (
