@@ -290,7 +290,7 @@ class TestGKEUtils(unittest.TestCase):
             if cmd[:3] == ["gcloud", "projects", "describe"]:
                 res.stdout = "123456789\n"
             elif cmd[:3] == ["kubectl", "get", "serviceaccount"]:
-                res.stdout = "my-gsa@my-proj.iam.gserviceaccount.com"
+                res.stdout = '{"metadata": {"annotations": {"iam.gke.io/gcp-service-account": "my-gsa@my-proj.iam.gserviceaccount.com"}}}'
             return res
 
         mock_run.side_effect = side_effect

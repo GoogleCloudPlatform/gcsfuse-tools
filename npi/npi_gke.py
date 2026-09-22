@@ -17,6 +17,7 @@ import time
 import yaml
 import os
 import datetime
+import json
 import queue
 import threading
 
@@ -348,10 +349,23 @@ def setup_kubernetes_service_account(project_id, ksa_name, namespace, buckets, d
     # When present, GKE metadata server authenticates pods as serviceAccount:<gsa> instead of principal://...
     gsa_cmd = [
         "kubectl", "get", "serviceaccount", ksa_name, f"--namespace={namespace}",
-        "-o", r"jsonpath={.metadata.annotations.iam\.gke\.io/gcp-service-account}"
+        "-o", "json"
     ]
     gsa_res = subprocess.run(gsa_cmd, capture_output=True, text=True)
-    annotated_gsa = gsa_res.stdout.strip() if gsa_res.returncode == 0 else ""
+    annotated_gsa = ""
+    if gsa_res.returncode == 0 and gsa_res.stdout.strip():
+        try:
+            idx = gsa_res.stdout.find("{")
+            if idx == -1:
+                raise ValueError("No JSON object found in kubectl output")
+            decoder = json.JSONDecoder()
+            sa_data, _ = decoder.raw_decode(gsa_res.stdout[idx:])
+            if isinstance(sa_data, dict):
+                metadata = sa_data.get("metadata") or {}
+                annotations = metadata.get("annotations") or {}
+                annotated_gsa = (annotations.get("iam.gke.io/gcp-service-account") or "").strip()
+        except (json.JSONDecodeError, ValueError, AttributeError) as e:
+            print(f"Warning: Failed to parse serviceaccount JSON for {ksa_name}: {e}", file=sys.stderr)
     if annotated_gsa:
         print(f"--- Detected linked GCP Service Account '{annotated_gsa}' on KSA '{ksa_name}' ---")
         principals_to_grant.append(f"serviceAccount:{annotated_gsa}")
