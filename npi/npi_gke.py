@@ -353,7 +353,9 @@ def setup_kubernetes_service_account(project_id, ksa_name, namespace, buckets, d
     ]
     gsa_res = subprocess.run(gsa_cmd, capture_output=True, text=True)
     annotated_gsa = ""
-    if gsa_res.returncode == 0 and gsa_res.stdout.strip():
+    if gsa_res.returncode != 0:
+        print(f"Warning: Failed to retrieve serviceaccount {ksa_name}: {(gsa_res.stderr or '').strip()}", file=sys.stderr)
+    elif (gsa_res.stdout or "").strip():
         try:
             idx = gsa_res.stdout.find("{")
             if idx == -1:
