@@ -331,14 +331,14 @@ def setup_kubernetes_service_account(project_id, ksa_name, namespace, buckets, d
     create_cmd = ["kubectl", "create", "serviceaccount", ksa_name, f"--namespace={namespace}"]
     res = subprocess.run(create_cmd, capture_output=True, text=True)
     if res.returncode != 0 and "already exists" not in res.stderr:
-        print(f"Failed to create Kubernetes service account: {res.stderr}", file=sys.stderr)
+        print(f"Failed to create Kubernetes service account: {res.stderr.strip()}", file=sys.stderr)
         return False
         
     # 2. Get GCP project number
     num_cmd = ["gcloud", "projects", "describe", project_id, "--format=value(projectNumber)"]
     res = subprocess.run(num_cmd, capture_output=True, text=True)
     if res.returncode != 0:
-        print(f"Failed to retrieve project number for {project_id}: {res.stderr}", file=sys.stderr)
+        print(f"Failed to retrieve project number for {project_id}: {res.stderr.strip()}", file=sys.stderr)
         return False
     project_number = res.stdout.strip()
     
@@ -385,7 +385,7 @@ def setup_kubernetes_service_account(project_id, ksa_name, namespace, buckets, d
             ]
             res = subprocess.run(iam_cmd, capture_output=True, text=True)
             if res.returncode != 0:
-                print(f"Failed to bind storage permission for {principal} on gs://{b_name}: {res.stderr}", file=sys.stderr)
+                print(f"Failed to bind storage permission for {principal} on gs://{b_name}: {res.stderr.strip()}", file=sys.stderr)
                 return False
 
     # 4. Grant roles/bigquery.dataEditor and roles/bigquery.jobUser on the GCP project
