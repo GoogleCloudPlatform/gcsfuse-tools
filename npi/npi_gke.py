@@ -17,6 +17,7 @@ import time
 import yaml
 import os
 import datetime
+import json
 import queue
 import threading
 
@@ -330,53 +331,82 @@ def setup_kubernetes_service_account(project_id, ksa_name, namespace, buckets, d
     create_cmd = ["kubectl", "create", "serviceaccount", ksa_name, f"--namespace={namespace}"]
     res = subprocess.run(create_cmd, capture_output=True, text=True)
     if res.returncode != 0 and "already exists" not in res.stderr:
-        print(f"Failed to create Kubernetes service account: {res.stderr}", file=sys.stderr)
+        print(f"Failed to create Kubernetes service account: {res.stderr.strip()}", file=sys.stderr)
         return False
         
     # 2. Get GCP project number
     num_cmd = ["gcloud", "projects", "describe", project_id, "--format=value(projectNumber)"]
     res = subprocess.run(num_cmd, capture_output=True, text=True)
     if res.returncode != 0:
-        print(f"Failed to retrieve project number for {project_id}: {res.stderr}", file=sys.stderr)
+        print(f"Failed to retrieve project number for {project_id}: {res.stderr.strip()}", file=sys.stderr)
         return False
     project_number = res.stdout.strip()
     
     member_principal = f"principal://iam.googleapis.com/projects/{project_number}/locations/global/workloadIdentityPools/{project_id}.svc.id.goog/subject/ns/{namespace}/sa/{ksa_name}"
-    
-    # 3. Grant roles/storage.objectUser on each GCS bucket
+    principals_to_grant = [member_principal]
+
+    # 2b. Check if the KSA has an iam.gke.io/gcp-service-account annotation (GSA-linked Workload Identity).
+    # When present, GKE metadata server authenticates pods as serviceAccount:<gsa> instead of principal://...
+    gsa_cmd = [
+        "kubectl", "get", "serviceaccount", ksa_name, f"--namespace={namespace}",
+        "-o", "json"
+    ]
+    gsa_res = subprocess.run(gsa_cmd, capture_output=True, text=True)
+    annotated_gsa = ""
+    if gsa_res.returncode != 0:
+        print(f"Warning: Failed to retrieve serviceaccount {ksa_name}: {(gsa_res.stderr or '').strip()}", file=sys.stderr)
+    elif (gsa_res.stdout or "").strip():
+        try:
+            idx = gsa_res.stdout.find("{")
+            if idx == -1:
+                raise ValueError("No JSON object found in kubectl output")
+            decoder = json.JSONDecoder()
+            sa_data, _ = decoder.raw_decode(gsa_res.stdout[idx:])
+            if isinstance(sa_data, dict):
+                metadata = sa_data.get("metadata") or {}
+                annotations = metadata.get("annotations") or {}
+                annotated_gsa = (annotations.get("iam.gke.io/gcp-service-account") or "").strip()
+        except (json.JSONDecodeError, ValueError, AttributeError) as e:
+            print(f"Warning: Failed to parse serviceaccount JSON for {ksa_name}: {e}", file=sys.stderr)
+    if annotated_gsa:
+        print(f"--- Detected linked GCP Service Account '{annotated_gsa}' on KSA '{ksa_name}' ---")
+        principals_to_grant.append(f"serviceAccount:{annotated_gsa}")
+
+    # 3. Grant roles/storage.admin on each GCS bucket to all resolved principals
     for b in buckets:
         if not b:
             continue
         b_name = b[5:] if b.startswith("gs://") else b
-        print(f"--- Granting storage.admin role to {ksa_name} on bucket gs://{b_name} ---")
-        iam_cmd = [
-            "gcloud", "storage", "buckets", "add-iam-policy-binding", f"gs://{b_name}",
-            f"--member={member_principal}", "--role=roles/storage.admin", "--quiet"
+        for principal in principals_to_grant:
+            print(f"--- Granting storage.admin role to {principal} on bucket gs://{b_name} ---")
+            iam_cmd = [
+                "gcloud", "storage", "buckets", "add-iam-policy-binding", f"gs://{b_name}",
+                f"--member={principal}", "--role=roles/storage.admin", "--quiet"
+            ]
+            res = subprocess.run(iam_cmd, capture_output=True, text=True)
+            if res.returncode != 0:
+                print(f"Failed to bind storage permission for {principal} on gs://{b_name}: {res.stderr.strip()}", file=sys.stderr)
+                return False
+
+    # 4. Grant roles/bigquery.dataEditor and roles/bigquery.jobUser on the GCP project
+    for principal in principals_to_grant:
+        print(f"--- Granting bigquery.dataEditor role to {principal} on project {project_id} ---")
+        bq_cmd = [
+            "gcloud", "projects", "add-iam-policy-binding", project_id,
+            f"--member={principal}", "--role=roles/bigquery.dataEditor", "--condition=None", "--quiet"
         ]
-        res = subprocess.run(iam_cmd, capture_output=True, text=True)
+        res = subprocess.run(bq_cmd, capture_output=True, text=True)
         if res.returncode != 0:
-            print(f"Failed to bind storage permission on gs://{b_name}: {res.stderr}", file=sys.stderr)
-            return False
+            print(f"Warning: Could not bind BigQuery dataEditor permission for {principal} on project {project_id}: {res.stderr.strip()}", file=sys.stderr)
 
-    # 4. Grant roles/bigquery.dataEditor on the GCP project (for dataset tables)
-    print(f"--- Granting bigquery.dataEditor role to {ksa_name} on project {project_id} ---")
-    bq_cmd = [
-        "gcloud", "projects", "add-iam-policy-binding", project_id,
-        f"--member={member_principal}", "--role=roles/bigquery.dataEditor", "--condition=None", "--quiet"
-    ]
-    res = subprocess.run(bq_cmd, capture_output=True, text=True)
-    if res.returncode != 0:
-        print(f"Warning: Could not bind BigQuery dataEditor permission on project {project_id}: {res.stderr.strip()}", file=sys.stderr)
-
-    # 5. Grant roles/bigquery.jobUser on the GCP project (for job/query execution)
-    print(f"--- Granting bigquery.jobUser role to {ksa_name} on project {project_id} ---")
-    bq_job_cmd = [
-        "gcloud", "projects", "add-iam-policy-binding", project_id,
-        f"--member={member_principal}", "--role=roles/bigquery.jobUser", "--condition=None", "--quiet"
-    ]
-    res = subprocess.run(bq_job_cmd, capture_output=True, text=True)
-    if res.returncode != 0:
-        print(f"Warning: Could not bind BigQuery jobUser permission on project {project_id}: {res.stderr.strip()}", file=sys.stderr)
+        print(f"--- Granting bigquery.jobUser role to {principal} on project {project_id} ---")
+        bq_job_cmd = [
+            "gcloud", "projects", "add-iam-policy-binding", project_id,
+            f"--member={principal}", "--role=roles/bigquery.jobUser", "--condition=None", "--quiet"
+        ]
+        res = subprocess.run(bq_job_cmd, capture_output=True, text=True)
+        if res.returncode != 0:
+            print(f"Warning: Could not bind BigQuery jobUser permission for {principal} on project {project_id}: {res.stderr.strip()}", file=sys.stderr)
 
     return True
 

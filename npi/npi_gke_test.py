@@ -1,3 +1,4 @@
+import io
 import unittest
 from unittest.mock import patch, mock_open
 import yaml
@@ -280,7 +281,81 @@ class TestGKEUtils(unittest.TestCase):
         self.assertEqual(kv_dict, {"cloud.google.com/gke-nodepool": "npi-pool", "env": "prod"})
         self.assertIsNone(npi_gke.parse_key_value_pairs(None))
 
+    @patch("npi_gke.subprocess.run")
+    def test_setup_kubernetes_service_account_with_annotated_gsa(self, mock_run):
+        def side_effect(cmd, **kwargs):
+            res = unittest.mock.MagicMock()
+            res.returncode = 0
+            res.stderr = ""
+            res.stdout = ""
+            if cmd[:3] == ["gcloud", "projects", "describe"]:
+                res.stdout = "123456789\n"
+            elif cmd[:3] == ["kubectl", "get", "serviceaccount"]:
+                res.stdout = '{"metadata": {"annotations": {"iam.gke.io/gcp-service-account": "my-gsa@my-proj.iam.gserviceaccount.com"}}}'
+            return res
+
+        mock_run.side_effect = side_effect
+        ok = npi_gke.setup_kubernetes_service_account(
+            project_id="my-proj",
+            ksa_name="gcsfuse-npi-ksa",
+            namespace="default",
+            buckets=["my-bucket"],
+            dry_run=False
+        )
+        self.assertTrue(ok)
+        storage_calls = [
+            c.args[0] for c in mock_run.call_args_list
+            if c.args[0][:4] == ["gcloud", "storage", "buckets", "add-iam-policy-binding"]
+        ]
+        self.assertEqual(len(storage_calls), 2)
+        members = [arg.split("=", 1)[1] for call in storage_calls for arg in call if arg.startswith("--member=")]
+        self.assertIn(
+            "principal://iam.googleapis.com/projects/123456789/locations/global/workloadIdentityPools/my-proj.svc.id.goog/subject/ns/default/sa/gcsfuse-npi-ksa",
+            members
+        )
+        self.assertIn("serviceAccount:my-gsa@my-proj.iam.gserviceaccount.com", members)
+
+    @patch("sys.stderr", new_callable=io.StringIO)
+    @patch("npi_gke.subprocess.run")
+    def test_setup_kubernetes_service_account_get_sa_failure(self, mock_run, mock_stderr):
+        def side_effect(cmd, **kwargs):
+            res = unittest.mock.MagicMock()
+            res.returncode = 0
+            res.stderr = ""
+            res.stdout = ""
+            if cmd[:3] == ["gcloud", "projects", "describe"]:
+                res.stdout = "123456789\n"
+            elif cmd[:3] == ["kubectl", "get", "serviceaccount"]:
+                res.returncode = 1
+                res.stderr = "Error from server (Forbidden): serviceaccounts is forbidden\n"
+            return res
+
+        mock_run.side_effect = side_effect
+        ok = npi_gke.setup_kubernetes_service_account(
+            project_id="my-proj",
+            ksa_name="gcsfuse-npi-ksa",
+            namespace="default",
+            buckets=["my-bucket"],
+            dry_run=False
+        )
+        self.assertTrue(ok)
+        self.assertIn(
+            "Warning: Failed to retrieve serviceaccount gcsfuse-npi-ksa: Error from server (Forbidden): serviceaccounts is forbidden",
+            mock_stderr.getvalue()
+        )
+        storage_calls = [
+            c.args[0] for c in mock_run.call_args_list
+            if c.args[0][:4] == ["gcloud", "storage", "buckets", "add-iam-policy-binding"]
+        ]
+        self.assertEqual(len(storage_calls), 1)
+        members = [arg.split("=", 1)[1] for call in storage_calls for arg in call if arg.startswith("--member=")]
+        self.assertEqual(
+            members,
+            ["principal://iam.googleapis.com/projects/123456789/locations/global/workloadIdentityPools/my-proj.svc.id.goog/subject/ns/default/sa/gcsfuse-npi-ksa"]
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
+
 
