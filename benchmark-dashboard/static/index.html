@@ -73,7 +73,7 @@
                     <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-2">LDAP Username *</label>
                     <div class="relative">
                         <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400"><i class="fa-solid fa-user"></i></span>
-                        <input type="text" id="ldap_input" required placeholder="e.g. cpranjal" class="w-full bg-white border border-slate-300 rounded-lg pl-9 pr-4 py-2.5 text-slate-850 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition text-sm">
+                        <input type="text" id="ldap_input" required placeholder="e.g. cpranjal" class="w-full bg-white border border-slate-300 rounded-lg pl-9 pr-4 py-2.5 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition text-sm">
                     </div>
                 </div>
                 
@@ -81,7 +81,7 @@
                     <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-2">Team Password *</label>
                     <div class="relative flex items-center">
                         <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400 pointer-events-none"><i class="fa-solid fa-lock"></i></span>
-                        <input type="password" id="password_input" required placeholder="••••••••" class="w-full bg-white border border-slate-300 rounded-lg pl-9 pr-10 py-2.5 text-slate-850 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition text-sm">
+                        <input type="password" id="password_input" required placeholder="••••••••" class="w-full bg-white border border-slate-300 rounded-lg pl-9 pr-10 py-2.5 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition text-sm">
                         <button type="button" onclick="togglePasswordVisibility()" class="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 focus:outline-none" title="Toggle password visibility">
                             <i id="password-toggle-icon" class="fa-solid fa-eye text-sm"></i>
                         </button>
@@ -333,33 +333,33 @@
                             <div class="space-y-1">
                                 <div class="flex items-center justify-between">
                                     <span class="font-bold text-slate-500 uppercase block">Test Cases CSV</span>
-                                    <button type="button" onclick="saveAsPreset('test_cases', 'test-csv-preview')" class="text-[10px] text-blue-600 hover:text-blue-755 font-bold transition flex items-center space-x-1">
+                                    <button type="button" onclick="saveAsPreset('test_cases', 'test-csv-preview')" class="text-[10px] text-blue-600 font-bold transition flex items-center space-x-1">
                                         <i class="fa-solid fa-cloud-arrow-up"></i><span>Save as Preset</span>
                                     </button>
                                 </div>
-                                <textarea id="test-csv-preview" class="w-full bg-white border border-slate-300 text-slate-755 p-3 rounded font-mono text-[11px] h-72 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/80 resize-y" placeholder="Select a file or edit/paste test cases CSV content here..."></textarea>
+                                <textarea id="test-csv-preview" class="w-full bg-white border border-slate-300 p-3 rounded font-mono text-[11px] h-72 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/80 resize-y" placeholder="Select a file or edit/paste test cases CSV content here..."></textarea>
                             </div>
 
                             <!-- FIO Job Preview -->
                             <div class="space-y-1">
                                 <div class="flex items-center justify-between">
                                     <span class="font-bold text-slate-500 uppercase block">FIO Job template</span>
-                                    <button type="button" onclick="saveAsPreset('fio_job', 'fio-job-preview')" class="text-[10px] text-blue-600 hover:text-blue-755 font-bold transition flex items-center space-x-1">
+                                    <button type="button" onclick="saveAsPreset('fio_job', 'fio-job-preview')" class="text-[10px] text-blue-600 font-bold transition flex items-center space-x-1">
                                         <i class="fa-solid fa-cloud-arrow-up"></i><span>Save as Preset</span>
                                     </button>
                                 </div>
-                                <textarea id="fio-job-preview" class="w-full bg-white border border-slate-300 text-slate-755 p-3 rounded font-mono text-[11px] h-[440px] focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/80 resize-y" placeholder="Select a file or edit/paste FIO job template content here..."></textarea>
+                                <textarea id="fio-job-preview" class="w-full bg-white border border-slate-300 p-3 rounded font-mono text-[11px] h-[440px] focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/80 resize-y" placeholder="Select a file or edit/paste FIO job template content here..."></textarea>
                             </div>
 
                             <!-- Mount Configs Preview -->
                             <div id="configs-csv-preview-wrapper" class="space-y-1">
                                 <div class="flex items-center justify-between">
                                     <span class="font-bold text-slate-500 uppercase block">Mount Configs CSV</span>
-                                    <button type="button" onclick="saveAsPreset('mount_configs', 'configs-csv-preview')" class="text-[10px] text-blue-600 hover:text-blue-755 font-bold transition flex items-center space-x-1">
+                                    <button type="button" onclick="saveAsPreset('mount_configs', 'configs-csv-preview')" class="text-[10px] text-blue-600 font-bold transition flex items-center space-x-1">
                                         <i class="fa-solid fa-cloud-arrow-up"></i><span>Save as Preset</span>
                                     </button>
                                 </div>
-                                <textarea id="configs-csv-preview" class="w-full bg-white border border-slate-300 text-slate-755 p-3 rounded font-mono text-[11px] h-48 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/80 resize-y" placeholder="Select a file or edit/paste mount configurations CSV content here..."></textarea>
+                                <textarea id="configs-csv-preview" class="w-full bg-white border border-slate-300 p-3 rounded font-mono text-[11px] h-48 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/80 resize-y" placeholder="Select a file or edit/paste mount configurations CSV content here..."></textarea>
                             </div>
                         </div>
                     </div>
@@ -434,7 +434,7 @@
                     </div>
 
                     <!-- The log text box -->
-                    <pre id="logs-console" class="bg-slate-900 text-green-400 font-mono text-xs p-4 rounded-lg overflow-y-auto flex-grow select-text leading-relaxed whitespace-pre-wrap border border-slate-850 shadow-inner">Waiting for run selection...</pre>
+                    <pre id="logs-console" class="bg-slate-900 text-green-400 font-mono text-xs p-4 rounded-lg overflow-y-auto flex-grow select-text leading-relaxed whitespace-pre-wrap border shadow-inner">Waiting for run selection...</pre>
                 </div>
             </div>
         </section>
@@ -458,7 +458,7 @@
                             <button onclick="filterHistory('me')" id="btn-filter-me" class="px-4 py-2 text-xs font-medium border-t border-b border-r border-slate-300 bg-white text-slate-700 hover:bg-slate-50 focus:outline-none transition">My Runs Only</button>
                         </div>
                         <div class="relative flex items-center">
-                            <select id="user-filter-select" onchange="filterHistory('select')" class="bg-white border border-slate-300 rounded-lg pl-3 pr-8 py-1.5 text-xs text-slate-850 focus:outline-none focus:border-blue-500 w-48 font-semibold shadow-sm transition appearance-none cursor-pointer">
+                            <select id="user-filter-select" onchange="filterHistory('select')" class="bg-white border border-slate-300 rounded-lg pl-3 pr-8 py-1.5 text-xs focus:outline-none focus:border-blue-500 w-48 font-semibold shadow-sm transition appearance-none cursor-pointer">
                                 <option value="">Choose User...</option>
                             </select>
                             <span class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-slate-400"><i class="fa-solid fa-chevron-down text-[10px]"></i></span>
@@ -505,14 +505,14 @@
                         </div>
                         <div>
                             <nav class="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
-                                <button onclick="prevPage()" id="btn-prev-page" class="relative inline-flex items-center rounded-l-md px-2 py-1.5 text-slate-450 ring-1 ring-inset ring-slate-350 hover:bg-slate-50 focus:z-20 transition disabled:opacity-40 disabled:cursor-not-allowed">
+                                <button onclick="prevPage()" id="btn-prev-page" class="relative inline-flex items-center rounded-l-md px-2 py-1.5 ring-1 ring-inset hover:bg-slate-50 focus:z-20 transition disabled:opacity-40 disabled:cursor-not-allowed">
                                     <span class="sr-only">Previous</span>
                                     <i class="fa-solid fa-chevron-left text-[10px]"></i>
                                 </button>
-                                <span class="relative inline-flex items-center px-3 py-1.5 text-xs font-semibold text-slate-700 ring-1 ring-inset ring-slate-350">
+                                <span class="relative inline-flex items-center px-3 py-1.5 text-xs font-semibold text-slate-700 ring-1 ring-inset">
                                     Page <span id="pagination-current-page" class="mx-1 font-bold">1</span> of <span id="pagination-total-pages" class="mx-1 font-bold">1</span>
                                 </span>
-                                <button onclick="nextPage()" id="btn-next-page" class="relative inline-flex items-center rounded-r-md px-2 py-1.5 text-slate-450 ring-1 ring-inset ring-slate-355 hover:bg-slate-50 focus:z-20 transition disabled:opacity-40 disabled:cursor-not-allowed">
+                                <button onclick="nextPage()" id="btn-next-page" class="relative inline-flex items-center rounded-r-md px-2 py-1.5 ring-1 ring-inset hover:bg-slate-50 focus:z-20 transition disabled:opacity-40 disabled:cursor-not-allowed">
                                     <span class="sr-only">Next</span>
                                     <i class="fa-solid fa-chevron-right text-[10px]"></i>
                                 </button>
@@ -605,7 +605,7 @@ value1,value2,value3" class="w-full bg-white border border-slate-300 rounded-lg 
         <p class="flex items-center justify-center space-x-1.5">
             <i class="fa-solid fa-code-pull-request text-blue-500"></i>
             <span>Want to help improve this dashboard? Feel free to </span>
-            <a href="https://github.com/GoogleCloudPlatform/gcsfuse-tools" target="_blank" class="font-semibold text-blue-550 hover:text-blue-600 hover:underline transition">contribute on GitHub</a>.
+            <a href="https://github.com/GoogleCloudPlatform/gcsfuse-tools" target="_blank" class="font-semibold hover:text-blue-600 hover:underline transition">contribute on GitHub</a>.
         </p>
     </footer>
 

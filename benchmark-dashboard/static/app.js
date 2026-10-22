@@ -215,7 +215,7 @@ function checkAuthentication() {
             ldapInput.placeholder = `${googleUser} (Google SSO)`;
         } else {
             ldapInput.disabled = false;
-            ldapInput.className = "w-full bg-white border border-slate-300 rounded-lg pl-9 pr-4 py-2.5 text-slate-850 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition text-sm";
+            ldapInput.className = "w-full bg-white border border-slate-300 rounded-lg pl-9 pr-4 py-2.5 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition text-sm";
             if (wasHidden) {
                 ldapInput.value = "";
             }
@@ -899,12 +899,12 @@ function renderHistoryRows(runs) {
     runs.forEach(run => {
         const dateStr = formatToIST(run.created_at);
         const statusColors = {
-            'completed': 'bg-emerald-100 text-emerald-700 border-emerald-250',
+            'completed': 'bg-emerald-100 text-emerald-700',
             'failed': 'bg-rose-100 text-rose-700 border-rose-200',
             'cancelled': 'bg-slate-100 text-slate-500 border-slate-200'
         };
 
-        const starClass = run.is_starred ? 'fa-solid text-amber-500' : 'fa-regular text-slate-350 hover:text-amber-500';
+        const starClass = run.is_starred ? 'fa-solid text-amber-500' : 'fa-regular hover:text-amber-500';
         const isOwner = run.username === currentUser;
 
         const tr = document.createElement('tr');
@@ -954,26 +954,26 @@ function renderHistoryRows(runs) {
                 <div class="flex flex-wrap gap-x-16 gap-y-6 text-xs text-slate-600 leading-loose justify-start">
                     <div>
                         <span class="font-bold text-slate-700 uppercase tracking-wider block mb-1">GCSFuse Configs</span>
-                        <p>Commit: <span class="font-mono text-slate-850 font-bold">${escapeHTML(run.commit_hash)}</span></p>
-                        <p>Mount Args: <span class="font-mono text-slate-850">${escapeHTML(run.mount_args) || 'Used mount configs CSV'}</span></p>
+                        <p>Commit: <span class="font-mono font-bold">${escapeHTML(run.commit_hash)}</span></p>
+                        <p>Mount Args: <span class="font-mono">${escapeHTML(run.mount_args) || 'Used mount configs CSV'}</span></p>
                     </div>
                     <div>
                         <span class="font-bold text-slate-700 uppercase tracking-wider block mb-1">Files Run</span>
-                        <p>CSV: <span class="font-mono text-slate-850 break-all">${escapeHTML(run.test_csv_name)}</span></p>
-                        <p>Configs CSV: <span class="font-mono text-slate-850 break-all">${escapeHTML(run.configs_csv_name) || 'N/A'}</span></p>
-                        <p>FIO Job: <span class="font-mono text-slate-855 break-all">${escapeHTML(run.fio_job_name)}</span></p>
+                        <p>CSV: <span class="font-mono break-all">${escapeHTML(run.test_csv_name)}</span></p>
+                        <p>Configs CSV: <span class="font-mono break-all">${escapeHTML(run.configs_csv_name) || 'N/A'}</span></p>
+                        <p>FIO Job: <span class="font-mono break-all">${escapeHTML(run.fio_job_name)}</span></p>
                     </div>
                     <div>
                         <span class="font-bold text-slate-700 uppercase tracking-wider block mb-1">Scope Info</span>
-                        <p>Project: <span class="text-slate-850">${escapeHTML(run.project)}</span></p>
-                        <p>Zone: <span class="text-slate-850">${escapeHTML(run.zone)}</span></p>
-                        <p>Iterations: <span class="text-slate-855">${escapeHTML(run.iterations)}</span></p>
+                        <p>Project: <span>${escapeHTML(run.project)}</span></p>
+                        <p>Zone: <span>${escapeHTML(run.zone)}</span></p>
+                        <p>Iterations: <span>${escapeHTML(run.iterations)}</span></p>
                     </div>
                     <div>
                         <span class="font-bold text-slate-700 uppercase tracking-wider block mb-1">Timestamps</span>
-                        <p>Started: <span class="text-slate-850">${run.started_at ? formatToIST(run.started_at) : 'N/A'}</span></p>
-                        <p>Finished: <span class="text-slate-855">${run.completed_at ? formatToIST(run.completed_at) : 'N/A'}</span></p>
-                        <p>Duration: <span class="text-slate-855 font-bold text-slate-700">${run.started_at && run.completed_at ? calculateDuration(run.started_at, run.completed_at) : 'N/A'}</span></p>
+                        <p>Started: <span>${run.started_at ? formatToIST(run.started_at) : 'N/A'}</span></p>
+                        <p>Finished: <span>${run.completed_at ? formatToIST(run.completed_at) : 'N/A'}</span></p>
+                        <p>Duration: <span class="font-bold text-slate-700">${run.started_at && run.completed_at ? calculateDuration(run.started_at, run.completed_at) : 'N/A'}</span></p>
                     </div>
                 </div>
 
@@ -988,39 +988,39 @@ function renderHistoryRows(runs) {
 
                 <!-- Run Level Charts Container (3 Columns, 3 Rows of Double-Sized Charts!) -->
                 <div class="mt-4 pt-4 border-t border-slate-200 grid grid-cols-1 md:grid-cols-3 gap-6 hidden" id="charts-container-${run.benchmark_id}">
-                    <div onclick="zoomChart('${escapeHTML(run.benchmark_id)}', 'throughput-chart-${run.benchmark_id}')" class="h-96 bg-white p-4 border border-slate-250 rounded-lg shadow-sm cursor-pointer hover:shadow-md hover:border-blue-350 transition duration-150 relative group" title="Click to zoom chart">
+                    <div onclick="zoomChart('${escapeHTML(run.benchmark_id)}', 'throughput-chart-${run.benchmark_id}')" class="h-96 bg-white p-4 border rounded-lg shadow-sm cursor-pointer hover:shadow-md transition duration-150 relative group" title="Click to zoom chart">
                         <div class="absolute top-2.5 right-2.5 opacity-0 group-hover:opacity-100 text-slate-400 hover:text-slate-600 transition"><i class="fa-solid fa-expand text-xs"></i></div>
                         <canvas id="throughput-chart-${run.benchmark_id}"></canvas>
                     </div>
-                    <div onclick="zoomChart('${escapeHTML(run.benchmark_id)}', 'latency-chart-${run.benchmark_id}')" class="h-96 bg-white p-4 border border-slate-250 rounded-lg shadow-sm cursor-pointer hover:shadow-md hover:border-blue-350 transition duration-150 relative group" title="Click to zoom chart">
+                    <div onclick="zoomChart('${escapeHTML(run.benchmark_id)}', 'latency-chart-${run.benchmark_id}')" class="h-96 bg-white p-4 border rounded-lg shadow-sm cursor-pointer hover:shadow-md transition duration-150 relative group" title="Click to zoom chart">
                         <div class="absolute top-2.5 right-2.5 opacity-0 group-hover:opacity-100 text-slate-400 hover:text-slate-600 transition"><i class="fa-solid fa-expand text-xs"></i></div>
                         <canvas id="latency-chart-${run.benchmark_id}"></canvas>
                     </div>
-                    <div onclick="zoomChart('${escapeHTML(run.benchmark_id)}', 'peak-bw-chart-${run.benchmark_id}')" class="h-96 bg-white p-4 border border-slate-250 rounded-lg shadow-sm cursor-pointer hover:shadow-md hover:border-blue-350 transition duration-150 relative group" title="Click to zoom chart">
+                    <div onclick="zoomChart('${escapeHTML(run.benchmark_id)}', 'peak-bw-chart-${run.benchmark_id}')" class="h-96 bg-white p-4 border rounded-lg shadow-sm cursor-pointer hover:shadow-md transition duration-150 relative group" title="Click to zoom chart">
                         <div class="absolute top-2.5 right-2.5 opacity-0 group-hover:opacity-100 text-slate-400 hover:text-slate-600 transition"><i class="fa-solid fa-expand text-xs"></i></div>
                         <canvas id="peak-bw-chart-${run.benchmark_id}"></canvas>
                     </div>
-                    <div onclick="zoomChart('${escapeHTML(run.benchmark_id)}', 'cpu-chart-${run.benchmark_id}')" class="h-96 bg-white p-4 border border-slate-250 rounded-lg shadow-sm cursor-pointer hover:shadow-md hover:border-blue-350 transition duration-150 relative group" title="Click to zoom chart">
+                    <div onclick="zoomChart('${escapeHTML(run.benchmark_id)}', 'cpu-chart-${run.benchmark_id}')" class="h-96 bg-white p-4 border rounded-lg shadow-sm cursor-pointer hover:shadow-md transition duration-150 relative group" title="Click to zoom chart">
                         <div class="absolute top-2.5 right-2.5 opacity-0 group-hover:opacity-100 text-slate-400 hover:text-slate-600 transition"><i class="fa-solid fa-expand text-xs"></i></div>
                         <canvas id="cpu-chart-${run.benchmark_id}"></canvas>
                     </div>
-                    <div onclick="zoomChart('${escapeHTML(run.benchmark_id)}', 'mem-chart-${run.benchmark_id}')" class="h-96 bg-white p-4 border border-slate-250 rounded-lg shadow-sm cursor-pointer hover:shadow-md hover:border-blue-350 transition duration-150 relative group" title="Click to zoom chart">
+                    <div onclick="zoomChart('${escapeHTML(run.benchmark_id)}', 'mem-chart-${run.benchmark_id}')" class="h-96 bg-white p-4 border rounded-lg shadow-sm cursor-pointer hover:shadow-md transition duration-150 relative group" title="Click to zoom chart">
                         <div class="absolute top-2.5 right-2.5 opacity-0 group-hover:opacity-100 text-slate-400 hover:text-slate-600 transition"><i class="fa-solid fa-expand text-xs"></i></div>
                         <canvas id="mem-chart-${run.benchmark_id}"></canvas>
                     </div>
-                    <div onclick="zoomChart('${escapeHTML(run.benchmark_id)}', 'pgcache-chart-${run.benchmark_id}')" class="h-96 bg-white p-4 border border-slate-250 rounded-lg shadow-sm cursor-pointer hover:shadow-md hover:border-blue-350 transition duration-150 relative group" title="Click to zoom chart">
+                    <div onclick="zoomChart('${escapeHTML(run.benchmark_id)}', 'pgcache-chart-${run.benchmark_id}')" class="h-96 bg-white p-4 border rounded-lg shadow-sm cursor-pointer hover:shadow-md transition duration-150 relative group" title="Click to zoom chart">
                         <div class="absolute top-2.5 right-2.5 opacity-0 group-hover:opacity-100 text-slate-400 hover:text-slate-600 transition"><i class="fa-solid fa-expand text-xs"></i></div>
                         <canvas id="pgcache-chart-${run.benchmark_id}"></canvas>
                     </div>
-                    <div onclick="zoomChart('${escapeHTML(run.benchmark_id)}', 'net-rx-chart-${run.benchmark_id}')" class="h-96 bg-white p-4 border border-slate-250 rounded-lg shadow-sm cursor-pointer hover:shadow-md hover:border-blue-350 transition duration-150 relative group" title="Click to zoom chart">
+                    <div onclick="zoomChart('${escapeHTML(run.benchmark_id)}', 'net-rx-chart-${run.benchmark_id}')" class="h-96 bg-white p-4 border rounded-lg shadow-sm cursor-pointer hover:shadow-md transition duration-150 relative group" title="Click to zoom chart">
                         <div class="absolute top-2.5 right-2.5 opacity-0 group-hover:opacity-100 text-slate-400 hover:text-slate-600 transition"><i class="fa-solid fa-expand text-xs"></i></div>
                         <canvas id="net-rx-chart-${run.benchmark_id}"></canvas>
                     </div>
-                    <div onclick="zoomChart('${escapeHTML(run.benchmark_id)}', 'peak-net-rx-chart-${run.benchmark_id}')" class="h-96 bg-white p-4 border border-slate-250 rounded-lg shadow-sm cursor-pointer hover:shadow-md hover:border-blue-350 transition duration-150 relative group" title="Click to zoom chart">
+                    <div onclick="zoomChart('${escapeHTML(run.benchmark_id)}', 'peak-net-rx-chart-${run.benchmark_id}')" class="h-96 bg-white p-4 border rounded-lg shadow-sm cursor-pointer hover:shadow-md transition duration-150 relative group" title="Click to zoom chart">
                         <div class="absolute top-2.5 right-2.5 opacity-0 group-hover:opacity-100 text-slate-400 hover:text-slate-600 transition"><i class="fa-solid fa-expand text-xs"></i></div>
                         <canvas id="peak-net-rx-chart-${run.benchmark_id}"></canvas>
                     </div>
-                    <div onclick="zoomChart('${escapeHTML(run.benchmark_id)}', 'net-tx-chart-${run.benchmark_id}')" class="h-96 bg-white p-4 border border-slate-250 rounded-lg shadow-sm cursor-pointer hover:shadow-md hover:border-blue-350 transition duration-150 relative group" title="Click to zoom chart">
+                    <div onclick="zoomChart('${escapeHTML(run.benchmark_id)}', 'net-tx-chart-${run.benchmark_id}')" class="h-96 bg-white p-4 border rounded-lg shadow-sm cursor-pointer hover:shadow-md transition duration-150 relative group" title="Click to zoom chart">
                         <div class="absolute top-2.5 right-2.5 opacity-0 group-hover:opacity-100 text-slate-400 hover:text-slate-600 transition"><i class="fa-solid fa-expand text-xs"></i></div>
                         <canvas id="net-tx-chart-${run.benchmark_id}"></canvas>
                     </div>
@@ -1087,7 +1087,7 @@ async function fetchHistoryTestOutputs(id) {
             for (const job of jobs) {
                 if (job.status === 'SUCCESS' || job.status === 'FAILED/TIMEOUT') {
                     hasCompleted = true;
-                    const statusColor = job.status === 'SUCCESS' ? 'text-emerald-600 bg-emerald-50 border-emerald-250' : 'text-rose-605 bg-rose-50 border-rose-250';
+                    const statusColor = job.status === 'SUCCESS' ? 'text-emerald-600 bg-emerald-50' : 'bg-rose-50';
                     const paramStr = job.signature.join(', ');
                     html += `
                         <div class="flex items-center justify-between p-2 bg-white border border-slate-200 rounded-lg shadow-sm">
@@ -1128,7 +1128,7 @@ function viewGcsFile(runId, vm, testDir, filename) {
                     <h3 class="font-bold text-slate-800 text-sm flex items-center"><i class="fa-solid fa-file-lines text-blue-600 mr-2"></i> ${filename}</h3>
                     <p class="text-[10px] text-slate-500 font-mono mt-0.5">${runId} / ${vm} / ${testDir}</p>
                 </div>
-                <button onclick="document.getElementById('gcs-file-modal').remove()" class="text-slate-450 hover:text-slate-700 transition-colors">
+                <button onclick="document.getElementById('gcs-file-modal').remove()" class="hover:text-slate-700 transition-colors">
                     <i class="fa-solid fa-xmark text-lg"></i>
                 </button>
             </div>
@@ -1508,7 +1508,7 @@ function openCsvModal(type) {
         title.innerHTML = '<i class="fa-solid fa-file-csv mr-2.5 text-emerald-600"></i>Create Custom Test Cases CSV';
         contentText.placeholder = 'IOType,Jobs,FSize,BS,IOD,NrFiles,Direct\nread,1,1g,1m,1,1,0\nread,4,1g,256k,8,4,1';
     } else {
-        title.innerHTML = '<i class="fa-solid fa-file-shield mr-2.5 text-indigo-650"></i>Create Custom GCSFuse Mount Configs CSV';
+        title.innerHTML = '<i class="fa-solid fa-file-shield mr-2.5"></i>Create Custom GCSFuse Mount Configs CSV';
         contentText.placeholder = 'config,gcsfuse-commit,gcsfuse-mount-args\ngrpc,master,--client-protocol=grpc --implicit-dirs\nkernel,master,--implicit-dirs';
     }
 }

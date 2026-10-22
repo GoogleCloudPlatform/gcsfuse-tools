@@ -1,6 +1,13 @@
 #!/bin/bash
 set -e
 
+# Run as the user the service should run as. The script calls sudo itself, and
+# running it under sudo would install a root service and drop the DASHBOARD_* vars.
+if [ "$(id -u)" -eq 0 ]; then
+    echo "ERROR: Run this script as your normal user, without sudo. It calls sudo where needed." >&2
+    exit 1
+fi
+
 # Automation script to configure Systemd service for the Benchmark Dashboard
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 SERVICE_NAME="benchmark-dashboard"

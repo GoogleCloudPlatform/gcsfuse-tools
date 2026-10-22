@@ -1,5 +1,7 @@
 import os
+import re
 import sys
+import html
 import json
 import asyncio
 import logging
@@ -26,6 +28,16 @@ SHARED_PASSWORD = os.environ.get("DASHBOARD_PASSWORD")
 if not SHARED_PASSWORD:
     logger.critical("DASHBOARD_PASSWORD environment variable is not set! Server cannot start.")
     raise RuntimeError("DASHBOARD_PASSWORD environment variable must be set.")
+
+# Usernames become part of benchmark IDs, which are used in file paths and rendered in the UI.
+USERNAME_RE = re.compile(r"[a-z0-9][a-z0-9._-]{0,63}")
+
+def normalize_username(username: str) -> str:
+    """Lowercases a username and rejects anything that isn't LDAP-like."""
+    username = username.strip().lower()
+    if not USERNAME_RE.fullmatch(username):
+        raise HTTPException(status_code=400, detail="Invalid username: use your LDAP (letters, digits, '.', '_' or '-').")
+    return username
 
 def generate_user_token(username: str) -> str:
     """Generates a secure, expiring JWT for a user."""
@@ -303,7 +315,6 @@ async def startup_event():
     global queue_task
     # Re-attach to any orphaned active running benchmarks on boot
     try:
-        db.init_db()
         running_runs = db.get_active_runs() # Fetching runs in active queue state
         for run in running_runs:
             if run["status"] == "running":
@@ -343,7 +354,7 @@ async def get_current_user(request: Request):
 @app.post("/api/login")
 async def login_api(req: LoginRequest):
     """Verifies the shared team password and returns a secure signed session token."""
-    username = req.username.strip().lower()
+    username = normalize_username(req.username)
     if req.password == SHARED_PASSWORD:
         token = generate_user_token(username)
         logger.info(f"User '{username}' successfully signed in using the team password.")
@@ -511,7 +522,7 @@ def get_file_preview(path: str):
     """Reads and returns the contents of a config file relative to the benchmark directory."""
     try:
         safe_path = (DMB_DIR / path).resolve()
-        safe_path.relative_to(DMB_DIR)
+        safe_path.relative_to(DMB_DIR.resolve())
     except ValueError:
         raise HTTPException(status_code=403, detail="Access denied: Path lies outside benchmark directory")
         
@@ -593,7 +604,7 @@ def create_run(run: BenchmarkRunRequest):
     ist_tz = timezone(timedelta(hours=5, minutes=30))
     now_ist = datetime.utcnow().replace(tzinfo=timezone.utc).astimezone(ist_tz)
     date_str = now_ist.strftime("%Y%m%d-%H%M%S")
-    username = run.username.strip().lower()
+    username = normalize_username(run.username)
     benchmark_id = f"{username}-{date_str}-{random.randint(10, 99)}"
 
     # Setup directories
@@ -659,7 +670,7 @@ def create_run(run: BenchmarkRunRequest):
     run_record = {
         "benchmark_id": benchmark_id,
         "description": run.description,
-        "username": run.username,
+        "username": username,
         "suite": suite,
         "io_type": io_type,
         "executor_vm": run.executor_vm,
@@ -678,7 +689,7 @@ def create_run(run: BenchmarkRunRequest):
     }
 
     db.insert_run(run_record)
-    logger.info(f"Enqueued run {benchmark_id} submitted by {run.username}")
+    logger.info(f"Enqueued run {benchmark_id} submitted by {username}")
     
     return {"benchmark_id": benchmark_id, "status": "queued"}
 
@@ -937,31 +948,47 @@ def get_config(run_id: str):
 
 
 @app.post("/api/runs/{run_id}/cancel")
-def cancel_run(run_id: str):
+async def cancel_run(run_id: str):
     """Aborts a run."""
-    run = db.get_run(run_id)
+    run = await asyncio.to_thread(db.get_run, run_id)
     if not run:
         raise HTTPException(status_code=404, detail="Run not found")
         
     if run["status"] == "queued":
-        db.update_run_status(run_id, "cancelled", completed_at=datetime.utcnow().isoformat())
+        await asyncio.to_thread(db.update_run_status, run_id, "cancelled", completed_at=datetime.utcnow().isoformat())
         logger.info(f"Queued job {run_id} cancelled.")
         return {"status": "cancelled"}
         
     if run["status"] == "running":
+        # Stop the local orchestrator first, so it can't mark the run completed later.
+        task = active_processes.get(run_id)
+        if task:
+            task.cancel()
+            logger.info(f"Local orchestrator for {run_id} stopped.")
+
         # Create cancel flag in GCS for workers to detect
         try:
-            import subprocess
             cancel_path = f"gs://{run['artifacts_bucket']}/{run_id}/cancel"
-            subprocess.run(['gcloud', 'storage', 'cp', '-', cancel_path], input=b'cancelled', check=True)
+            await asyncio.to_thread(
+                subprocess.run, ['gcloud', 'storage', 'cp', '-', cancel_path],
+                input=b'cancelled', check=True, timeout=120
+            )
             logger.info(f"GCS cancellation flag written for {run_id}")
         except Exception as e:
             logger.error(f"Failed to create cancel flag in GCS: {e}")
             
-        db.update_run_status(run_id, "cancelled", completed_at=datetime.utcnow().isoformat())
+        await asyncio.to_thread(db.update_run_status, run_id, "cancelled", completed_at=datetime.utcnow().isoformat())
         return {"status": "cancelling"}
         
     raise HTTPException(status_code=400, detail="Run is not active")
+
+
+def parse_fio_json(text: str) -> dict:
+    """Parses FIO JSON output, skipping any warnings FIO prints before or after it."""
+    start = text.find("{")
+    if start == -1:
+        raise ValueError("no JSON object found")
+    return json.JSONDecoder().raw_decode(text, start)[0]
 
 
 def fetch_metrics_from_gcs(run_id: str, run_config: dict):
@@ -1016,7 +1043,7 @@ def fetch_metrics_from_gcs(run_id: str, run_config: dict):
                         if not f_blob.name.endswith(".json"):
                             continue
                         try:
-                            fio_data = json.loads(f_blob.download_as_text())
+                            fio_data = parse_fio_json(f_blob.download_as_text())
                             jobs = fio_data.get("jobs", [])
                             if not jobs:
                                 continue
@@ -1177,7 +1204,27 @@ def _compare_runs_sync(ids: str, project_id: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-        return {"content": content}
+MAX_RESULT_FILE_BYTES = 5 * 1024 * 1024  # mount logs can be huge; the viewer shows the tail
+
+
+@app.get("/api/runs/{run_id}/results/{vm}/{test_dir}/{filename}")
+def get_result_file(run_id: str, vm: str, test_dir: str, filename: str):
+    """Returns a worker output file (FIO JSON, mount log) from the run's GCS artifacts."""
+    run = db.get_run(run_id)
+    if not run:
+        raise HTTPException(status_code=404, detail="Run not found")
+    try:
+        bucket = storage.Client().bucket(run["artifacts_bucket"])
+        blob = bucket.get_blob(f"{run_id}/results/{vm}/{test_dir}/{filename}")
+        if blob is None:
+            raise HTTPException(status_code=404, detail="File not found in GCS")
+        if blob.size > MAX_RESULT_FILE_BYTES:
+            data = blob.download_as_bytes(start=blob.size - MAX_RESULT_FILE_BYTES)
+            note = f"[Showing the last 5 MiB of {blob.size / (1024 * 1024):.1f} MiB]\n"
+            return {"content": note + data.decode("utf-8", errors="replace")}
+        return {"content": blob.download_as_bytes().decode("utf-8", errors="replace")}
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Failed to fetch file from GCS: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
@@ -1191,6 +1238,14 @@ def get_report_view(run_id: str):
     run = db.get_run(run_id)
     if not run:
         raise HTTPException(status_code=404, detail="Run not found")
+
+    # Run fields and CSV contents are user input: escape them for HTML, and use
+    # JSON literals (with "<" escaped) inside the inline <script>.
+    def esc(value) -> str:
+        return html.escape(str(value))
+
+    def js(value) -> str:
+        return json.dumps(str(value or "")).replace("<", "\\u003c")
     
     # Resolve configs.csv content if it's a multi-config run
     configs_content = ""
@@ -1212,7 +1267,7 @@ def get_report_view(run_id: str):
     # Build Mount Options HTML
     mount_options_html = ""
     if run.get("mount_args"):
-        mount_options_html = f'<pre class="bg-slate-50 p-4 rounded border border-slate-200 text-xs font-mono whitespace-pre-wrap leading-relaxed text-slate-700">{run.get("mount_args")}</pre>'
+        mount_options_html = f'<pre class="bg-slate-50 p-4 rounded border border-slate-200 text-xs font-mono whitespace-pre-wrap leading-relaxed text-slate-700">{esc(run.get("mount_args"))}</pre>'
     elif configs_content:
         import csv
         import io
@@ -1224,10 +1279,10 @@ def get_report_view(run_id: str):
                 for row in reader:
                     if not row:
                         continue
-                    row_cols = "".join([f'<td class="py-1.5 px-2.5 border-b border-slate-200 font-mono text-[10px] text-slate-700">{col}</td>' for col in row])
+                    row_cols = "".join([f'<td class="py-1.5 px-2.5 border-b border-slate-200 font-mono text-[10px] text-slate-700">{esc(col)}</td>' for col in row])
                     table_rows += f'<tr class="hover:bg-slate-50">{row_cols}</tr>'
                 
-                header_cols = "".join([f'<th class="py-2 px-2.5 bg-slate-100 text-slate-800 font-bold border-b border-slate-200 text-left text-[10px] uppercase tracking-wider">{h}</th>' for h in headers])
+                header_cols = "".join([f'<th class="py-2 px-2.5 bg-slate-100 text-slate-800 font-bold border-b border-slate-200 text-left text-[10px] uppercase tracking-wider">{esc(h)}</th>' for h in headers])
                 
                 mount_options_html = f"""
                 <div class="overflow-x-auto border border-slate-200 rounded-lg shadow-sm">
@@ -1244,7 +1299,7 @@ def get_report_view(run_id: str):
             else:
                 mount_options_html = '<p class="text-slate-500 italic text-xs">Configs CSV was empty.</p>'
         except Exception as parse_e:
-            mount_options_html = f'<p class="text-rose-500 font-bold text-xs">Failed to parse configs CSV: {parse_e}</p>'
+            mount_options_html = f'<p class="text-rose-500 font-bold text-xs">Failed to parse configs CSV: {esc(parse_e)}</p>'
     else:
         mount_options_html = '<pre class="bg-slate-50 p-4 rounded border border-slate-200 text-xs font-mono text-slate-500 italic">No mount options or configs CSV found.</pre>'
 
@@ -1252,7 +1307,7 @@ def get_report_view(run_id: str):
     <!DOCTYPE html>
     <html>
     <head>
-        <title>Benchmark Performance Report - {run_id}</title>
+        <title>Benchmark Performance Report - {esc(run_id)}</title>
         <script src="https://cdn.tailwindcss.com"></script>
         <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
         <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
@@ -1279,7 +1334,7 @@ def get_report_view(run_id: str):
             <div class="flex items-center justify-between border-b-2 border-slate-800 pb-6 mb-6">
                 <div>
                     <h1 class="text-2xl font-bold text-slate-900">Benchmark Performance Report</h1>
-                    <p class="text-xs text-slate-500 font-mono mt-1">ID: {run_id}</p>
+                    <p class="text-xs text-slate-500 font-mono mt-1">ID: {esc(run_id)}</p>
                 </div>
                 <button onclick="window.print()" class="no-print px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg text-xs shadow flex items-center transition-colors">
                     <i class="fa-solid fa-print mr-2"></i> Print / Save as PDF
@@ -1289,14 +1344,14 @@ def get_report_view(run_id: str):
             <!-- Metadata Grid -->
             <div class="grid grid-cols-2 gap-6 text-xs text-slate-600 mb-8 bg-slate-50 p-5 rounded-lg border border-slate-200">
                 <div>
-                    <p class="mb-1.5"><strong class="text-slate-800 uppercase tracking-wider text-[10px]">Description:</strong> {run.get("description", "N/A")}</p>
-                    <p class="mb-1.5"><strong class="text-slate-800 uppercase tracking-wider text-[10px]">Target VM:</strong> {run.get("executor_vm", "N/A")}</p>
-                    <p class="mb-1.5"><strong class="text-slate-800 uppercase tracking-wider text-[10px]">Zone / Project:</strong> {run.get("zone", "N/A")} / {run.get("project", "N/A")}</p>
+                    <p class="mb-1.5"><strong class="text-slate-800 uppercase tracking-wider text-[10px]">Description:</strong> {esc(run.get("description", "N/A"))}</p>
+                    <p class="mb-1.5"><strong class="text-slate-800 uppercase tracking-wider text-[10px]">Target VM:</strong> {esc(run.get("executor_vm", "N/A"))}</p>
+                    <p class="mb-1.5"><strong class="text-slate-800 uppercase tracking-wider text-[10px]">Zone / Project:</strong> {esc(run.get("zone", "N/A"))} / {esc(run.get("project", "N/A"))}</p>
                 </div>
                 <div>
-                    <p class="mb-1.5"><strong class="text-slate-800 uppercase tracking-wider text-[10px]">Created:</strong> {run.get("created_at", "N/A")}</p>
-                    <p class="mb-1.5"><strong class="text-slate-800 uppercase tracking-wider text-[10px]">Started:</strong> {run.get("started_at", "N/A")}</p>
-                    <p class="mb-1.5"><strong class="text-slate-800 uppercase tracking-wider text-[10px]">Finished:</strong> {run.get("completed_at", "N/A")}</p>
+                    <p class="mb-1.5"><strong class="text-slate-800 uppercase tracking-wider text-[10px]">Created:</strong> {esc(run.get("created_at", "N/A"))}</p>
+                    <p class="mb-1.5"><strong class="text-slate-800 uppercase tracking-wider text-[10px]">Started:</strong> {esc(run.get("started_at", "N/A"))}</p>
+                    <p class="mb-1.5"><strong class="text-slate-800 uppercase tracking-wider text-[10px]">Finished:</strong> {esc(run.get("completed_at", "N/A"))}</p>
                     <p class="mb-1.5" id="duration-container"><strong class="text-slate-800 uppercase tracking-wider text-[10px]">Total Duration:</strong> Calculating...</p>
                 </div>
             </div>
@@ -1399,7 +1454,11 @@ def get_report_view(run_id: str):
         </div>
  
         <script>
-            const runId = "{run_id}";
+            const runId = {js(run_id)};
+
+            function esc(value) {{
+                return String(value).replace(/[&<>"']/g, c => ({{"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}})[c]);
+            }}
             
             function formatDuration(start, end) {{
                 if (!start || !end) return "N/A";
@@ -1421,7 +1480,7 @@ def get_report_view(run_id: str):
             }}
             
             window.onload = async () => {{
-                const durationStr = formatDuration("{run.get('started_at', '')}", "{run.get('completed_at', '')}");
+                const durationStr = formatDuration({js(run.get('started_at'))}, {js(run.get('completed_at'))});
                 document.getElementById("duration-container").innerHTML = `<strong class="text-slate-800 uppercase tracking-wider text-[10px]">Total Duration:</strong> ` + durationStr;
  
                 try {{
@@ -1452,13 +1511,13 @@ def get_report_view(run_id: str):
                         tableHtml += `
                             <tr class="${{index % 2 === 0 ? 'bg-white' : 'bg-slate-50'}} border-b border-slate-200">
                                 <td class="py-1.5 px-2 font-mono font-bold text-slate-800 border-r border-slate-200 text-[10px]">${{index + 1}}</td>
-                                <td class="py-1.5 px-2 border-r border-slate-200 text-[10px] leading-tight break-all">${{paramFmt}}</td>
-                                <td class="py-1.5 px-2 font-mono text-slate-700 border-r border-slate-200 text-[10px] break-all leading-tight">${{row.config}}</td>
+                                <td class="py-1.5 px-2 border-r border-slate-200 text-[10px] leading-tight break-all">${{esc(paramFmt)}}</td>
+                                <td class="py-1.5 px-2 font-mono text-slate-700 border-r border-slate-200 text-[10px] break-all leading-tight">${{esc(row.config)}}</td>
                                 <td class="py-1.5 px-2 text-right font-mono font-bold text-slate-800 border-r border-slate-200 text-[10px]">${{avgBw}}</td>
                                 <td class="py-1.5 px-2 text-right font-mono font-bold text-slate-800 border-r border-slate-200 text-[10px]">${{peakBw}}</td>
-                                <td class="py-1.5 px-2 text-right font-mono text-slate-850 border-r border-slate-200 text-[10px]">${{lat}}</td>
-                                <td class="py-1.5 px-2 text-right font-mono text-slate-650 border-r border-slate-200 text-[10px]">${{row.cpu.toFixed(1)}}%</td>
-                                <td class="py-1.5 px-2 text-right font-mono text-slate-650 text-[10px]">${{row.mem.toFixed(1)}} MB</td>
+                                <td class="py-1.5 px-2 text-right font-mono border-r border-slate-200 text-[10px]">${{lat}}</td>
+                                <td class="py-1.5 px-2 text-right font-mono border-r border-slate-200 text-[10px]">${{row.cpu.toFixed(1)}}%</td>
+                                <td class="py-1.5 px-2 text-right font-mono text-[10px]">${{row.mem.toFixed(1)}} MB</td>
                             </tr>
                         `;
                     }});
@@ -1470,7 +1529,7 @@ def get_report_view(run_id: str):
                 }} catch (e) {{
                     document.getElementById("report-table-body").innerHTML = `
                         <tr>
-                            <td colspan="8" class="py-4 text-center text-rose-500 font-bold">Failed to load report data: ${{e}}</td>
+                            <td colspan="8" class="py-4 text-center text-rose-500 font-bold">Failed to load report data: ${{esc(e)}}</td>
                         </tr>
                     `;
                 }}
@@ -1656,7 +1715,7 @@ def get_report_view(run_id: str):
                             return `
                                 <div class="flex items-center space-x-2 bg-white px-3 py-1.5 rounded-lg border border-slate-200 shadow-sm">
                                     <span class="w-3.5 h-3.5 rounded-sm" style="background-color: ${{ds.borderColor}}; border: 1px solid ${{ds.borderColor}};"></span>
-                                    <span class="text-slate-700 font-mono text-xs font-semibold">${{ds.label}}</span>
+                                    <span class="text-slate-700 font-mono text-xs font-semibold">${{esc(ds.label)}}</span>
                                 </div>
                             `;
                         }}).join('');

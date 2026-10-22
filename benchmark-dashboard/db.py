@@ -12,7 +12,11 @@ DASHBOARD_BUCKET = os.environ.get("DASHBOARD_BUCKET", "dmb-db")
 GCS_DB_BLOB = "dashboard/dashboard.db"
 
 def download_db_from_gcs():
-    """Download dashboard.db from GCS to local path on startup."""
+    """Download dashboard.db from GCS to local path on startup.
+
+    Raises if GCS can't be read: starting from an empty or stale local copy would
+    overwrite the real database on the next upload.
+    """
     try:
         client = storage.Client()
         bucket = client.bucket(DASHBOARD_BUCKET)
@@ -25,8 +29,7 @@ def download_db_from_gcs():
             print(f"No database found on GCS at gs://{DASHBOARD_BUCKET}/{GCS_DB_BLOB}. Initializing a new database.")
             return False
     except Exception as e:
-        print(f"Warning: Failed to download database from GCS: {e}. Using local database.")
-        return False
+        raise RuntimeError(f"Failed to download database from GCS: {e}") from e
 
 def upload_db_to_gcs():
     """Upload local dashboard.db to GCS after write operations."""
