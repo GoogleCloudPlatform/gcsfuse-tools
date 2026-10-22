@@ -203,5 +203,7 @@ execute_test() {
     mv manifest_tmp.json manifest.json
     
     gcloud storage cp -r "$TEST_DIR" "${RESULT_BASE}/"
+    # Upload the progress manifest after the results, so readers never see a test before its results
+    gcloud storage cp manifest.json "${RESULT_BASE}/manifest.json"
     return 0
 }
