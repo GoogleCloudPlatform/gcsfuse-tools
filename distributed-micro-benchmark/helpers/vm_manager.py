@@ -18,7 +18,6 @@ import os
 import shlex
 import subprocess
 import time
-from datetime import datetime, timedelta
 from . import gcs, gcloud_utils
 
 
@@ -110,7 +109,7 @@ def run_worker_script(vm_name, zone, project, script_path, benchmark_id, artifac
         f'--setenv=PATH=$PATH '
         f'--unit={quoted_unit} '
         f'--remain-after-exit '
-        f'bash $HOME/{quoted_script_filename} {quoted_id} {quoted_bucket}'
+        f'/bin/bash $HOME/{quoted_script_filename} {quoted_id} {quoted_bucket}'
     )
 
     try:
@@ -182,11 +181,11 @@ def wait_for_completion(vms, benchmark_id, artifacts_bucket, poll_interval=30, t
     print(f"Waiting for {len(vms)} VMs to complete...")
     
     has_timeout = timeout > 0
-    deadline = datetime.now() + timedelta(seconds=timeout) if has_timeout else None
+    deadline = time.monotonic() + timeout if has_timeout else None
     completed_vms = set()
     failed_vms = set()
     
-    while not has_timeout or datetime.now() < deadline:
+    while not has_timeout or time.monotonic() < deadline:
         # Get granular progress by counting uploaded result files
         progress_counts = _get_vm_test_progress(benchmark_id, artifacts_bucket)
 
