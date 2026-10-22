@@ -24,6 +24,7 @@ import json
 import sys
 import os
 import shutil
+import glob
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from helpers import gcs, vm_manager, job_generator, result_aggregator, report_generator
@@ -76,6 +77,22 @@ def main():
     except Exception as e:
         print(f"\nERROR: Benchmark failed: {e}")
         sys.exit(1)
+
+
+def _plot_jobs(results_dir, report_name, separate_configs):
+    """Returns (input CSV, output PNG) pairs to auto-plot.
+
+    With --separate-configs there is no combined report, so each per-config
+    report (<report>_<config>.csv) gets its own plots_<config>.png.
+    """
+    if not separate_configs:
+        return [(os.path.join(results_dir, report_name), os.path.join(results_dir, 'plots.png'))]
+    base = os.path.splitext(report_name)[0]
+    jobs = []
+    for csv_path in sorted(glob.glob(os.path.join(results_dir, f"{glob.escape(base)}_*.csv"))):
+        config = os.path.basename(csv_path)[len(base) + 1:-len('.csv')]
+        jobs.append((csv_path, os.path.join(results_dir, f"plots_{config}.png")))
+    return jobs
 
 
 def run_benchmark(args):
@@ -339,22 +356,28 @@ def run_benchmark(args):
         print(f"\n✓ Report generated: {report_file}")
     
     # 10. Auto-generate plots (unless disabled)
+    plot_files = []
     if not args.no_auto_plot:
         print(f"\nGenerating plots (metric group: {args.plot_metric_group})...")
-        try:
-            import subprocess
-            script_dir = os.path.dirname(os.path.abspath(__file__))
-            plot_script = os.path.join(script_dir, 'plot_reports.py')
-            subprocess.run([
-                'python3', plot_script,
-                report_file,
-                '--metric-group', args.plot_metric_group,
-                '--output-file', f"{results_dir}/plots.png",
-                '--mode', 'combined'
-            ], check=True)
-            print(f"✓ Plots generated: {results_dir}/plots.png")
-        except subprocess.CalledProcessError as e:
-            print(f"✗ Plot generation failed: {e}")
+        import subprocess
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        plot_script = os.path.join(script_dir, 'plot_reports.py')
+        jobs = _plot_jobs(results_dir, args.report_name, args.separate_configs)
+        if not jobs:
+            print("✗ No reports found to plot")
+        for plot_input, plot_output in jobs:
+            try:
+                subprocess.run([
+                    'python3', plot_script,
+                    plot_input,
+                    '--metric-group', args.plot_metric_group,
+                    '--output-file', plot_output,
+                    '--mode', 'combined'
+                ], check=True)
+                plot_files.append(os.path.basename(plot_output))
+                print(f"✓ Plots generated: {plot_output}")
+            except subprocess.CalledProcessError as e:
+                print(f"✗ Plot generation failed for {plot_input}: {e}")
 
     # Update 'latest' symlink
     latest_link = "results/latest"
@@ -368,8 +391,8 @@ def run_benchmark(args):
     print(f"Results saved to: {results_dir}/")
     print(f"  - Input files: {test_csv_name}, {configs_csv_name if args.configs_csv else ''}, {fio_job_name}")
     print(f"  - Report: {args.report_name}")
-    if not args.no_auto_plot:
-        print(f"  - Plots: plots.png")
+    if plot_files:
+        print(f"  - Plots: {', '.join(plot_files)}")
     print(f"  - Latest: results/latest/ ")
     
     # Exit with error code if some VMs failed

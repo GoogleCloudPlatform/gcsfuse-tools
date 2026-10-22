@@ -2,6 +2,8 @@
 """Plot read throughput from benchmark reports"""
 
 import pandas as pd
+import matplotlib
+matplotlib.use('Agg')  # Headless backend: never opens a window, and plt.show() is a no-op
 import matplotlib.pyplot as plt
 import glob
 import os
@@ -12,41 +14,45 @@ from pathlib import Path
 
 
 def parse_file_size(size_str):
-    """Convert file size string to numeric value for sorting"""
-    size_str = size_str.lower()
-    if 'k' in size_str:
-        return float(size_str.replace('k', '')) / 1024  # Convert to MB
-    elif 'm' in size_str:
-        return float(size_str.replace('m', ''))
-    elif 'g' in size_str:
-        return float(size_str.replace('g', '')) * 1024  # Convert to MB
-    return float(size_str)
+    """Convert a size string (e.g. 4k, 1m, 10g, 128KiB, 1MB) to MB for sorting"""
+    match = re.match(r'^\s*([0-9]*\.?[0-9]+)\s*([a-z]*)\s*$', str(size_str).lower())
+    if not match:
+        return 0.0
+    value, unit = float(match.group(1)), match.group(2)
+    if unit.startswith('k'):
+        return value / 1024  # Convert to MB
+    if unit.startswith('g'):
+        return value * 1024  # Convert to MB
+    return value  # 'm', 'mb', 'mib' or no unit
 
 
 def parse_params(param_str):
-    """Parse compressed parameter string into components"""
-    parts = param_str.split('|')
-    if len(parts) >= 7:
-        return {
-            'io_type': parts[0],
-            'threads': int(parts[1]),
-            'file_size': parts[2],
-            'bs': parts[3],
-            'io_depth': parts[4],
-            'nr_files': int(parts[5]),
-            'direct': int(parts[6])
-        }
-    elif len(parts) >= 6:
-        return {
-            'io_type': parts[0],
-            'threads': int(parts[1]),
-            'file_size': parts[2],
-            'bs': parts[3],
-            'io_depth': parts[4],
-            'nr_files': int(parts[5]),
-            'direct': 0
-        }
+    """Parse compressed parameter string into components; returns None if it is malformed"""
+    try:
+        parts = param_str.split('|')
+        if len(parts) >= 6:
+            return {
+                'io_type': parts[0],
+                'threads': int(parts[1]),
+                'file_size': parts[2],
+                'bs': parts[3],
+                'io_depth': parts[4],
+                'nr_files': int(parts[5]),
+                'direct': int(parts[6]) if len(parts) >= 7 else 0
+            }
+    except (AttributeError, ValueError):
+        pass
     return None
+
+
+PARAM_COL_MARKER = 'IOType|Jobs|FSize|BS|IOD|NrFiles'
+
+
+def require_param_col(df, csv_file):
+    """Exit with an error if the report has no test-parameter column (otherwise the plots come out empty)"""
+    if not any(PARAM_COL_MARKER in col for col in df.columns):
+        print(f"ERROR: Parameter column (containing '{PARAM_COL_MARKER}') not found in {csv_file}")
+        sys.exit(1)
 
 
 def sort_key(param_str):
@@ -157,6 +163,7 @@ def plot_per_config_from_single_csv(csv_file, output_file_base, metrics_to_plot)
     
     print(f"Loading multi-config CSV: {csv_file}")
     df = pd.read_csv(csv_file)
+    require_param_col(df, csv_file)
     
     # Check if Config column exists
     if 'Config' not in df.columns:
@@ -287,7 +294,7 @@ def plot_per_config_from_single_csv(csv_file, output_file_base, metrics_to_plot)
         plt.tight_layout(rect=[0, 0, 1, 0.99])  # Leave space for suptitle
         
         # Save plot with config name in filename
-        safe_config_name = config.replace('/', '_').replace(' ', '_')
+        safe_config_name = re.sub(r'[^a-zA-Z0-9_-]', '_', str(config))
         output_file = os.path.join(output_dir, f"{output_basename}_{safe_config_name}.png")
         plt.savefig(output_file, dpi=150, bbox_inches='tight')
         print(f"  Saved: {output_file}")
@@ -315,6 +322,7 @@ def plot_combined_mode_single_file(csv_file, output_file, metrics_to_plot, x_axi
     
     # Read the CSV
     df = pd.read_csv(csv_file)
+    require_param_col(df, csv_file)
     
     # Check if it has a Config column
     has_config_column = 'Config' in df.columns
@@ -564,8 +572,8 @@ def plot_combined_mode(reports_dir, output_file, metrics_to_plot):
     csv_files = glob.glob(os.path.join(reports_dir, "*.csv"))
     
     if not csv_files:
-        print(f"No CSV files found in {reports_dir}/")
-        return
+        print(f"ERROR: No CSV files found in {reports_dir}/")
+        sys.exit(1)
     
     print(f"Found {len(csv_files)} CSV files:")
     for f in csv_files:
