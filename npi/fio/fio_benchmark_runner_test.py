@@ -8,6 +8,8 @@ import sys
 # Add the directory containing fio_benchmark_runner.py to the path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 import fio_benchmark_runner
+import run_fio_benchmark
+import run_fio_matrix
 
 class TestClearCacheDir(unittest.TestCase):
 
@@ -83,6 +85,135 @@ class TestFioTemplatesAndDirectEnv(unittest.TestCase):
         _, kwargs = mock_run_fio.call_args
         self.assertEqual(kwargs["fio_env"]["DIRECT"], "1")
         self.assertEqual(kwargs["fio_env"]["NUMJOBS"], "112")
+
+    def test_resolve_fio_params_fallbacks_and_validation(self):
+        # Empty / whitespace cells fall back cleanly while preserving 0 for DIRECT
+        self.assertEqual(
+            fio_benchmark_runner.resolve_fio_params({"DIRECT": "", "NUMJOBS": "  "}, {"DIRECT": "", "NUMJOBS": ""}),
+            ("1", "112"),
+        )
+        self.assertEqual(
+            fio_benchmark_runner.resolve_fio_params({"DIRECT": "  ", "NUMJOBS": ""}, {"DIRECT": "0", "NUMJOBS": "48"}),
+            ("0", "48"),
+        )
+        self.assertEqual(
+            fio_benchmark_runner.resolve_fio_params({"DIRECT": 0, "NUM_JOBS": "16"}, {"DIRECT": "1", "NUMJOBS": "112"}),
+            ("0", "16"),
+        )
+        for bad_overrides, bad_env in [
+            ({"DIRECT": "2"}, {}),
+            ({}, {"DIRECT": "yes"}),
+            ({"DIRECT": True}, {}),
+            ({"NUMJOBS": "0"}, {"NUMJOBS": "112"}),
+            ({"NUMJOBS": "-4"}, {}),
+            ({"NUMJOBS": "abc"}, {}),
+            ({"NUMJOBS": ""}, {"NUMJOBS": "0"}),
+        ]:
+            with self.assertRaises(ValueError):
+                fio_benchmark_runner.resolve_fio_params(bad_overrides, bad_env)
+
+    @patch('os.makedirs')
+    @patch('fio_benchmark_runner.subprocess.run')
+    @patch('os.path.exists', return_value=True)
+    def test_precreate_directories_legacy_num_jobs_and_rejects_invalid_before_delete(
+        self, mock_exists, mock_subproc, mock_makedirs
+    ):
+        # 1. Invalid NUMJOBS fails BEFORE concurrent_delete.py (subprocess.run) executes
+        with self.assertRaises(ValueError):
+            fio_benchmark_runner.precreate_benchmark_directories(
+                "/mnt/data",
+                {"FILE_SIZE": "1G", "BLOCK_SIZE": "1M", "NR_FILES": "1", "NUMJOBS": "0"},
+                "/write.fio",
+            )
+        mock_subproc.assert_not_called()
+
+        # 2. Legacy NUM_JOBS="4" creates exactly 4 job directories matching resolve_fio_params
+        with patch.dict(os.environ, {"NUMJOBS": "112"}, clear=False):
+            fio_benchmark_runner.precreate_benchmark_directories(
+                "/mnt/data",
+                {"FILE_SIZE": "1G", "BLOCK_SIZE": "1M", "NR_FILES": "1", "NUM_JOBS": "4"},
+                "/write.fio",
+            )
+        mock_subproc.assert_called_once()
+        # 1 nested_dir + 4 job_N dirs = 5 makedirs calls
+        self.assertEqual(mock_makedirs.call_count, 5)
+
+    @patch('fio_benchmark_runner.mount_gcsfuse')
+    def test_run_benchmark_rejects_invalid_params_before_mounting(self, mock_mount):
+        with self.assertRaises(ValueError):
+            fio_benchmark_runner.run_benchmark(
+                gcsfuse_flags="",
+                bucket_name="my-bucket",
+                iterations=1,
+                fio_config="/read.fio",
+                work_dir="/tmp/work",
+                output_dir="/tmp/out",
+                project_id=None,
+                fio_env={"DIRECT": "invalid"},
+            )
+        mock_mount.assert_not_called()
+
+
+class TestRunFioMatrixAndBenchmarkEntrypoints(unittest.TestCase):
+
+    def test_run_fio_matrix_rejects_invalid_params_before_bq_truncation(self):
+        import tempfile
+        with tempfile.NamedTemporaryFile("w", suffix=".csv") as f:
+            f.write("READ_TYPE,FILE_SIZE,BLOCK_SIZE,NR_FILES,NUMJOBS,DIRECT\nread,1G,1M,1,,\n")
+            f.flush()
+            with patch.object(fio_benchmark_runner, "_BQ_SUPPORTED", True), \
+                 patch.object(fio_benchmark_runner, "bigquery", create=True) as mock_bq, \
+                 patch.object(fio_benchmark_runner, "truncate_bq_table") as mock_trunc, \
+                 patch.object(fio_benchmark_runner, "run_benchmark") as mock_run_bench:
+                # 1. --numjobs=0 rejected by argparse
+                with patch("sys.argv", [
+                    "run_fio_matrix.py", "--mount-path=/data", "--fio-template=/read.fio",
+                    f"--matrix-config={f.name}", "--project-id=p", "--bq-dataset-id=d",
+                    "--bq-table-id=t", "--numjobs=0"
+                ]):
+                    with self.assertRaises(SystemExit) as cm:
+                        run_fio_matrix.main()
+                    self.assertNotEqual(cm.exception.code, 0)
+                mock_trunc.assert_not_called()
+                mock_bq.Client.assert_not_called()
+
+                # 2. Invalid DIRECT in os.environ rejected before truncate_bq_table
+                with patch.dict(os.environ, {"DIRECT": "invalid", "NUMJOBS": "112"}, clear=False), \
+                     patch("sys.argv", [
+                         "run_fio_matrix.py", "--mount-path=/data", "--fio-template=/read.fio",
+                         f"--matrix-config={f.name}", "--project-id=p", "--bq-dataset-id=d",
+                         "--bq-table-id=t"
+                     ]):
+                    with self.assertRaises(SystemExit) as cm2:
+                        run_fio_matrix.main()
+                    self.assertEqual(cm2.exception.code, 1)
+                mock_trunc.assert_not_called()
+
+                # 3. Blank CSV cells fall back cleanly to os.environ DIRECT=0, NUMJOBS=64
+                with patch.dict(os.environ, {"DIRECT": "0", "NUMJOBS": "64"}, clear=False), \
+                     patch("sys.argv", [
+                         "run_fio_matrix.py", "--mount-path=/data", "--fio-template=/read.fio",
+                         f"--matrix-config={f.name}"
+                     ]):
+                    run_fio_matrix.main()
+                mock_run_bench.assert_called_once()
+                _, kwargs = mock_run_bench.call_args
+                self.assertEqual(kwargs["fio_env"]["DIRECT"], "0")
+                self.assertEqual(kwargs["fio_env"]["NUMJOBS"], "64")
+
+    def test_run_fio_benchmark_rejects_invalid_env_before_bq_truncation(self):
+        with patch.object(fio_benchmark_runner, "_BQ_SUPPORTED", True), \
+             patch.object(fio_benchmark_runner, "bigquery", create=True), \
+             patch.object(fio_benchmark_runner, "truncate_bq_table") as mock_trunc, \
+             patch.dict(os.environ, {"NUMJOBS": "0"}, clear=False), \
+             patch("sys.argv", [
+                 "run_fio_benchmark.py", "--mount-path=/data", "--fio-config=/read.fio",
+                 "--project-id=p", "--bq-dataset-id=d", "--bq-table-id=t"
+             ]):
+            with self.assertRaises(SystemExit) as cm:
+                run_fio_benchmark.main()
+            self.assertEqual(cm.exception.code, 1)
+        mock_trunc.assert_not_called()
 
 
 if __name__ == '__main__':

@@ -59,6 +59,12 @@ def main():
 
     mount_path = os.path.abspath(args.mount_path) if args.mount_path else None
 
+    try:
+        fio_benchmark_runner.resolve_fio_params(None, os.environ)
+    except ValueError as e:
+        logging.error("Invalid FIO environment configuration: %s", e)
+        sys.exit(1)
+
     if args.project_id and args.bq_dataset_id and args.bq_table_id:
         if not fio_benchmark_runner._BQ_SUPPORTED:
             logging.error("BigQuery operations requested, but 'google-cloud-bigquery' is not installed.")

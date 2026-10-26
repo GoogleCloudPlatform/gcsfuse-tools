@@ -33,6 +33,20 @@ import shutil
 import datetime
 import urllib.request
 
+
+def positive_int(value):
+    """Argparse type validator requiring a positive integer (> 0)."""
+    if isinstance(value, (bool, float)):
+        raise argparse.ArgumentTypeError(f"invalid int value: {value!r}")
+    try:
+        ivalue = value if isinstance(value, int) else int(str(value).strip())
+    except (TypeError, ValueError) as exc:
+        raise argparse.ArgumentTypeError(f"invalid int value: {value!r}") from exc
+    if ivalue <= 0:
+        raise argparse.ArgumentTypeError(f"must be > 0, got {ivalue}")
+    return ivalue
+
+
 class BenchmarkFactory:
     """A factory for creating benchmark commands.
 
@@ -78,6 +92,9 @@ class BenchmarkFactory:
         self.file_cache_size_mb = file_cache_size_mb
         self.smoke_mode = smoke_mode
         self.extra_mount_options = extra_mount_options
+        if numjobs is not None:
+            if isinstance(numjobs, bool) or not isinstance(numjobs, int) or numjobs <= 0:
+                raise ValueError(f"numjobs must be a positive integer, got {numjobs!r}")
         self.is_rapid_bucket = is_rapid_bucket
         self.numjobs = numjobs
         self._benchmark_definitions = self._get_benchmark_definitions()
@@ -189,14 +206,13 @@ class BenchmarkFactory:
             if extra_flags:
                 gcsfuse_flags = f"{gcsfuse_flags} {extra_flags}"
 
-        if self.smoke_mode:
-            num_jobs = "2"
-        elif self.numjobs is not None:
-            num_jobs = str(self.numjobs)
-        elif self.is_rapid_bucket:
-            num_jobs = "112"
+        if self.numjobs is not None:
+            explicit_numjobs = str(self.numjobs)
+        elif self.smoke_mode:
+            explicit_numjobs = "2"
         else:
-            num_jobs = "112"
+            explicit_numjobs = None
+        num_jobs = explicit_numjobs or "112"
         direct_val = "0" if self.is_rapid_bucket else "1"
         base_cmd = (
             "docker run --pull=always --network=host --privileged --rm "
@@ -224,8 +240,8 @@ class BenchmarkFactory:
 
         if runner_args:
             base_cmd += f" {runner_args}"
-        if benchmark_image_suffix == "go-client-read-benchmark":
-            base_cmd += f" --numjobs={num_jobs}"
+        if explicit_numjobs is not None:
+            base_cmd += f" --numjobs={explicit_numjobs}"
         if bucket_name:
             base_cmd += f" --bucket-name={bucket_name}"
         if mount_path:
@@ -542,7 +558,7 @@ def main():
     )
     parser.add_argument(
         "--numjobs",
-        type=int,
+        type=positive_int,
         default=None,
         help="Override FIO/Go-client numjobs concurrency count."
     )

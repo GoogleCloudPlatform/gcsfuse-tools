@@ -317,6 +317,47 @@ def clear_cache_dir(gcsfuse_flags):
         logging.error(f"Failed to clear cache directory {cache_dir}: {e}")
 
 
+def _clean_env_val(val):
+    """Strips optional parameter values, rejecting booleans/floats and treating None as empty."""
+    if val is None:
+        return ""
+    if isinstance(val, (bool, float)):
+        raise ValueError(f"Invalid type {val!r} for FIO integer parameter")
+    return str(val).strip()
+
+
+def resolve_fio_params(fio_env=None, environ=None):
+    """Resolves and validates DIRECT and NUMJOBS from fio_env and environ."""
+    env_map = os.environ if environ is None else environ
+    overrides = fio_env or {}
+
+    direct_val = _clean_env_val(overrides.get("DIRECT"))
+    if not direct_val:
+        direct_val = _clean_env_val(env_map.get("DIRECT"))
+    if not direct_val:
+        direct_val = "1"
+    if direct_val not in ("0", "1"):
+        raise ValueError(f"Invalid DIRECT={direct_val!r}; expected '0' or '1'")
+
+    numjobs_raw = (
+        _clean_env_val(overrides.get("NUMJOBS"))
+        or _clean_env_val(overrides.get("NUM_JOBS"))
+        or _clean_env_val(env_map.get("NUMJOBS"))
+        or _clean_env_val(env_map.get("NUM_JOBS"))
+        or "112"
+    )
+    try:
+        numjobs_int = int(numjobs_raw)
+    except ValueError as exc:
+        raise ValueError(
+            f"Invalid NUMJOBS={numjobs_raw!r}; must be a positive integer"
+        ) from exc
+    if numjobs_int <= 0:
+        raise ValueError(f"Invalid NUMJOBS={numjobs_raw!r}; must be > 0")
+
+    return direct_val, str(numjobs_int)
+
+
 def precreate_benchmark_directories(mount_point, fio_env, fio_config):
     """Pre-creates FIO job directories sequentially on the mount point before FIO runs to prevent deadlocks."""
     if "write" not in os.path.basename(fio_config):
@@ -324,6 +365,9 @@ def precreate_benchmark_directories(mount_point, fio_env, fio_config):
 
     if not (fio_env and "FILE_SIZE" in fio_env and "BLOCK_SIZE" in fio_env and "NR_FILES" in fio_env):
         return
+
+    _, numjobs_str = resolve_fio_params(fio_env, os.environ)
+    num_jobs = int(numjobs_str)
 
     target_write_dir = os.path.join(mount_point, "write")
     
@@ -343,7 +387,6 @@ def precreate_benchmark_directories(mount_point, fio_env, fio_config):
     file_size = fio_env["FILE_SIZE"]
     block_size = fio_env["BLOCK_SIZE"]
     nr_files = fio_env["NR_FILES"]
-    num_jobs = int(fio_env.get("NUM_JOBS") or fio_env.get("NUMJOBS") or os.environ.get("NUMJOBS") or 112)
 
     nested_dir = os.path.join(target_write_dir, file_size, block_size, nr_files)
     logging.info(f"Sequentially pre-creating {num_jobs} job directories under {nested_dir}...")
@@ -364,6 +407,12 @@ def run_benchmark(
     keep_mount=False
 ):
     """Runs the full FIO benchmark suite."""
+    direct_val, numjobs_val = resolve_fio_params(fio_env, os.environ)
+
+    if bind_fio and not cpu_limit_list:
+        logging.error("--bind-fio is set to true, but --cpu-limit-list is not provided.")
+        sys.exit(1)
+
     os.makedirs(work_dir, exist_ok=True)
     os.makedirs(output_dir, exist_ok=True)
 
@@ -384,18 +433,17 @@ def run_benchmark(
     else:
         mount_point = os.path.join(work_dir, "mount_point")
 
-    if bind_fio and not cpu_limit_list:
-        logging.error("--bind-fio is set to true, but --cpu-limit-list is not provided.")
-        sys.exit(1)
-
     # Prepare environment for FIO
     fio_run_env = {
         "DIR": mount_point,
-        "DIRECT": os.environ.get("DIRECT", "1"),
-        "NUMJOBS": os.environ.get("NUMJOBS", "112"),
+        "DIRECT": direct_val,
+        "NUMJOBS": numjobs_val,
     }
     if fio_env:
-        fio_run_env.update(fio_env)
+        for k, v in fio_env.items():
+            if k is None or v is None or k in ("DIRECT", "NUMJOBS", "NUM_JOBS"):
+                continue
+            fio_run_env[k] = str(v)
 
     # Resolve the concurrent_delete.py script path dynamically for portability
     script_dir = os.path.dirname(os.path.realpath(__file__))

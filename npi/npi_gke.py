@@ -30,6 +30,20 @@ ISOLATED_KUBECONFIG = os.path.join(KUBE_DIR, "npi_kubeconfig")
 os.makedirs(KUBE_DIR, exist_ok=True)
 os.environ["KUBECONFIG"] = ISOLATED_KUBECONFIG
 
+
+def positive_int(value):
+    """Argparse type validator requiring a positive integer (> 0)."""
+    if isinstance(value, (bool, float)):
+        raise argparse.ArgumentTypeError(f"invalid int value: {value!r}")
+    try:
+        ivalue = value if isinstance(value, int) else int(str(value).strip())
+    except (TypeError, ValueError) as exc:
+        raise argparse.ArgumentTypeError(f"invalid int value: {value!r}") from exc
+    if ivalue <= 0:
+        raise argparse.ArgumentTypeError(f"must be > 0, got {ivalue}")
+    return ivalue
+
+
 def enqueue_output(out, q):
     try:
         for line in iter(out.readline, ''):
@@ -54,28 +68,34 @@ def create_job_spec(job_name, image, args, bucket_name, service_account, extra_f
     # Replace service account
     pod_spec["serviceAccountName"] = service_account
 
-    # Set NUMJOBS and DIRECT env vars for FIO
-    if "--numjobs=2" in args:
-        num_jobs_val = "2"
-    elif any(arg.startswith("--numjobs=") for arg in args):
-        num_jobs_val = "112"
-        for arg in args:
-            if arg.startswith("--numjobs="):
-                num_jobs_val = arg.split("=", 1)[1]
-                break
-    elif is_rapid_bucket:
-        num_jobs_val = "112"
-    else:
-        num_jobs_val = "112"
+    # Set NUMJOBS and DIRECT env vars for FIO / Go-client (last CLI flag wins, matching argparse)
+    num_jobs_raw = "112"
+    for i, arg in enumerate(args):
+        if arg.startswith("--numjobs="):
+            num_jobs_raw = arg.split("=", 1)[1]
+        elif arg == "--numjobs" and i + 1 < len(args):
+            num_jobs_raw = args[i + 1]
+    try:
+        num_jobs_val = str(positive_int(num_jobs_raw))
+    except argparse.ArgumentTypeError as exc:
+        raise ValueError(f"Invalid --numjobs value {num_jobs_raw!r}: {exc}") from exc
 
-    direct_val = "0" if is_rapid_bucket else "1"
-    for arg in args:
+    direct_raw = "0" if is_rapid_bucket else "1"
+    for i, arg in enumerate(args):
         if arg.startswith("--direct="):
-            direct_val = arg.split("=", 1)[1]
-            break
+            direct_raw = arg.split("=", 1)[1]
+        elif arg == "--direct" and i + 1 < len(args):
+            direct_raw = args[i + 1]
+    if isinstance(direct_raw, (bool, float)):
+        raise ValueError(f"Invalid --direct value {direct_raw!r}; expected '0' or '1'")
+    direct_val = str(direct_raw).strip()
+    if direct_val not in ("0", "1"):
+        raise ValueError(f"Invalid --direct value {direct_raw!r}; expected '0' or '1'")
 
-    if "env" not in pod_spec["containers"][0] or not pod_spec["containers"][0]["env"]:
-        pod_spec["containers"][0]["env"] = []
+    existing_env = pod_spec["containers"][0].get("env") or []
+    pod_spec["containers"][0]["env"] = [
+        e for e in existing_env if e.get("name") not in ("NUMJOBS", "DIRECT")
+    ]
     pod_spec["containers"][0]["env"].append({"name": "NUMJOBS", "value": num_jobs_val})
     pod_spec["containers"][0]["env"].append({"name": "DIRECT", "value": direct_val})
     
@@ -506,7 +526,7 @@ def main():
     )
     parser.add_argument(
         "--numjobs",
-        type=int,
+        type=positive_int,
         default=None,
         help="Override FIO/Go-client numjobs concurrency count."
     )
@@ -634,12 +654,10 @@ def main():
                 f"--bq-table-id={bq_table_id}",
                 f"--bucket-name={args.bucket_name}"
             ]
-            if args.smoke_mode:
-                cmd_args.append("--numjobs=2")
-            elif args.numjobs is not None:
+            if args.numjobs is not None:
                 cmd_args.append(f"--numjobs={args.numjobs}")
-            else:
-                cmd_args.append("--numjobs=112")
+            elif args.smoke_mode:
+                cmd_args.append("--numjobs=2")
         else:
             cmd_args = [
                 f"--iterations={target_iterations}",
@@ -648,14 +666,10 @@ def main():
                 f"--bq-table-id={bq_table_id}",
                 "--mount-path=/data"
             ]
-            if args.smoke_mode:
-                cmd_args.append("--numjobs=2")
-            elif args.numjobs is not None:
+            if args.numjobs is not None:
                 cmd_args.append(f"--numjobs={args.numjobs}")
-            elif args.is_rapid_bucket:
-                cmd_args.append("--numjobs=112")
-            if args.is_rapid_bucket:
-                cmd_args.append("--direct=0")
+            elif args.smoke_mode:
+                cmd_args.append("--numjobs=2")
             
         if runner_args:
             cmd_args.append(runner_args)

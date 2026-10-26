@@ -271,6 +271,172 @@ class TestCreateJobSpec(unittest.TestCase):
         env_vars = {e["name"]: e["value"] for e in container.get("env", [])}
         self.assertEqual(env_vars.get("NUMJOBS"), "64")
 
+    @patch("npi_gke.yaml.safe_load")
+    @patch("builtins.open", new_callable=mock_open)
+    def test_create_job_spec_direct_and_two_token_overrides(self, mock_file, mock_yaml_load):
+        template_spec = {
+            "metadata": {"name": "template"},
+            "spec": {
+                "template": {
+                    "metadata": {"labels": {"app": "test"}},
+                    "spec": {
+                        "containers": [
+                            {
+                                "name": "benchmark",
+                                "image": "placeholder",
+                                "args": [],
+                                "env": [
+                                    {"name": "EXISTING", "value": "ok"},
+                                    {"name": "NUMJOBS", "value": "48"},
+                                    {"name": "DIRECT", "value": "1"},
+                                ],
+                            }
+                        ],
+                        "volumes": []
+                    }
+                }
+            }
+        }
+        mock_yaml_load.return_value = template_spec
+
+        res = npi_gke.create_job_spec(
+            job_name="test-job",
+            image="test-image",
+            args=["--numjobs", "2", "--numjobs", "32", "--direct=0"],
+            bucket_name="test-bucket",
+            service_account="test-sa",
+            is_rapid_bucket=False,
+        )
+
+        container = res["spec"]["template"]["spec"]["containers"][0]
+        env_list = container.get("env", [])
+        self.assertEqual([e["name"] for e in env_list].count("NUMJOBS"), 1)
+        self.assertEqual([e["name"] for e in env_list].count("DIRECT"), 1)
+        env_vars = {e["name"]: e["value"] for e in env_list}
+        self.assertEqual(env_vars.get("EXISTING"), "ok")
+        self.assertEqual(env_vars.get("NUMJOBS"), "32")
+        self.assertEqual(env_vars.get("DIRECT"), "0")
+
+    @patch("npi_gke.yaml.safe_load")
+    @patch("builtins.open", new_callable=mock_open)
+    def test_create_job_spec_invalid_numjobs_or_direct_raises(self, mock_file, mock_yaml_load):
+        def make_template():
+            return {
+                "metadata": {"name": "template"},
+                "spec": {
+                    "template": {
+                        "metadata": {"labels": {"app": "test"}},
+                        "spec": {
+                            "containers": [{"name": "benchmark", "image": "placeholder", "args": []}],
+                            "volumes": [],
+                        },
+                    }
+                },
+            }
+
+        for bad_args in (["--numjobs=0"], ["--numjobs=-4"], ["--direct=2"], ["--direct="]):
+            mock_yaml_load.return_value = make_template()
+            with self.assertRaises(ValueError):
+                npi_gke.create_job_spec(
+                    job_name="test-job",
+                    image="test-image",
+                    args=bad_args,
+                    bucket_name="test-bucket",
+                    service_account="test-sa",
+                )
+
+
+class TestGKEMainAndValidators(unittest.TestCase):
+
+    def test_positive_int_validator(self):
+        import argparse
+        self.assertEqual(npi_gke.positive_int("64"), 64)
+        self.assertEqual(npi_gke.positive_int(112), 112)
+        for bad in ("0", "-4", "abc", "", "1.5", 0, -1, False, True, 1.5):
+            with self.assertRaises(argparse.ArgumentTypeError):
+                npi_gke.positive_int(bad)
+
+    def _run_dry_run_and_capture_specs(self, extra_cli_args):
+        captured = []
+        real_create = npi_gke.create_job_spec
+
+        def spy_create(*args, **kwargs):
+            spec = real_create(*args, **kwargs)
+            captured.append((args, kwargs, spec))
+            return spec
+
+        base_argv = [
+            "npi_gke.py",
+            "--cluster-name=test-cluster",
+            "--location=us-central1-a",
+            "--bucket-name=test-bucket",
+            "--project-id=test-proj",
+            "--bq-dataset-id=test_ds",
+            "--dry-run",
+        ] + extra_cli_args
+
+        mock_cred_res = unittest.mock.MagicMock(returncode=0, stdout="ok", stderr="")
+        with patch("sys.argv", base_argv), \
+             patch("npi_gke.subprocess.run", return_value=mock_cred_res), \
+             patch("npi_gke.setup_kubernetes_service_account", return_value=True), \
+             patch("npi_gke.create_job_spec", side_effect=spy_create), \
+             patch("sys.stdout", new_callable=io.StringIO):
+            npi_gke.main()
+        return captured
+
+    def test_main_default_standard_and_rapid_omit_cli_numjobs_and_direct(self):
+        # Standard bucket
+        std_specs = self._run_dry_run_and_capture_specs(["--benchmarks", "read_grpc", "go_read_grpc"])
+        self.assertEqual(len(std_specs), 2)
+        for (_, _, spec) in std_specs:
+            container = spec["spec"]["template"]["spec"]["containers"][0]
+            for a in container["args"]:
+                self.assertFalse(a.startswith("--numjobs"))
+                self.assertFalse(a.startswith("--direct"))
+            env_vars = {e["name"]: e["value"] for e in container["env"]}
+            self.assertEqual(env_vars["NUMJOBS"], "112")
+            self.assertEqual(env_vars["DIRECT"], "1")
+
+        # RAPID bucket
+        rapid_specs = self._run_dry_run_and_capture_specs(
+            ["--is-rapid-bucket", "--benchmarks", "read_grpc", "go_read_grpc"]
+        )
+        self.assertEqual(len(rapid_specs), 2)
+        for (_, _, spec) in rapid_specs:
+            container = spec["spec"]["template"]["spec"]["containers"][0]
+            for a in container["args"]:
+                self.assertFalse(a.startswith("--numjobs"))
+                self.assertFalse(a.startswith("--direct"))
+            env_vars = {e["name"]: e["value"] for e in container["env"]}
+            self.assertEqual(env_vars["NUMJOBS"], "112")
+            self.assertEqual(env_vars["DIRECT"], "0")
+
+    def test_main_smoke_mode_vs_explicit_numjobs_precedence(self):
+        # Smoke mode alone -> --numjobs=2
+        smoke_specs = self._run_dry_run_and_capture_specs(
+            ["--smoke-mode", "--is-rapid-bucket", "--benchmarks", "read_grpc", "go_read_grpc"]
+        )
+        self.assertEqual(len(smoke_specs), 2)
+        for (_, _, spec) in smoke_specs:
+            container = spec["spec"]["template"]["spec"]["containers"][0]
+            self.assertIn("--numjobs=2", container["args"])
+            env_vars = {e["name"]: e["value"] for e in container["env"]}
+            self.assertEqual(env_vars["NUMJOBS"], "2")
+            self.assertEqual(env_vars["DIRECT"], "0")
+
+        # Smoke mode + explicit --numjobs 64 -> --numjobs=64 wins
+        override_specs = self._run_dry_run_and_capture_specs(
+            ["--smoke-mode", "--numjobs", "64", "--is-rapid-bucket", "--benchmarks", "read_grpc", "go_read_grpc"]
+        )
+        self.assertEqual(len(override_specs), 2)
+        for (_, _, spec) in override_specs:
+            container = spec["spec"]["template"]["spec"]["containers"][0]
+            self.assertIn("--numjobs=64", container["args"])
+            self.assertNotIn("--numjobs=2", container["args"])
+            env_vars = {e["name"]: e["value"] for e in container["env"]}
+            self.assertEqual(env_vars["NUMJOBS"], "64")
+            self.assertEqual(env_vars["DIRECT"], "0")
+
 class TestGKEUtils(unittest.TestCase):
 
     @patch("builtins.open", new_callable=mock_open, read_data="MemTotal:        65536000 kB\n")

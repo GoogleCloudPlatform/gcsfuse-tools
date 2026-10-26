@@ -163,6 +163,63 @@ def print_summary(all_results, summary_file=None):
             logging.error(f"Failed to write summary to {summary_file}: {e}")
 
 
+def positive_int(value):
+    """Argparse type validator requiring a positive integer (> 0)."""
+    if isinstance(value, (bool, float)):
+        raise argparse.ArgumentTypeError(f"invalid int value: {value!r}")
+    try:
+        ivalue = value if isinstance(value, int) else int(str(value).strip())
+    except (TypeError, ValueError) as exc:
+        raise argparse.ArgumentTypeError(f"invalid int value: {value!r}") from exc
+    if ivalue <= 0:
+        raise argparse.ArgumentTypeError(f"must be > 0, got {ivalue}")
+    return ivalue
+
+
+def _clean_str(val):
+    if val is None:
+        return ""
+    if isinstance(val, (bool, float)):
+        raise ValueError(f"Invalid type {val!r} for numjobs")
+    return str(val).strip()
+
+
+def resolve_numjobs(cli_numjobs=None, config=None, environ=None):
+    """Resolves and validates worker concurrency (> 0) with 4-tier precedence."""
+    cfg = config or {}
+    env_map = os.environ if environ is None else environ
+
+    if cli_numjobs is not None:
+        if isinstance(cli_numjobs, (bool, float)):
+            raise ValueError(f"Invalid type {cli_numjobs!r} for numjobs")
+        try:
+            val = cli_numjobs if isinstance(cli_numjobs, int) else int(str(cli_numjobs).strip())
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                f"Invalid numjobs={cli_numjobs!r}; must be a positive integer"
+            ) from exc
+    else:
+        raw = (
+            _clean_str(cfg.get("NUMJOBS"))
+            or _clean_str(cfg.get("NUM_JOBS"))
+            or _clean_str(env_map.get("NUMJOBS"))
+            or _clean_str(env_map.get("NUM_JOBS"))
+        )
+        if raw:
+            try:
+                val = int(raw)
+            except ValueError as exc:
+                raise ValueError(
+                    f"Invalid NUMJOBS={raw!r}; must be a positive integer"
+                ) from exc
+        else:
+            val = 112
+
+    if val <= 0:
+        raise ValueError(f"Invalid numjobs={val}; must be > 0")
+    return val
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Run a matrix of Go-client read benchmarks from a config file."
@@ -175,7 +232,7 @@ def main():
         help="Network protocol to use: http1 or grpc."
     )
     parser.add_argument(
-        "--numjobs", type=int, default=None,
+        "--numjobs", type=positive_int, default=None,
         help="Degrees of concurrency (number of workers). Defaults to NUMJOBS env var or 112."
     )
     parser.add_argument(
@@ -232,6 +289,22 @@ def main():
 
     logging.info("Found %d configurations to run from %s", len(configs), args.matrix_config)
 
+    if not configs:
+        try:
+            resolve_numjobs(args.numjobs, {}, os.environ)
+        except ValueError as e:
+            logging.error("Invalid numjobs configuration: %s", e)
+            sys.exit(1)
+
+    resolved_configs = []
+    for idx, config in enumerate(configs, start=1):
+        try:
+            num_jobs = resolve_numjobs(args.numjobs, config, os.environ)
+        except ValueError as e:
+            logging.error("Invalid numjobs in matrix row %d (%s): %s", idx, config, e)
+            sys.exit(1)
+        resolved_configs.append((config, num_jobs))
+
     bq_client = None
     if args.project_id and args.bq_dataset_id and args.bq_table_id:
         if not _BQ_SUPPORTED:
@@ -250,28 +323,21 @@ def main():
         logging.info("Compiling go-benchmark-client...")
         run_command(["go", "build", "-o", "go-benchmark-client", "main.go"], cwd=os.path.dirname(__file__) or ".")
 
+    has_failures = False
+
     for iteration in range(1, args.iterations + 1):
         logging.info(f"--- Starting Iteration {iteration}/{args.iterations} ---")
 
-        for idx, config in enumerate(configs):
-            config_str = ", ".join([f"{k}={v}" for k, v in sorted(config.items())])
-            logging.info("Matrix config %d/%d: %s", idx + 1, len(configs), config_str)
+        for idx, (config, num_jobs) in enumerate(resolved_configs):
+            config_str = ", ".join([f"{k}={v}" for k, v in sorted(config.items()) if k is not None])
+            logging.info("Matrix config %d/%d: %s", idx + 1, len(resolved_configs), config_str)
 
             file_size = config.get("FILE_SIZE")
             block_size = config.get("BLOCK_SIZE")
             nr_files = config.get("NR_FILES")
-            num_jobs_val = config.get("NUMJOBS")
-            if args.numjobs is not None:
-                num_jobs = args.numjobs
-            elif num_jobs_val:
-                num_jobs = int(num_jobs_val)
-            elif os.environ.get("NUMJOBS"):
-                num_jobs = int(os.environ["NUMJOBS"])
-            else:
-                num_jobs = 112
 
             # Generate unique config name
-            config_name_parts = [f"{k}_{v}" for k, v in sorted(config.items())]
+            config_name_parts = [f"{k}_{v}" for k, v in sorted(config.items()) if k is not None]
             config_name = "_".join(config_name_parts)
             config_output_dir = os.path.join(args.output_dir, config_name)
             os.makedirs(config_output_dir, exist_ok=True)
@@ -340,11 +406,15 @@ def main():
 
             except Exception as e:
                 logging.error(f"Benchmark failed for configuration {config}: {e}")
+                has_failures = True
 
     summary_file_path = None
     if args.summary_file_name:
         summary_file_path = os.path.join(args.output_dir, args.summary_file_name)
     print_summary(all_results, summary_file=summary_file_path)
+
+    if has_failures:
+        sys.exit(1)
 
 
 if __name__ == "__main__":

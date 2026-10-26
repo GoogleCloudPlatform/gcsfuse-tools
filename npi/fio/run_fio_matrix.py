@@ -29,6 +29,19 @@ logging.basicConfig(
 )
 
 
+def positive_int(value):
+  """Argparse type validator requiring a positive integer (> 0)."""
+  if isinstance(value, (bool, float)):
+    raise argparse.ArgumentTypeError(f"invalid int value: {value!r}")
+  try:
+    ivalue = value if isinstance(value, int) else int(str(value).strip())
+  except (TypeError, ValueError) as exc:
+    raise argparse.ArgumentTypeError(f"invalid int value: {value!r}") from exc
+  if ivalue <= 0:
+    raise argparse.ArgumentTypeError(f"must be > 0, got {ivalue}")
+  return ivalue
+
+
 def main():
   """Parses args and runs the benchmark matrix."""
   parser = argparse.ArgumentParser(
@@ -95,7 +108,7 @@ def main():
   )
   parser.add_argument(
       "--numjobs",
-      type=int,
+      type=positive_int,
       default=None,
       help="Override FIO numjobs count.",
   )
@@ -143,6 +156,40 @@ def main():
       "Found %d configurations to run from %s", len(configs), args.matrix_config
   )
 
+  if not configs:
+    cli_overrides = {}
+    if args.numjobs is not None:
+      cli_overrides["NUMJOBS"] = str(args.numjobs)
+    if args.direct is not None:
+      cli_overrides["DIRECT"] = str(args.direct)
+    try:
+      fio_benchmark_runner.resolve_fio_params(cli_overrides, os.environ)
+    except ValueError as e:
+      logging.error("Invalid FIO parameter configuration: %s", e)
+      sys.exit(1)
+
+  resolved_rows = []
+  for idx, config in enumerate(configs, start=1):
+    row_env = {k: v for k, v in config.items() if k is not None}
+    if args.numjobs is not None:
+      row_env["NUMJOBS"] = str(args.numjobs)
+      row_env.pop("NUM_JOBS", None)
+    if args.direct is not None:
+      row_env["DIRECT"] = str(args.direct)
+    try:
+      direct_val, numjobs_val = fio_benchmark_runner.resolve_fio_params(
+          row_env, os.environ
+      )
+    except ValueError as e:
+      logging.error(
+          "Invalid FIO parameter in matrix row %d (%s): %s", idx, config, e
+      )
+      sys.exit(1)
+    row_env["DIRECT"] = direct_val
+    row_env["NUMJOBS"] = numjobs_val
+    row_env.pop("NUM_JOBS", None)
+    resolved_rows.append((config, row_env))
+
   if args.project_id and args.bq_dataset_id and args.bq_table_id:
     if not fio_benchmark_runner._BQ_SUPPORTED:
       logging.error("BigQuery operations requested, but 'google-cloud-bigquery' is not installed.")
@@ -152,25 +199,18 @@ def main():
 
   has_failures = False
 
-  for i, config in enumerate(configs):
+  for i, (config, fio_env) in enumerate(resolved_rows):
     # Create a string representation of the configuration for logging.
-    config_str = ", ".join([f"{k}={v}" for k, v in sorted(config.items())])
+    config_str = ", ".join([f"{k}={v}" for k, v in sorted(config.items()) if k is not None])
 
-    logging.info("--- Starting Matrix Run %d/%d ---", i + 1, len(configs))
+    logging.info("--- Starting Matrix Run %d/%d ---", i + 1, len(resolved_rows))
     logging.info("Configuration: %s", config_str)
-
-    # All columns from the CSV are passed as environment variables to FIO.
-    fio_env = dict(config)
-    if args.numjobs:
-        fio_env["NUMJOBS"] = str(args.numjobs)
-    if args.direct is not None:
-        fio_env["DIRECT"] = str(args.direct)
 
     # Create a unique subdirectory for this configuration's results.
     # The name is generated from the config parameters to be unique and
     # descriptive.
     config_name_parts = [
-        f"{k}_{v}" for k, v in sorted(config.items())
+        f"{k}_{v}" for k, v in sorted(config.items()) if k is not None
     ]
     config_name = "_".join(config_name_parts)
     config_output_dir = os.path.join(args.output_dir, config_name)

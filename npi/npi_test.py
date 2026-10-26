@@ -44,6 +44,7 @@ class TestBenchmarkFactory(unittest.TestCase):
         self.assertIn("-v /mnt/buffer:/gcsfuse-buffer", cmd)
         self.assertIn("-e NUMJOBS=112", cmd)
         self.assertIn("-e DIRECT=1", cmd)
+        self.assertNotIn("--numjobs=", cmd)
         self.assertIn("--temp-dir=/gcsfuse-buffer/write", cmd)
         self.assertIn("us-docker.pkg.dev/test-project/gcsfuse-benchmarks/fio-read-benchmark:latest", cmd)
 
@@ -63,14 +64,16 @@ class TestBenchmarkFactory(unittest.TestCase):
         cmd, table_id = factory.get_benchmark_command("read_grpc")
         self.assertIn("-e NUMJOBS=112", cmd)
         self.assertIn("-e DIRECT=0", cmd)
+        self.assertNotIn("--numjobs=", cmd)
 
         write_cmd, _ = factory.get_benchmark_command("write_grpc")
         self.assertIn("-e NUMJOBS=112", write_cmd)
         self.assertIn("-e DIRECT=0", write_cmd)
+        self.assertNotIn("--numjobs=", write_cmd)
 
         go_cmd, _ = factory.get_benchmark_command("go_read_grpc")
         self.assertIn("-e NUMJOBS=112", go_cmd)
-        self.assertIn("--numjobs=112", go_cmd)
+        self.assertNotIn("--numjobs=", go_cmd)
 
     @patch('npi.BenchmarkFactory._get_cpu_list_for_numa_node')
     def test_get_benchmark_command_numjobs_override(self, mock_get_cpu):
@@ -87,6 +90,66 @@ class TestBenchmarkFactory(unittest.TestCase):
         
         cmd, table_id = factory.get_benchmark_command("read_http1")
         self.assertIn("-e NUMJOBS=64", cmd)
+        self.assertIn("--numjobs=64", cmd)
+
+        go_cmd, _ = factory.get_benchmark_command("go_read_http1")
+        self.assertIn("-e NUMJOBS=64", go_cmd)
+        self.assertIn("--numjobs=64", go_cmd)
+
+    @patch('npi.BenchmarkFactory._get_cpu_list_for_numa_node')
+    def test_get_benchmark_command_smoke_mode_and_explicit_numjobs_precedence(self, mock_get_cpu):
+        mock_get_cpu.return_value = None
+
+        smoke_factory = npi.BenchmarkFactory(
+            bucket_name="test-bucket",
+            project_id="test-project",
+            bq_dataset_id="test-dataset",
+            iterations=1,
+            buffer_mount_path="/mnt/buffer",
+            smoke_mode=True,
+        )
+        fio_smoke_cmd, _ = smoke_factory.get_benchmark_command("read_grpc")
+        self.assertIn("-e NUMJOBS=2", fio_smoke_cmd)
+        self.assertIn("--numjobs=2", fio_smoke_cmd)
+        go_smoke_cmd, _ = smoke_factory.get_benchmark_command("go_read_grpc")
+        self.assertIn("-e NUMJOBS=2", go_smoke_cmd)
+        self.assertIn("--numjobs=2", go_smoke_cmd)
+
+        override_factory = npi.BenchmarkFactory(
+            bucket_name="test-bucket",
+            project_id="test-project",
+            bq_dataset_id="test-dataset",
+            iterations=1,
+            buffer_mount_path="/mnt/buffer",
+            smoke_mode=True,
+            numjobs=64,
+        )
+        fio_override_cmd, _ = override_factory.get_benchmark_command("read_grpc")
+        self.assertIn("-e NUMJOBS=64", fio_override_cmd)
+        self.assertIn("--numjobs=64", fio_override_cmd)
+        go_override_cmd, _ = override_factory.get_benchmark_command("go_read_grpc")
+        self.assertIn("-e NUMJOBS=64", go_override_cmd)
+        self.assertIn("--numjobs=64", go_override_cmd)
+
+    @patch('npi.BenchmarkFactory._get_cpu_list_for_numa_node')
+    def test_benchmark_factory_rejects_non_positive_numjobs(self, mock_get_cpu):
+        mock_get_cpu.return_value = None
+        for bad_val in (0, -1, False, True, "0"):
+            with self.assertRaises(ValueError):
+                npi.BenchmarkFactory(
+                    bucket_name="test-bucket",
+                    project_id="test-project",
+                    bq_dataset_id="test-dataset",
+                    iterations=1,
+                    buffer_mount_path="/mnt/buffer",
+                    numjobs=bad_val,
+                )
+
+    def test_positive_int_validator(self):
+        self.assertEqual(npi.positive_int("64"), 64)
+        for bad_val in ("0", "-4", "abc", "", "  ", False, True):
+            with self.assertRaises(npi.argparse.ArgumentTypeError):
+                npi.positive_int(bad_val)
 
     @patch('npi.BenchmarkFactory._get_cpu_list_for_numa_node')
     def test_get_benchmark_command_file_cache(self, mock_get_cpu):
@@ -124,7 +187,8 @@ class TestBenchmarkFactory(unittest.TestCase):
         self.assertEqual(table_id, "go_client_read_http1")
         self.assertIn("us-docker.pkg.dev/test-project/gcsfuse-benchmarks/go-client-read-benchmark:latest", cmd)
         self.assertIn("--client-protocol=http1", cmd)
-        self.assertIn("--numjobs=112", cmd)
+        self.assertIn("-e NUMJOBS=112", cmd)
+        self.assertNotIn("--numjobs=", cmd)
 
     @patch('subprocess.run')
     def test_get_cpu_list_for_numa_node_success(self, mock_run):
@@ -1650,6 +1714,85 @@ class TestOrchestratorExtraMountOptions(unittest.TestCase):
         res = subprocess.run(["python3", "npi_orchestrator.py", "--help"], capture_output=True, text=True, cwd=os.path.dirname(os.path.abspath(npi_orchestrator.__file__)))
         self.assertEqual(res.returncode, 0)
         self.assertIn("--extra-mount-options", res.stdout)
+
+
+class TestRunGoMatrix(unittest.TestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        import importlib.util
+        go_matrix_path = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)), "go-client", "run_go_matrix.py"
+        )
+        spec = importlib.util.spec_from_file_location("run_go_matrix", go_matrix_path)
+        cls.run_go_matrix = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cls.run_go_matrix)
+
+    def test_resolve_numjobs_precedence_and_whitespace(self):
+        rm = self.run_go_matrix
+        self.assertEqual(rm.resolve_numjobs(64, {"NUMJOBS": "32"}, {"NUMJOBS": "16"}), 64)
+        self.assertEqual(rm.resolve_numjobs(None, {"NUMJOBS": "32"}, {"NUMJOBS": "112"}), 32)
+        self.assertEqual(rm.resolve_numjobs(None, {"NUMJOBS": "  "}, {"NUMJOBS": "48"}), 48)
+        self.assertEqual(rm.resolve_numjobs(None, {"NUMJOBS": ""}, {"NUMJOBS": "  "}), 112)
+        self.assertEqual(rm.resolve_numjobs(None, {}, {}), 112)
+
+        for bad_cfg, bad_env in [
+            ({"NUMJOBS": "0"}, {}),
+            ({"NUMJOBS": "-2"}, {}),
+            ({"NUMJOBS": "abc"}, {"NUMJOBS": "112"}),
+            ({"NUMJOBS": ""}, {"NUMJOBS": "0"}),
+        ]:
+            with self.assertRaises(ValueError):
+                rm.resolve_numjobs(None, bad_cfg, bad_env)
+
+    def test_main_invalid_numjobs_exits_before_bq_truncation(self):
+        import tempfile
+        rm = self.run_go_matrix
+        with tempfile.NamedTemporaryFile("w", suffix=".csv") as f:
+            f.write("READ_TYPE,FILE_SIZE,BLOCK_SIZE,NR_FILES\nread,1G,1M,10\n")
+            f.flush()
+            with patch.object(rm, "_BQ_SUPPORTED", True), \
+                 patch.object(rm, "bigquery", create=True) as mock_bq, \
+                 patch.object(rm, "truncate_bq_table") as mock_trunc:
+                # 1. --numjobs=0 rejected at argparse time
+                with patch("sys.argv", [
+                    "run_go_matrix.py", "--bucket-name=b", f"--matrix-config={f.name}",
+                    "--project-id=p", "--bq-dataset-id=d", "--bq-table-id=t", "--numjobs=0"
+                ]):
+                    with self.assertRaises(SystemExit) as cm:
+                        rm.main()
+                    self.assertNotEqual(cm.exception.code, 0)
+                mock_trunc.assert_not_called()
+                mock_bq.Client.assert_not_called()
+
+                # 2. NUMJOBS=0 in os.environ rejected before truncate_bq_table
+                with patch.dict(os.environ, {"NUMJOBS": "0"}, clear=False), \
+                     patch("sys.argv", [
+                         "run_go_matrix.py", "--bucket-name=b", f"--matrix-config={f.name}",
+                         "--project-id=p", "--bq-dataset-id=d", "--bq-table-id=t"
+                     ]):
+                    with self.assertRaises(SystemExit) as cm2:
+                        rm.main()
+                    self.assertEqual(cm2.exception.code, 1)
+                mock_trunc.assert_not_called()
+
+    def test_main_propagates_benchmark_failure_exit_code(self):
+        import tempfile
+        rm = self.run_go_matrix
+        with tempfile.TemporaryDirectory() as tmpdir:
+            csv_path = os.path.join(tmpdir, "matrix.csv")
+            with open(csv_path, "w") as f:
+                f.write("READ_TYPE,FILE_SIZE,BLOCK_SIZE,NR_FILES\nread,1G,1M,10\n")
+            with patch.object(rm.os.path, "exists", return_value=True), \
+                 patch.object(rm.subprocess, "run"), \
+                 patch.object(rm, "run_command", side_effect=subprocess.CalledProcessError(1, "go-benchmark-client")), \
+                 patch("sys.argv", [
+                     "run_go_matrix.py", "--bucket-name=b", f"--matrix-config={csv_path}",
+                     f"--output-dir={os.path.join(tmpdir, 'out')}"
+                 ]):
+                with self.assertRaises(SystemExit) as cm:
+                    rm.main()
+                self.assertEqual(cm.exception.code, 1)
 
 
 if __name__ == '__main__':
