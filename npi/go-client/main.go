@@ -27,7 +27,7 @@ var (
 	clientProtocol   = flag.String("client-protocol", "http1", "Network protocol: http1 or grpc.")
 	blockSizeStr     = flag.String("bs", "1M", "Block size (e.g. 128K, 1M, etc.).")
 	fileSizeStr      = flag.String("filesize", "1G", "File size per file (e.g. 1M, 10M, 1G).")
-	numOfWorkers     = flag.Int("numjobs", 128, "Number of concurrent workers (threads) to read.")
+	numOfWorkers     = flag.Int("numjobs", 112, "Number of concurrent workers (threads) to read.")
 	nrFiles          = flag.Int("nrfiles", 10, "How many files does each thread/worker need to read.")
 	objectNamePrefix = flag.String("obj-prefix", "", "Prefix for GCS objects.")
 	grpcConnPoolSize = flag.Int("grpc-conn-pool-size", 1, "gRPC connection pool size.")

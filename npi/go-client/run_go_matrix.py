@@ -175,8 +175,8 @@ def main():
         help="Network protocol to use: http1 or grpc."
     )
     parser.add_argument(
-        "--numjobs", type=int, default=128,
-        help="Degrees of concurrency (number of workers)."
+        "--numjobs", type=int, default=None,
+        help="Degrees of concurrency (number of workers). Defaults to NUMJOBS env var or 112."
     )
     parser.add_argument(
         "--iterations", type=int, default=1,
@@ -261,7 +261,14 @@ def main():
             block_size = config.get("BLOCK_SIZE")
             nr_files = config.get("NR_FILES")
             num_jobs_val = config.get("NUMJOBS")
-            num_jobs = int(num_jobs_val) if num_jobs_val else args.numjobs
+            if args.numjobs is not None:
+                num_jobs = args.numjobs
+            elif num_jobs_val:
+                num_jobs = int(num_jobs_val)
+            elif os.environ.get("NUMJOBS"):
+                num_jobs = int(os.environ["NUMJOBS"])
+            else:
+                num_jobs = 112
 
             # Generate unique config name
             config_name_parts = [f"{k}_{v}" for k, v in sorted(config.items())]

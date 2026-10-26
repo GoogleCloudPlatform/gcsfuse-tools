@@ -159,7 +159,8 @@ class TestCreateJobSpec(unittest.TestCase):
 
         container = res["spec"]["template"]["spec"]["containers"][0]
         env_vars = {e["name"]: e["value"] for e in container.get("env", [])}
-        self.assertEqual(env_vars.get("NUMJOBS"), "48")
+        self.assertEqual(env_vars.get("NUMJOBS"), "112")
+        self.assertEqual(env_vars.get("DIRECT"), "0")
 
     @patch("npi_gke.yaml.safe_load")
     @patch("builtins.open", new_callable=mock_open)
@@ -196,6 +197,7 @@ class TestCreateJobSpec(unittest.TestCase):
         container = res["spec"]["template"]["spec"]["containers"][0]
         env_vars = {e["name"]: e["value"] for e in container.get("env", [])}
         self.assertEqual(env_vars.get("NUMJOBS"), "112")
+        self.assertEqual(env_vars.get("DIRECT"), "1")
 
     @patch("npi_gke.yaml.safe_load")
     @patch("builtins.open", new_callable=mock_open)

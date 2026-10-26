@@ -43,6 +43,7 @@ class TestBenchmarkFactory(unittest.TestCase):
         cmd, table_id = factory.get_benchmark_command("read_http1")
         self.assertIn("-v /mnt/buffer:/gcsfuse-buffer", cmd)
         self.assertIn("-e NUMJOBS=112", cmd)
+        self.assertIn("-e DIRECT=1", cmd)
         self.assertIn("--temp-dir=/gcsfuse-buffer/write", cmd)
         self.assertIn("us-docker.pkg.dev/test-project/gcsfuse-benchmarks/fio-read-benchmark:latest", cmd)
 
@@ -60,7 +61,16 @@ class TestBenchmarkFactory(unittest.TestCase):
         )
         
         cmd, table_id = factory.get_benchmark_command("read_grpc")
-        self.assertIn("-e NUMJOBS=48", cmd)
+        self.assertIn("-e NUMJOBS=112", cmd)
+        self.assertIn("-e DIRECT=0", cmd)
+
+        write_cmd, _ = factory.get_benchmark_command("write_grpc")
+        self.assertIn("-e NUMJOBS=112", write_cmd)
+        self.assertIn("-e DIRECT=0", write_cmd)
+
+        go_cmd, _ = factory.get_benchmark_command("go_read_grpc")
+        self.assertIn("-e NUMJOBS=112", go_cmd)
+        self.assertIn("--numjobs=112", go_cmd)
 
     @patch('npi.BenchmarkFactory._get_cpu_list_for_numa_node')
     def test_get_benchmark_command_numjobs_override(self, mock_get_cpu):
@@ -114,6 +124,7 @@ class TestBenchmarkFactory(unittest.TestCase):
         self.assertEqual(table_id, "go_client_read_http1")
         self.assertIn("us-docker.pkg.dev/test-project/gcsfuse-benchmarks/go-client-read-benchmark:latest", cmd)
         self.assertIn("--client-protocol=http1", cmd)
+        self.assertIn("--numjobs=112", cmd)
 
     @patch('subprocess.run')
     def test_get_cpu_list_for_numa_node_success(self, mock_run):

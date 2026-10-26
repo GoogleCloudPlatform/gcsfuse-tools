@@ -389,7 +389,11 @@ def run_benchmark(
         sys.exit(1)
 
     # Prepare environment for FIO
-    fio_run_env = {"DIR": mount_point}
+    fio_run_env = {
+        "DIR": mount_point,
+        "DIRECT": os.environ.get("DIRECT", "1"),
+        "NUMJOBS": os.environ.get("NUMJOBS", "112"),
+    }
     if fio_env:
         fio_run_env.update(fio_env)
 

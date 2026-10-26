@@ -100,6 +100,13 @@ def main():
       help="Override FIO numjobs count.",
   )
   parser.add_argument(
+      "--direct",
+      type=int,
+      choices=[0, 1],
+      default=None,
+      help="Override FIO direct I/O setting (0 or 1).",
+  )
+  parser.add_argument(
       "--project-id",
       default=None,
       help="Project ID to upload results. If provided, --bq-dataset-id and --bq-table-id must also be provided.",
@@ -156,6 +163,8 @@ def main():
     fio_env = dict(config)
     if args.numjobs:
         fio_env["NUMJOBS"] = str(args.numjobs)
+    if args.direct is not None:
+        fio_env["DIRECT"] = str(args.direct)
 
     # Create a unique subdirectory for this configuration's results.
     # The name is generated from the config parameters to be unique and

@@ -194,12 +194,14 @@ class BenchmarkFactory:
         elif self.numjobs is not None:
             num_jobs = str(self.numjobs)
         elif self.is_rapid_bucket:
-            num_jobs = "48"
+            num_jobs = "112"
         else:
             num_jobs = "112"
+        direct_val = "0" if self.is_rapid_bucket else "1"
         base_cmd = (
             "docker run --pull=always --network=host --privileged --rm "
             f"-e NUMJOBS={num_jobs} "
+            f"-e DIRECT={direct_val} "
             f"{volume_mount} "
         )
 
@@ -222,6 +224,8 @@ class BenchmarkFactory:
 
         if runner_args:
             base_cmd += f" {runner_args}"
+        if benchmark_image_suffix == "go-client-read-benchmark":
+            base_cmd += f" --numjobs={num_jobs}"
         if bucket_name:
             base_cmd += f" --bucket-name={bucket_name}"
         if mount_path:

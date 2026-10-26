@@ -54,7 +54,7 @@ def create_job_spec(job_name, image, args, bucket_name, service_account, extra_f
     # Replace service account
     pod_spec["serviceAccountName"] = service_account
 
-    # Set NUMJOBS env var for FIO
+    # Set NUMJOBS and DIRECT env vars for FIO
     if "--numjobs=2" in args:
         num_jobs_val = "2"
     elif any(arg.startswith("--numjobs=") for arg in args):
@@ -64,12 +64,20 @@ def create_job_spec(job_name, image, args, bucket_name, service_account, extra_f
                 num_jobs_val = arg.split("=", 1)[1]
                 break
     elif is_rapid_bucket:
-        num_jobs_val = "48"
+        num_jobs_val = "112"
     else:
         num_jobs_val = "112"
+
+    direct_val = "0" if is_rapid_bucket else "1"
+    for arg in args:
+        if arg.startswith("--direct="):
+            direct_val = arg.split("=", 1)[1]
+            break
+
     if "env" not in pod_spec["containers"][0] or not pod_spec["containers"][0]["env"]:
         pod_spec["containers"][0]["env"] = []
     pod_spec["containers"][0]["env"].append({"name": "NUMJOBS", "value": num_jobs_val})
+    pod_spec["containers"][0]["env"].append({"name": "DIRECT", "value": direct_val})
     
     print(f"DEBUG: Parsed node_selector: {node_selector}")
     if node_selector:
@@ -626,10 +634,12 @@ def main():
                 f"--bq-table-id={bq_table_id}",
                 f"--bucket-name={args.bucket_name}"
             ]
-            if args.numjobs is not None:
+            if args.smoke_mode:
+                cmd_args.append("--numjobs=2")
+            elif args.numjobs is not None:
                 cmd_args.append(f"--numjobs={args.numjobs}")
-            elif args.is_rapid_bucket:
-                cmd_args.append("--numjobs=48")
+            else:
+                cmd_args.append("--numjobs=112")
         else:
             cmd_args = [
                 f"--iterations={target_iterations}",
@@ -643,7 +653,9 @@ def main():
             elif args.numjobs is not None:
                 cmd_args.append(f"--numjobs={args.numjobs}")
             elif args.is_rapid_bucket:
-                cmd_args.append("--numjobs=48")
+                cmd_args.append("--numjobs=112")
+            if args.is_rapid_bucket:
+                cmd_args.append("--direct=0")
             
         if runner_args:
             cmd_args.append(runner_args)
