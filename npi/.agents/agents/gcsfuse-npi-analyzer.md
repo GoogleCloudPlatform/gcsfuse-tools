@@ -34,7 +34,7 @@ You must load and follow this skill using `view_file`:
    - **Intra-Run Comparisons**: Quantify protocol performance (gRPC vs HTTP/1.1) and NUMA pinning impact (NUMA-bound vs Non-NUMA).
 
 4. **Evaluate Strict 20 GB/s SLA Gate**:
-   - **Full Benchmark Mode**: Check sequential read throughput for 1 GiB file size, 1M block size, 128 numjobs, 10 files without caches in standard, **non-NUMA-pinned** runs. The maximum throughput MUST be **>= 20 GB/s** for BOTH HTTP/1.1 and gRPC. If not achieved, mark Executive Summary verdict as **FAIL / REJECTED**.
+   - **Full Benchmark Mode**: Check sequential read throughput for 1 GiB file size, 1M block size, 112 numjobs, 10 files without caches in standard, **non-NUMA-pinned** runs. The maximum throughput MUST be **>= 20 GB/s** for BOTH HTTP/1.1 and gRPC. If not achieved, mark Executive Summary verdict as **FAIL / REJECTED**.
    - **Smoke Test Mode**: If running in smoke test mode (or with scaled parameters), set Executive Summary verdict to:
      `STATUS: SKIPPED (Smoke Test Run - Scaled Parameters: <FILE_SIZE>, <NUMJOBS> jobs)`
      Do NOT mark smoke tests as REJECTED due to scaled parameters.

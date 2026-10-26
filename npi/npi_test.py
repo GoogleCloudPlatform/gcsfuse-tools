@@ -1,11 +1,55 @@
-import unittest
-from unittest.mock import patch, MagicMock
-import subprocess
-import os
+import argparse
 import getpass
+import importlib.util
+import io
 import json
+import os
+import subprocess
+import sys
+import tempfile
+import unittest
+from unittest.mock import MagicMock, patch
+
 import npi
+import npi_common
 import query_results
+
+
+def _make_npi_args(**overrides):
+    defaults = {
+        "benchmarks": ["read_http1"],
+        "bucket_name": "test-bucket",
+        "mount_path": None,
+        "project_id": "test-project",
+        "bq_dataset_id": "test-dataset",
+        "iterations": 5,
+        "dry_run": False,
+        "buffer_mount_path": "/mnt/buffer",
+        "image_version": "latest",
+        "file_cache_size_mb": 2097152,
+        "is_rapid_bucket": False,
+        "smoke_mode": False,
+        "numjobs": None,
+        "extra_mount_options": None,
+    }
+    defaults.update(overrides)
+    return argparse.Namespace(**defaults)
+
+
+def _make_orchestrator_args(**overrides):
+    defaults = {
+        "config": "targets.json",
+        "benchmarks": "read_grpc",
+        "image_version": "latest",
+        "project": "test-project",
+        "iterations": 1,
+        "reset": False,
+        "smoke_mode": False,
+        "numjobs": None,
+        "extra_mount_options": None,
+    }
+    defaults.update(overrides)
+    return argparse.Namespace(**defaults)
 
 
 class TestBenchmarkFactory(unittest.TestCase):
@@ -211,15 +255,16 @@ class TestRunBenchmark(unittest.TestCase):
 
     @patch('subprocess.run')
     def test_run_benchmark_success(self, mock_run):
-        success = npi.run_benchmark("test_bench", "echo hello", "test-project", "test-dataset", "test-table")
+        success = npi.run_benchmark("test_bench", "echo hello")
         self.assertTrue(success)
         self.assertEqual(mock_run.call_count, 1)
 
     @patch('subprocess.run')
     def test_run_benchmark_failure(self, mock_run):
         mock_run.side_effect = subprocess.CalledProcessError(1, "cmd")
-        success = npi.run_benchmark("test_bench", "echo hello", "test-project", "test-dataset", "test-table")
+        success = npi.run_benchmark("test_bench", "echo hello")
         self.assertFalse(success)
+
 
 class TestMain(unittest.TestCase):
 
@@ -228,19 +273,7 @@ class TestMain(unittest.TestCase):
     @patch('npi.BenchmarkFactory')
     @patch('npi.verify_permissions', return_value=True)
     def test_main_success(self, mock_verify_perms, mock_factory_class, mock_parse_args, mock_makedirs):
-        mock_args = MagicMock()
-        mock_args.benchmarks = ["read_http1"]
-        mock_args.bucket_name = "test-bucket"
-        mock_args.mount_path = None
-        mock_args.project_id = "test-project"
-        mock_args.bq_dataset_id = "test-dataset"
-        mock_args.iterations = 5
-        mock_args.dry_run = False
-        mock_args.is_rapid_bucket = False
-        mock_args.buffer_mount_path = "/mnt/buffer"
-        mock_args.file_cache_size_mb = 2097152
-        mock_args.image_version = "latest"
-        mock_parse_args.return_value = mock_args
+        mock_parse_args.return_value = _make_npi_args()
 
         mock_factory_instance = MagicMock()
         mock_factory_instance.get_available_benchmarks.return_value = ["read_http1", "write_grpc"]
@@ -250,33 +283,25 @@ class TestMain(unittest.TestCase):
         with patch('npi.run_benchmark', return_value=True) as mock_run_benchmark:
             npi.main()
             mock_factory_class.assert_called_once()
-            mock_run_benchmark.assert_called_once_with("read_http1", "docker run ...", "test-project", "test-dataset", "test-table")
+            _, factory_kwargs = mock_factory_class.call_args
+            self.assertEqual(factory_kwargs["iterations"], 5)
+            self.assertIsNone(factory_kwargs["numjobs"])
+            self.assertFalse(factory_kwargs["smoke_mode"])
+            mock_run_benchmark.assert_called_once_with("read_http1", "docker run ...")
 
     @patch('os.makedirs')
     @patch('argparse.ArgumentParser.parse_args')
     @patch('npi.BenchmarkFactory')
     @patch('npi.verify_permissions', return_value=True)
     def test_main_failure(self, mock_verify_perms, mock_factory_class, mock_parse_args, mock_makedirs):
-        mock_args = MagicMock()
-        mock_args.benchmarks = ["read_http1"]
-        mock_args.bucket_name = "test-bucket"
-        mock_args.mount_path = None
-        mock_args.project_id = "test-project"
-        mock_args.bq_dataset_id = "test-dataset"
-        mock_args.iterations = 5
-        mock_args.dry_run = False
-        mock_args.is_rapid_bucket = False
-        mock_args.buffer_mount_path = "/mnt/buffer"
-        mock_args.file_cache_size_mb = 2097152
-        mock_args.image_version = "latest"
-        mock_parse_args.return_value = mock_args
+        mock_parse_args.return_value = _make_npi_args()
 
         mock_factory_instance = MagicMock()
         mock_factory_instance.get_available_benchmarks.return_value = ["read_http1", "write_grpc"]
         mock_factory_instance.get_benchmark_command.return_value = ("docker run ...", "test-table")
         mock_factory_class.return_value = mock_factory_instance
 
-        with patch('npi.run_benchmark', return_value=False) as mock_run_benchmark:
+        with patch('npi.run_benchmark', return_value=False):
             with self.assertRaises(SystemExit) as cm:
                 npi.main()
             self.assertEqual(cm.exception.code, 1)
@@ -285,19 +310,9 @@ class TestMain(unittest.TestCase):
     @patch('argparse.ArgumentParser.parse_args')
     @patch('npi.BenchmarkFactory')
     def test_main_rapid_bucket_filters_http1(self, mock_factory_class, mock_parse_args, mock_makedirs):
-        mock_args = MagicMock()
-        mock_args.benchmarks = ["all"]
-        mock_args.bucket_name = "test-bucket"
-        mock_args.mount_path = None
-        mock_args.project_id = "test-project"
-        mock_args.bq_dataset_id = "test-dataset"
-        mock_args.iterations = 5
-        mock_args.dry_run = True
-        mock_args.is_rapid_bucket = True
-        mock_args.buffer_mount_path = "/mnt/buffer"
-        mock_args.file_cache_size_mb = 2097152
-        mock_args.image_version = "latest"
-        mock_parse_args.return_value = mock_args
+        mock_parse_args.return_value = _make_npi_args(
+            benchmarks=["all"], dry_run=True, is_rapid_bucket=True
+        )
 
         mock_factory_instance = MagicMock()
         mock_factory_instance.get_available_benchmarks.return_value = ["read_http1", "read_grpc", "write_http1", "write_grpc"]
@@ -305,24 +320,18 @@ class TestMain(unittest.TestCase):
         mock_factory_class.return_value = mock_factory_instance
 
         npi.main()
+        called_benchmarks = [
+            c.args[0] for c in mock_factory_instance.get_benchmark_command.call_args_list
+        ]
+        self.assertEqual(called_benchmarks, ["read_grpc", "write_grpc"])
 
     @patch('os.makedirs')
     @patch('argparse.ArgumentParser.parse_args')
     @patch('npi.BenchmarkFactory')
     def test_main_rapid_bucket_explicit_http1_error(self, mock_factory_class, mock_parse_args, mock_makedirs):
-        mock_args = MagicMock()
-        mock_args.benchmarks = ["read_http1"]
-        mock_args.bucket_name = "test-bucket"
-        mock_args.mount_path = None
-        mock_args.project_id = "test-project"
-        mock_args.bq_dataset_id = "test-dataset"
-        mock_args.iterations = 5
-        mock_args.dry_run = False
-        mock_args.is_rapid_bucket = True
-        mock_args.buffer_mount_path = "/mnt/buffer"
-        mock_args.file_cache_size_mb = 2097152
-        mock_args.image_version = "latest"
-        mock_parse_args.return_value = mock_args
+        mock_parse_args.return_value = _make_npi_args(
+            benchmarks=["read_http1"], is_rapid_bucket=True
+        )
 
         mock_factory_instance = MagicMock()
         mock_factory_instance.get_available_benchmarks.return_value = ["read_http1", "read_grpc"]
@@ -340,37 +349,104 @@ class TestMain(unittest.TestCase):
     @patch('npi.BenchmarkFactory')
     @patch('npi.verify_permissions', return_value=True)
     def test_main_clears_buffer_mount_path_when_not_empty(self, mock_verify_perms, mock_factory_class, mock_parse_args, mock_makedirs, mock_exists, mock_listdir, mock_unlink, mock_rmtree):
-        mock_args = MagicMock()
-        mock_args.benchmarks = ["read_http1"]
-        mock_args.bucket_name = "test-bucket"
-        mock_args.mount_path = None
-        mock_args.project_id = "test-project"
-        mock_args.bq_dataset_id = "test-dataset"
-        mock_args.iterations = 5
-        mock_args.dry_run = False
-        mock_args.is_rapid_bucket = False
-        mock_args.buffer_mount_path = "/mnt/buffer"
-        mock_args.file_cache_size_mb = 2097152
-        mock_args.image_version = "latest"
-        mock_parse_args.return_value = mock_args
+        mock_parse_args.return_value = _make_npi_args()
 
         mock_exists.return_value = True
         mock_listdir.return_value = ["file1.txt", "dir1"]
-        
+
         with patch('os.path.isfile', side_effect=lambda p: "file1.txt" in p), \
              patch('os.path.islink', return_value=False), \
              patch('os.path.isdir', side_effect=lambda p: "dir1" in p):
-            
+
             mock_factory_instance = MagicMock()
             mock_factory_instance.get_available_benchmarks.return_value = ["read_http1"]
             mock_factory_instance.get_benchmark_command.return_value = ("docker run ...", "test-table")
             mock_factory_class.return_value = mock_factory_instance
-            
+
             with patch('npi.run_benchmark', return_value=True):
                 npi.main()
-                
+
                 mock_unlink.assert_called_once_with("/mnt/buffer/file1.txt")
                 mock_rmtree.assert_called_once_with("/mnt/buffer/dir1")
+
+    @patch('npi.BenchmarkFactory._get_cpu_list_for_numa_node', return_value=None)
+    def test_main_real_argv_numjobs_smoke_rapid_and_invalid_abort_before_buffer_wipe(
+        self, mock_get_cpu
+    ):
+        with tempfile.TemporaryDirectory() as buf_dir:
+            canary = os.path.join(buf_dir, "canary.txt")
+            with open(canary, "w", encoding="utf-8") as f:
+                f.write("keep")
+
+            # 1. Invalid --numjobs=0, --iterations=0, --file-cache-size-mb=0, or abbreviated --num=8
+            #    abort in parse_args() BEFORE buffer_mount_path cleanup deletes canary.txt!
+            for bad_flag in (
+                "--numjobs=0",
+                "--iterations=0",
+                "--file-cache-size-mb=0",
+                "--num=8",
+            ):
+                with patch(
+                    "sys.argv",
+                    [
+                        "npi.py",
+                        "--bucket-name=b",
+                        "--project-id=p",
+                        "--bq-dataset-id=d",
+                        f"--buffer-mount-path={buf_dir}",
+                        bad_flag,
+                    ],
+                ), patch("sys.stderr", new_callable=io.StringIO):
+                    with self.assertRaises(SystemExit) as cm:
+                        npi.main()
+                    self.assertEqual(cm.exception.code, 2)
+                self.assertTrue(os.path.exists(canary))
+
+            # 2. Real sys.argv with --numjobs=64 (dry-run)
+            with patch(
+                "sys.argv",
+                [
+                    "npi.py",
+                    "--bucket-name=b",
+                    "--project-id=p",
+                    "--bq-dataset-id=d",
+                    f"--buffer-mount-path={buf_dir}",
+                    "--benchmarks",
+                    "read_grpc",
+                    "--numjobs=64",
+                    "--dry-run",
+                ],
+            ), patch("sys.stdout", new_callable=io.StringIO) as out_64:
+                npi.main()
+            self.assertIn("-e NUMJOBS=64", out_64.getvalue())
+            self.assertIn("-e DIRECT=1", out_64.getvalue())
+            self.assertIn("--iterations=5", out_64.getvalue())
+            self.assertIn("--numjobs=64", out_64.getvalue())
+
+            # 3. Real sys.argv with --smoke-mode --numjobs=64 --is-rapid-bucket
+            with patch(
+                "sys.argv",
+                [
+                    "npi.py",
+                    "--bucket-name=b",
+                    "--project-id=p",
+                    "--bq-dataset-id=d",
+                    f"--buffer-mount-path={buf_dir}",
+                    "--benchmarks",
+                    "all",
+                    "--smoke-mode",
+                    "--numjobs=64",
+                    "--is-rapid-bucket",
+                    "--dry-run",
+                ],
+            ), patch("sys.stdout", new_callable=io.StringIO) as out_smoke:
+                npi.main()
+            text_smoke = out_smoke.getvalue()
+            self.assertIn("-e NUMJOBS=64", text_smoke)
+            self.assertIn("-e DIRECT=0", text_smoke)
+            self.assertIn("--iterations=1", text_smoke)
+            self.assertIn("--numjobs=64", text_smoke)
+            self.assertNotIn("read_http1", text_smoke)
 
 
 class TestVerifyPermissions(unittest.TestCase):
@@ -410,12 +486,7 @@ class TestOrchestrator(unittest.TestCase):
             "is_rapid_bucket": True,
             "has_ssd": True
         }
-        args = MagicMock()
-        args.benchmarks = "all"
-        args.project = "test-project"
-        args.image_version = "latest"
-        args.iterations = 1
-        args.smoke_mode = False
+        args = _make_orchestrator_args(benchmarks="all")
 
         state = {"rapid_target": {"status": "PENDING"}}
         state_lock = MagicMock()
@@ -450,12 +521,7 @@ class TestOrchestrator(unittest.TestCase):
             "name": "t2", "type": "gce", "vm_name": "v2", "zone": "z2", "bucket": "b2",
             "dataset": "my_dataset_zonal", "buffer_mount": "/mnt/buffer", "is_rapid_bucket": False
         }
-        args = MagicMock()
-        args.benchmarks = "read_grpc"
-        args.project = "test-project"
-        args.image_version = "latest"
-        args.iterations = 1
-        args.smoke_mode = False
+        args = _make_orchestrator_args(benchmarks="read_grpc")
 
         state = {"t1": {"status": "PENDING"}, "t2": {"status": "PENDING"}}
         state_lock = MagicMock()
@@ -478,6 +544,47 @@ class TestOrchestrator(unittest.TestCase):
             self.assertEqual(len(triggered), 2)
             self.assertIn("--bq-dataset-id my_dataset_zonal", triggered[0])
             self.assertIn("--bq-dataset-id my_dataset_regional", triggered[1])
+
+    def test_prep_vm_syncs_npi_common_for_gce_and_gke(self):
+        synced_remote_paths = []
+
+        def record_sync(socket_path, vm_name, zone, local_path, remote_path):
+            synced_remote_paths.append((vm_name, os.path.basename(local_path), remote_path))
+
+        gce_target = {
+            "name": "gce_t",
+            "type": "gce",
+            "vm_name": "vm-gce",
+            "zone": "us-central1-a",
+            "buffer_mount": "/mnt/lssd",
+        }
+        gke_target = {
+            "name": "gke_t",
+            "type": "gke",
+            "vm_name": "vm-gke",
+            "zone": "us-central1-a",
+            "cluster_name": "c1",
+            "location": "us-central1-a",
+        }
+
+        with patch("npi_orchestrator.run_ssh_cmd", return_value=(0, "", "")), patch(
+            "npi_orchestrator.detect_remote_raid0_mount", return_value="/mnt/lssd"
+        ), patch(
+            "npi_orchestrator.sync_file_to_remote", side_effect=record_sync
+        ), patch(
+            "npi_orchestrator.validate_gke_nodes"
+        ):
+            npi_orchestrator.prep_vm(gce_target, "/tmp/gce.sock")
+            npi_orchestrator.prep_vm(gke_target, "/tmp/gke.sock")
+
+        self.assertIn(
+            ("vm-gce", "npi_common.py", "~/gcsfuse-tools/npi/npi_common.py"),
+            synced_remote_paths,
+        )
+        self.assertIn(
+            ("vm-gke", "npi_common.py", "~/gcsfuse-tools/npi/npi_common.py"),
+            synced_remote_paths,
+        )
 
     @patch('shutil.which')
     @patch('subprocess.run')
@@ -1458,21 +1565,10 @@ class TestNpiMainExtraMountOptions(unittest.TestCase):
     @patch('npi.BenchmarkFactory')
     @patch('npi.verify_permissions', return_value=True)
     def test_main_passes_extra_mount_options_to_factory(self, mock_verify_perms, mock_factory_class, mock_parse_args, mock_makedirs):
-        mock_args = MagicMock()
-        mock_args.benchmarks = ["read_grpc"]
-        mock_args.bucket_name = "test-bucket"
-        mock_args.mount_path = None
-        mock_args.project_id = "test-project"
-        mock_args.bq_dataset_id = "test-dataset"
-        mock_args.iterations = 5
-        mock_args.dry_run = False
-        mock_args.is_rapid_bucket = False
-        mock_args.buffer_mount_path = "/mnt/buffer"
-        mock_args.file_cache_size_mb = 2097152
-        mock_args.image_version = "latest"
-        mock_args.smoke_mode = False
-        mock_args.extra_mount_options = "congestion-threshold=384,max-background=512"
-        mock_parse_args.return_value = mock_args
+        mock_parse_args.return_value = _make_npi_args(
+            benchmarks=["read_grpc"],
+            extra_mount_options="congestion-threshold=384,max-background=512",
+        )
 
         mock_factory_instance = MagicMock()
         mock_factory_instance.get_available_benchmarks.return_value = ["read_grpc"]
@@ -1505,10 +1601,11 @@ class TestOrchestratorExtraMountOptions(unittest.TestCase):
         with patch('npi_orchestrator.cleanup_remote_run'), \
              patch('npi_orchestrator.prep_vm'), \
              patch('npi_orchestrator.run_ssh_cmd', side_effect=mock_ssh), \
-             patch('npi_orchestrator.monitor_run'):
+             patch('npi_orchestrator.monitor_run'), \
+             patch('npi_orchestrator.save_state'):
             npi_orchestrator.execute_target(target, args, state_lock, state)
 
-        return captured_cmds
+        return captured_cmds, state
 
     def test_gce_target_with_target_level_extra_mount_options(self):
         target = {
@@ -1522,15 +1619,9 @@ class TestOrchestratorExtraMountOptions(unittest.TestCase):
             "extra_mount_options": "congestion-threshold=384",
             "has_ssd": True
         }
-        args = MagicMock()
-        args.benchmarks = "read_grpc"
-        args.project = "test-project"
-        args.image_version = "latest"
-        args.iterations = 1
-        args.smoke_mode = False
-        args.extra_mount_options = None
+        args = _make_orchestrator_args()
 
-        cmds = self._run_execute_target(target, args)
+        cmds, _ = self._run_execute_target(target, args)
         triggered = [c for c in cmds if "npi.py" in c]
         self.assertEqual(len(triggered), 1)
         self.assertIn("--extra-mount-options=congestion-threshold=384", triggered[0])
@@ -1546,15 +1637,9 @@ class TestOrchestratorExtraMountOptions(unittest.TestCase):
             "buffer_mount": "/mnt/buffer",
             "has_ssd": True
         }
-        args = MagicMock()
-        args.benchmarks = "read_grpc"
-        args.project = "test-project"
-        args.image_version = "latest"
-        args.iterations = 1
-        args.smoke_mode = False
-        args.extra_mount_options = "max-background=512"
+        args = _make_orchestrator_args(extra_mount_options="max-background=512")
 
-        cmds = self._run_execute_target(target, args)
+        cmds, _ = self._run_execute_target(target, args)
         triggered = [c for c in cmds if "npi.py" in c]
         self.assertEqual(len(triggered), 1)
         self.assertIn("--extra-mount-options=max-background=512", triggered[0])
@@ -1571,15 +1656,9 @@ class TestOrchestratorExtraMountOptions(unittest.TestCase):
             "extra_mount_options": "congestion-threshold=384",
             "has_ssd": True
         }
-        args = MagicMock()
-        args.benchmarks = "read_grpc"
-        args.project = "test-project"
-        args.image_version = "latest"
-        args.iterations = 1
-        args.smoke_mode = False
-        args.extra_mount_options = "max-background=512"
+        args = _make_orchestrator_args(extra_mount_options="max-background=512")
 
-        cmds = self._run_execute_target(target, args)
+        cmds, _ = self._run_execute_target(target, args)
         triggered = [c for c in cmds if "npi.py" in c]
         self.assertEqual(len(triggered), 1)
         self.assertIn("--extra-mount-options=congestion-threshold=384,max-background=512", triggered[0])
@@ -1595,18 +1674,13 @@ class TestOrchestratorExtraMountOptions(unittest.TestCase):
             "buffer_mount": "/mnt/buffer",
             "has_ssd": True
         }
-        args = MagicMock()
-        args.benchmarks = "read_grpc"
-        args.project = "test-project"
-        args.image_version = "latest"
-        args.iterations = 1
-        args.smoke_mode = False
-        args.extra_mount_options = None
+        args = _make_orchestrator_args()
 
-        cmds = self._run_execute_target(target, args)
+        cmds, _ = self._run_execute_target(target, args)
         triggered = [c for c in cmds if "npi.py" in c]
         self.assertEqual(len(triggered), 1)
         self.assertNotIn("--extra-mount-options", triggered[0])
+        self.assertNotIn("--numjobs", triggered[0])
 
     def test_gke_target_with_target_level_extra_mount_options(self):
         target = {
@@ -1621,15 +1695,9 @@ class TestOrchestratorExtraMountOptions(unittest.TestCase):
             "extra_mount_options": "congestion-threshold=384",
             "has_ssd": True
         }
-        args = MagicMock()
-        args.benchmarks = "read_grpc"
-        args.project = "test-project"
-        args.image_version = "latest"
-        args.iterations = 1
-        args.smoke_mode = False
-        args.extra_mount_options = None
+        args = _make_orchestrator_args()
 
-        cmds = self._run_execute_target(target, args)
+        cmds, _ = self._run_execute_target(target, args)
         triggered = [c for c in cmds if "npi_gke.py" in c]
         self.assertEqual(len(triggered), 1)
         self.assertIn("--extra-mount-options=congestion-threshold=384", triggered[0])
@@ -1646,15 +1714,9 @@ class TestOrchestratorExtraMountOptions(unittest.TestCase):
             "dataset": "test_dataset",
             "has_ssd": True
         }
-        args = MagicMock()
-        args.benchmarks = "read_grpc"
-        args.project = "test-project"
-        args.image_version = "latest"
-        args.iterations = 1
-        args.smoke_mode = False
-        args.extra_mount_options = "max-background=512"
+        args = _make_orchestrator_args(extra_mount_options="max-background=512")
 
-        cmds = self._run_execute_target(target, args)
+        cmds, _ = self._run_execute_target(target, args)
         triggered = [c for c in cmds if "npi_gke.py" in c]
         self.assertEqual(len(triggered), 1)
         self.assertIn("--extra-mount-options=max-background=512", triggered[0])
@@ -1672,15 +1734,9 @@ class TestOrchestratorExtraMountOptions(unittest.TestCase):
             "extra_mount_options": "congestion-threshold=384",
             "has_ssd": True
         }
-        args = MagicMock()
-        args.benchmarks = "read_grpc"
-        args.project = "test-project"
-        args.image_version = "latest"
-        args.iterations = 1
-        args.smoke_mode = False
-        args.extra_mount_options = "max-background=512"
+        args = _make_orchestrator_args(extra_mount_options="max-background=512")
 
-        cmds = self._run_execute_target(target, args)
+        cmds, _ = self._run_execute_target(target, args)
         triggered = [c for c in cmds if "npi_gke.py" in c]
         self.assertEqual(len(triggered), 1)
         self.assertIn("--extra-mount-options=congestion-threshold=384,max-background=512", triggered[0])
@@ -1697,135 +1753,180 @@ class TestOrchestratorExtraMountOptions(unittest.TestCase):
             "dataset": "test_dataset",
             "has_ssd": True
         }
-        args = MagicMock()
-        args.benchmarks = "read_grpc"
-        args.project = "test-project"
-        args.image_version = "latest"
-        args.iterations = 1
-        args.smoke_mode = False
-        args.extra_mount_options = None
+        args = _make_orchestrator_args()
 
-        cmds = self._run_execute_target(target, args)
+        cmds, _ = self._run_execute_target(target, args)
         triggered = [c for c in cmds if "npi_gke.py" in c]
         self.assertEqual(len(triggered), 1)
         self.assertNotIn("--extra-mount-options", triggered[0])
+        self.assertNotIn("--numjobs", triggered[0])
 
-    def test_orchestrator_cli_help_documents_extra_mount_options(self):
+    def test_orchestrator_numjobs_cli_and_target_forwarding(self):
+        gce_target = {
+            "name": "gce_target",
+            "type": "gce",
+            "vm_name": "vm1",
+            "zone": "us-central1-a",
+            "bucket": "gs://test-bucket",
+            "dataset": "test_dataset",
+            "buffer_mount": "/mnt/buffer",
+            "numjobs": 48,
+            "has_ssd": True,
+        }
+        gke_target = {
+            "name": "gke_target",
+            "type": "gke",
+            "vm_name": "gke-runner-vm",
+            "zone": "us-central1-a",
+            "cluster_name": "test-cluster",
+            "location": "us-central1-a",
+            "bucket": "gs://test-bucket",
+            "dataset": "test_dataset",
+            "numjobs": 32,
+            "has_ssd": True,
+        }
+
+        # 1. Target-level numjobs forwarded when CLI --numjobs is unset
+        gce_cmds, _ = self._run_execute_target(gce_target, _make_orchestrator_args())
+        self.assertIn("--numjobs=48", [c for c in gce_cmds if "npi.py" in c][0])
+        gke_cmds, _ = self._run_execute_target(gke_target, _make_orchestrator_args())
+        self.assertIn("--numjobs=32", [c for c in gke_cmds if "npi_gke.py" in c][0])
+
+        # 2. CLI --numjobs=96 overrides target-level numjobs
+        gce_override, _ = self._run_execute_target(
+            gce_target, _make_orchestrator_args(numjobs=96)
+        )
+        self.assertIn("--numjobs=96", [c for c in gce_override if "npi.py" in c][0])
+        gke_override, _ = self._run_execute_target(
+            gke_target, _make_orchestrator_args(numjobs=96)
+        )
+        self.assertIn("--numjobs=96", [c for c in gke_override if "npi_gke.py" in c][0])
+
+        # 3. Invalid target numjobs marks target FAILED without triggering remote run
+        bad_target = dict(gce_target, numjobs=0)
+        bad_cmds, bad_state = self._run_execute_target(
+            bad_target, _make_orchestrator_args()
+        )
+        self.assertEqual([c for c in bad_cmds if "npi.py" in c], [])
+        self.assertEqual(bad_state["gce_target"]["status"], "FAILED")
+
+    def test_orchestrator_cli_help_documents_extra_mount_options_and_numjobs(self):
         res = subprocess.run(["python3", "npi_orchestrator.py", "--help"], capture_output=True, text=True, cwd=os.path.dirname(os.path.abspath(npi_orchestrator.__file__)))
         self.assertEqual(res.returncode, 0)
         self.assertIn("--extra-mount-options", res.stdout)
+        self.assertIn("--numjobs", res.stdout)
 
 
-class TestRunGoMatrix(unittest.TestCase):
+class TestNpiCommon(unittest.TestCase):
 
-    @classmethod
-    def setUpClass(cls):
-        import importlib.util
-        go_matrix_path = os.path.join(
-            os.path.dirname(os.path.abspath(__file__)), "go-client", "run_go_matrix.py"
+    def test_clean_param_str_includes_param_name_in_errors(self):
+        self.assertEqual(npi_common.clean_param_str(None, "NUMJOBS"), "")
+        self.assertEqual(npi_common.clean_param_str(" 64 ", "NUMJOBS"), "64")
+        self.assertEqual(npi_common.clean_param_str(0, "DIRECT"), "0")
+        for bad_val in (True, False, 1.5, ["1"], {"a": 1}):
+            with self.assertRaises(ValueError) as ctx:
+                npi_common.clean_param_str(bad_val, "DIRECT")
+            self.assertIn("DIRECT", str(ctx.exception))
+
+    def test_bq_helpers_insert_utc_timestamp_and_handle_mock_not_found(self):
+        class FakeNotFound(Exception):
+            pass
+
+        fake_exc_mod = argparse.Namespace(NotFound=FakeNotFound)
+        fake_bq_mod = MagicMock()
+        mock_client = MagicMock()
+        mock_client.get_table.side_effect = FakeNotFound("missing")
+        mock_client.get_dataset.side_effect = FakeNotFound("missing")
+        mock_client.insert_rows_json.return_value = []
+
+        # truncate_bq_table skips cleanly on NotFound
+        npi_common.truncate_bq_table(
+            mock_client, "proj", "ds", "tbl", exceptions_module=fake_exc_mod
         )
-        spec = importlib.util.spec_from_file_location("run_go_matrix", go_matrix_path)
-        cls.run_go_matrix = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(cls.run_go_matrix)
+        mock_client.query.assert_not_called()
 
-    def test_resolve_numjobs_precedence_and_whitespace(self):
-        rm = self.run_go_matrix
-        self.assertEqual(rm.resolve_numjobs(64, {"NUMJOBS": "32"}, {"NUMJOBS": "16"}), 64)
-        self.assertEqual(rm.resolve_numjobs(None, {"NUMJOBS": "32"}, {"NUMJOBS": "112"}), 32)
-        self.assertEqual(rm.resolve_numjobs(None, {"NUMJOBS": "  "}, {"NUMJOBS": "48"}), 48)
-        self.assertEqual(rm.resolve_numjobs(None, {"NUMJOBS": ""}, {"NUMJOBS": "  "}), 112)
-        self.assertEqual(rm.resolve_numjobs(None, {}, {}), 112)
+        # insert_benchmark_row_to_bq creates missing dataset/table and inserts UTC ISO timestamp
+        npi_common.insert_benchmark_row_to_bq(
+            client=mock_client,
+            project_id="proj",
+            dataset_id="ds",
+            table_id="tbl",
+            iteration=1,
+            gcsfuse_flags="--client-protocol=grpc",
+            env_params={"NUMJOBS": "112", "DIRECT": "0"},
+            cpu_limit_list=None,
+            json_output_content='{"jobs": []}',
+            bq_module=fake_bq_mod,
+            exceptions_module=fake_exc_mod,
+        )
+        mock_client.create_dataset.assert_called_once()
+        mock_client.create_table.assert_called_once()
+        inserted_rows = mock_client.insert_rows_json.call_args.args[1]
+        self.assertEqual(len(inserted_rows), 1)
+        self.assertIn("+00:00", inserted_rows[0]["run_timestamp"])
 
-        for bad_cfg, bad_env in [
-            ({"NUMJOBS": "0"}, {}),
-            ({"NUMJOBS": "-2"}, {}),
-            ({"NUMJOBS": "abc"}, {"NUMJOBS": "112"}),
-            ({"NUMJOBS": ""}, {"NUMJOBS": "0"}),
-        ]:
-            with self.assertRaises(ValueError):
-                rm.resolve_numjobs(None, bad_cfg, bad_env)
 
-    def test_main_invalid_numjobs_exits_before_bq_truncation(self):
-        import tempfile
-        rm = self.run_go_matrix
-        with tempfile.NamedTemporaryFile("w", suffix=".csv") as f:
-            f.write("READ_TYPE,FILE_SIZE,BLOCK_SIZE,NR_FILES\nread,1G,1M,10\n")
-            f.flush()
-            with patch.object(rm, "_BQ_SUPPORTED", True), \
-                 patch.object(rm, "bigquery", create=True) as mock_bq, \
-                 patch.object(rm, "truncate_bq_table") as mock_trunc:
-                # 1. --numjobs=0 rejected at argparse time
-                with patch("sys.argv", [
-                    "run_go_matrix.py", "--bucket-name=b", f"--matrix-config={f.name}",
-                    "--project-id=p", "--bq-dataset-id=d", "--bq-table-id=t", "--numjobs=0"
-                ]):
-                    with self.assertRaises(SystemExit) as cm:
-                        rm.main()
-                    self.assertNotEqual(cm.exception.code, 0)
-                mock_trunc.assert_not_called()
-                mock_bq.Client.assert_not_called()
+def _load_external_test_module(loader, mod_name, rel_path):
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    full_path = os.path.join(base_dir, rel_path)
+    mod_dir = os.path.dirname(full_path)
+    if mod_dir not in sys.path:
+        sys.path.insert(0, mod_dir)
+    if mod_name in sys.modules:
+        mod = sys.modules[mod_name]
+    else:
+        spec = importlib.util.spec_from_file_location(mod_name, full_path)
+        mod = importlib.util.module_from_spec(spec)
+        sys.modules[mod_name] = mod
+        spec.loader.exec_module(mod)
+    return loader.loadTestsFromModule(mod)
 
-                # 2. NUMJOBS=0 in os.environ rejected before truncate_bq_table
-                with patch.dict(os.environ, {"NUMJOBS": "0", "NUM_JOBS": ""}, clear=False), \
-                     patch("sys.argv", [
-                         "run_go_matrix.py", "--bucket-name=b", f"--matrix-config={f.name}",
-                         "--project-id=p", "--bq-dataset-id=d", "--bq-table-id=t"
-                     ]):
-                    with self.assertRaises(SystemExit) as cm2:
-                        rm.main()
-                    self.assertEqual(cm2.exception.code, 1)
-                mock_trunc.assert_not_called()
 
-    def test_main_propagates_benchmark_failure_exit_code(self):
-        import tempfile
-        rm = self.run_go_matrix
-        with tempfile.TemporaryDirectory() as tmpdir:
-            csv_path = os.path.join(tmpdir, "matrix.csv")
-            with open(csv_path, "w") as f:
-                f.write("READ_TYPE,FILE_SIZE,BLOCK_SIZE,NR_FILES\nread,1G,1M,10\n")
-            with patch.dict(os.environ, {"NUMJOBS": "112", "NUM_JOBS": ""}, clear=False), \
-                 patch.object(rm.os.path, "exists", return_value=True), \
-                 patch.object(rm.subprocess, "run"), \
-                 patch.object(rm, "run_command", side_effect=subprocess.CalledProcessError(1, "go-benchmark-client")) as mock_run_cmd, \
-                 patch("sys.argv", [
-                     "run_go_matrix.py", "--bucket-name=b", f"--matrix-config={csv_path}",
-                     f"--output-dir={os.path.join(tmpdir, 'out')}"
-                 ]):
-                with self.assertRaises(SystemExit) as cm:
-                    rm.main()
-                self.assertEqual(cm.exception.code, 1)
-            mock_run_cmd.assert_called_once()
+def _argv_mentions(filename):
+    stem = os.path.splitext(filename)[0]
+    for arg in sys.argv[1:]:
+        if filename in arg or arg == stem or arg.startswith(f"{stem}."):
+            return True
+    return False
 
-    def test_main_handles_trailing_comma_extra_csv_fields(self):
-        import tempfile
-        rm = self.run_go_matrix
-        with tempfile.TemporaryDirectory() as tmpdir:
-            csv_path = os.path.join(tmpdir, "matrix.csv")
-            out_dir = os.path.join(tmpdir, "out")
-            with open(csv_path, "w") as f:
-                f.write("READ_TYPE,FILE_SIZE,BLOCK_SIZE,NR_FILES\nread,1G,1M,10,\n")
-            with patch.dict(os.environ, {"NUMJOBS": "112", "NUM_JOBS": ""}, clear=False), \
-                 patch.object(rm, "_BQ_SUPPORTED", True), \
-                 patch.object(rm, "bigquery", create=True), \
-                 patch.object(rm, "truncate_bq_table") as mock_trunc, \
-                 patch.object(rm, "upload_results_to_bq") as mock_upload, \
-                 patch.object(rm.os.path, "exists", return_value=True), \
-                 patch.object(rm.subprocess, "run"), \
-                 patch.object(rm, "run_command", return_value=MagicMock(stdout='{"jobs": []}')) as mock_run_cmd, \
-                 patch.object(rm, "print_summary"), \
-                 patch("sys.argv", [
-                     "run_go_matrix.py", "--bucket-name=b", f"--matrix-config={csv_path}",
-                     f"--output-dir={out_dir}", "--project-id=p", "--bq-dataset-id=d",
-                     "--bq-table-id=t"
-                 ]):
-                rm.main()
-            mock_trunc.assert_called_once()
-            mock_run_cmd.assert_called_once()
-            mock_upload.assert_called_once()
-            expected_subdir = os.path.join(
-                out_dir, "BLOCK_SIZE_1M_FILE_SIZE_1G_NR_FILES_10_READ_TYPE_read"
+
+def load_tests(loader, standard_tests, pattern):
+    """Includes subdirectory and sibling test suites for CI (`python -m unittest npi_test.py`) and `discover` without duplicates."""
+    if "_pytest" in sys.modules:
+        return standard_tests
+
+    suite = unittest.TestSuite()
+    suite.addTests(standard_tests)
+
+    # Subdirectories without __init__.py (or hyphenated `go-client/`) are not traversed by `unittest discover -s .`
+    for mod_name, rel_path in (
+        ("_npi_fio_benchmark_runner_test", os.path.join("fio", "fio_benchmark_runner_test.py")),
+        ("_npi_run_go_matrix_test", os.path.join("go-client", "run_go_matrix_test.py")),
+    ):
+        if not _argv_mentions(os.path.basename(rel_path)):
+            suite.addTests(_load_external_test_module(loader, mod_name, rel_path))
+
+    # Direct `python -m unittest npi_test.py` (GitHub Actions CI) has pattern=None; also include top-level sibling suites
+    if pattern is None:
+        if not _argv_mentions("build_images_test.py"):
+            suite.addTests(
+                _load_external_test_module(
+                    loader, "build_images_test", "build_images_test.py"
+                )
             )
-            self.assertTrue(os.path.isdir(expected_subdir))
+        if not _argv_mentions("npi_gke_test.py"):
+            try:
+                import yaml as _yaml  # noqa: F401
+            except ImportError:
+                pass
+            else:
+                suite.addTests(
+                    _load_external_test_module(
+                        loader, "npi_gke_test", "npi_gke_test.py"
+                    )
+                )
+
+    return suite
 
 
 if __name__ == '__main__':
