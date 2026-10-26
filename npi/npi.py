@@ -343,7 +343,7 @@ class BenchmarkFactory:
         definitions["host_info"] = functools.partial(
             self._create_docker_command,
             benchmark_image_suffix="host-info-collector",
-            bq_table_id="host_info",
+            bq_table_id=npi_common.resolve_bq_table_id("host_info"),
         )
 
         for bench_name, bench_config in benchmarks.items():
@@ -353,17 +353,7 @@ class BenchmarkFactory:
 
                 # Construct the full benchmark name and BQ table ID
                 full_bench_name = f"{bench_name}_{config_name}"
-
-                if "bq_table_id_override" in bench_config:
-                    bq_table_id = bench_config["bq_table_id_override"].format(config_name=config_name)
-                elif bench_name == "read_file_cache":
-                    suffix = config_name.replace("grpc", "").replace("http1", "").strip("_")
-                    if suffix:
-                        bq_table_id = f"fio_{bench_name}_{suffix}"
-                    else:
-                        bq_table_id = f"fio_{bench_name}"
-                else:
-                    bq_table_id = f"fio_{full_bench_name}"
+                bq_table_id = npi_common.resolve_bq_table_id(full_bench_name)
 
                 combined_gcsfuse_flags = config_params.get("gcsfuse_flags", "")
                 if "gcsfuse_flags_extra" in bench_config:
@@ -376,7 +366,6 @@ class BenchmarkFactory:
                 if bench_name == "go_read":
                     protocol = "grpc" if "grpc" in config_name else "http1"
                     runner_args = f"--client-protocol={protocol}"
-                    bq_table_id = f"go_client_read_{config_name}"
 
                 # Use functools.partial to create a command function with pre-filled arguments
                 definitions[full_bench_name] = functools.partial(
@@ -575,6 +564,24 @@ def main():
     )
 
     args = parser.parse_args()
+
+    args.project_id = (args.project_id or "").strip()
+    if not args.project_id:
+        parser.error("--project-id must not be empty.")
+    args.bq_dataset_id = (args.bq_dataset_id or "").strip()
+    if not args.bq_dataset_id:
+        parser.error("--bq-dataset-id must not be empty.")
+    args.buffer_mount_path = (args.buffer_mount_path or "").strip()
+    if not args.buffer_mount_path:
+        parser.error("--buffer-mount-path must not be empty.")
+    if args.bucket_name is not None:
+        args.bucket_name = args.bucket_name.strip()
+        if not args.bucket_name:
+            parser.error("--bucket-name must not be empty.")
+    if args.mount_path is not None:
+        args.mount_path = args.mount_path.strip()
+        if not args.mount_path:
+            parser.error("--mount-path must not be empty.")
 
     args.iterations = npi_common.resolve_smoke_iterations(
         args.iterations, args.smoke_mode

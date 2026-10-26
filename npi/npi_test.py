@@ -422,6 +422,12 @@ class TestMain(unittest.TestCase):
                 "--iterations=0",
                 "--file-cache-size-mb=0",
                 "--num=8",
+                "--project-id=",
+                "--project-id=   ",
+                "--bq-dataset-id=  ",
+                "--bucket-name=  ",
+                "--mount-path=  ",
+                "--buffer-mount-path=  ",
             ):
                 with patch(
                     "sys.argv",
@@ -1894,8 +1900,214 @@ class TestOrchestratorExtraMountOptions(unittest.TestCase):
         self.assertIn("--extra-mount-options", res.stdout)
         self.assertIn("--numjobs", res.stdout)
 
+    def test_orchestrator_project_fallback_and_pre_truncation(self):
+        gce_target = {
+            "name": "rapid_gce",
+            "type": "gce",
+            "vm_name": "vm1",
+            "zone": "us-central1-a",
+            "bucket": "gs://rapid-bucket",
+            "dataset": "npi_ds",
+            "buffer_mount": "/mnt/buffer",
+            "is_rapid_bucket": True,
+            "has_ssd": True,
+        }
+        gke_target = {
+            "name": "ssdless_gke",
+            "type": "gke",
+            "vm_name": "gke-runner",
+            "zone": "us-central1-a",
+            "cluster_name": "test-cluster",
+            "location": "us-central1-a",
+            "bucket": "gs://std-bucket",
+            "dataset": "npi_ds",
+            "is_rapid_bucket": False,
+            "has_ssd": False,
+        }
+        completed_target = dict(
+            gce_target, name="done_gce", dataset="done_ds", is_rapid_bucket=False
+        )
+        running_target = dict(
+            gce_target,
+            name="active_gce",
+            dataset="active_ds",
+            is_rapid_bucket=False,
+        )
+
+        # 1. Direct execute_target() with args.project=None or whitespace resolves PROJECT_ID (never '')
+        with patch.object(npi_orchestrator, "PROJECT_ID", "resolved-proj"):
+            for proj_val in (None, "   "):
+                gce_cmds, _ = self._run_execute_target(
+                    gce_target, _make_orchestrator_args(project=proj_val)
+                )
+                gce_cmd = [c for c in gce_cmds if "npi.py" in c][0]
+                self.assertIn("--project-id resolved-proj", gce_cmd)
+                self.assertNotIn("--project-id ''", gce_cmd)
+
+                gke_cmds, _ = self._run_execute_target(
+                    gke_target, _make_orchestrator_args(project=proj_val)
+                )
+                gke_cmd = [c for c in gke_cmds if "npi_gke.py" in c][0]
+                self.assertIn("--project-id resolved-proj", gke_cmd)
+                self.assertNotIn("--project-id ''", gke_cmd)
+
+        # 2. main() with omitted --project sets args.project, filters per-target benchmarks,
+        #    uses resolve_bq_table_id, and skips SUCCESS/RUNNING targets during pre-truncation.
+        targets = [gce_target, gke_target, completed_target, running_target]
+        initial_state = {
+            "rapid_gce": {"status": "PENDING", "pid": None, "last_line": ""},
+            "ssdless_gke": {"status": "FAILED", "pid": None, "last_line": ""},
+            "done_gce": {"status": "SUCCESS", "pid": None, "last_line": ""},
+            "active_gce": {"status": "RUNNING", "pid": 1234, "last_line": ""},
+        }
+        final_state = {
+            t["name"]: {"status": "SUCCESS", "pid": None, "last_line": ""}
+            for t in targets
+        }
+
+        fake_bq_client = MagicMock()
+        fake_bq_mod = MagicMock()
+        fake_bq_mod.Client.return_value = fake_bq_client
+        fake_gcloud_pkg = argparse.Namespace(bigquery=fake_bq_mod)
+        fake_google_pkg = argparse.Namespace(cloud=fake_gcloud_pkg)
+        seen_thread_projects = []
+
+        def fake_exec(t, parsed_args, lock, st):
+            seen_thread_projects.append(parsed_args.project)
+
+        with tempfile.NamedTemporaryFile(
+            "w", suffix=".json", delete=False
+        ) as cfg_file:
+            json.dump(targets, cfg_file)
+            cfg_path = cfg_file.name
+        self.addCleanup(
+            lambda: os.path.exists(cfg_path) and os.remove(cfg_path)
+        )
+
+        with patch.object(
+            npi_orchestrator, "PROJECT_ID", npi_orchestrator.PROJECT_ID
+        ), patch(
+            "sys.argv",
+            [
+                "npi_orchestrator.py",
+                "--config",
+                cfg_path,
+                "--benchmarks",
+                "all",
+                "go_read_grpc",
+                "read_file_cache_grpc",
+            ],
+        ), patch(
+            "npi_orchestrator.get_gcp_project_id", return_value="auto-proj"
+        ), patch(
+            "npi_orchestrator.validate_colocation"
+        ), patch(
+            "npi_orchestrator.load_state",
+            side_effect=[initial_state, final_state],
+        ), patch(
+            "npi_orchestrator.execute_target", side_effect=fake_exec
+        ), patch.dict(
+            sys.modules,
+            {"google": fake_google_pkg, "google.cloud": fake_gcloud_pkg},
+        ), patch(
+            "sys.stdout", new_callable=io.StringIO
+        ):
+            with self.assertRaises(SystemExit) as cm:
+                npi_orchestrator.main()
+            self.assertEqual(cm.exception.code, 0)
+
+        self.assertEqual(seen_thread_projects, ["auto-proj"] * 4)
+        fake_bq_mod.Client.assert_called_once_with(project="auto-proj")
+        checked_tables = [
+            c.args[0] for c in fake_bq_client.get_table.call_args_list
+        ]
+        self.assertEqual(
+            checked_tables,
+            [
+                # rapid_gce (PENDING, zonal, has_ssd=True): HTTP1 filtered out
+                "auto-proj.npi_ds_zonal.fio_read_grpc",
+                "auto-proj.npi_ds_zonal.fio_write_grpc",
+                "auto-proj.npi_ds_zonal.host_info",
+                "auto-proj.npi_ds_zonal.go_client_read_grpc",
+                "auto-proj.npi_ds_zonal.fio_read_file_cache",
+                # ssdless_gke (FAILED, regional, has_ssd=False): file_cache filtered out
+                "auto-proj.npi_ds_regional.fio_read_http1",
+                "auto-proj.npi_ds_regional.fio_read_grpc",
+                "auto-proj.npi_ds_regional.fio_write_http1",
+                "auto-proj.npi_ds_regional.fio_write_grpc",
+                "auto-proj.npi_ds_regional.host_info",
+                "auto-proj.npi_ds_regional.go_client_read_grpc",
+                # done_gce (SUCCESS) and active_gce (RUNNING) skipped completely!
+            ],
+        )
+
 
 class TestNpiCommon(unittest.TestCase):
+
+    def test_resolve_bq_table_id_and_filter_target_benchmarks(self):
+        for bench_name, suffix, expected in (
+            ("host_info", None, "host_info"),
+            ("host_info", "v2", "host_info_v2"),
+            ("go_read", None, "go_client_read"),
+            ("go_read_grpc", None, "go_client_read_grpc"),
+            (
+                "go_read_http1_numa0_fio_bound",
+                None,
+                "go_client_read_http1_numa0_fio_bound",
+            ),
+            ("go_read_grpc", " run1 ", "go_client_read_grpc_run1"),
+            ("read_file_cache", None, "fio_read_file_cache"),
+            ("read_file_cache_grpc", None, "fio_read_file_cache"),
+            ("read_file_cache_grpc", "   ", "fio_read_file_cache"),
+            ("read_file_cache_grpc", "sfx", "fio_read_file_cache_sfx"),
+            (
+                "read_file_cache_grpc_numa0_fio_bound",
+                None,
+                "fio_read_file_cache_numa0_fio_bound",
+            ),
+            (
+                "read_file_cache_grpc_numa0_fio_notbound",
+                None,
+                "fio_read_file_cache_numa0_fio_notbound",
+            ),
+            ("read_grpc", None, "fio_read_grpc"),
+            ("write_http1", "tag", "fio_write_http1_tag"),
+        ):
+            self.assertEqual(
+                npi_common.resolve_bq_table_id(bench_name, table_suffix=suffix),
+                expected,
+            )
+
+        for empty_bench in ("", "   ", None):
+            with self.assertRaises(ValueError):
+                npi_common.resolve_bq_table_id(empty_bench)
+
+        rapid_no_ssd = {
+            "name": "t_rapid_nossd",
+            "type": "gke",
+            "is_rapid_bucket": True,
+            "has_ssd": False,
+        }
+        with patch("sys.stdout", new_callable=io.StringIO) as quiet_out:
+            filtered = npi_orchestrator._filter_target_benchmarks(
+                rapid_no_ssd,
+                ["all", "read_file_cache_grpc", "go_read_http1", "go_read_grpc"],
+                log=False,
+            )
+        self.assertEqual(
+            filtered,
+            ["read_grpc", "write_grpc", "host_info", "go_read_grpc"],
+        )
+        self.assertEqual(quiet_out.getvalue(), "")
+
+        with patch("sys.stdout", new_callable=io.StringIO) as loud_out:
+            npi_orchestrator._filter_target_benchmarks(
+                rapid_no_ssd,
+                ["all", "read_file_cache_grpc"],
+                log=True,
+            )
+        self.assertIn("Skipping file cache benchmarks", loud_out.getvalue())
+        self.assertIn("Skipping HTTP1 benchmarks", loud_out.getvalue())
 
     def test_clean_param_str_includes_param_name_in_errors(self):
         self.assertEqual(npi_common.clean_param_str(None, "NUMJOBS"), "")
@@ -2030,6 +2242,11 @@ class TestNpiCommon(unittest.TestCase):
             (["unittest", "npi/fio/fio_benchmark_runner_test.py"], "fio_benchmark_runner_test.py", True),
             (["unittest", "npi.npi_gke_test.TestCreateJobSpec"], "npi_gke_test.py", True),
             (["unittest", "-v", "npi_test.py"], "fio_benchmark_runner_test.py", False),
+            (["unittest", "-k", "npi_gke_test", "npi_test.py"], "npi_gke_test.py", False),
+            (["unittest", "--durations", "5", "npi_test.py"], "npi_gke_test.py", False),
+            (["unittest", "discover", "-s", ".", "-p", "*_test.py", "-k", "fio_benchmark_runner_test"], "fio_benchmark_runner_test.py", False),
+            (["unittest", "-v", "discover", "npi", "*_test.py"], "npi_gke_test.py", False),
+            (["unittest", "--", "fio.fio_benchmark_runner_test", "npi_test"], "fio_benchmark_runner_test.py", True),
         ):
             with patch("sys.argv", argv):
                 self.assertEqual(_argv_mentions(target_file), expected)
@@ -2051,15 +2268,45 @@ def _load_external_test_module(loader, mod_name, rel_path):
     return loader.loadTestsFromModule(mod)
 
 
+_UNITTEST_VALUE_OPTS = frozenset({
+    "-k",
+    "--durations",
+    "-s",
+    "--start-directory",
+    "-p",
+    "--pattern",
+    "-t",
+    "--top-level-directory",
+})
+
+
 def _argv_mentions(filename):
     stem = os.path.splitext(filename)[0]
-    for arg in sys.argv[1:]:
-        if arg.startswith("-"):
-            continue
+    argv = sys.argv[1:]
+    idx = 0
+    end_of_opts = False
+    saw_positional = False
+    while idx < len(argv):
+        arg = argv[idx]
+        if not end_of_opts:
+            if arg == "--":
+                end_of_opts = True
+                idx += 1
+                continue
+            if arg in _UNITTEST_VALUE_OPTS:
+                idx += 2
+                continue
+            if arg.startswith("-"):
+                idx += 1
+                continue
+            if not saw_positional and arg.lower() == "discover":
+                return False
+        saw_positional = True
         normalized = arg[:-3] if arg.endswith(".py") else arg
         parts = [p for p in re.split(r"[./\\]+", normalized) if p]
         if stem in parts:
             return True
+        idx += 1
     return False
 
 

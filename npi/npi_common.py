@@ -203,6 +203,46 @@ def filter_rapid_benchmarks(
     return [item for item in benchmarks_to_run if "http1" not in name_fn(item)]
 
 
+def resolve_bq_table_id(benchmark_name, table_suffix=None) -> str:
+    """Resolves the canonical BigQuery table ID for a benchmark definition.
+
+    Mappings:
+      - 'host_info' -> 'host_info'
+      - 'go_read_<cfg>' -> 'go_client_read_<cfg>'
+      - 'read_file_cache' or 'read_file_cache_<cfg>' -> 'fio_read_file_cache'
+        (with 'grpc'/'http1' stripped from <cfg>, appending remaining suffix if any)
+      - '<other>' -> 'fio_<other>'
+    Appends '_<clean_suffix>' when `table_suffix` is non-empty.
+    """
+    bench = clean_param_str(benchmark_name, param_name="benchmark_name")
+    if not bench:
+        raise ValueError("Invalid benchmark_name: must not be empty.")
+
+    if bench == "host_info":
+        table_id = "host_info"
+    elif bench == "go_read":
+        table_id = "go_client_read"
+    elif bench.startswith("go_read_"):
+        cfg = bench[len("go_read_") :]
+        table_id = f"go_client_read_{cfg}"
+    elif bench == "read_file_cache" or bench.startswith("read_file_cache_"):
+        cfg = bench[len("read_file_cache") :].lstrip("_")
+        suffix = cfg.replace("grpc", "").replace("http1", "").strip("_")
+        table_id = (
+            f"fio_read_file_cache_{suffix}"
+            if suffix
+            else "fio_read_file_cache"
+        )
+    else:
+        table_id = f"fio_{bench}"
+
+    clean_suffix = clean_param_str(table_suffix, param_name="table_suffix")
+    if clean_suffix:
+        table_id = f"{table_id}_{clean_suffix}"
+    return table_id
+
+
+
 def fio_template_requires_read_type(fio_template_path):
     """Determines whether a FIO template requires the READ_TYPE CSV column."""
     if fio_template_path and os.path.isfile(fio_template_path):

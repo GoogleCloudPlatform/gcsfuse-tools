@@ -48,6 +48,42 @@ def _expand_benchmarks(raw_benchmarks) -> list[str]:
     return expanded
 
 
+def _filter_target_benchmarks(target, raw_benchmarks, log=False) -> list[str]:
+    """Expands and filters benchmarks for a target based on SSD and RAPID capabilities."""
+    target_name = target["name"]
+    has_ssd = target.get("has_ssd", target["type"] == "gce")
+    requested_benchmarks = _expand_benchmarks(raw_benchmarks)
+
+    if not has_ssd:
+        active_benchmarks = [
+            b for b in requested_benchmarks if "file_cache" not in b
+        ]
+        if log and len(active_benchmarks) < len(requested_benchmarks):
+            skipped = [b for b in requested_benchmarks if "file_cache" in b]
+            print(
+                f"[{target_name}] Skipping file cache benchmarks because target VM has no SSD: {', '.join(skipped)}"
+            )
+    else:
+        active_benchmarks = requested_benchmarks
+
+    if target.get("is_rapid_bucket", False):
+        grpc_only_benchmarks = [
+            b for b in active_benchmarks if "grpc" in b or b == "host_info"
+        ]
+        if log and len(grpc_only_benchmarks) < len(active_benchmarks):
+            skipped_http = [
+                b
+                for b in active_benchmarks
+                if "grpc" not in b and b != "host_info"
+            ]
+            print(
+                f"[{target_name}] Skipping HTTP1 benchmarks because RAPID bucket is enabled: {', '.join(skipped_http)}"
+            )
+        active_benchmarks = grpc_only_benchmarks
+
+    return active_benchmarks
+
+
 def _resolve_dataset_id(raw_dataset: str, is_rapid: bool) -> str:
     """Normalizes a target dataset prefix to its _regional or _zonal BigQuery dataset ID."""
     if raw_dataset.endswith("_regional"):
@@ -112,7 +148,7 @@ def resolve_ssh_user() -> str:
 
 SSH_USER = resolve_ssh_user()
 
-DEFAULT_PROJECT_ID = os.environ.get("PROJECT_ID", "gcsfuse-npi")
+DEFAULT_PROJECT_ID = os.environ.get("PROJECT_ID", "").strip() or "gcsfuse-npi"
 
 def get_gcp_project_id() -> str:
     """Safely resolves GCP project ID from environment, gcloud config, or DEFAULT_PROJECT_ID fallback."""
@@ -785,24 +821,10 @@ def execute_target(target, args, state_lock, state):
             
             # Start run unbuffered
             has_ssd = target.get("has_ssd", target["type"] == "gce") # Default GCE to True, GKE to False if unspecified
-            requested_benchmarks = _expand_benchmarks(args.benchmarks)
-
-            # Filter out file-cache tests if no SSD is present
-            if not has_ssd:
-                active_benchmarks = [b for b in requested_benchmarks if "file_cache" not in b]
-                if len(active_benchmarks) < len(requested_benchmarks):
-                    skipped = [b for b in requested_benchmarks if "file_cache" in b]
-                    print(f"[{target_name}] Skipping file cache benchmarks because target VM has no SSD: {', '.join(skipped)}")
-            else:
-                active_benchmarks = requested_benchmarks
-
             is_rapid = target.get("is_rapid_bucket", False)
-            if is_rapid:
-                grpc_only_benchmarks = [b for b in active_benchmarks if "grpc" in b or b == "host_info"]
-                if len(grpc_only_benchmarks) < len(active_benchmarks):
-                    skipped_http = [b for b in active_benchmarks if "grpc" not in b and b != "host_info"]
-                    print(f"[{target_name}] Skipping HTTP1 benchmarks because RAPID bucket is enabled: {', '.join(skipped_http)}")
-                active_benchmarks = grpc_only_benchmarks
+            active_benchmarks = _filter_target_benchmarks(
+                target, args.benchmarks, log=True
+            )
 
             if not active_benchmarks:
                 print(f"[{target_name}] Skipping target: no benchmarks to run after filtering.")
@@ -812,6 +834,11 @@ def execute_target(target, args, state_lock, state):
                 return
 
             dataset_id = _resolve_dataset_id(target["dataset"], is_rapid)
+            effective_project = (
+                (getattr(args, "project", None) or "").strip()
+                or PROJECT_ID
+                or get_gcp_project_id()
+            )
 
             extra_mount_opts = []
             target_extra = target.get("extra_mount_options")
@@ -839,7 +866,7 @@ def execute_target(target, args, state_lock, state):
                 python_args = [
                     "python3", "-u", f"/home/{SSH_USER}/gcsfuse-tools/npi/npi.py",
                     "--bucket-name", target["bucket"],
-                    "--project-id", args.project,
+                    "--project-id", effective_project,
                     "--bq-dataset-id", dataset_id,
                     "--image-version", args.image_version,
                     "--iterations", str(args.iterations),
@@ -873,7 +900,7 @@ def execute_target(target, args, state_lock, state):
                     "--cluster-name", cluster_name,
                     "--location", location,
                     "--bucket-name", target["bucket"],
-                    "--project-id", args.project,
+                    "--project-id", effective_project,
                     "--bq-dataset-id", dataset_id,
                     "--image-version", args.image_version,
                     "--node-selector", node_sel,
@@ -1041,10 +1068,8 @@ def main():
     args.benchmarks = " ".join(_expand_benchmarks(args.benchmarks))
 
     global PROJECT_ID
-    if args.project:
-        PROJECT_ID = args.project
-    else:
-        PROJECT_ID = get_gcp_project_id()
+    PROJECT_ID = (args.project or "").strip() or get_gcp_project_id()
+    args.project = PROJECT_ID
 
     # Load targets configuration file
     config_path = os.path.join(REPO_DIR, args.config) if not os.path.isabs(args.config) else args.config
@@ -1106,12 +1131,17 @@ def main():
         bq_client = bigquery.Client(project=PROJECT_ID)
         truncated_tables = set()
         for t in targets:
+            target_status = state.get(t["name"], {}).get("status", "PENDING")
+            if target_status not in ("PENDING", "FAILED"):
+                continue
             is_rapid = t.get("is_rapid_bucket", False)
             dataset_id = _resolve_dataset_id(t["dataset"], is_rapid)
 
-            bench_list = args.benchmarks.split() if isinstance(args.benchmarks, str) else args.benchmarks
+            bench_list = _filter_target_benchmarks(
+                t, args.benchmarks, log=False
+            )
             for b_name in bench_list:
-                table_id = f"fio_{b_name}"
+                table_id = npi_common.resolve_bq_table_id(b_name)
                 full_table_id = f"{PROJECT_ID}.{dataset_id}.{table_id}"
                 if full_table_id not in truncated_tables:
                     try:

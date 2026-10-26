@@ -384,6 +384,11 @@ class TestGKEMainAndValidators(unittest.TestCase):
             (["--is-rapid-bucket", "--benchmarks", "read_http1"], 2),
             (["--benchmarks", "bogus"], 1),
             (["--benchmarks", "read_file_cache_grpc"], 2),
+            (["--project-id="], 2),
+            (["--project-id=   "], 2),
+            (["--bq-dataset-id=  "], 2),
+            (["--bucket-name=  "], 2),
+            (["--cluster-name=  "], 2),
         ):
             argv = [
                 "npi_gke.py",
@@ -405,6 +410,37 @@ class TestGKEMainAndValidators(unittest.TestCase):
                 self.assertEqual(cm.exception.code, expected_code)
                 mock_subproc.assert_not_called()
                 mock_setup_ksa.assert_not_called()
+
+    def test_main_resolves_bq_table_ids_with_optional_suffix(self):
+        specs = self._run_dry_run_and_capture_specs([
+            "--run-file-cache-test",
+            "--bq-table-suffix",
+            "run42",
+            "--benchmarks",
+            "host_info",
+            "read_grpc",
+            "read_file_cache_grpc",
+            "go_read_grpc",
+        ])
+        table_args = [
+            [
+                a
+                for a in spec["spec"]["template"]["spec"]["containers"][0][
+                    "args"
+                ]
+                if a.startswith("--bq-table-id=")
+            ][0]
+            for (_, _, spec) in specs
+        ]
+        self.assertEqual(
+            table_args,
+            [
+                "--bq-table-id=host_info_run42",
+                "--bq-table-id=fio_read_grpc_run42",
+                "--bq-table-id=fio_read_file_cache_run42",
+                "--bq-table-id=go_client_read_grpc_run42",
+            ],
+        )
 
     def test_main_default_standard_and_rapid_omit_cli_numjobs_and_direct(self):
         # Standard bucket

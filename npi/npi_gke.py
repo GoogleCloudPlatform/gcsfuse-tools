@@ -688,6 +688,18 @@ def main():
 
     args = parser.parse_args()
 
+    args.project_id = (args.project_id or "").strip()
+    if not args.project_id:
+        parser.error("--project-id must not be empty.")
+    args.bq_dataset_id = (args.bq_dataset_id or "").strip()
+    if not args.bq_dataset_id:
+        parser.error("--bq-dataset-id must not be empty.")
+    args.bucket_name = (args.bucket_name or "").strip()
+    if not args.bucket_name:
+        parser.error("--bucket-name must not be empty.")
+    args.cluster_name = (args.cluster_name or "").strip()
+    args.location = (args.location or "").strip()
+
     args.iterations = npi_common.resolve_smoke_iterations(
         args.iterations, args.smoke_mode
     )
@@ -788,18 +800,9 @@ def main():
         bucket_clean = args.bucket_name.replace("gs://", "").replace("npi-bucket-", "").replace("_", "-").lower()
         job_name = f"gcsfuse-npi-{bucket_clean}-{full_bench_name}".replace("_", "-")
         is_go_client = (bench_type == "go_read")
-
-        if bench_type == "host_info":
-            bq_table_id = "host_info"
-        elif bench_type == "read_file_cache":
-            bq_table_id = "fio_read_file_cache"
-        elif bench_type == "go_read":
-            bq_table_id = f"go_client_read_{config_name}"
-        else:
-            bq_table_id = f"fio_{full_bench_name}"
-
-        if args.bq_table_suffix:
-            bq_table_id = f"{bq_table_id}_{args.bq_table_suffix}"
+        bq_table_id = npi_common.resolve_bq_table_id(
+            full_bench_name, table_suffix=args.bq_table_suffix
+        )
 
         target_iterations = iter_override if iter_override is not None else args.iterations
         image = f"us-docker.pkg.dev/{args.project_id}/gcsfuse-benchmarks/{image_suffix}:{args.image_version}"
