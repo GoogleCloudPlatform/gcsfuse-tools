@@ -1766,7 +1766,7 @@ class TestRunGoMatrix(unittest.TestCase):
                 mock_bq.Client.assert_not_called()
 
                 # 2. NUMJOBS=0 in os.environ rejected before truncate_bq_table
-                with patch.dict(os.environ, {"NUMJOBS": "0"}, clear=False), \
+                with patch.dict(os.environ, {"NUMJOBS": "0", "NUM_JOBS": ""}, clear=False), \
                      patch("sys.argv", [
                          "run_go_matrix.py", "--bucket-name=b", f"--matrix-config={f.name}",
                          "--project-id=p", "--bq-dataset-id=d", "--bq-table-id=t"
@@ -1783,9 +1783,10 @@ class TestRunGoMatrix(unittest.TestCase):
             csv_path = os.path.join(tmpdir, "matrix.csv")
             with open(csv_path, "w") as f:
                 f.write("READ_TYPE,FILE_SIZE,BLOCK_SIZE,NR_FILES\nread,1G,1M,10\n")
-            with patch.object(rm.os.path, "exists", return_value=True), \
+            with patch.dict(os.environ, {"NUMJOBS": "112", "NUM_JOBS": ""}, clear=False), \
+                 patch.object(rm.os.path, "exists", return_value=True), \
                  patch.object(rm.subprocess, "run"), \
-                 patch.object(rm, "run_command", side_effect=subprocess.CalledProcessError(1, "go-benchmark-client")), \
+                 patch.object(rm, "run_command", side_effect=subprocess.CalledProcessError(1, "go-benchmark-client")) as mock_run_cmd, \
                  patch("sys.argv", [
                      "run_go_matrix.py", "--bucket-name=b", f"--matrix-config={csv_path}",
                      f"--output-dir={os.path.join(tmpdir, 'out')}"
@@ -1793,6 +1794,38 @@ class TestRunGoMatrix(unittest.TestCase):
                 with self.assertRaises(SystemExit) as cm:
                     rm.main()
                 self.assertEqual(cm.exception.code, 1)
+            mock_run_cmd.assert_called_once()
+
+    def test_main_handles_trailing_comma_extra_csv_fields(self):
+        import tempfile
+        rm = self.run_go_matrix
+        with tempfile.TemporaryDirectory() as tmpdir:
+            csv_path = os.path.join(tmpdir, "matrix.csv")
+            out_dir = os.path.join(tmpdir, "out")
+            with open(csv_path, "w") as f:
+                f.write("READ_TYPE,FILE_SIZE,BLOCK_SIZE,NR_FILES\nread,1G,1M,10,\n")
+            with patch.dict(os.environ, {"NUMJOBS": "112", "NUM_JOBS": ""}, clear=False), \
+                 patch.object(rm, "_BQ_SUPPORTED", True), \
+                 patch.object(rm, "bigquery", create=True), \
+                 patch.object(rm, "truncate_bq_table") as mock_trunc, \
+                 patch.object(rm, "upload_results_to_bq") as mock_upload, \
+                 patch.object(rm.os.path, "exists", return_value=True), \
+                 patch.object(rm.subprocess, "run"), \
+                 patch.object(rm, "run_command", return_value=MagicMock(stdout='{"jobs": []}')) as mock_run_cmd, \
+                 patch.object(rm, "print_summary"), \
+                 patch("sys.argv", [
+                     "run_go_matrix.py", "--bucket-name=b", f"--matrix-config={csv_path}",
+                     f"--output-dir={out_dir}", "--project-id=p", "--bq-dataset-id=d",
+                     "--bq-table-id=t"
+                 ]):
+                rm.main()
+            mock_trunc.assert_called_once()
+            mock_run_cmd.assert_called_once()
+            mock_upload.assert_called_once()
+            expected_subdir = os.path.join(
+                out_dir, "BLOCK_SIZE_1M_FILE_SIZE_1G_NR_FILES_10_READ_TYPE_read"
+            )
+            self.assertTrue(os.path.isdir(expected_subdir))
 
 
 if __name__ == '__main__':

@@ -298,12 +298,13 @@ def main():
 
     resolved_configs = []
     for idx, config in enumerate(configs, start=1):
+        clean_config = {k: v for k, v in config.items() if k is not None}
         try:
-            num_jobs = resolve_numjobs(args.numjobs, config, os.environ)
+            num_jobs = resolve_numjobs(args.numjobs, clean_config, os.environ)
         except ValueError as e:
-            logging.error("Invalid numjobs in matrix row %d (%s): %s", idx, config, e)
+            logging.error("Invalid numjobs in matrix row %d (%s): %s", idx, clean_config, e)
             sys.exit(1)
-        resolved_configs.append((config, num_jobs))
+        resolved_configs.append((clean_config, num_jobs))
 
     bq_client = None
     if args.project_id and args.bq_dataset_id and args.bq_table_id:
@@ -329,7 +330,8 @@ def main():
         logging.info(f"--- Starting Iteration {iteration}/{args.iterations} ---")
 
         for idx, (config, num_jobs) in enumerate(resolved_configs):
-            config_str = ", ".join([f"{k}={v}" for k, v in sorted(config.items()) if k is not None])
+            sorted_items = sorted((k, v) for k, v in config.items() if k is not None)
+            config_str = ", ".join([f"{k}={v}" for k, v in sorted_items])
             logging.info("Matrix config %d/%d: %s", idx + 1, len(resolved_configs), config_str)
 
             file_size = config.get("FILE_SIZE")
@@ -337,7 +339,7 @@ def main():
             nr_files = config.get("NR_FILES")
 
             # Generate unique config name
-            config_name_parts = [f"{k}_{v}" for k, v in sorted(config.items()) if k is not None]
+            config_name_parts = [f"{k}_{v}" for k, v in sorted_items]
             config_name = "_".join(config_name_parts)
             config_output_dir = os.path.join(args.output_dir, config_name)
             os.makedirs(config_output_dir, exist_ok=True)

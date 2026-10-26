@@ -334,7 +334,22 @@ class TestCreateJobSpec(unittest.TestCase):
                 },
             }
 
-        for bad_args in (["--numjobs=0"], ["--numjobs=-4"], ["--direct=2"], ["--direct="]):
+        for bad_args in (
+            ["--numjobs=0"],
+            ["--numjobs=-4"],
+            ["--direct=2"],
+            ["--direct="],
+            ["--numjobs"],
+            ["--iterations=1", "--numjobs"],
+            ["--numjobs=32", "--numjobs"],
+            ["--direct"],
+            ["--direct=0", "--direct"],
+            ["--numjobs=0", "--numjobs=32"],
+            ["--direct=2", "--direct=0"],
+            ["--numjobs", "--numjobs", "32"],
+            ["--numjobs", "--numjobs=32"],
+            ["--direct", "--numjobs=32", "--direct=0"],
+        ):
             mock_yaml_load.return_value = make_template()
             with self.assertRaises(ValueError):
                 npi_gke.create_job_spec(
@@ -344,6 +359,23 @@ class TestCreateJobSpec(unittest.TestCase):
                     bucket_name="test-bucket",
                     service_account="test-sa",
                 )
+
+        # "--" stops option scanning just like argparse
+        mock_yaml_load.return_value = make_template()
+        res = npi_gke.create_job_spec(
+            job_name="test-job",
+            image="test-image",
+            args=["--", "--numjobs=0"],
+            bucket_name="test-bucket",
+            service_account="test-sa",
+            is_rapid_bucket=True,
+        )
+        env_vars = {
+            e["name"]: e["value"]
+            for e in res["spec"]["template"]["spec"]["containers"][0]["env"]
+        }
+        self.assertEqual(env_vars["NUMJOBS"], "112")
+        self.assertEqual(env_vars["DIRECT"], "0")
 
 
 class TestGKEMainAndValidators(unittest.TestCase):

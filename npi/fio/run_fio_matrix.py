@@ -170,7 +170,8 @@ def main():
 
   resolved_rows = []
   for idx, config in enumerate(configs, start=1):
-    row_env = {k: v for k, v in config.items() if k is not None}
+    clean_config = {k: v for k, v in config.items() if k is not None}
+    row_env = dict(clean_config)
     if args.numjobs is not None:
       row_env["NUMJOBS"] = str(args.numjobs)
       row_env.pop("NUM_JOBS", None)
@@ -182,13 +183,13 @@ def main():
       )
     except ValueError as e:
       logging.error(
-          "Invalid FIO parameter in matrix row %d (%s): %s", idx, config, e
+          "Invalid FIO parameter in matrix row %d (%s): %s", idx, clean_config, e
       )
       sys.exit(1)
     row_env["DIRECT"] = direct_val
     row_env["NUMJOBS"] = numjobs_val
     row_env.pop("NUM_JOBS", None)
-    resolved_rows.append((config, row_env))
+    resolved_rows.append((clean_config, row_env))
 
   if args.project_id and args.bq_dataset_id and args.bq_table_id:
     if not fio_benchmark_runner._BQ_SUPPORTED:
@@ -201,7 +202,8 @@ def main():
 
   for i, (config, fio_env) in enumerate(resolved_rows):
     # Create a string representation of the configuration for logging.
-    config_str = ", ".join([f"{k}={v}" for k, v in sorted(config.items()) if k is not None])
+    sorted_items = sorted((k, v) for k, v in config.items() if k is not None)
+    config_str = ", ".join([f"{k}={v}" for k, v in sorted_items])
 
     logging.info("--- Starting Matrix Run %d/%d ---", i + 1, len(resolved_rows))
     logging.info("Configuration: %s", config_str)
@@ -209,9 +211,7 @@ def main():
     # Create a unique subdirectory for this configuration's results.
     # The name is generated from the config parameters to be unique and
     # descriptive.
-    config_name_parts = [
-        f"{k}_{v}" for k, v in sorted(config.items()) if k is not None
-    ]
+    config_name_parts = [f"{k}_{v}" for k, v in sorted_items]
     config_name = "_".join(config_name_parts)
     config_output_dir = os.path.join(args.output_dir, config_name)
 

@@ -69,28 +69,46 @@ def create_job_spec(job_name, image, args, bucket_name, service_account, extra_f
     pod_spec["serviceAccountName"] = service_account
 
     # Set NUMJOBS and DIRECT env vars for FIO / Go-client (last CLI flag wins, matching argparse)
-    num_jobs_raw = "112"
-    for i, arg in enumerate(args):
-        if arg.startswith("--numjobs="):
-            num_jobs_raw = arg.split("=", 1)[1]
-        elif arg == "--numjobs" and i + 1 < len(args):
-            num_jobs_raw = args[i + 1]
-    try:
-        num_jobs_val = str(positive_int(num_jobs_raw))
-    except argparse.ArgumentTypeError as exc:
-        raise ValueError(f"Invalid --numjobs value {num_jobs_raw!r}: {exc}") from exc
+    def _validate_numjobs(raw):
+        try:
+            return str(positive_int(raw))
+        except argparse.ArgumentTypeError as exc:
+            raise ValueError(f"Invalid --numjobs value {raw!r}: {exc}") from exc
 
-    direct_raw = "0" if is_rapid_bucket else "1"
-    for i, arg in enumerate(args):
-        if arg.startswith("--direct="):
-            direct_raw = arg.split("=", 1)[1]
-        elif arg == "--direct" and i + 1 < len(args):
-            direct_raw = args[i + 1]
-    if isinstance(direct_raw, (bool, float)):
-        raise ValueError(f"Invalid --direct value {direct_raw!r}; expected '0' or '1'")
-    direct_val = str(direct_raw).strip()
-    if direct_val not in ("0", "1"):
-        raise ValueError(f"Invalid --direct value {direct_raw!r}; expected '0' or '1'")
+    def _validate_direct(raw):
+        if isinstance(raw, (bool, float)):
+            raise ValueError(f"Invalid --direct value {raw!r}; expected '0' or '1'")
+        val = str(raw).strip()
+        if val not in ("0", "1"):
+            raise ValueError(f"Invalid --direct value {raw!r}; expected '0' or '1'")
+        return val
+
+    num_jobs_val = _validate_numjobs("112")
+    direct_val = _validate_direct("0" if is_rapid_bucket else "1")
+    scan_args = args or []
+    i = 0
+    while i < len(scan_args):
+        arg = scan_args[i]
+        if arg == "--":
+            break
+        if isinstance(arg, str) and arg.startswith("--numjobs="):
+            num_jobs_val = _validate_numjobs(arg.split("=", 1)[1])
+            i += 1
+        elif arg == "--numjobs":
+            if i + 1 >= len(scan_args):
+                raise ValueError("Flag '--numjobs' requires an argument")
+            num_jobs_val = _validate_numjobs(scan_args[i + 1])
+            i += 2
+        elif isinstance(arg, str) and arg.startswith("--direct="):
+            direct_val = _validate_direct(arg.split("=", 1)[1])
+            i += 1
+        elif arg == "--direct":
+            if i + 1 >= len(scan_args):
+                raise ValueError("Flag '--direct' requires an argument")
+            direct_val = _validate_direct(scan_args[i + 1])
+            i += 2
+        else:
+            i += 1
 
     existing_env = pod_spec["containers"][0].get("env") or []
     pod_spec["containers"][0]["env"] = [
