@@ -27,7 +27,12 @@ if _SCRIPT_DIR not in sys.path:
 try:
     import npi_common
 except ModuleNotFoundError:
-    sys.path.insert(0, os.path.dirname(_SCRIPT_DIR))
+    for _candidate in (
+        "/opt/npi",
+        os.path.dirname(_SCRIPT_DIR),
+    ):
+        if os.path.isdir(_candidate) and _candidate not in sys.path:
+            sys.path.insert(0, _candidate)
     import npi_common
 
 import fio_benchmark_runner
@@ -144,6 +149,9 @@ def main():
         parser.error("Either --bucket-name or --mount-path must be provided.")
     if args.bind_fio and not args.cpu_limit_list:
         parser.error("--bind-fio requires --cpu-limit-list to be provided.")
+    bq_enabled = npi_common.validate_bq_args(
+        parser, args.project_id, args.bq_dataset_id, args.bq_table_id
+    )
 
     mount_path = os.path.abspath(args.mount_path) if args.mount_path else None
 
@@ -211,17 +219,22 @@ def main():
         row_env["NUMJOBS"] = numjobs_val
         resolved_rows.append((clean_row, row_env))
 
-    if args.project_id and args.bq_dataset_id and args.bq_table_id:
-        if not fio_benchmark_runner._BQ_SUPPORTED:
-            logging.error(
-                "BigQuery operations requested, but 'google-cloud-bigquery' is not installed."
+    bq_client = None
+    if bq_enabled:
+        try:
+            bq_client = npi_common.init_and_truncate_bq_table(
+                args.project_id,
+                args.bq_dataset_id,
+                args.bq_table_id,
+                bq_supported=fio_benchmark_runner._BQ_SUPPORTED,
+                bq_module=fio_benchmark_runner.bigquery,
+                truncate_fn=fio_benchmark_runner.truncate_bq_table,
             )
+        except Exception as e:
+            logging.error("Failed to initialize BigQuery table: %s", e)
             sys.exit(1)
-        bq_client = fio_benchmark_runner.bigquery.Client(project=args.project_id)
-        fio_benchmark_runner.truncate_bq_table(
-            bq_client, args.project_id, args.bq_dataset_id, args.bq_table_id
-        )
 
+    verified_bq_tables = set()
     has_failures = False
 
     for i, (clean_row, fio_env) in enumerate(resolved_rows):
@@ -261,6 +274,8 @@ def main():
                 bq_table_id=args.bq_table_id,
                 mount_path=mount_path,
                 keep_mount=args.keep_mount,
+                bq_client=bq_client,
+                verified_bq_tables=verified_bq_tables,
             )
         except Exception as e:
             logging.error("Benchmark run failed for configuration %s: %s", config_str, e)

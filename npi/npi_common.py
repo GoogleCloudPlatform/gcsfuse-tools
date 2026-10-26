@@ -312,6 +312,54 @@ def _is_bq_not_found(exc, exceptions_module=None):
     )
 
 
+def validate_bq_args(
+    parser, project_id, bq_dataset_id, bq_table_id, allow_project_only=False
+):
+    """Validates BigQuery CLI arguments and returns True when BQ upload is enabled.
+
+    Treats None or whitespace-only strings as unset. Calls `parser.error(...)`
+    on partial flag combinations. When `allow_project_only=True`, passing
+    `--project-id` alone without `--bq-dataset-id` or `--bq-table-id` is treated
+    as a local non-BQ run (`False`) for backward compatibility.
+    """
+    has_project = bool(clean_param_str(project_id, param_name="project_id"))
+    has_dataset = bool(
+        clean_param_str(bq_dataset_id, param_name="bq_dataset_id")
+    )
+    has_table = bool(clean_param_str(bq_table_id, param_name="bq_table_id"))
+
+    if has_project and has_dataset and has_table:
+        return True
+    if not has_dataset and not has_table and (
+        allow_project_only or not has_project
+    ):
+        return False
+    parser.error(
+        "--project-id, --bq-dataset-id, and --bq-table-id must all be "
+        "provided together when uploading to BigQuery."
+    )
+
+
+def init_and_truncate_bq_table(
+    project_id,
+    bq_dataset_id,
+    bq_table_id,
+    *,
+    bq_supported,
+    bq_module,
+    truncate_fn,
+):
+    """Initializes a BigQuery client and truncates the target table before a run."""
+    if not bq_supported:
+        raise RuntimeError(
+            "BigQuery operations requested, but 'google-cloud-bigquery' is not "
+            "installed. Please run 'pip3 install google-cloud-bigquery'."
+        )
+    client = bq_module.Client(project=project_id)
+    truncate_fn(client, project_id, bq_dataset_id, bq_table_id)
+    return client
+
+
 def build_bq_results_schema(bq_module=None):
     """Builds the 6-column BigQuery schema shared by FIO and Go-client tables."""
     mod = bigquery if bq_module is None else bq_module
@@ -361,34 +409,39 @@ def insert_benchmark_row_to_bq(
     json_output_content,
     bq_module=None,
     exceptions_module=None,
+    verified_tables=None,
 ):
     """Ensures BigQuery dataset/table exist and inserts one benchmark result row."""
     mod = bigquery if bq_module is None else bq_module
     try:
         full_table_id = f"{project_id}.{dataset_id}.{table_id}"
-        dataset_ref = client.dataset(dataset_id)
-        table_ref = dataset_ref.table(table_id)
+        if verified_tables is None or full_table_id not in verified_tables:
+            dataset_ref = client.dataset(dataset_id)
+            table_ref = dataset_ref.table(table_id)
 
-        try:
-            client.get_dataset(dataset_ref)
-        except Exception as exc:
-            if _is_bq_not_found(exc, exceptions_module):
-                logging.info("Dataset %s not found, creating it.", dataset_id)
-                client.create_dataset(mod.Dataset(dataset_ref))
-            else:
-                raise
+            try:
+                client.get_dataset(dataset_ref)
+            except Exception as exc:
+                if _is_bq_not_found(exc, exceptions_module):
+                    logging.info("Dataset %s not found, creating it.", dataset_id)
+                    client.create_dataset(mod.Dataset(dataset_ref))
+                else:
+                    raise
 
-        schema = build_bq_results_schema(mod)
+            schema = build_bq_results_schema(mod)
 
-        try:
-            client.get_table(table_ref)
-        except Exception as exc:
-            if _is_bq_not_found(exc, exceptions_module):
-                logging.info("Table %s not found, creating it.", table_id)
-                table = mod.Table(table_ref, schema=schema)
-                client.create_table(table)
-            else:
-                raise
+            try:
+                client.get_table(table_ref)
+            except Exception as exc:
+                if _is_bq_not_found(exc, exceptions_module):
+                    logging.info("Table %s not found, creating it.", table_id)
+                    table = mod.Table(table_ref, schema=schema)
+                    client.create_table(table)
+                else:
+                    raise
+
+            if verified_tables is not None:
+                verified_tables.add(full_table_id)
 
         row_to_insert = {
             "run_timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),

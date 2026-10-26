@@ -11,15 +11,39 @@ Usage:
 """
 
 import argparse
-import subprocess
-import sys
-import time
-import yaml
-import os
 import datetime
 import json
+import os
 import queue
+import subprocess
+import sys
 import threading
+import time
+
+
+class _MissingYaml:
+    """Fallback stub when PyYAML is unavailable so unit tests can mock yaml calls."""
+
+    @staticmethod
+    def safe_load(*_args, **_kwargs):
+        raise RuntimeError(
+            "PyYAML is required to load/dump GKE job specs; install pyyaml."
+        )
+
+    @staticmethod
+    def dump(*_args, **_kwargs):
+        raise RuntimeError(
+            "PyYAML is required to load/dump GKE job specs; install pyyaml."
+        )
+
+
+try:
+    import yaml
+
+    YAML_SUPPORTED = True
+except ImportError:
+    yaml = _MissingYaml()
+    YAML_SUPPORTED = False
 
 try:
     import npi_common
@@ -91,27 +115,46 @@ def _resolve_job_env(
                 raise ValueError(
                     f"Container arguments must be strings, got {item!r}"
                 )
-        flag_parser = argparse.ArgumentParser(
-            add_help=False, allow_abbrev=False, exit_on_error=False
-        )
-        flag_parser.add_argument("--numjobs", type=positive_int, default=None)
-        flag_parser.add_argument(
-            "--direct", type=npi_common.direct_flag, default=None
-        )
-        for opt in _CONTAINER_VALUE_OPTIONS:
-            flag_parser.add_argument(opt, default=None)
+        value_options = set(_CONTAINER_VALUE_OPTIONS)
         if is_go_client:
-            flag_parser.add_argument("--client-protocol", default=None)
+            value_options.add("--client-protocol")
 
-        try:
-            parsed, _ = flag_parser.parse_known_args(args)
-        except (argparse.ArgumentError, argparse.ArgumentTypeError) as exc:
-            raise ValueError(str(exc)) from exc
-
-        if parsed.numjobs is not None:
-            num_jobs_val = str(parsed.numjobs)
-        if parsed.direct is not None:
-            direct_val = parsed.direct
+        idx = 0
+        n_args = len(args)
+        while idx < n_args:
+            tok = args[idx]
+            if tok == "--":
+                break
+            if tok == "--numjobs":
+                if idx + 1 >= n_args:
+                    raise ValueError("argument --numjobs: expected one argument")
+                num_jobs_val = str(
+                    npi_common.parse_positive_int(
+                        args[idx + 1], param_name="numjobs"
+                    )
+                )
+                idx += 2
+            elif tok.startswith("--numjobs="):
+                num_jobs_val = str(
+                    npi_common.parse_positive_int(
+                        tok.split("=", 1)[1], param_name="numjobs"
+                    )
+                )
+                idx += 1
+            elif tok == "--direct":
+                if idx + 1 >= n_args:
+                    raise ValueError("argument --direct: expected one argument")
+                direct_val = npi_common.parse_direct(args[idx + 1])
+                idx += 2
+            elif tok.startswith("--direct="):
+                direct_val = npi_common.parse_direct(tok.split("=", 1)[1])
+                idx += 1
+            elif tok in value_options:
+                if idx + 1 >= n_args:
+                    raise ValueError(f"argument {tok}: expected one argument")
+                idx += 2
+            else:
+                idx += 1
 
     return num_jobs_val, direct_val
 
@@ -649,6 +692,9 @@ def main():
         args.iterations, args.smoke_mode
     )
 
+    if not (args.cluster_name and args.location):
+        parser.error("Both --cluster-name and --location must be provided to fetch cluster credentials and run GKE benchmarks.")
+
     if args.use_memory_volumes:
         host_ram_mb = get_host_total_ram_mb()
         max_allowed_cache_mb = host_ram_mb // 2
@@ -658,27 +704,6 @@ def main():
 
     node_selector = parse_key_value_pairs(args.node_selector)
     resources_limits = parse_key_value_pairs(args.resources_limits)
-
-    if args.cluster_name and args.location:
-        print(f"--- Fetching credentials for GKE cluster: {args.cluster_name} in {args.location} ---")
-        os.makedirs(KUBE_DIR, exist_ok=True)
-        os.environ["KUBECONFIG"] = ISOLATED_KUBECONFIG
-        res = subprocess.run([
-            "gcloud", "container", "clusters", "get-credentials", args.cluster_name,
-            "--location", args.location, "--project", args.project_id
-        ], capture_output=True, text=True)
-        if res.returncode != 0:
-            print(f"Failed to fetch cluster credentials:\n{res.stderr}", file=sys.stderr)
-            sys.exit(1)
-        print("Successfully fetched cluster credentials.")
-    else:
-        parser.error("Both --cluster-name and --location must be provided to fetch cluster credentials and run GKE benchmarks.")
-
-    # Automatically setup/ensure service account permissions
-    buckets_to_auth = [args.bucket_name]
-    if not setup_kubernetes_service_account(args.project_id, args.kubernetes_service_account, "default", buckets_to_auth, dry_run=args.dry_run):
-        print("Failed to setup Kubernetes service account. Exiting.", file=sys.stderr)
-        sys.exit(1)
 
     all_benchmarks = [
         ("host_info", "", "host-info-collector", "", 1, None),
@@ -704,8 +729,6 @@ def main():
         else:
             # Exclude file cache tests from 'all' when the flag is not passed.
             print("Warning: File-cache tests are not being run because --run-file-cache-test was not provided.", file=sys.stderr)
-            # Also exclude go_read benchmarks from "all" if the user wants "all" FIO benchmarks.
-            # Wait, should we include go_read benchmarks in "all"? Yes, "all" typically means all defined benchmarks.
             benchmarks_to_run = [b for b in all_benchmarks if "file_cache" not in b[0]]
     else:
         available_names = {f"{b[0]}_{b[1]}" if b[1] else b[0] for b in all_benchmarks}
@@ -732,6 +755,24 @@ def main():
             is_rapid_bucket=args.is_rapid_bucket,
         )
     )
+
+    print(f"--- Fetching credentials for GKE cluster: {args.cluster_name} in {args.location} ---")
+    os.makedirs(KUBE_DIR, exist_ok=True)
+    os.environ["KUBECONFIG"] = ISOLATED_KUBECONFIG
+    res = subprocess.run([
+        "gcloud", "container", "clusters", "get-credentials", args.cluster_name,
+        "--location", args.location, "--project", args.project_id
+    ], capture_output=True, text=True)
+    if res.returncode != 0:
+        print(f"Failed to fetch cluster credentials:\n{res.stderr}", file=sys.stderr)
+        sys.exit(1)
+    print("Successfully fetched cluster credentials.")
+
+    # Automatically setup/ensure service account permissions
+    buckets_to_auth = [args.bucket_name]
+    if not setup_kubernetes_service_account(args.project_id, args.kubernetes_service_account, "default", buckets_to_auth, dry_run=args.dry_run):
+        print("Failed to setup Kubernetes service account. Exiting.", file=sys.stderr)
+        sys.exit(1)
 
     if args.dry_run:
         print("--- [DRY RUN] Benchmarks to be executed ---")

@@ -1,3 +1,4 @@
+import io
 import os
 import shutil
 import subprocess
@@ -250,6 +251,55 @@ class TestFioTemplatesAndDirectEnv(unittest.TestCase):
                 call(f"{expected_base}/job_3", exist_ok=True),
             ],
         )
+
+        # 3. FILE_SIZE/BLOCK_SIZE/NR_FILES resolved from os.environ when fio_env only carries NUMJOBS/DIRECT
+        mock_subproc.reset_mock()
+        mock_makedirs.reset_mock()
+        with patch.dict(
+            os.environ,
+            {
+                "FILE_SIZE": " 2G ",
+                "BLOCK_SIZE": " 4M ",
+                "NR_FILES": " 8 ",
+                "DIRECT": "1",
+                "NUMJOBS": "112",
+                "NUM_JOBS": "",
+            },
+            clear=False,
+        ):
+            fio_benchmark_runner.precreate_benchmark_directories(
+                "/mnt/data",
+                {"NUMJOBS": "4", "DIRECT": "0"},
+                "/write.fio",
+            )
+        mock_subproc.assert_called_once()
+        expected_env_base = "/mnt/data/write/2G/4M/8"
+        self.assertEqual(
+            mock_makedirs.call_args_list,
+            [
+                call(expected_env_base, exist_ok=True),
+                call(f"{expected_env_base}/job_0", exist_ok=True),
+                call(f"{expected_env_base}/job_1", exist_ok=True),
+                call(f"{expected_env_base}/job_2", exist_ok=True),
+                call(f"{expected_env_base}/job_3", exist_ok=True),
+            ],
+        )
+
+        # 4. Missing/blank dimensions across both fio_env and os.environ return early cleanly
+        mock_subproc.reset_mock()
+        mock_makedirs.reset_mock()
+        with patch.dict(
+            os.environ,
+            {"FILE_SIZE": "2G", "BLOCK_SIZE": "  ", "NR_FILES": "8"},
+            clear=False,
+        ):
+            fio_benchmark_runner.precreate_benchmark_directories(
+                "/mnt/data",
+                {"NUMJOBS": "4", "DIRECT": "0"},
+                "/write.fio",
+            )
+        mock_subproc.assert_not_called()
+        mock_makedirs.assert_not_called()
 
     @patch("fio_benchmark_runner.mount_gcsfuse")
     def test_run_benchmark_rejects_invalid_params_and_bind_fio_without_sys_exit(
@@ -534,13 +584,17 @@ class TestRunFioMatrixAndBenchmarkEntrypoints(unittest.TestCase):
 
     def test_run_fio_matrix_handles_trailing_comma_extra_csv_fields(self):
         with tempfile.NamedTemporaryFile("w", suffix=".csv") as f:
-            f.write("READ_TYPE,FILE_SIZE,BLOCK_SIZE,NR_FILES\nread,1G,1M,10,\n")
+            f.write(
+                "READ_TYPE,FILE_SIZE,BLOCK_SIZE,NR_FILES\n"
+                "read,1G,1M,10,\n"
+                "randread,1G,64K,10,\n"
+            )
             f.flush()
             with patch.object(
                 fio_benchmark_runner, "_BQ_SUPPORTED", True
             ), patch.object(
                 fio_benchmark_runner, "bigquery", create=True
-            ), patch.object(
+            ) as mock_bq, patch.object(
                 fio_benchmark_runner, "truncate_bq_table"
             ) as mock_trunc, patch.object(
                 fio_benchmark_runner, "run_benchmark"
@@ -548,28 +602,59 @@ class TestRunFioMatrixAndBenchmarkEntrypoints(unittest.TestCase):
                 os.environ,
                 {"DIRECT": "1", "NUMJOBS": "112", "NUM_JOBS": ""},
                 clear=False,
-            ), patch(
-                "sys.argv",
-                [
-                    "run_fio_matrix.py",
-                    "--mount-path=/data",
-                    "--fio-template=/read.fio",
-                    f"--matrix-config={f.name}",
-                    "--project-id=p",
-                    "--bq-dataset-id=d",
-                    "--bq-table-id=t",
-                ],
             ):
-                run_fio_matrix.main()
+                # Partial BQ flags fail with exit code 2 before CSV loading or BQ truncation
+                for partial_bq in (
+                    ["--project-id=p"],
+                    ["--project-id=p", "--bq-dataset-id=d"],
+                    ["--bq-dataset-id=d", "--bq-table-id=t"],
+                ):
+                    with patch(
+                        "sys.argv",
+                        [
+                            "run_fio_matrix.py",
+                            "--mount-path=/data",
+                            "--fio-template=/read.fio",
+                            "--matrix-config=/nonexistent/not_loaded.csv",
+                        ]
+                        + partial_bq,
+                    ), patch("sys.stderr", new_callable=io.StringIO):
+                        with self.assertRaises(SystemExit) as cm_bq:
+                            run_fio_matrix.main()
+                        self.assertEqual(cm_bq.exception.code, 2)
+                mock_bq.Client.assert_not_called()
+                mock_trunc.assert_not_called()
+
+                with patch(
+                    "sys.argv",
+                    [
+                        "run_fio_matrix.py",
+                        "--mount-path=/data",
+                        "--fio-template=/read.fio",
+                        f"--matrix-config={f.name}",
+                        "--project-id=p",
+                        "--bq-dataset-id=d",
+                        "--bq-table-id=t",
+                    ],
+                ):
+                    run_fio_matrix.main()
+            # Single bigquery.Client created & reused across both matrix rows!
+            mock_bq.Client.assert_called_once_with(project="p")
             mock_trunc.assert_called_once()
-            mock_run_bench.assert_called_once()
-            _, kwargs = mock_run_bench.call_args
+            self.assertEqual(mock_run_bench.call_count, 2)
+            first_kw = mock_run_bench.call_args_list[0].kwargs
+            second_kw = mock_run_bench.call_args_list[1].kwargs
+            self.assertIs(first_kw["bq_client"], mock_bq.Client.return_value)
+            self.assertIs(second_kw["bq_client"], mock_bq.Client.return_value)
+            self.assertIs(
+                first_kw["verified_bq_tables"], second_kw["verified_bq_tables"]
+            )
             self.assertTrue(
-                kwargs["output_dir"].endswith(
+                first_kw["output_dir"].endswith(
                     "BLOCK_SIZE_1M_FILE_SIZE_1G_NR_FILES_10_READ_TYPE_read"
                 )
             )
-            self.assertNotIn(None, kwargs["fio_env"])
+            self.assertNotIn(None, first_kw["fio_env"])
 
     def test_run_fio_benchmark_flags_validation_and_exception_handling(self):
         with patch.object(
@@ -579,7 +664,7 @@ class TestRunFioMatrixAndBenchmarkEntrypoints(unittest.TestCase):
         ), patch.object(
             fio_benchmark_runner, "truncate_bq_table"
         ) as mock_trunc:
-            # 1. Invalid env and invalid CLI flags fail before truncate_bq_table
+            # 1. Invalid env, invalid CLI flags, and partial BQ flags fail before truncate_bq_table
             with patch.dict(
                 os.environ,
                 {"DIRECT": "1", "NUMJOBS": "0", "NUM_JOBS": ""},
@@ -616,37 +701,58 @@ class TestRunFioMatrixAndBenchmarkEntrypoints(unittest.TestCase):
                         "--bq-table-id=t",
                     ]
                     + bad_extra,
-                ):
+                ), patch("sys.stderr", new_callable=io.StringIO):
                     with self.assertRaises(SystemExit) as cm_flag:
                         run_fio_benchmark.main()
                     self.assertNotEqual(cm_flag.exception.code, 0)
 
+            for partial_bq in (
+                ["--bq-dataset-id=d"],
+                ["--bq-table-id=t"],
+                ["--project-id=p", "--bq-dataset-id=d"],
+                ["--bq-dataset-id=d", "--bq-table-id=t"],
+            ):
+                with patch(
+                    "sys.argv",
+                    [
+                        "run_fio_benchmark.py",
+                        "--mount-path=/data",
+                        "--fio-config=/read.fio",
+                    ]
+                    + partial_bq,
+                ), patch("sys.stderr", new_callable=io.StringIO):
+                    with self.assertRaises(SystemExit) as cm_partial:
+                        run_fio_benchmark.main()
+                    self.assertEqual(cm_partial.exception.code, 2)
+
             mock_trunc.assert_not_called()
 
-        # 2. Valid --numjobs and --direct CLI flags pass overrides into run_benchmark
-        with patch.object(
-            fio_benchmark_runner, "run_benchmark"
-        ) as mock_run_bench, patch.dict(
-            os.environ,
-            {"DIRECT": "1", "NUMJOBS": "112", "NUM_JOBS": ""},
-            clear=False,
-        ), patch(
-            "sys.argv",
-            [
-                "run_fio_benchmark.py",
-                "--mount-path=/data",
-                "--fio-config=/read.fio",
-                "--project-id=p",
-                "--numjobs=48",
-                "--direct=0",
-            ],
-        ):
-            run_fio_benchmark.main()
-        mock_run_bench.assert_called_once()
-        self.assertEqual(
-            mock_run_bench.call_args.kwargs["fio_env"],
-            {"NUMJOBS": "48", "DIRECT": "0"},
-        )
+        # 2. Valid --numjobs and --direct CLI flags succeed WITHOUT --project-id (and with --project-id alone)
+        for extra_proj in ([], ["--project-id=p"]):
+            with patch.object(
+                fio_benchmark_runner, "run_benchmark"
+            ) as mock_run_bench, patch.dict(
+                os.environ,
+                {"DIRECT": "1", "NUMJOBS": "112", "NUM_JOBS": ""},
+                clear=False,
+            ), patch(
+                "sys.argv",
+                [
+                    "run_fio_benchmark.py",
+                    "--mount-path=/data",
+                    "--fio-config=/read.fio",
+                    "--numjobs=48",
+                    "--direct=0",
+                ]
+                + extra_proj,
+            ):
+                run_fio_benchmark.main()
+            mock_run_bench.assert_called_once()
+            self.assertEqual(
+                mock_run_bench.call_args.kwargs["fio_env"],
+                {"NUMJOBS": "48", "DIRECT": "0"},
+            )
+            self.assertIsNone(mock_run_bench.call_args.kwargs["bq_client"])
 
         # 3. RuntimeError from run_benchmark is logged and converted to SystemExit(1)
         with patch.object(

@@ -25,7 +25,12 @@ import sys
 try:
     import npi_common
 except ModuleNotFoundError:
-    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    for _candidate in (
+        "/opt/npi",
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    ):
+        if os.path.isdir(_candidate) and _candidate not in sys.path:
+            sys.path.insert(0, _candidate)
     import npi_common
 
 bigquery = npi_common.bigquery
@@ -87,6 +92,7 @@ def upload_results_to_bq(
     client_protocol,
     env_params,
     cpu_limit_list,
+    verified_tables=None,
 ):
     """Uploads the benchmark results JSON to a BigQuery table using the FIO schema."""
     npi_common.insert_benchmark_row_to_bq(
@@ -101,6 +107,7 @@ def upload_results_to_bq(
         json_output_content=json_output_content,
         bq_module=bigquery,
         exceptions_module=exceptions,
+        verified_tables=verified_tables,
     )
 
 
@@ -216,6 +223,9 @@ def main():
         "--direct", type=direct_flag, default=None, help="Ignored."
     )
     args = parser.parse_args()
+    bq_enabled = npi_common.validate_bq_args(
+        parser, args.project_id, args.bq_dataset_id, args.bq_table_id
+    )
 
     try:
         configs = npi_common.load_matrix_csv(
@@ -256,16 +266,19 @@ def main():
         resolved_configs.append((clean_row, num_jobs))
 
     bq_client = None
-    if args.project_id and args.bq_dataset_id and args.bq_table_id:
-        if not _BQ_SUPPORTED:
-            logging.error(
-                "BigQuery is requested, but google-cloud-bigquery package is not installed."
+    if bq_enabled:
+        try:
+            bq_client = npi_common.init_and_truncate_bq_table(
+                args.project_id,
+                args.bq_dataset_id,
+                args.bq_table_id,
+                bq_supported=_BQ_SUPPORTED,
+                bq_module=bigquery,
+                truncate_fn=truncate_bq_table,
             )
+        except Exception as e:
+            logging.error("Failed to initialize BigQuery table: %s", e)
             sys.exit(1)
-        bq_client = bigquery.Client(project=args.project_id)
-        truncate_bq_table(
-            bq_client, args.project_id, args.bq_dataset_id, args.bq_table_id
-        )
 
     os.makedirs(args.output_dir, exist_ok=True)
     all_results = [[] for _ in range(args.iterations)]
@@ -277,6 +290,7 @@ def main():
         sys.exit(1)
 
     overridden_keys = {"NUMJOBS"} if args.numjobs is not None else ()
+    verified_bq_tables = set()
     has_failures = False
 
     for iteration in range(1, args.iterations + 1):
@@ -370,6 +384,7 @@ def main():
                         client_protocol=args.client_protocol,
                         env_params=env_params,
                         cpu_limit_list=args.cpu_limit_list,
+                        verified_tables=verified_bq_tables,
                     )
 
             except Exception as e:

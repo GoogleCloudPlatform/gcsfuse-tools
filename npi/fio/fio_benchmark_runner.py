@@ -27,7 +27,12 @@ import time
 try:
     import npi_common
 except ModuleNotFoundError:
-    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    for _candidate in (
+        "/opt/npi",
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    ):
+        if os.path.isdir(_candidate) and _candidate not in sys.path:
+            sys.path.insert(0, _candidate)
     import npi_common
 
 bigquery = npi_common.bigquery
@@ -225,8 +230,16 @@ def truncate_bq_table(client, project_id, dataset_id, table_id):
 
 
 def upload_results_to_bq(
-    client, project_id, dataset_id, table_id, fio_json_path, iteration,
-    gcsfuse_flags, fio_env, cpu_limit_list
+    client,
+    project_id,
+    dataset_id,
+    table_id,
+    fio_json_path,
+    iteration,
+    gcsfuse_flags,
+    fio_env,
+    cpu_limit_list,
+    verified_tables=None,
 ):
     """Uploads the full FIO JSON output to a BigQuery table."""
     try:
@@ -249,6 +262,7 @@ def upload_results_to_bq(
         json_output_content=fio_json_content,
         bq_module=bigquery,
         exceptions_module=exceptions,
+        verified_tables=verified_tables,
     )
 
 
@@ -284,16 +298,24 @@ def precreate_benchmark_directories(mount_point, fio_env, fio_config):
     if "write" not in os.path.basename(fio_config):
         return
 
-    if not (fio_env and "FILE_SIZE" in fio_env and "BLOCK_SIZE" in fio_env and "NR_FILES" in fio_env):
-        return
+    overrides = fio_env or {}
+    resolved_dims = {}
+    for key in ("FILE_SIZE", "BLOCK_SIZE", "NR_FILES"):
+        val = (
+            npi_common.clean_param_str(overrides.get(key), param_name=key)
+            or npi_common.clean_param_str(os.environ.get(key), param_name=key)
+        )
+        if not val:
+            return
+        resolved_dims[key] = val
 
-    _, numjobs_str = resolve_fio_params(fio_env, os.environ)
+    _, numjobs_str = resolve_fio_params(overrides, os.environ)
     num_jobs = int(numjobs_str)
 
     target_write_dir = os.path.join(mount_point, "write")
 
     # 1. Clean up old files via parallel GCSFuse deletion
-    script_path = fio_env.get("DELETE_SCRIPT", "/concurrent_delete.py")
+    script_path = overrides.get("DELETE_SCRIPT") or "/concurrent_delete.py"
     if os.path.exists(script_path):
         logging.info(f"Cleaning up old FIO files under {target_write_dir}...")
         try:
@@ -305,9 +327,9 @@ def precreate_benchmark_directories(mount_point, fio_env, fio_config):
         logging.info("concurrent_delete.py not found. Skipping parallel cleanup.")
 
     # 2. Pre-create nested parent directory and 0-indexed job_0..job_{N-1} directories sequentially
-    file_size = str(fio_env["FILE_SIZE"]).strip()
-    block_size = str(fio_env["BLOCK_SIZE"]).strip()
-    nr_files = str(fio_env["NR_FILES"]).strip()
+    file_size = resolved_dims["FILE_SIZE"]
+    block_size = resolved_dims["BLOCK_SIZE"]
+    nr_files = resolved_dims["NR_FILES"]
 
     nested_dir = os.path.join(target_write_dir, file_size, block_size, nr_files)
     logging.info(f"Sequentially pre-creating {num_jobs} job directories under {nested_dir}...")
@@ -323,9 +345,23 @@ def precreate_benchmark_directories(mount_point, fio_env, fio_config):
 
 
 def run_benchmark(
-    gcsfuse_flags, bucket_name, iterations, fio_config, work_dir, output_dir, project_id,
-    fio_env=None, summary_file=None, cpu_limit_list=None, bind_fio=False, bq_dataset_id=None, bq_table_id=None, mount_path=None,
-    keep_mount=False
+    gcsfuse_flags,
+    bucket_name,
+    iterations,
+    fio_config,
+    work_dir,
+    output_dir,
+    project_id,
+    fio_env=None,
+    summary_file=None,
+    cpu_limit_list=None,
+    bind_fio=False,
+    bq_dataset_id=None,
+    bq_table_id=None,
+    mount_path=None,
+    keep_mount=False,
+    bq_client=None,
+    verified_bq_tables=None,
 ):
     """Runs the full FIO benchmark suite."""
     direct_val, numjobs_val = resolve_fio_params(fio_env, os.environ)
@@ -338,8 +374,11 @@ def run_benchmark(
     os.makedirs(work_dir, exist_ok=True)
     os.makedirs(output_dir, exist_ok=True)
 
-    bq_client = None
-    if project_id and bq_dataset_id and bq_table_id:
+    has_bq_target = all(
+        npi_common.clean_param_str(v)
+        for v in (project_id, bq_dataset_id, bq_table_id)
+    )
+    if bq_client is None and has_bq_target:
         if not _BQ_SUPPORTED:
             error_msg = (
                 "BigQuery operations requested, but 'google-cloud-bigquery' is not "
@@ -348,6 +387,9 @@ def run_benchmark(
             logging.error(error_msg)
             raise RuntimeError(error_msg)
         bq_client = bigquery.Client(project=project_id)
+
+    if verified_bq_tables is None:
+        verified_bq_tables = set()
 
     gcsfuse_bin = "/gcsfuse/gcsfuse"
     if mount_path:
@@ -413,7 +455,7 @@ def run_benchmark(
                 iteration_results = parse_fio_output(output_filename)
                 all_results.append(iteration_results)
 
-                if bq_client:
+                if bq_client and has_bq_target:
                     upload_results_to_bq(
                         client=bq_client,
                         project_id=project_id,
@@ -424,6 +466,7 @@ def run_benchmark(
                         gcsfuse_flags=gcsfuse_flags,
                         fio_env=fio_run_env,
                         cpu_limit_list=cpu_limit_list,
+                        verified_tables=verified_bq_tables,
                     )
             finally:
                 if not mount_path and not keep_mount and is_mounted_locally:

@@ -23,7 +23,7 @@ python3 run_fio_benchmark.py [OPTIONS]
 #### Arguments
 
 - `--fio-config`: (Required) Path to the FIO configuration file (e.g., `./read.fio` or `./write.fio`).
-- `--project-id`: (Required) Google Cloud Project ID.
+- `--project-id`: (Optional) Google Cloud Project ID (required when uploading results to BigQuery).
 - `--bucket-name`: (Optional) GCS bucket name to mount via GCSFuse. Either `--bucket-name` or `--mount-path` must be provided.
 - `--mount-path`: (Optional) Path to an already mounted GCS bucket (when provided, GCSFuse is not mounted/unmounted by the runner).
 - `--gcsfuse-flags`: (Optional) Flags for GCSFuse as a single quoted string. Default: `""`.
@@ -42,10 +42,10 @@ python3 run_fio_benchmark.py [OPTIONS]
 #### Example
 
 ```bash
+READ_TYPE=read FILE_SIZE=1G BLOCK_SIZE=1M NR_FILES=10 \
 python3 run_fio_benchmark.py \
     --mount-path /mnt/gcsfuse \
     --fio-config ./read.fio \
-    --project-id your-gcp-project-id \
     --numjobs 112 \
     --direct 1 \
     --iterations 3

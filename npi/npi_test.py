@@ -4,13 +4,34 @@ import importlib.util
 import io
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
 import unittest
 from unittest.mock import MagicMock, patch
 
-import npi
+_THIS_DIR = os.path.dirname(os.path.abspath(__file__))
+if _THIS_DIR not in sys.path:
+    sys.path.insert(0, _THIS_DIR)
+
+# When invoked from the repo root (e.g. `python3 -m unittest npi/npi_test.py`),
+# unittest imports the `npi/` directory as a PEP 420 namespace package in
+# `sys.modules["npi"]` (`__file__ is None`), shadowing `npi/npi.py`.
+if getattr(sys.modules.get("npi"), "__file__", None) is None:
+    _npi_spec = importlib.util.spec_from_file_location(
+        "npi",
+        os.path.join(_THIS_DIR, "npi.py"),
+        submodule_search_locations=[_THIS_DIR],
+    )
+    npi = importlib.util.module_from_spec(_npi_spec)
+    sys.modules["npi"] = npi
+    _npi_spec.loader.exec_module(npi)
+    if __name__.startswith("npi."):
+        setattr(npi, __name__.split(".", 1)[1], sys.modules[__name__])
+else:
+    import npi
+
 import npi_common
 import query_results
 
@@ -268,12 +289,17 @@ class TestRunBenchmark(unittest.TestCase):
 
 class TestMain(unittest.TestCase):
 
-    @patch('os.makedirs')
+    def setUp(self):
+        super().setUp()
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.buf_dir = tmp.name
+
     @patch('argparse.ArgumentParser.parse_args')
     @patch('npi.BenchmarkFactory')
     @patch('npi.verify_permissions', return_value=True)
-    def test_main_success(self, mock_verify_perms, mock_factory_class, mock_parse_args, mock_makedirs):
-        mock_parse_args.return_value = _make_npi_args()
+    def test_main_success(self, mock_verify_perms, mock_factory_class, mock_parse_args):
+        mock_parse_args.return_value = _make_npi_args(buffer_mount_path=self.buf_dir)
 
         mock_factory_instance = MagicMock()
         mock_factory_instance.get_available_benchmarks.return_value = ["read_http1", "write_grpc"]
@@ -288,13 +314,14 @@ class TestMain(unittest.TestCase):
             self.assertIsNone(factory_kwargs["numjobs"])
             self.assertFalse(factory_kwargs["smoke_mode"])
             mock_run_benchmark.assert_called_once_with("read_http1", "docker run ...")
+        self.assertTrue(os.path.isdir(os.path.join(self.buf_dir, "write")))
+        self.assertTrue(os.path.isdir(os.path.join(self.buf_dir, "file-cache")))
 
-    @patch('os.makedirs')
     @patch('argparse.ArgumentParser.parse_args')
     @patch('npi.BenchmarkFactory')
     @patch('npi.verify_permissions', return_value=True)
-    def test_main_failure(self, mock_verify_perms, mock_factory_class, mock_parse_args, mock_makedirs):
-        mock_parse_args.return_value = _make_npi_args()
+    def test_main_failure(self, mock_verify_perms, mock_factory_class, mock_parse_args):
+        mock_parse_args.return_value = _make_npi_args(buffer_mount_path=self.buf_dir)
 
         mock_factory_instance = MagicMock()
         mock_factory_instance.get_available_benchmarks.return_value = ["read_http1", "write_grpc"]
@@ -306,12 +333,14 @@ class TestMain(unittest.TestCase):
                 npi.main()
             self.assertEqual(cm.exception.code, 1)
 
-    @patch('os.makedirs')
     @patch('argparse.ArgumentParser.parse_args')
     @patch('npi.BenchmarkFactory')
-    def test_main_rapid_bucket_filters_http1(self, mock_factory_class, mock_parse_args, mock_makedirs):
+    def test_main_rapid_bucket_filters_http1(self, mock_factory_class, mock_parse_args):
         mock_parse_args.return_value = _make_npi_args(
-            benchmarks=["all"], dry_run=True, is_rapid_bucket=True
+            benchmarks=["all"],
+            dry_run=True,
+            is_rapid_bucket=True,
+            buffer_mount_path=self.buf_dir,
         )
 
         mock_factory_instance = MagicMock()
@@ -325,20 +354,28 @@ class TestMain(unittest.TestCase):
         ]
         self.assertEqual(called_benchmarks, ["read_grpc", "write_grpc"])
 
-    @patch('os.makedirs')
     @patch('argparse.ArgumentParser.parse_args')
     @patch('npi.BenchmarkFactory')
-    def test_main_rapid_bucket_explicit_http1_error(self, mock_factory_class, mock_parse_args, mock_makedirs):
+    def test_main_rapid_bucket_explicit_http1_error(self, mock_factory_class, mock_parse_args):
+        canary = os.path.join(self.buf_dir, "canary.txt")
+        with open(canary, "w", encoding="utf-8") as f:
+            f.write("keep")
         mock_parse_args.return_value = _make_npi_args(
-            benchmarks=["read_http1"], is_rapid_bucket=True
+            benchmarks=["read_http1"],
+            is_rapid_bucket=True,
+            buffer_mount_path=self.buf_dir,
         )
 
         mock_factory_instance = MagicMock()
         mock_factory_instance.get_available_benchmarks.return_value = ["read_http1", "read_grpc"]
         mock_factory_class.return_value = mock_factory_instance
 
-        with self.assertRaises(SystemExit):
-            npi.main()
+        with patch("sys.stderr", new_callable=io.StringIO):
+            with self.assertRaises(SystemExit) as cm:
+                npi.main()
+            self.assertEqual(cm.exception.code, 2)
+        self.assertTrue(os.path.exists(canary))
+        self.assertFalse(os.path.exists(os.path.join(self.buf_dir, "write")))
 
     @patch('shutil.rmtree')
     @patch('os.unlink')
@@ -401,6 +438,47 @@ class TestMain(unittest.TestCase):
                         npi.main()
                     self.assertEqual(cm.exception.code, 2)
                 self.assertTrue(os.path.exists(canary))
+
+            # 1b. Non-dry-run RAPID HTTP/1.1, unknown benchmark, and failed pre-flight permissions
+            #     all abort BEFORE buffer_mount_path cleanup deletes canary.txt!
+            for extra_argv, expected_code in (
+                (["--benchmarks", "read_http1", "--is-rapid-bucket"], 2),
+                (["--benchmarks", "bogus_bench"], 1),
+            ):
+                with patch(
+                    "sys.argv",
+                    [
+                        "npi.py",
+                        "--bucket-name=b",
+                        "--project-id=p",
+                        "--bq-dataset-id=d",
+                        f"--buffer-mount-path={buf_dir}",
+                    ]
+                    + extra_argv,
+                ), patch("sys.stderr", new_callable=io.StringIO):
+                    with self.assertRaises(SystemExit) as cm_pre:
+                        npi.main()
+                    self.assertEqual(cm_pre.exception.code, expected_code)
+                self.assertTrue(os.path.exists(canary))
+
+            with patch(
+                "sys.argv",
+                [
+                    "npi.py",
+                    "--bucket-name=b",
+                    "--project-id=p",
+                    "--bq-dataset-id=d",
+                    f"--buffer-mount-path={buf_dir}",
+                    "--benchmarks",
+                    "read_grpc",
+                ],
+            ), patch(
+                "npi.verify_permissions", return_value=False
+            ), patch("sys.stderr", new_callable=io.StringIO):
+                with self.assertRaises(SystemExit) as cm_perm:
+                    npi.main()
+                self.assertEqual(cm_perm.exception.code, 1)
+            self.assertTrue(os.path.exists(canary))
 
             # 2. Real sys.argv with --numjobs=64 (dry-run)
             with patch(
@@ -1845,25 +1923,116 @@ class TestNpiCommon(unittest.TestCase):
         )
         mock_client.query.assert_not_called()
 
-        # insert_benchmark_row_to_bq creates missing dataset/table and inserts UTC ISO timestamp
-        npi_common.insert_benchmark_row_to_bq(
-            client=mock_client,
-            project_id="proj",
-            dataset_id="ds",
-            table_id="tbl",
-            iteration=1,
-            gcsfuse_flags="--client-protocol=grpc",
-            env_params={"NUMJOBS": "112", "DIRECT": "0"},
-            cpu_limit_list=None,
-            json_output_content='{"jobs": []}',
-            bq_module=fake_bq_mod,
-            exceptions_module=fake_exc_mod,
-        )
+        # insert_benchmark_row_to_bq creates missing dataset/table and caches verified_tables across calls
+        verified_tables = set()
+        for iter_idx in (1, 2):
+            npi_common.insert_benchmark_row_to_bq(
+                client=mock_client,
+                project_id="proj",
+                dataset_id="ds",
+                table_id="tbl",
+                iteration=iter_idx,
+                gcsfuse_flags="--client-protocol=grpc",
+                env_params={"NUMJOBS": "112", "DIRECT": "0"},
+                cpu_limit_list=None,
+                json_output_content='{"jobs": []}',
+                bq_module=fake_bq_mod,
+                exceptions_module=fake_exc_mod,
+                verified_tables=verified_tables,
+            )
+        self.assertEqual(verified_tables, {"proj.ds.tbl"})
+        mock_client.get_dataset.assert_called_once()
         mock_client.create_dataset.assert_called_once()
+        # 1 get_table in truncate_bq_table + 1 get_table on iteration 1 (skipped on iteration 2!)
+        self.assertEqual(mock_client.get_table.call_count, 2)
         mock_client.create_table.assert_called_once()
+        self.assertEqual(mock_client.insert_rows_json.call_count, 2)
         inserted_rows = mock_client.insert_rows_json.call_args.args[1]
         self.assertEqual(len(inserted_rows), 1)
         self.assertIn("+00:00", inserted_rows[0]["run_timestamp"])
+
+    def test_validate_bq_args_init_helper_orchestrator_helpers_and_argv_mentions(
+        self,
+    ):
+        parser = argparse.ArgumentParser(allow_abbrev=False)
+        self.assertTrue(
+            npi_common.validate_bq_args(parser, "p", "d", "t")
+        )
+        self.assertFalse(
+            npi_common.validate_bq_args(parser, None, None, None)
+        )
+        self.assertFalse(
+            npi_common.validate_bq_args(parser, "  ", "", None)
+        )
+        self.assertFalse(
+            npi_common.validate_bq_args(
+                parser, "p", None, None, allow_project_only=True
+            )
+        )
+        for bad_args, allow_proj in (
+            (("p", None, None), False),
+            (("p", "d", None), False),
+            ((None, "d", "t"), False),
+            (("p", "d", None), True),
+            ((None, "d", "t"), True),
+        ):
+            with patch("sys.stderr", new_callable=io.StringIO):
+                with self.assertRaises(SystemExit) as cm:
+                    npi_common.validate_bq_args(
+                        parser, *bad_args, allow_project_only=allow_proj
+                    )
+                self.assertEqual(cm.exception.code, 2)
+
+        with self.assertRaises(RuntimeError):
+            npi_common.init_and_truncate_bq_table(
+                "p",
+                "d",
+                "t",
+                bq_supported=False,
+                bq_module=MagicMock(),
+                truncate_fn=MagicMock(),
+            )
+        fake_bq = MagicMock()
+        fake_trunc = MagicMock()
+        client = npi_common.init_and_truncate_bq_table(
+            "p",
+            "d",
+            "t",
+            bq_supported=True,
+            bq_module=fake_bq,
+            truncate_fn=fake_trunc,
+        )
+        self.assertIs(client, fake_bq.Client.return_value)
+        fake_trunc.assert_called_once_with(client, "p", "d", "t")
+
+        self.assertEqual(
+            npi_orchestrator._expand_benchmarks("all,go_read_grpc"),
+            [
+                "read_http1",
+                "read_grpc",
+                "write_http1",
+                "write_grpc",
+                "host_info",
+                "go_read_grpc",
+            ],
+        )
+        self.assertEqual(
+            npi_orchestrator._resolve_dataset_id("npi_ds_regional", True),
+            "npi_ds_zonal",
+        )
+        self.assertEqual(
+            npi_orchestrator._resolve_dataset_id("npi_ds_zonal", False),
+            "npi_ds_regional",
+        )
+
+        for argv, target_file, expected in (
+            (["unittest", "npi_test", "fio.fio_benchmark_runner_test"], "fio_benchmark_runner_test.py", True),
+            (["unittest", "npi/fio/fio_benchmark_runner_test.py"], "fio_benchmark_runner_test.py", True),
+            (["unittest", "npi.npi_gke_test.TestCreateJobSpec"], "npi_gke_test.py", True),
+            (["unittest", "-v", "npi_test.py"], "fio_benchmark_runner_test.py", False),
+        ):
+            with patch("sys.argv", argv):
+                self.assertEqual(_argv_mentions(target_file), expected)
 
 
 def _load_external_test_module(loader, mod_name, rel_path):
@@ -1885,7 +2054,11 @@ def _load_external_test_module(loader, mod_name, rel_path):
 def _argv_mentions(filename):
     stem = os.path.splitext(filename)[0]
     for arg in sys.argv[1:]:
-        if filename in arg or arg == stem or arg.startswith(f"{stem}."):
+        if arg.startswith("-"):
+            continue
+        normalized = arg[:-3] if arg.endswith(".py") else arg
+        parts = [p for p in re.split(r"[./\\]+", normalized) if p]
+        if stem in parts:
             return True
     return False
 
@@ -1915,16 +2088,11 @@ def load_tests(loader, standard_tests, pattern):
                 )
             )
         if not _argv_mentions("npi_gke_test.py"):
-            try:
-                import yaml as _yaml  # noqa: F401
-            except ImportError:
-                pass
-            else:
-                suite.addTests(
-                    _load_external_test_module(
-                        loader, "npi_gke_test", "npi_gke_test.py"
-                    )
+            suite.addTests(
+                _load_external_test_module(
+                    loader, "npi_gke_test", "npi_gke_test.py"
                 )
+            )
 
     return suite
 

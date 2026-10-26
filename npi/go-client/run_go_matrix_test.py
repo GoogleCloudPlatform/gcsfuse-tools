@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Unit tests for go-client/run_go_matrix.py."""
 
+import io
 import os
 import subprocess
 import sys
@@ -113,6 +114,24 @@ class TestRunGoMatrix(unittest.TestCase):
                         with self.assertRaises(SystemExit) as cm:
                             rm.main()
                         self.assertNotEqual(cm.exception.code, 0)
+
+                for partial_bq in (
+                    ["--project-id=p"],
+                    ["--project-id=p", "--bq-dataset-id=d"],
+                    ["--bq-dataset-id=d", "--bq-table-id=t"],
+                ):
+                    with patch(
+                        "sys.argv",
+                        [
+                            "run_go_matrix.py",
+                            "--bucket-name=b",
+                            "--matrix-config=/nonexistent/not_loaded.csv",
+                        ]
+                        + partial_bq,
+                    ), patch("sys.stderr", new_callable=io.StringIO):
+                        with self.assertRaises(SystemExit) as cm_bq:
+                            rm.main()
+                        self.assertEqual(cm_bq.exception.code, 2)
 
                 with patch.dict(
                     os.environ, {"NUMJOBS": "0", "NUM_JOBS": ""}, clear=False

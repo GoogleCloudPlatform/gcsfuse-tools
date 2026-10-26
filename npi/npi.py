@@ -585,25 +585,6 @@ def main():
 
     mount_path = os.path.abspath(args.mount_path) if args.mount_path else None
 
-    # Clear the buffer-mount-path if it's not empty and it's not a dry run
-    if not args.dry_run and os.path.exists(args.buffer_mount_path):
-        if os.listdir(args.buffer_mount_path):
-            print(f"Buffer mount path {args.buffer_mount_path} is not empty. Clearing its contents...")
-            for filename in os.listdir(args.buffer_mount_path):
-                file_path = os.path.join(args.buffer_mount_path, filename)
-                try:
-                    if os.path.isfile(file_path) or os.path.islink(file_path):
-                        os.unlink(file_path)
-                    elif os.path.isdir(file_path):
-                        shutil.rmtree(file_path)
-                except Exception as e:
-                    print(f"Failed to delete {file_path}. Reason: {e}", file=sys.stderr)
-
-    # Ensure subdirectories exist in the buffer mount path to prevent permission issues.
-    if not args.dry_run:
-        os.makedirs(os.path.join(args.buffer_mount_path, "write"), exist_ok=True)
-        os.makedirs(os.path.join(args.buffer_mount_path, "file-cache"), exist_ok=True)
-
     factory = BenchmarkFactory(
         bucket_name=args.bucket_name,
         project_id=args.project_id,
@@ -629,7 +610,7 @@ def main():
                 print(f"Error: Benchmark '{b}' not found.", file=sys.stderr)
                 sys.exit(1)
         benchmarks_to_run = args.benchmarks
-            
+
     try:
         benchmarks_to_run = npi_common.filter_rapid_benchmarks(
             args.benchmarks, benchmarks_to_run, args.is_rapid_bucket
@@ -641,6 +622,25 @@ def main():
         if not verify_permissions(args.project_id, args.bq_dataset_id, args.bucket_name):
             print("Aborting benchmark orchestration due to pre-flight permission check failure.", file=sys.stderr)
             sys.exit(1)
+
+    # Clear the buffer-mount-path if it's not empty and it's not a dry run
+    if not args.dry_run and os.path.exists(args.buffer_mount_path):
+        if os.listdir(args.buffer_mount_path):
+            print(f"Buffer mount path {args.buffer_mount_path} is not empty. Clearing its contents...")
+            for filename in os.listdir(args.buffer_mount_path):
+                file_path = os.path.join(args.buffer_mount_path, filename)
+                try:
+                    if os.path.isfile(file_path) or os.path.islink(file_path):
+                        os.unlink(file_path)
+                    elif os.path.isdir(file_path):
+                        shutil.rmtree(file_path)
+                except Exception as e:
+                    print(f"Failed to delete {file_path}. Reason: {e}", file=sys.stderr)
+
+    # Ensure subdirectories exist in the buffer mount path to prevent permission issues.
+    if not args.dry_run:
+        os.makedirs(os.path.join(args.buffer_mount_path, "write"), exist_ok=True)
+        os.makedirs(os.path.join(args.buffer_mount_path, "file-cache"), exist_ok=True)
 
     print(f"Starting benchmark orchestration...")
     print(f"Benchmarks to run: {', '.join(benchmarks_to_run)}")

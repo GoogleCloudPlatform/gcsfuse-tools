@@ -1,7 +1,14 @@
 import argparse
+import contextlib
 import io
+import os
+import sys
 import unittest
 from unittest.mock import mock_open, patch
+
+_THIS_DIR = os.path.dirname(os.path.abspath(__file__))
+if _THIS_DIR not in sys.path:
+    sys.path.insert(0, _THIS_DIR)
 
 import npi_gke
 
@@ -212,7 +219,8 @@ class TestCreateJobSpec(unittest.TestCase):
             ["--numjobs", "--numjobs", "32"],
             ["--numjobs", "--numjobs=32"],
             ["--direct", "--numjobs=32", "--direct=0"],
-            ["--num=32"],  # allow_abbrev=False: "--num" is NOT treated as "--numjobs"
+            ["--gcsfuse-flags"],
+            ["--num=32"],  # unknown/abbreviated flags are not treated as "--numjobs"
             [123],
         ):
             mock_yaml_load.return_value = _make_job_template()
@@ -260,21 +268,25 @@ class TestCreateJobSpec(unittest.TestCase):
                     **bad_kw,
                 )
 
-        # Container value-taking options (e.g. --gcsfuse-flags) consume their value token
-        mock_yaml_load.return_value = _make_job_template()
-        res_arity = npi_gke.create_job_spec(
-            job_name="test-job",
-            image="test-image",
-            args=["--gcsfuse-flags", " --direct=0"],
-            bucket_name="test-bucket",
-            service_account="test-sa",
-            is_rapid_bucket=False,
-        )
-        env_arity = {
-            e["name"]: e["value"]
-            for e in res_arity["spec"]["template"]["spec"]["containers"][0]["env"]
-        }
-        self.assertEqual(env_arity["DIRECT"], "1")
+        # Container value-taking options (e.g. --gcsfuse-flags) consume dash-prefixed values cleanly
+        for flag_val in ("--direct=0", "--client-protocol=grpc"):
+            mock_yaml_load.return_value = _make_job_template()
+            res_arity = npi_gke.create_job_spec(
+                job_name="test-job",
+                image="test-image",
+                args=["--gcsfuse-flags", flag_val],
+                bucket_name="test-bucket",
+                service_account="test-sa",
+                is_rapid_bucket=False,
+            )
+            env_arity = {
+                e["name"]: e["value"]
+                for e in res_arity["spec"]["template"]["spec"]["containers"][0][
+                    "env"
+                ]
+            }
+            self.assertEqual(env_arity["DIRECT"], "1")
+            self.assertEqual(env_arity["NUMJOBS"], "112")
 
         # "--client-protocol" is registered only when is_go_client=True
         self.assertEqual(
@@ -339,17 +351,60 @@ class TestGKEMainAndValidators(unittest.TestCase):
         ] + extra_cli_args
 
         mock_cred_res = unittest.mock.MagicMock(returncode=0, stdout="ok", stderr="")
-        with patch("sys.argv", base_argv), patch(
-            "npi_gke.subprocess.run", return_value=mock_cred_res
-        ), patch(
-            "npi_gke.setup_kubernetes_service_account", return_value=True
-        ), patch(
-            "npi_gke.create_job_spec", side_effect=spy_create
-        ), patch(
-            "sys.stdout", new_callable=io.StringIO
-        ):
+        with contextlib.ExitStack() as stack:
+            if not npi_gke.YAML_SUPPORTED:
+                stack.enter_context(patch("builtins.open", mock_open()))
+                stack.enter_context(
+                    patch(
+                        "npi_gke.yaml.safe_load",
+                        side_effect=lambda *_: _make_job_template(),
+                    )
+                )
+            stack.enter_context(patch("sys.argv", base_argv))
+            stack.enter_context(
+                patch("npi_gke.subprocess.run", return_value=mock_cred_res)
+            )
+            stack.enter_context(
+                patch(
+                    "npi_gke.setup_kubernetes_service_account",
+                    return_value=True,
+                )
+            )
+            stack.enter_context(
+                patch("npi_gke.create_job_spec", side_effect=spy_create)
+            )
+            stack.enter_context(patch("sys.stdout", new_callable=io.StringIO))
             npi_gke.main()
         return captured
+
+    def test_main_rejects_invalid_benchmarks_and_rapid_http1_before_cluster_calls(
+        self,
+    ):
+        for bad_cli, expected_code in (
+            (["--is-rapid-bucket", "--benchmarks", "read_http1"], 2),
+            (["--benchmarks", "bogus"], 1),
+            (["--benchmarks", "read_file_cache_grpc"], 2),
+        ):
+            argv = [
+                "npi_gke.py",
+                "--cluster-name=test-cluster",
+                "--location=us-central1-a",
+                "--bucket-name=test-bucket",
+                "--project-id=test-proj",
+                "--bq-dataset-id=test_ds",
+            ] + bad_cli
+            with patch("sys.argv", argv), patch(
+                "npi_gke.subprocess.run"
+            ) as mock_subproc, patch(
+                "npi_gke.setup_kubernetes_service_account"
+            ) as mock_setup_ksa, patch(
+                "sys.stderr", new_callable=io.StringIO
+            ):
+                with self.assertRaises(SystemExit) as cm:
+                    npi_gke.main()
+                self.assertEqual(cm.exception.code, expected_code)
+                mock_subproc.assert_not_called()
+                mock_setup_ksa.assert_not_called()
 
     def test_main_default_standard_and_rapid_omit_cli_numjobs_and_direct(self):
         # Standard bucket
@@ -430,6 +485,13 @@ class TestGKEMainAndValidators(unittest.TestCase):
 
 
 class TestGKEUtils(unittest.TestCase):
+
+    def test_missing_yaml_stub_raises_runtime_error_when_unmocked(self):
+        stub = npi_gke._MissingYaml()
+        with self.assertRaises(RuntimeError):
+            stub.safe_load("apiVersion: v1")
+        with self.assertRaises(RuntimeError):
+            stub.dump({"kind": "Job"})
 
     @patch(
         "builtins.open",

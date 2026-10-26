@@ -19,13 +19,45 @@ except ModuleNotFoundError:
     import npi_common
 
 HOME_DIR = os.path.expanduser("~")
-try:
-    local_user = os.environ.get("USER") or getpass.getuser()
-except Exception:
-    local_user = "user"
 STATE_FILE = os.path.join(HOME_DIR, ".npi/npi_run_state.json")
 COMMAND_LOG = os.path.join(HOME_DIR, ".npi/npi_commands.log")
 log_lock = threading.Lock()
+
+_ALL_ORCHESTRATOR_BENCHMARKS = (
+    "read_http1",
+    "read_grpc",
+    "write_http1",
+    "write_grpc",
+    "host_info",
+)
+
+
+def _expand_benchmarks(raw_benchmarks) -> list[str]:
+    """Tokenizes benchmark inputs and expands 'all' into canonical benchmark names."""
+    raw_str = (
+        raw_benchmarks
+        if isinstance(raw_benchmarks, str)
+        else " ".join(raw_benchmarks)
+    )
+    expanded = []
+    for token in raw_str.replace(",", " ").split():
+        if token == "all":
+            expanded.extend(_ALL_ORCHESTRATOR_BENCHMARKS)
+        else:
+            expanded.append(token)
+    return expanded
+
+
+def _resolve_dataset_id(raw_dataset: str, is_rapid: bool) -> str:
+    """Normalizes a target dataset prefix to its _regional or _zonal BigQuery dataset ID."""
+    if raw_dataset.endswith("_regional"):
+        base_dataset = raw_dataset[: -len("_regional")]
+    elif raw_dataset.endswith("_zonal"):
+        base_dataset = raw_dataset[: -len("_zonal")]
+    else:
+        base_dataset = raw_dataset
+    suffix = "_zonal" if is_rapid else "_regional"
+    return f"{base_dataset}{suffix}"
 
 # Dynamic SSH socket directory resolution:
 SOCKET_DIR = os.path.join(HOME_DIR, ".ssh/sockets")
@@ -753,17 +785,7 @@ def execute_target(target, args, state_lock, state):
             
             # Start run unbuffered
             has_ssd = target.get("has_ssd", target["type"] == "gce") # Default GCE to True, GKE to False if unspecified
-            raw_bench = args.benchmarks.replace(',', ' ') if isinstance(args.benchmarks, str) else ' '.join(args.benchmarks)
-            requested_benchmarks = raw_bench.split()
-            
-            # Expand 'all' into full benchmark names before filtering
-            expanded_benchmarks = []
-            for b in requested_benchmarks:
-                if b == "all":
-                    expanded_benchmarks.extend(['read_http1', 'read_grpc', 'write_http1', 'write_grpc', 'host_info'])
-                else:
-                    expanded_benchmarks.append(b)
-            requested_benchmarks = expanded_benchmarks
+            requested_benchmarks = _expand_benchmarks(args.benchmarks)
 
             # Filter out file-cache tests if no SSD is present
             if not has_ssd:
@@ -789,15 +811,7 @@ def execute_target(target, args, state_lock, state):
                     save_state(state)
                 return
 
-            raw_dataset = target["dataset"]
-            if raw_dataset.endswith("_regional"):
-                base_dataset = raw_dataset[:-len("_regional")]
-            elif raw_dataset.endswith("_zonal"):
-                base_dataset = raw_dataset[:-len("_zonal")]
-            else:
-                base_dataset = raw_dataset
-            suffix = "_zonal" if is_rapid else "_regional"
-            dataset_id = f"{base_dataset}{suffix}"
+            dataset_id = _resolve_dataset_id(target["dataset"], is_rapid)
 
             extra_mount_opts = []
             target_extra = target.get("extra_mount_options")
@@ -1024,18 +1038,7 @@ def main():
             print("Saved state file cleared for a fresh run.")
         except Exception as e:
             print(f"Warning: Could not clear state file: {e}")
-    if isinstance(args.benchmarks, list):
-        raw_bench = " ".join(args.benchmarks)
-    else:
-        raw_bench = args.benchmarks
-    bench_tokens = raw_bench.replace(',', ' ').split()
-    expanded_benchmarks = []
-    for b in bench_tokens:
-        if b == "all":
-            expanded_benchmarks.extend(['read_http1', 'read_grpc', 'write_http1', 'write_grpc', 'host_info'])
-        else:
-            expanded_benchmarks.append(b)
-    args.benchmarks = " ".join(expanded_benchmarks)
+    args.benchmarks = " ".join(_expand_benchmarks(args.benchmarks))
 
     global PROJECT_ID
     if args.project:
@@ -1104,15 +1107,7 @@ def main():
         truncated_tables = set()
         for t in targets:
             is_rapid = t.get("is_rapid_bucket", False)
-            raw_dataset = t["dataset"]
-            if raw_dataset.endswith("_regional"):
-                base_dataset = raw_dataset[:-len("_regional")]
-            elif raw_dataset.endswith("_zonal"):
-                base_dataset = raw_dataset[:-len("_zonal")]
-            else:
-                base_dataset = raw_dataset
-            suffix = "_zonal" if is_rapid else "_regional"
-            dataset_id = f"{base_dataset}{suffix}"
+            dataset_id = _resolve_dataset_id(t["dataset"], is_rapid)
 
             bench_list = args.benchmarks.split() if isinstance(args.benchmarks, str) else args.benchmarks
             for b_name in bench_list:

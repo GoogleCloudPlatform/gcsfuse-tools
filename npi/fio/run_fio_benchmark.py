@@ -27,7 +27,12 @@ if _SCRIPT_DIR not in sys.path:
 try:
     import npi_common
 except ModuleNotFoundError:
-    sys.path.insert(0, os.path.dirname(_SCRIPT_DIR))
+    for _candidate in (
+        "/opt/npi",
+        os.path.dirname(_SCRIPT_DIR),
+    ):
+        if os.path.isdir(_candidate) and _candidate not in sys.path:
+            sys.path.insert(0, _candidate)
     import npi_common
 
 import fio_benchmark_runner
@@ -108,7 +113,9 @@ def main():
         help="Override FIO direct I/O setting (0 or 1).",
     )
     parser.add_argument(
-        "--project-id", required=True, default=None, help="Project ID to upload results."
+        "--project-id",
+        default=None,
+        help="Project ID to upload results. Required when --bq-dataset-id and --bq-table-id are provided.",
     )
     parser.add_argument(
         "--bq-dataset-id", default=None, help="BigQuery dataset ID."
@@ -122,6 +129,13 @@ def main():
         parser.error("Either --bucket-name or --mount-path must be provided.")
     if args.bind_fio and not args.cpu_limit_list:
         parser.error("--bind-fio requires --cpu-limit-list to be provided.")
+    bq_enabled = npi_common.validate_bq_args(
+        parser,
+        args.project_id,
+        args.bq_dataset_id,
+        args.bq_table_id,
+        allow_project_only=True,
+    )
 
     mount_path = os.path.abspath(args.mount_path) if args.mount_path else None
 
@@ -137,16 +151,20 @@ def main():
         logging.error("Invalid FIO parameter configuration: %s", e)
         sys.exit(1)
 
-    if args.project_id and args.bq_dataset_id and args.bq_table_id:
-        if not fio_benchmark_runner._BQ_SUPPORTED:
-            logging.error(
-                "BigQuery operations requested, but 'google-cloud-bigquery' is not installed."
+    bq_client = None
+    if bq_enabled:
+        try:
+            bq_client = npi_common.init_and_truncate_bq_table(
+                args.project_id,
+                args.bq_dataset_id,
+                args.bq_table_id,
+                bq_supported=fio_benchmark_runner._BQ_SUPPORTED,
+                bq_module=fio_benchmark_runner.bigquery,
+                truncate_fn=fio_benchmark_runner.truncate_bq_table,
             )
+        except Exception as e:
+            logging.error("Failed to initialize BigQuery table: %s", e)
             sys.exit(1)
-        bq_client = fio_benchmark_runner.bigquery.Client(project=args.project_id)
-        fio_benchmark_runner.truncate_bq_table(
-            bq_client, args.project_id, args.bq_dataset_id, args.bq_table_id
-        )
 
     try:
         fio_benchmark_runner.run_benchmark(
@@ -165,6 +183,7 @@ def main():
             bq_table_id=args.bq_table_id,
             mount_path=mount_path,
             keep_mount=args.keep_mount,
+            bq_client=bq_client,
         )
     except Exception as e:
         logging.error("Benchmark run failed: %s", e)
