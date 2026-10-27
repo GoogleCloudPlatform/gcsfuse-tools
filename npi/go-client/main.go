@@ -22,12 +22,14 @@ import (
 	"google.golang.org/api/option"
 )
 
+const defaultNumJobs = 112
+
 var (
 	bucketName       = flag.String("bucket", "", "GCS bucket name.")
 	clientProtocol   = flag.String("client-protocol", "http1", "Network protocol: http1 or grpc.")
 	blockSizeStr     = flag.String("bs", "1M", "Block size (e.g. 128K, 1M, etc.).")
 	fileSizeStr      = flag.String("filesize", "1G", "File size per file (e.g. 1M, 10M, 1G).")
-	numOfWorkers     = flag.Int("numjobs", 128, "Number of concurrent workers (threads) to read.")
+	numOfWorkers     = flag.Int("numjobs", defaultNumJobs, "Number of concurrent workers (threads) to read.")
 	nrFiles          = flag.Int("nrfiles", 10, "How many files does each thread/worker need to read.")
 	objectNamePrefix = flag.String("obj-prefix", "", "Prefix for GCS objects.")
 	grpcConnPoolSize = flag.Int("grpc-conn-pool-size", 1, "gRPC connection pool size.")
@@ -176,17 +178,17 @@ func populateFilesIfMissing(ctx context.Context, client *storage.Client, bucketN
 }
 
 type LatencyStats struct {
-	Mean int64            `json:"mean"`
-	P99  int64            `json:"99.000000"`
-	P995 int64            `json:"99.500000"`
-	P999 int64            `json:"99.900000"`
+	Mean        int64            `json:"mean"`
+	P99         int64            `json:"99.000000"`
+	P995        int64            `json:"99.500000"`
+	P999        int64            `json:"99.900000"`
 	Percentiles map[string]int64 `json:"percentiles"`
 }
 
 type ReadOpStats struct {
-	Bw          float64      `json:"bw"` // KiB/s
-	Iops        float64      `json:"iops"`
-	LatNs       LatencyStats `json:"lat_ns"`
+	Bw    float64      `json:"bw"` // KiB/s
+	Iops  float64      `json:"iops"`
+	LatNs LatencyStats `json:"lat_ns"`
 }
 
 type JobResult struct {
@@ -421,9 +423,9 @@ func main() {
 						P995: p995LatNs,
 						P999: p999LatNs,
 						Percentiles: map[string]int64{
-							"99.000000":  p99LatNs,
-							"99.500000":  p995LatNs,
-							"99.900000":  p999LatNs,
+							"99.000000": p99LatNs,
+							"99.500000": p995LatNs,
+							"99.900000": p999LatNs,
 						},
 					},
 				},

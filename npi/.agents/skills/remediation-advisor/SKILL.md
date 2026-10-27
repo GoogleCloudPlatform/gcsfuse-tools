@@ -53,7 +53,7 @@ This skill guides you through diagnosing regressions, SLA gate failures, or reso
 - **Orchestrator Timeouts (14400s)**: If GCSFuse hung, verify mount options or Direct Path compatibility in that zone.
 
 #### 4. High-Bandwidth Throughput Bottlenecks (< 20 GB/s SLA Gate)
-- **FUSE Concurrency Limits**: If workload is highly concurrent (128 numjobs), FUSE default queues bottleneck. Verify if `--max-background` and `--congestion-threshold` are unset or set low.
+- **FUSE Concurrency Limits**: If workload is highly concurrent (112 numjobs), FUSE default queues bottleneck. Verify if `--max-background` and `--congestion-threshold` are unset or set low.
 - **gRPC Connection Congestion**: Single gRPC channel hits stream concurrency limits. Verify if `--experimental-grpc-conn-pool-size` is unset or low.
 - **NIC Packet Processing (Softirqs)**: Saturation on single CPU cores handling network interrupts bottlenecks throughput. Verify if Large Receive Offload (LRO) or Generic Receive Offload (GRO) is disabled.
 - **Receive Flow Steering (RFS/RPS)**: Without RFS/RPS, network packets process on different CPU cores than FUSE reader threads, causing CPU cache misses.
