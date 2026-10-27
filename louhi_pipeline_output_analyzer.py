@@ -541,19 +541,20 @@ def main():
       print('Error: No version provided and input stream closed.')
       return
 
-  version_number = version_input.lstrip('v')
+  version_number = version_input.removeprefix('v')
 
   if not re.match(
-      r'^\d+\.\d+\.\d+(?:\.\d+|-frontier-[a-z0-9]+(?:\.[0-9]+)?)?$',
+      r'^\d+\.\d+\.\d+(?:\.\d+|-frontier-[a-z0-9]+\.[0-9]+)?$',
       version_number,
   ):
-    print("Invalid version format. Use 'vX.Y.Z' or 'vX.Y.Z-frontier-<id>[.<rev>]'.")
+    print("Invalid version format. Use 'vX.Y.Z' or 'vX.Y.Z-frontier-<id>.<rev>'.")
     return
 
+  normalized_version = f'v{version_number}'
   timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
 
   # Run Analysis
-  results_df = analyze_failures(version_input)
+  results_df = analyze_failures(normalized_version)
 
   if not results_df.empty:
     print('\nAnalysis Results:')
