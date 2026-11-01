@@ -101,7 +101,13 @@ def run_worker_script(vm_name, zone, project, script_path, benchmark_id, artifac
     quoted_bucket = shlex.quote(artifacts_bucket)
     quoted_unit = shlex.quote(f"dmb-worker-{benchmark_id}")
     
+    # Enable lingering so the user's systemd manager (user@<uid>) keeps running
+    # after the SSH session closes. Without it, systemd stops user@<uid> ~10s
+    # after the last session ends, which kills any in-flight snap `gcloud` call
+    # (snap places each invocation in a scope under the user manager) and fails
+    # the worker with exit code 143. Idempotent; no-op if already enabled.
     exec_command = (
+        f'sudo loginctl enable-linger $(id -un) && '
         f'sudo systemd-run '
         f'--uid=$(id -u) '
         f'--gid=$(id -g) '
