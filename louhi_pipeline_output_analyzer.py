@@ -529,28 +529,36 @@ def main():
       description='Analyze GCSFuse release test failures.'
   )
   parser.add_argument(
-      'version', nargs='?', help='GCSFuse version (e.g., v3.5.0)'
+      'version',
+      nargs='?',
+      help='GCSFuse version (e.g., v3.5.0 or v3.8.4-frontier-a.0)',
   )
   args = parser.parse_args()
 
   version_input = args.version
   if not version_input:
     try:
-      version_input = input('Enter GCSFuse version (e.g., v3.4.0): ').strip()
+      version_input = input(
+          'Enter GCSFuse version (e.g., v3.4.0 or v3.8.4-frontier-a.0): '
+      ).strip()
     except EOFError:
       print('Error: No version provided and input stream closed.')
       return
 
-  version_number = version_input.replace('v', '')
+  version_number = version_input.removeprefix('v')
 
-  if not re.match(r'^\d+\.\d+\.\d+(\.\d+)?$', version_number):
-    print("Invalid version format. Use 'vX.Y.Z'.")
+  if not re.match(
+      r'^\d+\.\d+\.\d+(?:\.\d+|-frontier-[a-z0-9]+\.[0-9]+)?$',
+      version_number,
+  ):
+    print("Invalid version format. Use 'vX.Y.Z' or 'vX.Y.Z-frontier-<id>.<rev>'.")
     return
 
+  normalized_version = f'v{version_number}'
   timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
 
   # Run Analysis
-  results_df = analyze_failures(version_input)
+  results_df = analyze_failures(normalized_version)
 
   if not results_df.empty:
     print('\nAnalysis Results:')
