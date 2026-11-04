@@ -529,14 +529,18 @@ def main():
       description='Analyze GCSFuse release test failures.'
   )
   parser.add_argument(
-      'version', nargs='?', help='GCSFuse version (e.g., v3.5.0)'
+      'version',
+      nargs='?',
+      help='GCSFuse version (e.g., v3.5.0 or v3.8.4-frontier-a.0)',
   )
   args = parser.parse_args()
 
   version_input = args.version
   if not version_input:
     try:
-      version_input = input('Enter GCSFuse version (e.g., v3.4.0): ').strip()
+      version_input = input(
+          'Enter GCSFuse version (e.g., v3.4.0 or v3.8.4-frontier-a.0): '
+      ).strip()
     except EOFError:
       print('Error: No version provided and input stream closed.')
       return
