@@ -21,6 +21,14 @@ import logging
 import os
 import sys
 
+_FIO_DIR = os.path.dirname(os.path.abspath(__file__))
+_REPO_ROOT = os.path.dirname(_FIO_DIR)
+if _REPO_ROOT not in sys.path:
+  sys.path.insert(0, _REPO_ROOT)
+if _FIO_DIR not in sys.path:
+  sys.path.insert(0, _FIO_DIR)
+
+import convergence
 import fio_benchmark_runner
 
 # Setup logging
@@ -67,6 +75,30 @@ def main():
       type=int,
       default=1,
       help="Number of FIO test iterations per configuration.",
+  )
+  parser.add_argument(
+      "--min-iterations",
+      type=int,
+      default=None,
+      help="Minimum number of steady-state FIO iterations before checking statistical convergence.",
+  )
+  parser.add_argument(
+      "--max-iterations",
+      type=int,
+      default=None,
+      help="Maximum number of FIO iterations to execute when adaptive convergence is enabled.",
+  )
+  parser.add_argument(
+      "--convergence-threshold",
+      type=float,
+      default=None,
+      help="Target relative 95%% confidence interval margin of error threshold (e.g., 0.05 for 5%%).",
+  )
+  parser.add_argument(
+      "--confidence-level",
+      type=float,
+      default=0.95,
+      help="Confidence level for Student's t interval estimation (default: 0.95).",
   )
   parser.add_argument(
       "--fio-template",
@@ -172,16 +204,26 @@ def main():
 
     try:
       fio_benchmark_runner.run_benchmark(
-          gcsfuse_flags=args.gcsfuse_flags, bucket_name=args.bucket_name,
-          iterations=args.iterations, fio_config=args.fio_template,
-          work_dir=args.work_dir, output_dir=config_output_dir, fio_env=fio_env,
-          summary_file=summary_file_path, cpu_limit_list=args.cpu_limit_list, 
+          gcsfuse_flags=args.gcsfuse_flags,
+          bucket_name=args.bucket_name,
+          iterations=args.iterations,
+          fio_config=args.fio_template,
+          work_dir=args.work_dir,
+          output_dir=config_output_dir,
+          fio_env=fio_env,
+          summary_file=summary_file_path,
+          cpu_limit_list=args.cpu_limit_list,
           bind_fio=args.bind_fio,
           project_id=args.project_id,
           bq_dataset_id=args.bq_dataset_id,
           bq_table_id=args.bq_table_id,
           mount_path=mount_path,
-          keep_mount=args.keep_mount)
+          keep_mount=args.keep_mount,
+          min_iterations=args.min_iterations,
+          max_iterations=args.max_iterations,
+          convergence_threshold=args.convergence_threshold,
+          confidence_level=args.confidence_level,
+      )
     except Exception as e:
       logging.error("Benchmark run failed for configuration %s: %s", config, e)
       has_failures = True

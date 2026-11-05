@@ -20,6 +20,14 @@ import logging
 import os
 import sys
 
+_FIO_DIR = os.path.dirname(os.path.abspath(__file__))
+_REPO_ROOT = os.path.dirname(_FIO_DIR)
+if _REPO_ROOT not in sys.path:
+    sys.path.insert(0, _REPO_ROOT)
+if _FIO_DIR not in sys.path:
+    sys.path.insert(0, _FIO_DIR)
+
+import convergence
 import fio_benchmark_runner
 
 # Setup logging
@@ -34,6 +42,30 @@ def main():
     parser.add_argument("--bucket-name", default=None, help="Name of the GCS bucket.")
     parser.add_argument("--mount-path", default=None, help="Path to an already mounted GCS bucket. If provided, --bucket-name is ignored and GCSFuse is not mounted.")
     parser.add_argument("--iterations", type=int, default=1, help="Number of FIO test iterations.")
+    parser.add_argument(
+        "--min-iterations",
+        type=int,
+        default=None,
+        help="Minimum number of steady-state FIO iterations before checking statistical convergence.",
+    )
+    parser.add_argument(
+        "--max-iterations",
+        type=int,
+        default=None,
+        help="Maximum number of FIO iterations to execute when adaptive convergence is enabled.",
+    )
+    parser.add_argument(
+        "--convergence-threshold",
+        type=float,
+        default=None,
+        help="Target relative 95%% confidence interval margin of error threshold (e.g., 0.05 for 5%%).",
+    )
+    parser.add_argument(
+        "--confidence-level",
+        type=float,
+        default=0.95,
+        help="Confidence level for Student's t interval estimation (default: 0.95).",
+    )
     parser.add_argument("--fio-config", required=True, help="Path to the FIO config file.")
     parser.add_argument("--work-dir", default="/tmp/gcsfuse_benchmark", help="Working directory for clones and builds.")
     parser.add_argument("--output-dir", default="./fio_results", help="Directory to save FIO JSON results.")
@@ -81,6 +113,10 @@ def main():
         bq_table_id=args.bq_table_id,
         mount_path=mount_path,
         keep_mount=args.keep_mount,
+        min_iterations=args.min_iterations,
+        max_iterations=args.max_iterations,
+        convergence_threshold=args.convergence_threshold,
+        confidence_level=args.confidence_level,
     )
 
 
