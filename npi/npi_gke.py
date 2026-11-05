@@ -11,15 +11,45 @@ Usage:
 """
 
 import argparse
-import subprocess
-import sys
-import time
-import yaml
-import os
 import datetime
 import json
+import os
 import queue
+import subprocess
+import sys
 import threading
+import time
+
+
+class _MissingYaml:
+    """Fallback stub when PyYAML is unavailable so unit tests can mock yaml calls."""
+
+    @staticmethod
+    def safe_load(*_args, **_kwargs):
+        raise RuntimeError(
+            "PyYAML is required to load/dump GKE job specs; install pyyaml."
+        )
+
+    @staticmethod
+    def dump(*_args, **_kwargs):
+        raise RuntimeError(
+            "PyYAML is required to load/dump GKE job specs; install pyyaml."
+        )
+
+
+try:
+    import yaml
+
+    YAML_SUPPORTED = True
+except ImportError:
+    yaml = _MissingYaml()
+    YAML_SUPPORTED = False
+
+try:
+    import npi_common
+except ModuleNotFoundError:
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import npi_common
 
 # Strict KUBECONFIG isolation setup to protect host ~/.kube/config.
 # All gcloud container clusters get-credentials and kubectl invocations run strictly
@@ -30,6 +60,105 @@ ISOLATED_KUBECONFIG = os.path.join(KUBE_DIR, "npi_kubeconfig")
 os.makedirs(KUBE_DIR, exist_ok=True)
 os.environ["KUBECONFIG"] = ISOLATED_KUBECONFIG
 
+positive_int = npi_common.positive_int
+
+_CONTAINER_VALUE_OPTIONS = (
+    "--gcsfuse-flags",
+    "--cpu-limit-list",
+    "--bucket-name",
+    "--mount-path",
+    "--iterations",
+    "--fio-template",
+    "--fio-config",
+    "--matrix-config",
+    "--work-dir",
+    "--output-dir",
+    "--summary-file-name",
+    "--summary-file",
+    "--project-id",
+    "--bq-dataset-id",
+    "--bq-table-id",
+)
+
+
+def _resolve_job_env(
+    args,
+    is_rapid_bucket=False,
+    numjobs=None,
+    direct=None,
+    is_go_client=False,
+):
+    """Resolves (NUMJOBS, DIRECT) pod environment strings for a GKE benchmark job.
+
+    Precedence (lowest to highest):
+      1. Defaults derived from `is_rapid_bucket` (NUMJOBS=112, DIRECT=0/1).
+      2. Explicit `numjobs` / `direct` keyword arguments when provided.
+      3. Explicit `--numjobs` / `--direct` CLI flags inside `args` (last flag wins).
+    """
+    num_jobs_val = str(npi_common.DEFAULT_NUMJOBS)
+    direct_val = (
+        npi_common.DEFAULT_DIRECT_RAPID
+        if is_rapid_bucket
+        else npi_common.DEFAULT_DIRECT_STANDARD
+    )
+
+    if numjobs is not None:
+        num_jobs_val = str(
+            npi_common.parse_positive_int(numjobs, param_name="numjobs")
+        )
+    if direct is not None:
+        direct_val = npi_common.parse_direct(direct)
+
+    if args:
+        for item in args:
+            if not isinstance(item, str):
+                raise ValueError(
+                    f"Container arguments must be strings, got {item!r}"
+                )
+        value_options = set(_CONTAINER_VALUE_OPTIONS)
+        if is_go_client:
+            value_options.add("--client-protocol")
+
+        idx = 0
+        n_args = len(args)
+        while idx < n_args:
+            tok = args[idx]
+            if tok == "--":
+                break
+            if tok == "--numjobs":
+                if idx + 1 >= n_args:
+                    raise ValueError("argument --numjobs: expected one argument")
+                num_jobs_val = str(
+                    npi_common.parse_positive_int(
+                        args[idx + 1], param_name="numjobs"
+                    )
+                )
+                idx += 2
+            elif tok.startswith("--numjobs="):
+                num_jobs_val = str(
+                    npi_common.parse_positive_int(
+                        tok.split("=", 1)[1], param_name="numjobs"
+                    )
+                )
+                idx += 1
+            elif tok == "--direct":
+                if idx + 1 >= n_args:
+                    raise ValueError("argument --direct: expected one argument")
+                direct_val = npi_common.parse_direct(args[idx + 1])
+                idx += 2
+            elif tok.startswith("--direct="):
+                direct_val = npi_common.parse_direct(tok.split("=", 1)[1])
+                idx += 1
+            elif tok in value_options:
+                if idx + 1 >= n_args:
+                    raise ValueError(f"argument {tok}: expected one argument")
+                idx += 2
+            else:
+                idx += 1
+
+    return num_jobs_val, direct_val
+
+
 def enqueue_output(out, q):
     try:
         for line in iter(out.readline, ''):
@@ -39,42 +168,58 @@ def enqueue_output(out, q):
     finally:
         out.close()
 
-def create_job_spec(job_name, image, args, bucket_name, service_account, extra_flag=None, use_memory_volumes=False, is_go_client=False, node_selector=None, resources_limits=None, project_id=None, gcsfuse_sidecar_image=None, is_rapid_bucket=False):
+
+def create_job_spec(
+    job_name,
+    image,
+    args,
+    bucket_name,
+    service_account,
+    extra_flag=None,
+    use_memory_volumes=False,
+    is_go_client=False,
+    node_selector=None,
+    resources_limits=None,
+    gcsfuse_sidecar_image=None,
+    is_rapid_bucket=False,
+    numjobs=None,
+    direct=None,
+):
     """Creates a Kubernetes Job spec dictionary from the template yaml."""
     script_dir = os.path.dirname(os.path.realpath(__file__))
     template_path = os.path.join(script_dir, "npi_job_spec.yaml")
-    
+
     with open(template_path, 'r') as f:
         job_spec = yaml.safe_load(f)
-        
+
     job_spec["metadata"]["name"] = job_name
-    
+
     pod_spec = job_spec["spec"]["template"]["spec"]
-    
+
     # Replace service account
     pod_spec["serviceAccountName"] = service_account
 
-    # Set NUMJOBS env var for FIO
-    if "--numjobs=2" in args:
-        num_jobs_val = "2"
-    elif any(arg.startswith("--numjobs=") for arg in args):
-        num_jobs_val = "112"
-        for arg in args:
-            if arg.startswith("--numjobs="):
-                num_jobs_val = arg.split("=", 1)[1]
-                break
-    elif is_rapid_bucket:
-        num_jobs_val = "48"
-    else:
-        num_jobs_val = "112"
-    if "env" not in pod_spec["containers"][0] or not pod_spec["containers"][0]["env"]:
-        pod_spec["containers"][0]["env"] = []
+    num_jobs_val, direct_val = _resolve_job_env(
+        args,
+        is_rapid_bucket=is_rapid_bucket,
+        numjobs=numjobs,
+        direct=direct,
+        is_go_client=is_go_client,
+    )
+
+    reserved_env_names = (
+        *npi_common.NUMJOBS_ENV_KEYS,
+        npi_common.DIRECT_ENV_KEY,
+    )
+    existing_env = pod_spec["containers"][0].get("env") or []
+    pod_spec["containers"][0]["env"] = [
+        e for e in existing_env if e.get("name") not in reserved_env_names
+    ]
     pod_spec["containers"][0]["env"].append({"name": "NUMJOBS", "value": num_jobs_val})
-    
-    print(f"DEBUG: Parsed node_selector: {node_selector}")
+    pod_spec["containers"][0]["env"].append({"name": "DIRECT", "value": direct_val})
+
     if node_selector:
         pod_spec["nodeSelector"] = node_selector
-        print(f"DEBUG: Applied nodeSelector: {pod_spec['nodeSelector']}")
         
     if is_go_client:
         # For Go client, remove the GCSFuse CSI volumes and annotations
@@ -288,13 +433,43 @@ def wait_for_job_completion(job_name, timeout_seconds=None):
 
 
 
-def run_benchmark_job(job_name, image, args_list, project_id, dataset_id, table_id, bucket_name, service_account, extra_flag=None, use_memory_volumes=False, is_go_client=False, node_selector=None, resources_limits=None, gcsfuse_sidecar_image=None, is_rapid_bucket=False):
+def run_benchmark_job(
+    job_name,
+    image,
+    args_list,
+    bucket_name,
+    service_account,
+    extra_flag=None,
+    use_memory_volumes=False,
+    is_go_client=False,
+    node_selector=None,
+    resources_limits=None,
+    gcsfuse_sidecar_image=None,
+    is_rapid_bucket=False,
+    numjobs=None,
+    direct=None,
+):
     """Runs a benchmark job on GKE and waits for its completion."""
     # 1. Cleanup any existing job with the same name
     subprocess.run(["kubectl", "delete", "job", job_name, "--ignore-not-found=true", "--wait=true"], capture_output=True)
 
     # 2. Create Job Spec and Apply
-    job_spec = create_job_spec(job_name, image, args_list, bucket_name, service_account, extra_flag, use_memory_volumes, is_go_client, node_selector, resources_limits, project_id=project_id, gcsfuse_sidecar_image=gcsfuse_sidecar_image, is_rapid_bucket=is_rapid_bucket)
+    job_spec = create_job_spec(
+        job_name,
+        image,
+        args_list,
+        bucket_name,
+        service_account,
+        extra_flag,
+        use_memory_volumes,
+        is_go_client,
+        node_selector,
+        resources_limits,
+        gcsfuse_sidecar_image=gcsfuse_sidecar_image,
+        is_rapid_bucket=is_rapid_bucket,
+        numjobs=numjobs,
+        direct=direct,
+    )
     yaml_data = yaml.dump(job_spec)
 
     print(f"--- Submitting Kubernetes Job: {job_name} ---")
@@ -429,13 +604,21 @@ def get_host_total_ram_mb():
 
 
 def main():
-    parser = argparse.ArgumentParser(description="GKE benchmark runner for GCSFuse NPI.")
+    parser = argparse.ArgumentParser(
+        description="GKE benchmark runner for GCSFuse NPI.",
+        allow_abbrev=False,
+    )
     parser.add_argument("--bucket-name", required=True, help="Name of the GCS bucket to use.")
     parser.add_argument("--kubernetes-service-account", default="gcsfuse-npi-ksa", help="Kubernetes Service Account name to run the job with. Default: gcsfuse-npi-ksa.")
     parser.add_argument("--dry-run", action="store_true", help="List down all the benchmarks that would be executed without actually running them.")
     parser.add_argument("--project-id", required=True, help="Project ID for results.")
     parser.add_argument("--bq-dataset-id", required=True, help="BigQuery dataset ID for results.")
-    parser.add_argument("--iterations", type=int, default=5, help="Number of FIO test iterations per benchmark. Default: 5.")
+    parser.add_argument(
+        "--iterations",
+        type=positive_int,
+        default=npi_common.DEFAULT_ITERATIONS,
+        help=f"Number of FIO test iterations per benchmark. Default: {npi_common.DEFAULT_ITERATIONS}.",
+    )
     parser.add_argument("--image-version", default="latest", help="The version (tag) of the benchmark Docker images to use. Default: latest.")
     parser.add_argument("--cluster-name", help="GKE cluster name. If provided with --location, the script will fetch cluster credentials.")
     parser.add_argument("--location", help="GCP location (region or zone) of the GKE cluster.")
@@ -452,9 +635,9 @@ def main():
     )
     parser.add_argument(
         "--file-cache-size-mb",
-        type=int,
-        default=2097152,
-        help="The size of the file cache in MB. Default: 2097152."
+        type=positive_int,
+        default=npi_common.DEFAULT_FILE_CACHE_SIZE_MB,
+        help=f"The size of the file cache in MB. Default: {npi_common.DEFAULT_FILE_CACHE_SIZE_MB}."
     )
     parser.add_argument(
         "--is-rapid-bucket",
@@ -498,15 +681,31 @@ def main():
     )
     parser.add_argument(
         "--numjobs",
-        type=int,
+        type=positive_int,
         default=None,
         help="Override FIO/Go-client numjobs concurrency count."
     )
-    
+
     args = parser.parse_args()
 
-    if args.smoke_mode and args.iterations == 5:
-        args.iterations = 1
+    args.project_id = (args.project_id or "").strip()
+    if not args.project_id:
+        parser.error("--project-id must not be empty.")
+    args.bq_dataset_id = (args.bq_dataset_id or "").strip()
+    if not args.bq_dataset_id:
+        parser.error("--bq-dataset-id must not be empty.")
+    args.bucket_name = (args.bucket_name or "").strip()
+    if not args.bucket_name:
+        parser.error("--bucket-name must not be empty.")
+    args.cluster_name = (args.cluster_name or "").strip()
+    args.location = (args.location or "").strip()
+
+    args.iterations = npi_common.resolve_smoke_iterations(
+        args.iterations, args.smoke_mode
+    )
+
+    if not (args.cluster_name and args.location):
+        parser.error("Both --cluster-name and --location must be provided to fetch cluster credentials and run GKE benchmarks.")
 
     if args.use_memory_volumes:
         host_ram_mb = get_host_total_ram_mb()
@@ -517,27 +716,6 @@ def main():
 
     node_selector = parse_key_value_pairs(args.node_selector)
     resources_limits = parse_key_value_pairs(args.resources_limits)
-
-    if args.cluster_name and args.location:
-        print(f"--- Fetching credentials for GKE cluster: {args.cluster_name} in {args.location} ---")
-        os.makedirs(KUBE_DIR, exist_ok=True)
-        os.environ["KUBECONFIG"] = ISOLATED_KUBECONFIG
-        res = subprocess.run([
-            "gcloud", "container", "clusters", "get-credentials", args.cluster_name,
-            "--location", args.location, "--project", args.project_id
-        ], capture_output=True, text=True)
-        if res.returncode != 0:
-            print(f"Failed to fetch cluster credentials:\n{res.stderr}", file=sys.stderr)
-            sys.exit(1)
-        print("Successfully fetched cluster credentials.")
-    else:
-        parser.error("Both --cluster-name and --location must be provided to fetch cluster credentials and run GKE benchmarks.")
-
-    # Automatically setup/ensure service account permissions
-    buckets_to_auth = [args.bucket_name]
-    if not setup_kubernetes_service_account(args.project_id, args.kubernetes_service_account, "default", buckets_to_auth, dry_run=args.dry_run):
-        print("Failed to setup Kubernetes service account. Exiting.", file=sys.stderr)
-        sys.exit(1)
 
     all_benchmarks = [
         ("host_info", "", "host-info-collector", "", 1, None),
@@ -563,8 +741,6 @@ def main():
         else:
             # Exclude file cache tests from 'all' when the flag is not passed.
             print("Warning: File-cache tests are not being run because --run-file-cache-test was not provided.", file=sys.stderr)
-            # Also exclude go_read benchmarks from "all" if the user wants "all" FIO benchmarks.
-            # Wait, should we include go_read benchmarks in "all"? Yes, "all" typically means all defined benchmarks.
             benchmarks_to_run = [b for b in all_benchmarks if "file_cache" not in b[0]]
     else:
         available_names = {f"{b[0]}_{b[1]}" if b[1] else b[0] for b in all_benchmarks}
@@ -574,13 +750,41 @@ def main():
                 sys.exit(1)
         benchmarks_to_run = [b for b in all_benchmarks if (f"{b[0]}_{b[1]}" if b[1] else b[0]) in args.benchmarks]
 
-    if args.is_rapid_bucket:
-        if "all" not in args.benchmarks:
-            for b in args.benchmarks:
-                if "http1" in b:
-                    parser.error(f"Benchmark '{b}' is not supported for RAPID buckets (only gRPC benchmarks are allowed).")
-        benchmarks_to_run = [b for b in benchmarks_to_run if "http1" not in b[1]]
+    try:
+        benchmarks_to_run = npi_common.filter_rapid_benchmarks(
+            args.benchmarks,
+            benchmarks_to_run,
+            args.is_rapid_bucket,
+            name_fn=lambda b: b[1],
+        )
+    except ValueError as exc:
+        parser.error(str(exc))
 
+    explicit_numjobs, env_numjobs, direct_val = (
+        npi_common.resolve_orchestrator_params(
+            numjobs=args.numjobs,
+            smoke_mode=args.smoke_mode,
+            is_rapid_bucket=args.is_rapid_bucket,
+        )
+    )
+
+    print(f"--- Fetching credentials for GKE cluster: {args.cluster_name} in {args.location} ---")
+    os.makedirs(KUBE_DIR, exist_ok=True)
+    os.environ["KUBECONFIG"] = ISOLATED_KUBECONFIG
+    res = subprocess.run([
+        "gcloud", "container", "clusters", "get-credentials", args.cluster_name,
+        "--location", args.location, "--project", args.project_id
+    ], capture_output=True, text=True)
+    if res.returncode != 0:
+        print(f"Failed to fetch cluster credentials:\n{res.stderr}", file=sys.stderr)
+        sys.exit(1)
+    print("Successfully fetched cluster credentials.")
+
+    # Automatically setup/ensure service account permissions
+    buckets_to_auth = [args.bucket_name]
+    if not setup_kubernetes_service_account(args.project_id, args.kubernetes_service_account, "default", buckets_to_auth, dry_run=args.dry_run):
+        print("Failed to setup Kubernetes service account. Exiting.", file=sys.stderr)
+        sys.exit(1)
 
     if args.dry_run:
         print("--- [DRY RUN] Benchmarks to be executed ---")
@@ -596,55 +800,35 @@ def main():
         bucket_clean = args.bucket_name.replace("gs://", "").replace("npi-bucket-", "").replace("_", "-").lower()
         job_name = f"gcsfuse-npi-{bucket_clean}-{full_bench_name}".replace("_", "-")
         is_go_client = (bench_type == "go_read")
-        
-        if bench_type == "host_info":
-            bq_table_id = "host_info"
-        elif bench_type == "read_file_cache":
-            bq_table_id = "fio_read_file_cache"
-        elif bench_type == "go_read":
-            bq_table_id = f"go_client_read_{config_name}"
-        else:
-            bq_table_id = f"fio_{full_bench_name}"
-            
-        if args.bq_table_suffix:
-            bq_table_id = f"{bq_table_id}_{args.bq_table_suffix}"
-        
+        bq_table_id = npi_common.resolve_bq_table_id(
+            full_bench_name, table_suffix=args.bq_table_suffix
+        )
+
         target_iterations = iter_override if iter_override is not None else args.iterations
         image = f"us-docker.pkg.dev/{args.project_id}/gcsfuse-benchmarks/{image_suffix}:{args.image_version}"
-        
+
         if bench_type == "host_info":
             cmd_args = [
                 f"--project-id={args.project_id}",
                 f"--bq-dataset-id={args.bq_dataset_id}",
-                f"--bq-table-id={bq_table_id}"
-            ]
-        elif is_go_client:
-            cmd_args = [
-                f"--iterations={target_iterations}",
-                f"--project-id={args.project_id}",
-                f"--bq-dataset-id={args.bq_dataset_id}",
                 f"--bq-table-id={bq_table_id}",
-                f"--bucket-name={args.bucket_name}"
             ]
-            if args.numjobs is not None:
-                cmd_args.append(f"--numjobs={args.numjobs}")
-            elif args.is_rapid_bucket:
-                cmd_args.append("--numjobs=48")
         else:
+            target_flag = (
+                f"--bucket-name={args.bucket_name}"
+                if is_go_client
+                else "--mount-path=/data"
+            )
             cmd_args = [
                 f"--iterations={target_iterations}",
                 f"--project-id={args.project_id}",
                 f"--bq-dataset-id={args.bq_dataset_id}",
                 f"--bq-table-id={bq_table_id}",
-                "--mount-path=/data"
+                target_flag,
             ]
-            if args.smoke_mode:
-                cmd_args.append("--numjobs=2")
-            elif args.numjobs is not None:
-                cmd_args.append(f"--numjobs={args.numjobs}")
-            elif args.is_rapid_bucket:
-                cmd_args.append("--numjobs=48")
-            
+            if explicit_numjobs is not None:
+                cmd_args.append(f"--numjobs={explicit_numjobs}")
+
         if runner_args:
             cmd_args.append(runner_args)
 
@@ -657,7 +841,22 @@ def main():
                 combined_extra_flag = args.extra_mount_options
 
         if args.dry_run:
-            job_spec = create_job_spec(job_name, image, cmd_args, args.bucket_name, args.kubernetes_service_account, combined_extra_flag, args.use_memory_volumes, is_go_client, node_selector, resources_limits, gcsfuse_sidecar_image=args.gcsfuse_sidecar_image, is_rapid_bucket=args.is_rapid_bucket)
+            job_spec = create_job_spec(
+                job_name,
+                image,
+                cmd_args,
+                args.bucket_name,
+                args.kubernetes_service_account,
+                combined_extra_flag,
+                args.use_memory_volumes,
+                is_go_client,
+                node_selector,
+                resources_limits,
+                gcsfuse_sidecar_image=args.gcsfuse_sidecar_image,
+                is_rapid_bucket=args.is_rapid_bucket,
+                numjobs=env_numjobs,
+                direct=direct_val,
+            )
             print(f" - {full_bench_name}")
             print(f"   Job Name: {job_name}")
             print(f"   Image: {image}")
@@ -672,9 +871,6 @@ def main():
                 job_name=job_name,
                 image=image,
                 args_list=cmd_args,
-                project_id=args.project_id,
-                dataset_id=args.bq_dataset_id,
-                table_id=bq_table_id,
                 bucket_name=args.bucket_name,
                 service_account=args.kubernetes_service_account,
                 extra_flag=combined_extra_flag,
@@ -683,7 +879,9 @@ def main():
                 node_selector=node_selector,
                 resources_limits=resources_limits,
                 gcsfuse_sidecar_image=args.gcsfuse_sidecar_image,
-                is_rapid_bucket=args.is_rapid_bucket
+                is_rapid_bucket=args.is_rapid_bucket,
+                numjobs=env_numjobs,
+                direct=direct_val,
             )
 
             if not success:

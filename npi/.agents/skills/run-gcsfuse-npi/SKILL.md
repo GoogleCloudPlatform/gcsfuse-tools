@@ -163,7 +163,7 @@ The end-to-end pipeline executes sequentially through modular phases:
 1. Query host metadata from BigQuery `<DATASET_PREFIX>_regional.host_info`.
 2. Query performance metrics from `<DATASET_PREFIX>_regional.fio_*` using quoted JSON keys (`JSON_VALUE(fio_json_output, '$."fio version"')`).
 3. Evaluate baseline comparisons (if baseline dataset available) and intra-run comparisons (gRPC vs HTTP/1.1, NUMA vs non-NUMA).
-4. Evaluate strict **20 GB/s SLA Gate**: 1G file size, 1M block size, 128 numjobs, 10 files sequential reads without caches in **standard, non-NUMA-pinned runs**. Mark as **FAIL / REJECTED** if non-pinned throughput < 20 GB/s in full runs, or mark as `SKIPPED (Smoke Test Run - Scaled Parameters)` when running under smoke mode.
+4. Evaluate strict **20 GB/s SLA Gate**: 1G file size, 1M block size, 112 numjobs, 10 files sequential reads without caches in **standard, non-NUMA-pinned runs**. Mark as **FAIL / REJECTED** if non-pinned throughput < 20 GB/s in full runs, or mark as `SKIPPED (Smoke Test Run - Scaled Parameters)` when running under smoke mode.
 5. Inspect `params.yaml` for machine type classification (`c4-standard-96`).
 6. Compile findings into `npi_validation_report.md`.
 

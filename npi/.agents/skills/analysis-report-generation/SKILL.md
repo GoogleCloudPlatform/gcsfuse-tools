@@ -102,7 +102,7 @@ Perform intra-run comparisons across protocols and workloads:
 
 #### 3. Strict NPI Performance Pass/Fail Gate (SLA Gate)
 Evaluate the run results against the strict NPI performance gate:
-- **Full Benchmark Mode**: Sequential reads of **1 GiB file size**, **1M block size**, **128 numjobs**, **10 files** (NR_FILES), without GCSFuse caches. Threshold: maximum throughput MUST be **>= 20 GB/s** for BOTH HTTP/1.1 and gRPC protocols in standard, non-NUMA-pinned configurations.
+- **Full Benchmark Mode**: Sequential reads of **1 GiB file size**, **1M block size**, **112 numjobs**, **10 files** (NR_FILES), without GCSFuse caches. Threshold: maximum throughput MUST be **>= 20 GB/s** for BOTH HTTP/1.1 and gRPC protocols in standard, non-NUMA-pinned configurations.
 - **Smoke Test Mode Adaptation**: If running in smoke test mode (or if 1 GiB file size metrics are absent due to scaled parameters), evaluate metrics dynamically from available file sizes (e.g. 1M/100M). Set Executive Summary verdict to:
   `STATUS: SKIPPED (Smoke Test Run - Scaled Parameters: <FILE_SIZE>, <NUMJOBS> jobs)`
   Do NOT mark a smoke test as `FAIL / REJECTED` simply because 1 GiB full workload parameters were not executed.
