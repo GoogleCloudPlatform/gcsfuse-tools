@@ -30,16 +30,19 @@ build_gcsfuse_for_commit() {
     export CGO_ENABLED=0
     export GO111MODULE=auto
     mkdir -p "$BUILD_DIR/bin" "$BUILD_DIR/sbin"
+    # Read the module path (.../gcsfuse/v3, /v4, ...) from go.mod so any version builds.
+    local MODULE
+    MODULE=$(awk '$1 == "module" {print $2; exit}' "$BUILD_DIR/go.mod")
     
     # Build binaries using -C and -o
     # -C tells Go to run the build inside the source directory
     # -o specifies the exact path for the resulting binary
     go build -C "$BUILD_DIR" -o "$BUILD_DIR/bin/gcsfuse" \
-        -ldflags "-X github.com/googlecloudplatform/gcsfuse/v3/common.gcsfuseVersion=$COMMIT" \
-        github.com/googlecloudplatform/gcsfuse/v3 >&2
+        -ldflags "-X $MODULE/common.gcsfuseVersion=$COMMIT" \
+        "$MODULE" >&2
         
     go build -C "$BUILD_DIR" -o "$BUILD_DIR/sbin/mount.gcsfuse" \
-        github.com/googlecloudplatform/gcsfuse/v3/tools/mount_gcsfuse >&2
+        "$MODULE/tools/mount_gcsfuse" >&2
     
     # Output the final path
     echo "$BUILD_DIR/bin/gcsfuse"
