@@ -37,36 +37,48 @@ def _avg(values):
 
 
 def _extract_latency_metrics(job, action='read'):
-    """Extract latency metrics from FIO job data for the specified action ('read' or 'write')"""
-    if action not in job or not job[action].get('bw'):
+    """Extract bandwidth (decimal MB/s) and latency (ms) metrics from FIO job data."""
+    if action not in job:
         return None
-    
-    lat_metrics = {'bw': job[action]['bw']}
-    
-    # clat_ns stores values in MICROSECONDS (despite the name)
-    # lat_ns stores values in NANOSECONDS
-    # We prefer clat_ns (completion latency) over lat_ns (total latency)
-    if 'clat_ns' in job[action]:
-        lat_data = job[action]['clat_ns']
-        divisor = 1000.0  # µs to ms
-    elif 'lat_ns' in job[action]:
-        lat_data = job[action]['lat_ns']
-        divisor = 1000000.0  # ns to ms
+
+    action_data = job[action]
+    bw_bytes = action_data.get('bw_bytes')
+    bw_kib = action_data.get('bw')
+    if bw_bytes:
+        # bw_bytes is in bytes/sec, convert to decimal MB/s to match report headers.
+        bw_mbps = bw_bytes / 1_000_000.0
+    elif bw_kib:
+        # FIO's bw field is in KiB/s (1024 bytes/sec), convert to decimal MB/s.
+        bw_mbps = (bw_kib * 1024.0) / 1_000_000.0
+    else:
+        return None
+
+    lat_metrics = {'bw_mbps': bw_mbps}
+
+    # Both lat_ns (total latency = slat_ns + clat_ns) and clat_ns are stored in
+    # nanoseconds in FIO JSON output. Prefer lat_ns because with libaio on FUSE,
+    # I/O blocks synchronously in io_submit (slat_ns), leaving clat_ns with only
+    # completion-harvest overhead at iodepth=1.
+    divisor = 1_000_000.0  # ns to ms
+    if 'lat_ns' in action_data:
+        lat_data = action_data['lat_ns']
+    elif 'clat_ns' in action_data:
+        lat_data = action_data['clat_ns']
     else:
         return lat_metrics
-    
+
     # Extract basic stats
     for key in ['min', 'max', 'mean', 'stddev']:
         if key in lat_data:
             lat_metrics[key] = lat_data[key] / divisor
-    
-    # Extract percentiles
+
+    # Extract percentiles (populated in lat_ns when lat_percentiles=1 is set in FIO)
     if 'percentile' in lat_data:
         percentiles = lat_data['percentile']
         for pct, pct_key in [('50.000000', 'p50'), ('90.000000', 'p90'), ('99.000000', 'p99')]:
             if pct in percentiles:
                 lat_metrics[pct_key] = percentiles[pct] / divisor
-    
+
     return lat_metrics
 
 
@@ -141,7 +153,8 @@ def parse_test_results(test_dir, test_info):
     write_bws = []
     read_lat_lists = {key: [] for key in ['min', 'max', 'mean', 'stddev', 'p50', 'p90', 'p99']}
     write_lat_lists = {key: [] for key in ['min', 'max', 'mean', 'stddev', 'p50', 'p90', 'p99']}
-    
+    valid_iterations = 0
+
     for fio_file in fio_files:
         if os.path.getsize(fio_file) == 0:
             print(f"Warning: Skipping empty FIO output file: {fio_file}")
@@ -158,49 +171,54 @@ def parse_test_results(test_dir, test_info):
                     continue
                 data = json.loads(content[start_idx:])
 
-            for job in data.get('jobs', []):
+            jobs = data.get('jobs', [])
+            if not jobs:
+                continue
+
+            valid_iterations += 1
+            for job in jobs:
                 # Extract read metrics
                 read_lat_metrics = _extract_latency_metrics(job, 'read')
                 if read_lat_metrics:
-                    read_bws.append(read_lat_metrics['bw'])
+                    read_bws.append(read_lat_metrics['bw_mbps'])
                     for key in read_lat_lists:
                         if key in read_lat_metrics:
                             read_lat_lists[key].append(read_lat_metrics[key])
-                
+
                 # Extract write metrics
                 write_lat_metrics = _extract_latency_metrics(job, 'write')
                 if write_lat_metrics:
-                    write_bws.append(write_lat_metrics['bw'])
+                    write_bws.append(write_lat_metrics['bw_mbps'])
                     for key in write_lat_lists:
                         if key in write_lat_metrics:
                             write_lat_lists[key].append(write_lat_metrics[key])
         except (json.JSONDecodeError, Exception) as e:
             print(f"Warning: Failed to parse {fio_file}: {e}")
             continue
-    
+
     # Build result dict
     result = {
         'test_params': test_info.get('params', {}),
-        'read_bw_mbps': _avg(read_bws) / 1000.0,
-        'write_bw_mbps': _avg(write_bws) / 1000.0,
-        
-        'read_lat_min_ms': _avg(read_lat_lists['min']),
-        'read_lat_max_ms': _avg(read_lat_lists['max']),
+        'read_bw_mbps': _avg(read_bws),
+        'write_bw_mbps': _avg(write_bws),
+
+        'read_lat_min_ms': min(read_lat_lists['min']) if read_lat_lists['min'] else 0,
+        'read_lat_max_ms': max(read_lat_lists['max']) if read_lat_lists['max'] else 0,
         'read_lat_avg_ms': _avg(read_lat_lists['mean']),
         'read_lat_stddev_ms': _avg(read_lat_lists['stddev']),
         'read_lat_p50_ms': _avg(read_lat_lists['p50']),
         'read_lat_p90_ms': _avg(read_lat_lists['p90']),
         'read_lat_p99_ms': _avg(read_lat_lists['p99']),
-        
-        'write_lat_min_ms': _avg(write_lat_lists['min']),
-        'write_lat_max_ms': _avg(write_lat_lists['max']),
+
+        'write_lat_min_ms': min(write_lat_lists['min']) if write_lat_lists['min'] else 0,
+        'write_lat_max_ms': max(write_lat_lists['max']) if write_lat_lists['max'] else 0,
         'write_lat_avg_ms': _avg(write_lat_lists['mean']),
         'write_lat_stddev_ms': _avg(write_lat_lists['stddev']),
         'write_lat_p50_ms': _avg(write_lat_lists['p50']),
         'write_lat_p90_ms': _avg(write_lat_lists['p90']),
         'write_lat_p99_ms': _avg(write_lat_lists['p99']),
-        
-        'iterations': len(fio_files),
+
+        'iterations': valid_iterations,
         'matrix_id': test_info.get('matrix_id')
     }
     return result
