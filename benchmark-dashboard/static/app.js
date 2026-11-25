@@ -1417,6 +1417,7 @@ bs=1m
 size=1g
 numjobs=1
 time_based=0
+lat_percentiles=1
 
 [job1]
 filename=test_file_0

@@ -18,8 +18,8 @@ Aggregates and normalizes distributed FIO benchmark results from GCS.
 - Downloads results from gs://<artifacts_bucket>/<benchmark_id>/results/<vm>/ for each VM.
 - Parses the `manifest.json` for each VM to identify successful test executions.
 - Parses and normalizes raw FIO JSON output to extract key performance metrics.
-- Computes critical latency statistics including min, max, mean, stddev, and percentiles (p50/p90/p99).
-- Averages performance metrics across multiple iterations to reduce variance.
+- Computes total latency (fio lat_ns) statistics in ms: min, max, mean, stddev, and percentiles (p50/p90/p99).
+- Across iterations, averages bandwidth (decimal MB/s), mean, stddev and percentiles, and takes the lowest min and the highest max.
 - Returns a unified dictionary mapping test identifiers to their final calculated metrics.
 
 """
@@ -45,20 +45,15 @@ def _extract_latency_metrics(job, action='read'):
     bw_bytes = action_data.get('bw_bytes')
     bw_kib = action_data.get('bw')
     if bw_bytes:
-        # bw_bytes is in bytes/sec, convert to decimal MB/s to match report headers.
         bw_mbps = bw_bytes / 1_000_000.0
     elif bw_kib:
-        # FIO's bw field is in KiB/s (1024 bytes/sec), convert to decimal MB/s.
         bw_mbps = (bw_kib * 1024.0) / 1_000_000.0
     else:
         return None
 
     lat_metrics = {'bw_mbps': bw_mbps}
 
-    # Both lat_ns (total latency = slat_ns + clat_ns) and clat_ns are stored in
-    # nanoseconds in FIO JSON output. Prefer lat_ns because with libaio on FUSE,
-    # I/O blocks synchronously in io_submit (slat_ns), leaving clat_ns with only
-    # completion-harvest overhead at iodepth=1.
+    # Both lat_ns and clat_ns are in nanoseconds. Prefer lat_ns (total latency).
     divisor = 1_000_000.0  # ns to ms
     if 'lat_ns' in action_data:
         lat_data = action_data['lat_ns']
@@ -72,7 +67,7 @@ def _extract_latency_metrics(job, action='read'):
         if key in lat_data:
             lat_metrics[key] = lat_data[key] / divisor
 
-    # Extract percentiles (populated in lat_ns when lat_percentiles=1 is set in FIO)
+    # Extract percentiles
     if 'percentile' in lat_data:
         percentiles = lat_data['percentile']
         for pct, pct_key in [('50.000000', 'p50'), ('90.000000', 'p90'), ('99.000000', 'p99')]:
