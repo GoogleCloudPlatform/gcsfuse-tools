@@ -1054,14 +1054,14 @@ def fetch_metrics_from_gcs(run_id: str, run_config: dict):
                             
                             stats = job.get(rw_key, {})
                             bw_bytes = stats.get("bw_bytes", 0)
-                            bw_mbs = bw_bytes / (1024 * 1024)
+                            bw_mbs = bw_bytes / 1_000_000.0
                             
-                            # FIO reports bw_max in KB/s
+                            # FIO reports bw_max in KiB/s
                             bw_max_kbs = stats.get("bw_max", 0)
-                            bw_max_mbs = bw_max_kbs / 1024.0
+                            bw_max_mbs = bw_max_kbs * 1024 / 1_000_000.0
                             
-                            clat = stats.get("clat_ns", {})
-                            mean_ns = clat.get("mean", 0)
+                            lat = stats.get("lat_ns", {})
+                            mean_ns = lat.get("mean", 0)
                             lat_ms = mean_ns / 1000000.0
                             
                             bw_values.append(bw_mbs)
