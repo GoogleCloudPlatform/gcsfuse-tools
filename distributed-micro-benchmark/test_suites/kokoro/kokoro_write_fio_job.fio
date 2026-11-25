@@ -5,6 +5,7 @@ invalidate=1
 thread=1
 openfiles=1
 group_reporting=1
+lat_percentiles=1
 allrandrepeat=1
 verify=0
 invalidate=1

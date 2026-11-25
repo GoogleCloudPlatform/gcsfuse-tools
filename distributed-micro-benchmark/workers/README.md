@@ -140,6 +140,7 @@ bs=$BS
 iodepth=$IO_DEPTH
 nrfiles=$NRFILES
 group_reporting=1
+lat_percentiles=1
 
 [test]
 rw=$IO_TYPE
