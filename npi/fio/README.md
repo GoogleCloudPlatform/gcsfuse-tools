@@ -1,93 +1,68 @@
-# GCSFuse FIO Benchmark Runner
+# GCSFuse FIO Benchmark Runners
 
 ## Overview
 
-This Python script automates the process of benchmarking GCSFuse performance using the Flexible I/O Tester (FIO). It handles the entire workflow from setting up dependencies to running the benchmarks and cleaning up resources.
+This directory contains the containerized FIO benchmark runners used by `npi.py` and `npi_gke.py`:
 
-The script performs the following actions:
-1.  **Dependency Installation**: Installs `git`, `fio`, and `fuse` if they are not present (supports Debian/Ubuntu and RHEL/CentOS based systems).
-2.  **GCSFuse Setup**: Clones the GCSFuse GitHub repository, checks out a specific version (branch, tag, or commit), and builds the binary.
-3.  **GCS Bucket Management**: Creates a temporary GCS bucket for the test and deletes it upon completion.
-4.  **Mounting**: Mounts the GCS bucket using the built GCSFuse binary and specified flags.
-5.  **Benchmarking**: Runs FIO tests against the mounted directory based on a provided FIO configuration file for a specified number of iterations.
-6.  **Cleanup**: Unmounts the GCSFuse directory and deletes the GCS bucket, ensuring a clean state.
+- `run_fio_benchmark.py`: Runs a single FIO configuration file across one or more iterations against a GCSFuse mount (either mounting `--bucket-name` automatically or targeting a pre-mounted `--mount-path`).
+- `run_fio_matrix.py`: Runs a CSV parameter matrix (`read_matrix.csv`, `write_matrix.csv`, etc.) against a parameterized `.fio` template (`read.fio`, `write.fio`).
+- `fio_benchmark_runner.py`: Shared FIO execution, directory pre-creation (`job_0 .. job_{N-1}`), output parsing, and BigQuery upload logic.
 
-## Prerequisites
-
-Before running the script, ensure you have the following installed and configured:
-
--   **Python 3.8+**
--   **Go (1.21 or newer)**: The script requires Go to build GCSFuse from source.
--   **Google Cloud SDK (`gcloud`)**:
-    -   Authenticated: `gcloud auth login`
-    -   Project configured: `gcloud config set project <YOUR_PROJECT_ID>`
--   **BigQuery Client Library** (Optional): If you plan to upload results to BigQuery, install the client library: `pip3 install google-cloud-bigquery`. You will also need to be authenticated for application-default credentials: `gcloud auth application-default login`.
--   **Sudo privileges**: The script requires `sudo` to install packages and clear system caches.
+Both `read.fio` and `write.fio` parameterize `direct=${DIRECT}` and `numjobs=${NUMJOBS}`:
+- `NUMJOBS` defaults to `112` (overridable via `--numjobs`, CSV `NUMJOBS`, or the `NUMJOBS` environment variable).
+- `DIRECT` defaults to `1` for Standard Regional buckets and `0` when orchestrated with `--is-rapid-bucket` for Zonal RAPID buckets (overridable via `--direct`, CSV `DIRECT`, or the `DIRECT` environment variable).
 
 ## Usage
 
-The script is invoked from the command line with several arguments to control the benchmark run.
+### Single FIO Configuration (`run_fio_benchmark.py`)
 
 ```bash
 python3 run_fio_benchmark.py [OPTIONS]
 ```
 
-### Arguments
+#### Arguments
 
--   `--gcsfuse-version`: (Required) The GCSFuse version to test (e.g., `v1.2.0`, `master`, or a commit hash).
--   `--project-id`: (Required) Your Google Cloud Project ID. Results will be uploaded to this project's BigQuery.
--   `--location`: (Required) The GCP location (region or zone) for the GCS bucket (e.g., `us-central1`).
--   `--fio-config`: (Required) Path to the FIO configuration file.
--   `--bq-dataset-id`: (Optional) BigQuery dataset ID.
--   `--bq-table-id`: (Optional) BigQuery table ID.
--   `--gcsfuse-flags`: (Optional) Flags for GCSFuse, enclosed in quotes (e.g., `"--implicit-dirs --max-conns-per-host 100"`). Default is empty.
--   `--iterations`: (Optional) Number of FIO test iterations. Default is `1`.
--   `--work-dir`: (Optional) A temporary directory for builds and mounts. Default is `/tmp/gcsfuse_benchmark`.
--   `--output-dir`: (Optional) Directory to save FIO JSON output files. Default is `./fio_results`.
--   `--skip-deps-install`: (Optional) Skip the automatic dependency installation check.
+- `--fio-config`: (Required) Path to the FIO configuration file (e.g., `./read.fio` or `./write.fio`).
+- `--project-id`: (Optional) Google Cloud Project ID (required when uploading results to BigQuery).
+- `--bucket-name`: (Optional) GCS bucket name to mount via GCSFuse. Either `--bucket-name` or `--mount-path` must be provided.
+- `--mount-path`: (Optional) Path to an already mounted GCS bucket (when provided, GCSFuse is not mounted/unmounted by the runner).
+- `--gcsfuse-flags`: (Optional) Flags for GCSFuse as a single quoted string. Default: `""`.
+- `--iterations`: (Optional) Positive integer number of FIO test iterations. Default: `1`.
+- `--numjobs`: (Optional) Positive integer override for FIO `NUMJOBS` concurrency.
+- `--direct`: (Optional) Override FIO `DIRECT` I/O mode (`0` or `1`).
+- `--cpu-limit-list`: (Optional) Comma-separated CPU list for `taskset` pinning (e.g., `'0-3,7'`).
+- `--bind-fio`: (Optional) Bind the FIO process to `--cpu-limit-list` (requires `--cpu-limit-list`).
+- `--keep-mount`: (Optional) Mount GCSFuse once before iterations and keep it mounted across iterations (used for file-cache tests).
+- `--work-dir`: (Optional) Working directory for temporary mount points. Default: `/tmp/gcsfuse_benchmark`.
+- `--output-dir`: (Optional) Directory to save FIO JSON output files. Default: `./fio_results`.
+- `--summary-file`: (Optional) File path to write the formatted summary table.
+- `--bq-dataset-id`: (Optional) BigQuery dataset ID for uploading iteration results.
+- `--bq-table-id`: (Optional) BigQuery table ID for uploading iteration results.
 
-### Example
+#### Example
 
-1.  **Create an FIO config file (`sample.fio`):**
+```bash
+READ_TYPE=read FILE_SIZE=1G BLOCK_SIZE=1M NR_FILES=10 \
+python3 run_fio_benchmark.py \
+    --mount-path /mnt/gcsfuse \
+    --fio-config ./read.fio \
+    --numjobs 112 \
+    --direct 1 \
+    --iterations 3
+```
 
-    ```ini
-    [global]
-    ioengine=libaio
-    direct=1
-    runtime=30
-    time_based
-    group_reporting
-    filename=testfile
+### Matrix Configuration (`run_fio_matrix.py`)
 
-    [random-read-4k]
-    bs=4k
-    rw=randread
-    size=1G
+```bash
+python3 run_fio_matrix.py \
+    --mount-path /mnt/gcsfuse \
+    --fio-template ./read.fio \
+    --matrix-config ./read_matrix.csv \
+    --iterations 5
+```
 
-    [random-write-1m]
-    bs=1m
-    rw=randwrite
-    size=1G
-    ```
-
-2.  **Run the benchmark script:**
-
-    ```bash
-    python3 run_fio_benchmark.py \
-        --gcsfuse-version master \
-        --project-id your-gcp-project-id \
-        --location us-central1 \
-        --fio-config ./sample.fio \
-        --gcsfuse-flags "--implicit-dirs" \
-        --iterations 3
-    ```
+`run_fio_matrix.py` accepts `--fio-template`, `--matrix-config`, `--summary-file-name`, and the same mount, CPU pinning, `--numjobs`, `--direct`, and BigQuery options as `run_fio_benchmark.py` (`--project-id` is optional when BigQuery upload is not requested).
 
 ## Output
 
-The script will create an output directory (e.g., `./fio_results/`) containing the FIO results in JSON format, with one file per iteration.
-
--   `fio_results_iter_1.json`
--   `fio_results_iter_2.json`
--   `fio_results_iter_3.json`
-
-These files can be parsed for detailed performance analysis.
+Each iteration writes `fio_results_iter_<N>.json` under `--output-dir` (or per-configuration subdirectories under `--output-dir` when running `run_fio_matrix.py`).

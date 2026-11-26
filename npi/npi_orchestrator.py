@@ -12,14 +12,88 @@ import shlex
 import shutil
 import re
 
-HOME_DIR = os.path.expanduser("~")
 try:
-    local_user = os.environ.get("USER") or getpass.getuser()
-except Exception:
-    local_user = "user"
+    import npi_common
+except ModuleNotFoundError:
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import npi_common
+
+HOME_DIR = os.path.expanduser("~")
 STATE_FILE = os.path.join(HOME_DIR, ".npi/npi_run_state.json")
 COMMAND_LOG = os.path.join(HOME_DIR, ".npi/npi_commands.log")
 log_lock = threading.Lock()
+
+_ALL_ORCHESTRATOR_BENCHMARKS = (
+    "read_http1",
+    "read_grpc",
+    "write_http1",
+    "write_grpc",
+    "host_info",
+)
+
+
+def _expand_benchmarks(raw_benchmarks) -> list[str]:
+    """Tokenizes benchmark inputs and expands 'all' into canonical benchmark names."""
+    raw_str = (
+        raw_benchmarks
+        if isinstance(raw_benchmarks, str)
+        else " ".join(raw_benchmarks)
+    )
+    expanded = []
+    for token in raw_str.replace(",", " ").split():
+        if token == "all":
+            expanded.extend(_ALL_ORCHESTRATOR_BENCHMARKS)
+        else:
+            expanded.append(token)
+    return expanded
+
+
+def _filter_target_benchmarks(target, raw_benchmarks, log=False) -> list[str]:
+    """Expands and filters benchmarks for a target based on SSD and RAPID capabilities."""
+    target_name = target["name"]
+    has_ssd = target.get("has_ssd", target["type"] == "gce")
+    requested_benchmarks = _expand_benchmarks(raw_benchmarks)
+
+    if not has_ssd:
+        active_benchmarks = [
+            b for b in requested_benchmarks if "file_cache" not in b
+        ]
+        if log and len(active_benchmarks) < len(requested_benchmarks):
+            skipped = [b for b in requested_benchmarks if "file_cache" in b]
+            print(
+                f"[{target_name}] Skipping file cache benchmarks because target VM has no SSD: {', '.join(skipped)}"
+            )
+    else:
+        active_benchmarks = requested_benchmarks
+
+    if target.get("is_rapid_bucket", False):
+        grpc_only_benchmarks = [
+            b for b in active_benchmarks if "grpc" in b or b == "host_info"
+        ]
+        if log and len(grpc_only_benchmarks) < len(active_benchmarks):
+            skipped_http = [
+                b
+                for b in active_benchmarks
+                if "grpc" not in b and b != "host_info"
+            ]
+            print(
+                f"[{target_name}] Skipping HTTP1 benchmarks because RAPID bucket is enabled: {', '.join(skipped_http)}"
+            )
+        active_benchmarks = grpc_only_benchmarks
+
+    return active_benchmarks
+
+
+def _resolve_dataset_id(raw_dataset: str, is_rapid: bool) -> str:
+    """Normalizes a target dataset prefix to its _regional or _zonal BigQuery dataset ID."""
+    if raw_dataset.endswith("_regional"):
+        base_dataset = raw_dataset[: -len("_regional")]
+    elif raw_dataset.endswith("_zonal"):
+        base_dataset = raw_dataset[: -len("_zonal")]
+    else:
+        base_dataset = raw_dataset
+    suffix = "_zonal" if is_rapid else "_regional"
+    return f"{base_dataset}{suffix}"
 
 # Dynamic SSH socket directory resolution:
 SOCKET_DIR = os.path.join(HOME_DIR, ".ssh/sockets")
@@ -74,7 +148,7 @@ def resolve_ssh_user() -> str:
 
 SSH_USER = resolve_ssh_user()
 
-DEFAULT_PROJECT_ID = os.environ.get("PROJECT_ID", "gcsfuse-npi")
+DEFAULT_PROJECT_ID = os.environ.get("PROJECT_ID", "").strip() or "gcsfuse-npi"
 
 def get_gcp_project_id() -> str:
     """Safely resolves GCP project ID from environment, gcloud config, or DEFAULT_PROJECT_ID fallback."""
@@ -107,6 +181,7 @@ if os.path.exists(os.path.join(SCRIPT_DIR, "npi.py")):
 else:
     REPO_DIR = os.getcwd()
 
+NPI_COMMON_PY_PATH = os.path.join(REPO_DIR, "npi_common.py")
 NPI_PY_PATH = os.path.join(REPO_DIR, "npi.py")
 NPI_GKE_PY_PATH = os.path.join(REPO_DIR, "npi_gke.py")
 
@@ -250,11 +325,13 @@ def prep_vm(target, socket_path):
             if code != 0:
                 raise RuntimeError(f"Buffer mount path {buffer_mount} is not mounted on VM {vm_name}. Please configure it first.")
         
-        # Sync latest npi.py script
+        # Sync latest npi_common.py and npi.py scripts
+        sync_file_to_remote(socket_path, vm_name, zone, NPI_COMMON_PY_PATH, "~/gcsfuse-tools/npi/npi_common.py")
         sync_file_to_remote(socket_path, vm_name, zone, NPI_PY_PATH, "~/gcsfuse-tools/npi/npi.py")
         
     elif target["type"] == "gke":
-        # Sync latest npi_gke.py script and job spec template
+        # Sync latest npi_common.py, npi_gke.py script, and job spec template
+        sync_file_to_remote(socket_path, vm_name, zone, NPI_COMMON_PY_PATH, "~/gcsfuse-tools/npi/npi_common.py")
         sync_file_to_remote(socket_path, vm_name, zone, NPI_GKE_PY_PATH, "~/gcsfuse-tools/npi/npi_gke.py")
         sync_file_to_remote(socket_path, vm_name, zone, os.path.join(REPO_DIR, "npi_job_spec.yaml"), "~/gcsfuse-tools/npi/npi_job_spec.yaml")
         
@@ -744,34 +821,10 @@ def execute_target(target, args, state_lock, state):
             
             # Start run unbuffered
             has_ssd = target.get("has_ssd", target["type"] == "gce") # Default GCE to True, GKE to False if unspecified
-            raw_bench = args.benchmarks.replace(',', ' ') if isinstance(args.benchmarks, str) else ' '.join(args.benchmarks)
-            requested_benchmarks = raw_bench.split()
-            
-            # Expand 'all' into full benchmark names before filtering
-            expanded_benchmarks = []
-            for b in requested_benchmarks:
-                if b == "all":
-                    expanded_benchmarks.extend(['read_http1', 'read_grpc', 'write_http1', 'write_grpc', 'host_info'])
-                else:
-                    expanded_benchmarks.append(b)
-            requested_benchmarks = expanded_benchmarks
-
-            # Filter out file-cache tests if no SSD is present
-            if not has_ssd:
-                active_benchmarks = [b for b in requested_benchmarks if "file_cache" not in b]
-                if len(active_benchmarks) < len(requested_benchmarks):
-                    skipped = [b for b in requested_benchmarks if "file_cache" in b]
-                    print(f"[{target_name}] Skipping file cache benchmarks because target VM has no SSD: {', '.join(skipped)}")
-            else:
-                active_benchmarks = requested_benchmarks
-
             is_rapid = target.get("is_rapid_bucket", False)
-            if is_rapid:
-                grpc_only_benchmarks = [b for b in active_benchmarks if "grpc" in b or b == "host_info"]
-                if len(grpc_only_benchmarks) < len(active_benchmarks):
-                    skipped_http = [b for b in active_benchmarks if "grpc" not in b and b != "host_info"]
-                    print(f"[{target_name}] Skipping HTTP1 benchmarks because RAPID bucket is enabled: {', '.join(skipped_http)}")
-                active_benchmarks = grpc_only_benchmarks
+            active_benchmarks = _filter_target_benchmarks(
+                target, args.benchmarks, log=True
+            )
 
             if not active_benchmarks:
                 print(f"[{target_name}] Skipping target: no benchmarks to run after filtering.")
@@ -780,15 +833,12 @@ def execute_target(target, args, state_lock, state):
                     save_state(state)
                 return
 
-            raw_dataset = target["dataset"]
-            if raw_dataset.endswith("_regional"):
-                base_dataset = raw_dataset[:-len("_regional")]
-            elif raw_dataset.endswith("_zonal"):
-                base_dataset = raw_dataset[:-len("_zonal")]
-            else:
-                base_dataset = raw_dataset
-            suffix = "_zonal" if is_rapid else "_regional"
-            dataset_id = f"{base_dataset}{suffix}"
+            dataset_id = _resolve_dataset_id(target["dataset"], is_rapid)
+            effective_project = (
+                (getattr(args, "project", None) or "").strip()
+                or PROJECT_ID
+                or get_gcp_project_id()
+            )
 
             extra_mount_opts = []
             target_extra = target.get("extra_mount_options")
@@ -799,11 +849,24 @@ def execute_target(target, args, state_lock, state):
                 extra_mount_opts.append(str(cli_extra).strip())
             combined_extra_mount_opts = ",".join(extra_mount_opts) if extra_mount_opts else None
 
+            cli_numjobs = getattr(args, "numjobs", None)
+            if cli_numjobs is not None:
+                effective_numjobs = npi_common.parse_positive_int(
+                    cli_numjobs, param_name="numjobs"
+                )
+            elif target.get("numjobs") is not None:
+                effective_numjobs = npi_common.parse_positive_int(
+                    target["numjobs"],
+                    param_name=f"target '{target_name}' numjobs",
+                )
+            else:
+                effective_numjobs = None
+
             if target["type"] == "gce":
                 python_args = [
                     "python3", "-u", f"/home/{SSH_USER}/gcsfuse-tools/npi/npi.py",
                     "--bucket-name", target["bucket"],
-                    "--project-id", args.project,
+                    "--project-id", effective_project,
                     "--bq-dataset-id", dataset_id,
                     "--image-version", args.image_version,
                     "--iterations", str(args.iterations),
@@ -812,6 +875,8 @@ def execute_target(target, args, state_lock, state):
                     python_args.append("--is-rapid-bucket")
                 if args.smoke_mode:
                     python_args.append("--smoke-mode")
+                if effective_numjobs is not None:
+                    python_args.append(f"--numjobs={effective_numjobs}")
                 python_args.extend(["--benchmarks"] + active_benchmarks)
                 if target.get("buffer_mount"):
                     python_args.append(f"--buffer-mount-path={target['buffer_mount']}")
@@ -835,7 +900,7 @@ def execute_target(target, args, state_lock, state):
                     "--cluster-name", cluster_name,
                     "--location", location,
                     "--bucket-name", target["bucket"],
-                    "--project-id", args.project,
+                    "--project-id", effective_project,
                     "--bq-dataset-id", dataset_id,
                     "--image-version", args.image_version,
                     "--node-selector", node_sel,
@@ -846,6 +911,8 @@ def execute_target(target, args, state_lock, state):
                     python_args.append("--is-rapid-bucket")
                 if args.smoke_mode:
                     python_args.append("--smoke-mode")
+                if effective_numjobs is not None:
+                    python_args.append(f"--numjobs={effective_numjobs}")
                 
                 if not has_ssd:
                     python_args.append("--use-memory-volumes")
@@ -965,43 +1032,44 @@ def validate_colocation(target, project_id):
             raise ValueError(f"Colocation Error: Regional bucket '{bucket_name}' is in region '{location}', but target is in region '{run_region}'. They must be in the same region.")
 
 def main():
-    parser = argparse.ArgumentParser(description="GCSFuse NPI Orchestrator")
+    parser = argparse.ArgumentParser(
+        description="GCSFuse NPI Orchestrator", allow_abbrev=False
+    )
     parser.add_argument("--config", default="targets.json", help="Path to targets.json configuration file")
     parser.add_argument("--benchmarks", nargs="+", default=["read_grpc", "write_grpc"], help="Space separated benchmarks to run")
     parser.add_argument("--image-version", default="smoke-test", help="Docker image tag")
     parser.add_argument("--project", default=None, help="GCP Project")
-    parser.add_argument("--iterations", type=int, default=5, help="Number of iterations")
+    parser.add_argument(
+        "--iterations",
+        type=npi_common.positive_int,
+        default=npi_common.DEFAULT_ITERATIONS,
+        help="Number of iterations",
+    )
     parser.add_argument("--reset", action="store_true", help="Reset saved state and start a fresh run")
     parser.add_argument("--smoke-mode", action="store_true", help="Run orchestrator in fast smoke test mode")
+    parser.add_argument(
+        "--numjobs",
+        type=npi_common.positive_int,
+        default=None,
+        help="Override FIO/Go-client numjobs concurrency count across targets",
+    )
     parser.add_argument("--extra-mount-options", default=None, help="Extra mount options to pass to GCSFuse benchmarks")
-    
+
     args = parser.parse_args()
-    if args.smoke_mode and args.iterations == 5:
-        args.iterations = 1
+    args.iterations = npi_common.resolve_smoke_iterations(
+        args.iterations, args.smoke_mode
+    )
     if args.reset and os.path.exists(STATE_FILE):
         try:
             os.remove(STATE_FILE)
             print("Saved state file cleared for a fresh run.")
         except Exception as e:
             print(f"Warning: Could not clear state file: {e}")
-    if isinstance(args.benchmarks, list):
-        raw_bench = " ".join(args.benchmarks)
-    else:
-        raw_bench = args.benchmarks
-    bench_tokens = raw_bench.replace(',', ' ').split()
-    expanded_benchmarks = []
-    for b in bench_tokens:
-        if b == "all":
-            expanded_benchmarks.extend(['read_http1', 'read_grpc', 'write_http1', 'write_grpc', 'host_info'])
-        else:
-            expanded_benchmarks.append(b)
-    args.benchmarks = " ".join(expanded_benchmarks)
+    args.benchmarks = " ".join(_expand_benchmarks(args.benchmarks))
 
     global PROJECT_ID
-    if args.project:
-        PROJECT_ID = args.project
-    else:
-        PROJECT_ID = get_gcp_project_id()
+    PROJECT_ID = (args.project or "").strip() or get_gcp_project_id()
+    args.project = PROJECT_ID
 
     # Load targets configuration file
     config_path = os.path.join(REPO_DIR, args.config) if not os.path.isabs(args.config) else args.config
@@ -1027,6 +1095,10 @@ def main():
                 raise ValueError(f"Target '{t.get('name', 'unknown')}' is missing required fields: {', '.join(missing)}")
             if not all(c.isalnum() or c in '-_' for c in t["name"]):
                 raise ValueError(f"Target name '{t['name']}' is invalid. Only alphanumeric characters, dashes, and underscores are allowed.")
+            if "numjobs" in t and t["numjobs"] is not None:
+                npi_common.parse_positive_int(
+                    t["numjobs"], param_name=f"target '{t['name']}' numjobs"
+                )
     except Exception as e:
         print(f"Error parsing configuration file {config_path}: {e}", file=sys.stderr)
         sys.exit(1)
@@ -1042,7 +1114,12 @@ def main():
     print(f"Current State: {json.dumps(state, indent=2)}")
 
     # Validate that required local files exist before starting
-    required_files = [NPI_PY_PATH, NPI_GKE_PY_PATH, os.path.join(REPO_DIR, "npi_job_spec.yaml")]
+    required_files = [
+        NPI_COMMON_PY_PATH,
+        NPI_PY_PATH,
+        NPI_GKE_PY_PATH,
+        os.path.join(REPO_DIR, "npi_job_spec.yaml"),
+    ]
     for path in required_files:
         if not os.path.exists(path):
             print(f"Error: Required local file not found: {path}", file=sys.stderr)
@@ -1054,20 +1131,17 @@ def main():
         bq_client = bigquery.Client(project=PROJECT_ID)
         truncated_tables = set()
         for t in targets:
+            target_status = state.get(t["name"], {}).get("status", "PENDING")
+            if target_status not in ("PENDING", "FAILED"):
+                continue
             is_rapid = t.get("is_rapid_bucket", False)
-            raw_dataset = t["dataset"]
-            if raw_dataset.endswith("_regional"):
-                base_dataset = raw_dataset[:-len("_regional")]
-            elif raw_dataset.endswith("_zonal"):
-                base_dataset = raw_dataset[:-len("_zonal")]
-            else:
-                base_dataset = raw_dataset
-            suffix = "_zonal" if is_rapid else "_regional"
-            dataset_id = f"{base_dataset}{suffix}"
+            dataset_id = _resolve_dataset_id(t["dataset"], is_rapid)
 
-            bench_list = args.benchmarks.split() if isinstance(args.benchmarks, str) else args.benchmarks
+            bench_list = _filter_target_benchmarks(
+                t, args.benchmarks, log=False
+            )
             for b_name in bench_list:
-                table_id = f"fio_{b_name}"
+                table_id = npi_common.resolve_bq_table_id(b_name)
                 full_table_id = f"{PROJECT_ID}.{dataset_id}.{table_id}"
                 if full_table_id not in truncated_tables:
                     try:

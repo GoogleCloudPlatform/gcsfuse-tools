@@ -161,8 +161,10 @@ python3 npi.py [OPTIONS]
 *   `--buffer-mount-path`: (Required) The host directory to mount as the storage buffer inside the container (used for both writes and file-cache).
 *   `--image-version`: (Optional) The version (tag) of the benchmark Docker images to use. Default: `latest`.
 *   `--file-cache-size-mb`: (Optional) The size of the file cache in MB. Default: `2097152`.
-*   `--is-rapid-bucket`: (Optional) If set, indicates that the bucket is a RAPID bucket. Only gRPC benchmarks will be run. (Note: Ensure this is set for Zonal RAPID HNS targets in compliance with the dual-storage invariant rule).
-*   `--smoke-mode`: (Optional) If set, run in fast smoke test mode with reduced iterations and thread counts.
+*   `--is-rapid-bucket`: (Optional) If set, indicates that the bucket is a Zonal RAPID bucket. Only gRPC benchmarks are run, and container `DIRECT` I/O is set to `0` (`DIRECT=1` is used for Standard Regional buckets).
+*   `--smoke-mode`: (Optional) If set, run in fast smoke test mode with reduced iterations (`1`) and worker concurrency (`--numjobs=2`, unless overridden via `--numjobs`).
+*   `--numjobs`: (Optional) Explicit positive integer override for FIO and Go-client worker concurrency (`NUMJOBS`, default `112`).
+*   `--extra-mount-options`: (Optional) Extra mount options to pass to GCSFuse (comma-separated or space-separated, e.g., `congestion-threshold=384,max-background=512`).
 
 To see a list of all available benchmarks, you can execute the script with a `--dry-run` flag.
 
@@ -180,14 +182,15 @@ In addition to `npi.py`, this directory provides `npi_gke.py` to orchestrate ben
 *   `--dry-run`: (Optional) List down all the benchmarks that would be executed without actually running them.
 *   `--run-file-cache-test`: (Optional) Run the file-cache benchmark in GKE. If not specified, file-cache tests are excluded.
 *   `--file-cache-size-mb`: (Optional) The size of the file cache in MB. Default: `2097152`.
-*   `--is-rapid-bucket`: (Optional) If set, indicates that the bucket is a RAPID bucket. Only gRPC benchmarks will be run.
+*   `--is-rapid-bucket`: (Optional) If set, indicates that the bucket is a Zonal RAPID bucket. Only gRPC benchmarks are run and pod `DIRECT` env is set to `0` (`DIRECT=1` for Standard Regional buckets).
 *   `--use-memory-volumes`: (Optional) Declare `gke-gcsfuse-cache` and `gke-gcsfuse-buffer` volumes on memory.
 *   `--node-selector`: (Optional) Comma-separated list of key-value pairs for pod nodeSelector, e.g., `key1=val1,key2=val2`. Used for scheduling on specific nodes (like TPUs).
 *   `--resources-limits`: (Optional) Comma-separated list of key-value pairs for resource limits, e.g., `google.com/tpu=4`. Crucial for TPU allocation.
 *   `--extra-mount-options`: (Optional) Extra mount options to append to the GCSFuse CSI volume.
 *   `--gcsfuse-sidecar-image`: (Optional) Overriding GCSFuse sidecar container image.
 *   `--bq-table-suffix`: (Optional) Suffix to append to the BigQuery table ID.
-*   `--smoke-mode`: (Optional) If set, run in fast smoke test mode with reduced iterations and thread counts.
+*   `--smoke-mode`: (Optional) If set, run in fast smoke test mode with reduced iterations (`1`) and worker concurrency (`--numjobs=2`, unless overridden via `--numjobs`).
+*   `--numjobs`: (Optional) Explicit positive integer override for FIO and Go-client worker concurrency (`NUMJOBS`, default `112`).
 
 Example:
 ```sh
@@ -206,7 +209,7 @@ For large-scale runs, you can use `npi_orchestrator.py` to trigger and monitor b
 
 ### Key Features
 1. **Concurrent Multi-Threading**: Launches GCE and GKE runs simultaneously, using background threads to monitor progress.
-2. **Code Synchronization**: Automatically syncs local modifications in `npi.py` or `npi_gke.py` to remote runner VMs via SSH before executing.
+2. **Code Synchronization**: Automatically syncs local modifications in `npi_common.py`, `npi.py`, and `npi_gke.py` to remote runner VMs via SSH before executing.
 3. **Connection Resilience**: Progress is saved to a local state file. If your local terminal session disconnects, restarting the orchestrator automatically resumes monitoring the background execution without losing progress.
 4. **Validation Checks**: Automatically validates GKE TPU cluster topologies to assert standard CPU compute nodes are present alongside TPU accelerator nodes.
 5. **Active Disk Monitoring**: Periodically queries VM disk utilization (tracking open-but-deleted file descriptors) to abort benchmarks before hitting out-of-disk failures.
@@ -226,6 +229,8 @@ python3 npi_orchestrator.py [OPTIONS]
 *   `--project`: (Optional) GCP Project ID. Defaults to `gcsfuse-npi` (or the `PROJECT_ID` environment variable).
 *   `--reset`: (Optional) Reset saved state and start a fresh run.
 *   `--smoke-mode`: (Optional) Run orchestrator in fast smoke test mode.
+*   `--numjobs`: (Optional) Override FIO/Go-client worker concurrency (`numjobs`) across targets (takes precedence over optional per-target `"numjobs"` in `targets.json`; default `112`).
+*   `--extra-mount-options`: (Optional) Extra mount options to pass to GCSFuse benchmarks (merged with optional per-target `"extra_mount_options"` in `targets.json`).
 
 
 ### Example
@@ -321,7 +326,8 @@ python3 npi.py \
     --benchmarks read_http1 \
     --bucket-name my-gcs-bucket \
     --project-id my-gcp-project \
-    --bq-dataset-id my_benchmark_dataset
+    --bq-dataset-id my_benchmark_dataset \
+    --buffer-mount-path /mnt/lssd
 ```
 
 ### Run multiple benchmarks
@@ -333,12 +339,13 @@ python3 npi.py \
     --benchmarks write_http1 write_grpc \
     --bucket-name my-gcs-bucket \
     --project-id my-gcp-project \
-    --bq-dataset-id my_benchmark_dataset
+    --bq-dataset-id my_benchmark_dataset \
+    --buffer-mount-path /mnt/lssd
 ```
 
 ### Run all benchmarks
 
-Run all defined benchmarks and use an in-memory temporary directory.
+Run all defined benchmarks using a local SSD RAID0 buffer mount path.
 
 ```sh
 python3 npi.py \
@@ -346,7 +353,7 @@ python3 npi.py \
     --bucket-name my-gcs-bucket \
     --project-id my-gcp-project \
     --bq-dataset-id my_benchmark_dataset \
-    --temp-dir 'memory'
+    --buffer-mount-path /mnt/lssd
 ```
 
 ### Dry Run
@@ -359,5 +366,6 @@ python3 npi.py \
     --bucket-name my-gcs-bucket \
     --project-id my-gcp-project \
     --bq-dataset-id my_benchmark_dataset \
+    --buffer-mount-path /mnt/lssd \
     --dry-run
 ```

@@ -16,7 +16,6 @@
 """A script to run a matrix of Go-client read benchmarks from a config file."""
 
 import argparse
-import csv
 import json
 import logging
 import os
@@ -24,12 +23,26 @@ import subprocess
 import sys
 
 try:
-    from google.cloud import bigquery
-    from google.api_core import exceptions
-    import datetime
-    _BQ_SUPPORTED = True
-except ImportError:
-    _BQ_SUPPORTED = False
+    import npi_common
+except ModuleNotFoundError:
+    for _candidate in (
+        "/opt/npi",
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    ):
+        if os.path.isdir(_candidate) and _candidate not in sys.path:
+            sys.path.insert(0, _candidate)
+    import npi_common
+
+bigquery = npi_common.bigquery
+exceptions = npi_common.exceptions
+_BQ_SUPPORTED = npi_common.BQ_SUPPORTED
+
+positive_int = npi_common.positive_int
+direct_flag = npi_common.direct_flag
+resolve_numjobs = npi_common.resolve_numjobs
+
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+GO_BIN_PATH = os.path.join(SCRIPT_DIR, "go-benchmark-client")
 
 # Setup logging
 logging.basicConfig(
@@ -39,92 +52,63 @@ logging.basicConfig(
 
 def run_command(command, check=True, cwd=None):
     """Runs a command and logs its output."""
-    logging.info(f"Running command: {' '.join(command)}")
+    logging.info("Running command: %s", " ".join(command))
     try:
         result = subprocess.run(
             command, check=check, capture_output=True, text=True, cwd=cwd
         )
         return result
     except subprocess.CalledProcessError as e:
-        logging.error(f"Command failed with exit code {e.returncode}")
-        logging.error(f"STDOUT: {e.stdout.strip() if e.stdout else 'N/A'}")
-        logging.error(f"STDERR: {e.stderr.strip() if e.stderr else 'N/A'}")
+        logging.error("Command failed with exit code %s", e.returncode)
+        logging.error("STDOUT: %s", e.stdout.strip() if e.stdout else "N/A")
+        logging.error("STDERR: %s", e.stderr.strip() if e.stderr else "N/A")
         raise
+
+
+def _ensure_go_binary():
+    """Returns the script-relative Go benchmark binary path, compiling if absent."""
+    if not os.path.exists(GO_BIN_PATH):
+        logging.info("Compiling go-benchmark-client...")
+        run_command(
+            ["go", "build", "-o", GO_BIN_PATH, "main.go"], cwd=SCRIPT_DIR
+        )
+    return GO_BIN_PATH
 
 
 def truncate_bq_table(client, project_id, dataset_id, table_id):
     """Erases existing data in the specified BigQuery table."""
-    try:
-        full_table_id = f"{project_id}.{dataset_id}.{table_id}"
-        try:
-            client.get_table(full_table_id)
-        except exceptions.NotFound:
-            logging.info(f"Table {full_table_id} not found, skipping truncation.")
-            return
-
-        logging.info(f"--- Erasing data in BigQuery table: {full_table_id} ---")
-        query = f"TRUNCATE TABLE `{full_table_id}`"
-        query_job = client.query(query)
-        query_job.result()
-        logging.info(f"Successfully truncated table {full_table_id}")
-    except Exception as e:
-        logging.error(f"Failed to truncate BigQuery table: {e}")
-        raise
+    return npi_common.truncate_bq_table(
+        client, project_id, dataset_id, table_id, exceptions_module=exceptions
+    )
 
 
 def upload_results_to_bq(
-    client, project_id, dataset_id, table_id, json_output_content, iteration,
-    client_protocol, env_params, cpu_limit_list
+    client,
+    project_id,
+    dataset_id,
+    table_id,
+    json_output_content,
+    iteration,
+    client_protocol,
+    env_params,
+    cpu_limit_list,
+    verified_tables=None,
 ):
     """Uploads the benchmark results JSON to a BigQuery table using the FIO schema."""
-    try:
-        full_table_id = f"{project_id}.{dataset_id}.{table_id}"
-        dataset_ref = client.dataset(dataset_id)
-        table_ref = dataset_ref.table(table_id)
-
-        # Create dataset if it doesn't exist
-        try:
-            client.get_dataset(dataset_ref)
-        except exceptions.NotFound:
-            logging.info(f"Dataset {dataset_id} not found, creating it.")
-            client.create_dataset(bigquery.Dataset(dataset_ref))
-
-        # Define schema (same as FIO schema to keep database consistent)
-        schema = [
-            bigquery.SchemaField("run_timestamp", "TIMESTAMP", mode="REQUIRED"),
-            bigquery.SchemaField("iteration", "INTEGER", mode="REQUIRED"),
-            bigquery.SchemaField("gcsfuse_flags", "STRING"),
-            bigquery.SchemaField("fio_env", "STRING"),
-            bigquery.SchemaField("cpu_limit_list", "STRING"),
-            bigquery.SchemaField("fio_json_output", "JSON"),
-        ]
-
-        # Create table if it doesn't exist
-        try:
-            client.get_table(table_ref)
-        except exceptions.NotFound:
-            logging.info(f"Table {table_id} not found, creating it.")
-            table = bigquery.Table(table_ref, schema=schema)
-            client.create_table(table)
-
-        row_to_insert = {
-            "run_timestamp": datetime.datetime.utcnow().isoformat(),
-            "iteration": iteration,
-            "gcsfuse_flags": f"--client-protocol={client_protocol}",
-            "fio_env": json.dumps(env_params) if env_params else None,
-            "cpu_limit_list": cpu_limit_list,
-            "fio_json_output": json_output_content,
-        }
-
-        errors = client.insert_rows_json(full_table_id, [row_to_insert])
-        if errors:
-            logging.error(f"Errors inserting rows into BigQuery: {errors}")
-        else:
-            logging.info(
-                f"Successfully inserted results for iteration {iteration} into {full_table_id}"
-            )
-    except Exception as e:
-        logging.error(f"Failed to upload results to BigQuery: {e}")
+    npi_common.insert_benchmark_row_to_bq(
+        client=client,
+        project_id=project_id,
+        dataset_id=dataset_id,
+        table_id=table_id,
+        iteration=iteration,
+        gcsfuse_flags=f"--client-protocol={client_protocol}",
+        env_params=env_params,
+        cpu_limit_list=cpu_limit_list,
+        json_output_content=json_output_content,
+        bq_module=bigquery,
+        exceptions_module=exceptions,
+        verified_tables=verified_tables,
+    )
 
 
 def print_summary(all_results, summary_file=None):
@@ -136,19 +120,26 @@ def print_summary(all_results, summary_file=None):
     print("\n")
     summary_lines = []
     summary_lines.append("--- Go Client Read Benchmark Summary ---")
-    header = (f"{'Iter':<5} {'Job Name':<20} {'Protocol':<10} {'Block Size':<10} {'File Size':<10} {'NR_Files':<8} {'Num Jobs':<8} "
-              f"{'Bandwidth (MiB/s)':<20} "
-              f"{'IOPS':<12} {'Mean Latency (ms)':<20}")
+    header = (
+        f"{'Iter':<5} {'Job Name':<20} {'Protocol':<10} {'Block Size':<10} "
+        f"{'File Size':<10} {'NR_Files':<8} {'Num Jobs':<8} "
+        f"{'Bandwidth (MiB/s)':<20} "
+        f"{'IOPS':<12} {'Mean Latency (ms)':<20}"
+    )
     separator = "-" * len(header)
     summary_lines.append(header)
     summary_lines.append(separator)
 
     for i, iteration_results in enumerate(all_results, 1):
-		# iteration_results is a list of results (one per matrix config) for iteration i
+        # iteration_results is a list of results (one per matrix config) for iteration i
         for result in iteration_results:
-            line = (f"{i:<5} {result['job_name']:<20} {result['client_protocol']:<10} {result['block_size']:<10} {result['file_size']:<10} {result['nr_files']:<8} {result['num_jobs']:<8}"
-                    f"{result['bw_mibps']:<20.2f} {result['iops']:<12.2f} "
-                    f"{result['mean_lat_ms']:<20.4f}")
+            line = (
+                f"{i:<5} {result['job_name']:<20} {result['client_protocol']:<10} "
+                f"{result['block_size']:<10} {result['file_size']:<10} "
+                f"{result['nr_files']:<8} {result['num_jobs']:<8}"
+                f"{result['bw_mibps']:<20.2f} {result['iops']:<12.2f} "
+                f"{result['mean_lat_ms']:<20.4f}"
+            )
             summary_lines.append(line)
     summary_lines.append(separator)
     output = "\n".join(summary_lines)
@@ -156,120 +147,178 @@ def print_summary(all_results, summary_file=None):
 
     if summary_file:
         try:
-            with open(summary_file, "w") as f:
+            with open(summary_file, "w", encoding="utf-8") as f:
                 f.write(output)
-            logging.info(f"Summary also written to {summary_file}")
+            logging.info("Summary also written to %s", summary_file)
         except IOError as e:
-            logging.error(f"Failed to write summary to {summary_file}: {e}")
+            logging.error("Failed to write summary to %s: %s", summary_file, e)
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Run a matrix of Go-client read benchmarks from a config file."
+        description="Run a matrix of Go-client read benchmarks from a config file.",
+        allow_abbrev=False,
     )
     parser.add_argument(
         "--bucket-name", required=True, help="Name of the GCS bucket."
     )
     parser.add_argument(
-        "--client-protocol", default="http1", choices=["http1", "grpc"],
-        help="Network protocol to use: http1 or grpc."
+        "--client-protocol",
+        default="http1",
+        choices=["http1", "grpc"],
+        help="Network protocol to use: http1 or grpc.",
     )
     parser.add_argument(
-        "--numjobs", type=int, default=128,
-        help="Degrees of concurrency (number of workers)."
+        "--numjobs",
+        type=positive_int,
+        default=None,
+        help="Degrees of concurrency (number of workers). Defaults to NUMJOBS env var or 112.",
     )
     parser.add_argument(
-        "--iterations", type=int, default=1,
-        help="Number of iterations per benchmark run."
+        "--iterations",
+        type=positive_int,
+        default=1,
+        help="Number of iterations per benchmark run.",
     )
     parser.add_argument(
-        "--matrix-config", required=True,
-        help="Path to the CSV file with benchmark parameters (e.g. read_matrix.csv)."
+        "--matrix-config",
+        required=True,
+        help="Path to the CSV file with benchmark parameters (e.g. read_matrix.csv).",
     )
     parser.add_argument(
-        "--output-dir", default="./go_results_matrix",
-        help="Directory to save JSON result files."
+        "--output-dir",
+        default="./go_results_matrix",
+        help="Directory to save JSON result files.",
     )
     parser.add_argument(
-        "--summary-file-name", default=None,
-        help="File name to write the results summary table."
+        "--summary-file-name",
+        default=None,
+        help="File name to write the results summary table.",
     )
     parser.add_argument(
-        "--project-id", default=None,
-        help="Project ID to upload results to BigQuery."
+        "--project-id",
+        default=None,
+        help="Project ID to upload results to BigQuery.",
     )
     parser.add_argument(
-        "--bq-dataset-id", default=None,
-        help="BigQuery dataset ID."
+        "--bq-dataset-id",
+        default=None,
+        help="BigQuery dataset ID.",
     )
     parser.add_argument(
-        "--bq-table-id", default=None,
-        help="BigQuery table ID."
+        "--bq-table-id",
+        default=None,
+        help="BigQuery table ID.",
     )
     parser.add_argument(
-        "--cpu-limit-list", default=None,
-        help="List of CPUs to restrict the benchmark run to (via taskset)."
+        "--cpu-limit-list",
+        default=None,
+        help="List of CPUs to restrict the benchmark run to (via taskset).",
     )
     # GCSFuse-specific parameters to ignore (passed by the orchestration framework)
+    parser.add_argument("--gcsfuse-flags", default=None, help="Ignored.")
+    parser.add_argument("--mount-path", default=None, help="Ignored.")
+    parser.add_argument("--bind-fio", action="store_true", help="Ignored.")
     parser.add_argument(
-        "--gcsfuse-flags", default=None, help="Ignored."
-    )
-    parser.add_argument(
-        "--mount-path", default=None, help="Ignored."
-    )
-    parser.add_argument(
-        "--bind-fio", action="store_true", help="Ignored."
+        "--direct", type=direct_flag, default=None, help="Ignored."
     )
     args = parser.parse_args()
+    bq_enabled = npi_common.validate_bq_args(
+        parser, args.project_id, args.bq_dataset_id, args.bq_table_id
+    )
 
     try:
-        with open(args.matrix_config, "r", newline="") as f:
-            reader = csv.DictReader(f)
-            configs = list(reader)
+        configs = npi_common.load_matrix_csv(
+            args.matrix_config,
+            required_columns=npi_common.MATRIX_REQUIRED_BASE_COLUMNS,
+        )
     except Exception as e:
-        logging.error("Error reading matrix config file %s: %s", args.matrix_config, e)
+        logging.error(
+            "Error reading matrix config file %s: %s", args.matrix_config, e
+        )
         sys.exit(1)
 
-    logging.info("Found %d configurations to run from %s", len(configs), args.matrix_config)
+    logging.info(
+        "Found %d configurations to run from %s", len(configs), args.matrix_config
+    )
+
+    if not configs:
+        try:
+            resolve_numjobs(args.numjobs, {}, os.environ)
+        except ValueError as e:
+            logging.error("Invalid numjobs configuration: %s", e)
+            sys.exit(1)
+        logging.warning(
+            "Matrix config %s contains 0 rows; skipping BigQuery truncation and benchmark runs.",
+            args.matrix_config,
+        )
+        return
+
+    resolved_configs = []
+    for idx, clean_row in enumerate(configs, start=1):
+        try:
+            num_jobs = resolve_numjobs(args.numjobs, clean_row, os.environ)
+        except ValueError as e:
+            logging.error(
+                "Invalid numjobs in matrix row %d (%s): %s", idx, clean_row, e
+            )
+            sys.exit(1)
+        resolved_configs.append((clean_row, num_jobs))
 
     bq_client = None
-    if args.project_id and args.bq_dataset_id and args.bq_table_id:
-        if not _BQ_SUPPORTED:
-            logging.error("BigQuery is requested, but google-cloud-bigquery package is not installed.")
+    if bq_enabled:
+        try:
+            bq_client = npi_common.init_and_truncate_bq_table(
+                args.project_id,
+                args.bq_dataset_id,
+                args.bq_table_id,
+                bq_supported=_BQ_SUPPORTED,
+                bq_module=bigquery,
+                truncate_fn=truncate_bq_table,
+            )
+        except Exception as e:
+            logging.error("Failed to initialize BigQuery table: %s", e)
             sys.exit(1)
-        bq_client = bigquery.Client(project=args.project_id)
-        truncate_bq_table(bq_client, args.project_id, args.bq_dataset_id, args.bq_table_id)
 
     os.makedirs(args.output_dir, exist_ok=True)
     all_results = [[] for _ in range(args.iterations)]
 
-    # Build binary path (should be pre-compiled, or compiled on the fly)
-    go_bin_path = "./go-benchmark-client"
-    if not os.path.exists(go_bin_path):
-        # compile on the fly if needed
-        logging.info("Compiling go-benchmark-client...")
-        run_command(["go", "build", "-o", "go-benchmark-client", "main.go"], cwd=os.path.dirname(__file__) or ".")
+    try:
+        go_bin_path = _ensure_go_binary()
+    except Exception as e:
+        logging.error("Failed to prepare Go benchmark binary: %s", e)
+        sys.exit(1)
+
+    overridden_keys = {"NUMJOBS"} if args.numjobs is not None else ()
+    verified_bq_tables = set()
+    has_failures = False
 
     for iteration in range(1, args.iterations + 1):
-        logging.info(f"--- Starting Iteration {iteration}/{args.iterations} ---")
+        logging.info("--- Starting Iteration %d/%d ---", iteration, args.iterations)
 
-        for idx, config in enumerate(configs):
-            config_str = ", ".join([f"{k}={v}" for k, v in sorted(config.items())])
-            logging.info("Matrix config %d/%d: %s", idx + 1, len(configs), config_str)
+        for idx, (clean_row, num_jobs) in enumerate(resolved_configs):
+            config_str, config_name = npi_common.format_matrix_config(
+                clean_row,
+                effective_params={"NUMJOBS": str(num_jobs)},
+                overridden_keys=overridden_keys,
+            )
+            logging.info(
+                "Matrix config %d/%d — Configuration: %s",
+                idx + 1,
+                len(resolved_configs),
+                config_str,
+            )
 
-            file_size = config.get("FILE_SIZE")
-            block_size = config.get("BLOCK_SIZE")
-            nr_files = config.get("NR_FILES")
-            num_jobs_val = config.get("NUMJOBS")
-            num_jobs = int(num_jobs_val) if num_jobs_val else args.numjobs
+            file_size = clean_row["FILE_SIZE"]
+            block_size = clean_row["BLOCK_SIZE"]
+            nr_files = clean_row["NR_FILES"]
 
-            # Generate unique config name
-            config_name_parts = [f"{k}_{v}" for k, v in sorted(config.items())]
-            config_name = "_".join(config_name_parts)
             config_output_dir = os.path.join(args.output_dir, config_name)
             os.makedirs(config_output_dir, exist_ok=True)
 
-            output_file = os.path.join(config_output_dir, f"go_results_iter_{iteration}.json")
+            output_file = os.path.join(
+                config_output_dir, f"go_results_iter_{iteration}.json"
+            )
 
             cmd = [
                 go_bin_path,
@@ -284,14 +333,16 @@ def main():
                 cmd = ["taskset", "-c", args.cpu_limit_list] + cmd
 
             try:
-                # Clear system page cache before each matrix config run
                 logging.info("Clearing page cache...")
-                subprocess.run(["sh", "-c", "echo 3 > /proc/sys/vm/drop_caches"], check=False)
+                run_command(
+                    ["sh", "-c", "echo 3 > /proc/sys/vm/drop_caches"],
+                    check=False,
+                )
 
-                result = run_command(cmd, cwd=os.path.dirname(go_bin_path) or ".")
+                result = run_command(cmd, cwd=SCRIPT_DIR)
                 json_output = result.stdout.strip()
 
-                with open(output_file, "w") as out_f:
+                with open(output_file, "w", encoding="utf-8") as out_f:
                     out_f.write(json_output)
 
                 # Parse output to add to summary
@@ -299,16 +350,20 @@ def main():
                 for job in data.get("jobs", []):
                     stats = job.get("read", {})
                     options = job.get("job options", {})
-                    all_results[iteration-1].append({
+                    all_results[iteration - 1].append({
                         "job_name": job.get("jobname", "unnamed"),
-                        "client_protocol": options.get("client_protocol", args.client_protocol),
+                        "client_protocol": options.get(
+                            "client_protocol", args.client_protocol
+                        ),
                         "block_size": options.get("bs", block_size),
                         "file_size": options.get("filesize", file_size),
                         "nr_files": options.get("nrfiles", nr_files),
                         "num_jobs": options.get("numjobs", str(num_jobs)),
-                        "bw_mibps": stats.get("bw", 0.0) / 1024.0,  # convert KiB/s to MiB/s
+                        "bw_mibps": stats.get("bw", 0.0) / 1024.0,
                         "iops": stats.get("iops", 0.0),
-                        "mean_lat_ms": stats.get("lat_ns", {}).get("mean", 0.0) / 1_000_000.0,
+                        "mean_lat_ms": (
+                            stats.get("lat_ns", {}).get("mean", 0.0) / 1_000_000.0
+                        ),
                     })
 
                 if bq_client:
@@ -317,7 +372,7 @@ def main():
                         "BLOCK_SIZE": block_size,
                         "NR_FILES": nr_files,
                         "NUMJOBS": str(num_jobs),
-                        "client_protocol": args.client_protocol
+                        "client_protocol": args.client_protocol,
                     }
                     upload_results_to_bq(
                         client=bq_client,
@@ -328,16 +383,25 @@ def main():
                         iteration=iteration,
                         client_protocol=args.client_protocol,
                         env_params=env_params,
-                        cpu_limit_list=args.cpu_limit_list
+                        cpu_limit_list=args.cpu_limit_list,
+                        verified_tables=verified_bq_tables,
                     )
 
             except Exception as e:
-                logging.error(f"Benchmark failed for configuration {config}: {e}")
+                logging.error(
+                    "Benchmark failed for configuration %s: %s", config_str, e
+                )
+                has_failures = True
 
-    summary_file_path = None
-    if args.summary_file_name:
-        summary_file_path = os.path.join(args.output_dir, args.summary_file_name)
+    summary_file_path = (
+        os.path.join(args.output_dir, args.summary_file_name)
+        if args.summary_file_name
+        else None
+    )
     print_summary(all_results, summary_file=summary_file_path)
+
+    if has_failures:
+        sys.exit(1)
 
 
 if __name__ == "__main__":

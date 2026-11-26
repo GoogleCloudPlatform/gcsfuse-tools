@@ -33,6 +33,15 @@ import shutil
 import datetime
 import urllib.request
 
+try:
+    import npi_common
+except ModuleNotFoundError:
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import npi_common
+
+positive_int = npi_common.positive_int
+
+
 class BenchmarkFactory:
     """A factory for creating benchmark commands.
 
@@ -46,12 +55,25 @@ class BenchmarkFactory:
         project_id (str): The BigQuery project ID for storing results.
         bq_dataset_id (str): The BigQuery dataset ID for storing results.
         iterations (int): The number of iterations for each benchmark.
-        temp_dir (str): The type of temporary directory to use ('memory' or
-            'boot-disk').
+        buffer_mount_path (str): The host directory for the storage buffer.
         mount_path (str): The path to an already mounted GCS bucket.
     """
 
-    def __init__(self, bucket_name, project_id, bq_dataset_id, iterations, mount_path=None, image_version="latest", buffer_mount_path=None, file_cache_size_mb=2097152, smoke_mode=False, extra_mount_options=None, is_rapid_bucket=False, numjobs=None):
+    def __init__(
+        self,
+        bucket_name,
+        project_id,
+        bq_dataset_id,
+        iterations,
+        mount_path=None,
+        image_version="latest",
+        buffer_mount_path=None,
+        file_cache_size_mb=npi_common.DEFAULT_FILE_CACHE_SIZE_MB,
+        smoke_mode=False,
+        extra_mount_options=None,
+        is_rapid_bucket=False,
+        numjobs=None,
+    ):
         """Initializes the BenchmarkFactory.
 
         Args:
@@ -79,7 +101,11 @@ class BenchmarkFactory:
         self.smoke_mode = smoke_mode
         self.extra_mount_options = extra_mount_options
         self.is_rapid_bucket = is_rapid_bucket
-        self.numjobs = numjobs
+        self.numjobs = (
+            npi_common.parse_positive_int(numjobs, param_name="numjobs")
+            if numjobs is not None
+            else None
+        )
         self._benchmark_definitions = self._get_benchmark_definitions()
 
     def _format_extra_mount_options(self, extra_opts):
@@ -189,17 +215,17 @@ class BenchmarkFactory:
             if extra_flags:
                 gcsfuse_flags = f"{gcsfuse_flags} {extra_flags}"
 
-        if self.smoke_mode:
-            num_jobs = "2"
-        elif self.numjobs is not None:
-            num_jobs = str(self.numjobs)
-        elif self.is_rapid_bucket:
-            num_jobs = "48"
-        else:
-            num_jobs = "112"
+        explicit_numjobs, num_jobs, direct_val = (
+            npi_common.resolve_orchestrator_params(
+                numjobs=self.numjobs,
+                smoke_mode=self.smoke_mode,
+                is_rapid_bucket=self.is_rapid_bucket,
+            )
+        )
         base_cmd = (
             "docker run --pull=always --network=host --privileged --rm "
             f"-e NUMJOBS={num_jobs} "
+            f"-e DIRECT={direct_val} "
             f"{volume_mount} "
         )
 
@@ -222,6 +248,8 @@ class BenchmarkFactory:
 
         if runner_args:
             base_cmd += f" {runner_args}"
+        if explicit_numjobs is not None:
+            base_cmd += f" --numjobs={explicit_numjobs}"
         if bucket_name:
             base_cmd += f" --bucket-name={bucket_name}"
         if mount_path:
@@ -315,7 +343,7 @@ class BenchmarkFactory:
         definitions["host_info"] = functools.partial(
             self._create_docker_command,
             benchmark_image_suffix="host-info-collector",
-            bq_table_id="host_info",
+            bq_table_id=npi_common.resolve_bq_table_id("host_info"),
         )
 
         for bench_name, bench_config in benchmarks.items():
@@ -325,17 +353,7 @@ class BenchmarkFactory:
 
                 # Construct the full benchmark name and BQ table ID
                 full_bench_name = f"{bench_name}_{config_name}"
-
-                if "bq_table_id_override" in bench_config:
-                    bq_table_id = bench_config["bq_table_id_override"].format(config_name=config_name)
-                elif bench_name == "read_file_cache":
-                    suffix = config_name.replace("grpc", "").replace("http1", "").strip("_")
-                    if suffix:
-                        bq_table_id = f"fio_{bench_name}_{suffix}"
-                    else:
-                        bq_table_id = f"fio_{bench_name}"
-                else:
-                    bq_table_id = f"fio_{full_bench_name}"
+                bq_table_id = npi_common.resolve_bq_table_id(full_bench_name)
 
                 combined_gcsfuse_flags = config_params.get("gcsfuse_flags", "")
                 if "gcsfuse_flags_extra" in bench_config:
@@ -348,7 +366,6 @@ class BenchmarkFactory:
                 if bench_name == "go_read":
                     protocol = "grpc" if "grpc" in config_name else "http1"
                     runner_args = f"--client-protocol={protocol}"
-                    bq_table_id = f"go_client_read_{config_name}"
 
                 # Use functools.partial to create a command function with pre-filled arguments
                 definitions[full_bench_name] = functools.partial(
@@ -363,7 +380,7 @@ class BenchmarkFactory:
         return definitions
 
 
-def run_benchmark(benchmark_name, command_str, project_id, dataset_id, table_id):
+def run_benchmark(benchmark_name, command_str):
     """Runs a single benchmark command locally.
 
     This function executes a benchmark command using `subprocess.run`.
@@ -371,9 +388,6 @@ def run_benchmark(benchmark_name, command_str, project_id, dataset_id, table_id)
     Args:
         benchmark_name (str): The name of the benchmark being run.
         command_str (str): The Docker command string to execute.
-        project_id (str): The BigQuery project ID.
-        dataset_id (str): The BigQuery dataset ID.
-        table_id (str): The BigQuery table ID.
 
     Returns:
         bool: True if the benchmark ran successfully, False otherwise.
@@ -487,7 +501,8 @@ def main():
     """
     parser = argparse.ArgumentParser(
         description="A benchmark runner.",
-        formatter_class=argparse.RawTextHelpFormatter
+        formatter_class=argparse.RawTextHelpFormatter,
+        allow_abbrev=False,
     )
     parser.add_argument(
         "-b", "--benchmarks",
@@ -501,9 +516,9 @@ def main():
     parser.add_argument("--bq-dataset-id", required=True, help="BigQuery dataset ID for results.")
     parser.add_argument(
         "--iterations",
-        type=int,
-        default=5,
-        help="Number of FIO test iterations per benchmark. Default: 5."
+        type=positive_int,
+        default=npi_common.DEFAULT_ITERATIONS,
+        help=f"Number of FIO test iterations per benchmark. Default: {npi_common.DEFAULT_ITERATIONS}."
     )
     parser.add_argument(
         "--dry-run",
@@ -522,9 +537,9 @@ def main():
     )
     parser.add_argument(
         "--file-cache-size-mb",
-        type=int,
-        default=2097152,
-        help="The size of the file cache in MB. Default: 2097152."
+        type=positive_int,
+        default=npi_common.DEFAULT_FILE_CACHE_SIZE_MB,
+        help=f"The size of the file cache in MB. Default: {npi_common.DEFAULT_FILE_CACHE_SIZE_MB}."
     )
     parser.add_argument(
         "--is-rapid-bucket",
@@ -538,7 +553,7 @@ def main():
     )
     parser.add_argument(
         "--numjobs",
-        type=int,
+        type=positive_int,
         default=None,
         help="Override FIO/Go-client numjobs concurrency count."
     )
@@ -550,32 +565,32 @@ def main():
 
     args = parser.parse_args()
 
-    if args.smoke_mode and args.iterations == 5:
-        args.iterations = 1
+    args.project_id = (args.project_id or "").strip()
+    if not args.project_id:
+        parser.error("--project-id must not be empty.")
+    args.bq_dataset_id = (args.bq_dataset_id or "").strip()
+    if not args.bq_dataset_id:
+        parser.error("--bq-dataset-id must not be empty.")
+    args.buffer_mount_path = (args.buffer_mount_path or "").strip()
+    if not args.buffer_mount_path:
+        parser.error("--buffer-mount-path must not be empty.")
+    if args.bucket_name is not None:
+        args.bucket_name = args.bucket_name.strip()
+        if not args.bucket_name:
+            parser.error("--bucket-name must not be empty.")
+    if args.mount_path is not None:
+        args.mount_path = args.mount_path.strip()
+        if not args.mount_path:
+            parser.error("--mount-path must not be empty.")
+
+    args.iterations = npi_common.resolve_smoke_iterations(
+        args.iterations, args.smoke_mode
+    )
 
     if not args.bucket_name and not args.mount_path:
         parser.error("Either --bucket-name or --mount-path must be provided.")
 
     mount_path = os.path.abspath(args.mount_path) if args.mount_path else None
-
-    # Clear the buffer-mount-path if it's not empty and it's not a dry run
-    if not args.dry_run and os.path.exists(args.buffer_mount_path):
-        if os.listdir(args.buffer_mount_path):
-            print(f"Buffer mount path {args.buffer_mount_path} is not empty. Clearing its contents...")
-            for filename in os.listdir(args.buffer_mount_path):
-                file_path = os.path.join(args.buffer_mount_path, filename)
-                try:
-                    if os.path.isfile(file_path) or os.path.islink(file_path):
-                        os.unlink(file_path)
-                    elif os.path.isdir(file_path):
-                        shutil.rmtree(file_path)
-                except Exception as e:
-                    print(f"Failed to delete {file_path}. Reason: {e}", file=sys.stderr)
-
-    # Ensure subdirectories exist in the buffer mount path to prevent permission issues.
-    if not args.dry_run:
-        os.makedirs(os.path.join(args.buffer_mount_path, "write"), exist_ok=True)
-        os.makedirs(os.path.join(args.buffer_mount_path, "file-cache"), exist_ok=True)
 
     factory = BenchmarkFactory(
         bucket_name=args.bucket_name,
@@ -602,18 +617,37 @@ def main():
                 print(f"Error: Benchmark '{b}' not found.", file=sys.stderr)
                 sys.exit(1)
         benchmarks_to_run = args.benchmarks
-            
-    if args.is_rapid_bucket:
-        if "all" not in args.benchmarks:
-            for b in args.benchmarks:
-                if "http1" in b:
-                    parser.error(f"Benchmark '{b}' is not supported for RAPID buckets (only gRPC benchmarks are allowed).")
-        benchmarks_to_run = [b for b in benchmarks_to_run if "http1" not in b]
-            
+
+    try:
+        benchmarks_to_run = npi_common.filter_rapid_benchmarks(
+            args.benchmarks, benchmarks_to_run, args.is_rapid_bucket
+        )
+    except ValueError as exc:
+        parser.error(str(exc))
+
     if not args.dry_run:
         if not verify_permissions(args.project_id, args.bq_dataset_id, args.bucket_name):
             print("Aborting benchmark orchestration due to pre-flight permission check failure.", file=sys.stderr)
             sys.exit(1)
+
+    # Clear the buffer-mount-path if it's not empty and it's not a dry run
+    if not args.dry_run and os.path.exists(args.buffer_mount_path):
+        if os.listdir(args.buffer_mount_path):
+            print(f"Buffer mount path {args.buffer_mount_path} is not empty. Clearing its contents...")
+            for filename in os.listdir(args.buffer_mount_path):
+                file_path = os.path.join(args.buffer_mount_path, filename)
+                try:
+                    if os.path.isfile(file_path) or os.path.islink(file_path):
+                        os.unlink(file_path)
+                    elif os.path.isdir(file_path):
+                        shutil.rmtree(file_path)
+                except Exception as e:
+                    print(f"Failed to delete {file_path}. Reason: {e}", file=sys.stderr)
+
+    # Ensure subdirectories exist in the buffer mount path to prevent permission issues.
+    if not args.dry_run:
+        os.makedirs(os.path.join(args.buffer_mount_path, "write"), exist_ok=True)
+        os.makedirs(os.path.join(args.buffer_mount_path, "file-cache"), exist_ok=True)
 
     print(f"Starting benchmark orchestration...")
     print(f"Benchmarks to run: {', '.join(benchmarks_to_run)}")
@@ -633,7 +667,7 @@ def main():
             print(f"Table: {bq_table_id}")
             print(f"Command: {command_str}\n")
         else:
-            success = run_benchmark(benchmark_name, command_str, args.project_id, args.bq_dataset_id, bq_table_id)
+            success = run_benchmark(benchmark_name, command_str)
             if not success:
                 failed_benchmarks.append(benchmark_name)
 

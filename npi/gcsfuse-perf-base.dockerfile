@@ -17,4 +17,6 @@ RUN apt-get update && apt-get install -y fuse3 fio \
 rm -rf /var/lib/apt/lists/* && \
 pip install --no-cache-dir google-cloud-bigquery
 COPY --from=builder /app/gcsfuse/gcsfuse /gcsfuse/gcsfuse
+COPY npi_common.py /opt/npi/npi_common.py
+ENV PYTHONPATH=/opt/npi
 ENTRYPOINT ["/bin/bash"]

@@ -2,7 +2,7 @@
 exitall=1
 allrandrepeat=0
 create_serialize=0
-direct=1
+direct=${DIRECT}
 fadvise_hint=0
 file_service_type=random
 group_reporting=1
