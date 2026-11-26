@@ -15,6 +15,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from typing import List, Optional
 from pathlib import Path
+from urllib.parse import urlencode
 from google.cloud import bigquery, storage
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -790,6 +791,43 @@ def get_logs(run_id: str):
         return {"logs": f"Failed to read logs: {e}"}
 
 
+GCP_PROJECT_ID_RE = re.compile(r"^[a-z][a-z0-9-]{4,28}[a-z0-9]$")
+bq_table_cache = {}  # benchmark_id -> {"table", "url"}
+
+
+@app.get("/api/runs/{run_id}/bq-table")
+def get_bq_table(run_id: str):
+    """Returns the BigQuery table holding a run's results (<project>.adhoc_benchmarks.local_run_<upload time>) and its console link."""
+    if run_id in bq_table_cache:
+        return bq_table_cache[run_id]
+    run = db.get_run(run_id) or {}
+    project = run.get("project") or ""
+    # Only completed runs are uploaded to BigQuery. The project goes into the query as a table
+    # name, so only real GCP project IDs are allowed.
+    if run.get("status") != "completed" or not GCP_PROJECT_ID_RE.match(project):
+        raise HTTPException(status_code=404, detail="No BigQuery table for this run")
+    # TODO(security): the app has no rate limiting; each uncached lookup runs one small BigQuery query.
+    try:
+        query = (f"SELECT _TABLE_SUFFIX AS suffix FROM `{project}.adhoc_benchmarks.local_run_*` "
+                 "WHERE benchmark_id = @run_id GROUP BY suffix ORDER BY suffix DESC LIMIT 1")
+        job_config = bigquery.QueryJobConfig(
+            query_parameters=[bigquery.ScalarQueryParameter("run_id", "STRING", run_id)])
+        rows = list(bigquery.Client(project=project).query(query, job_config=job_config).result())
+    except Exception as e:
+        logger.warning(f"BigQuery table lookup failed for {run_id}: {e}")
+        raise HTTPException(status_code=502, detail="BigQuery lookup failed")
+    if not rows:
+        raise HTTPException(status_code=404, detail="No BigQuery table for this run")
+    table = f"local_run_{rows[0].suffix}"
+    result = {
+        "table": f"{project}.adhoc_benchmarks.{table}",
+        "url": "https://console.cloud.google.com/bigquery?" + urlencode(
+            {"project": project, "p": project, "d": "adhoc_benchmarks", "t": table, "page": "table"}),
+    }
+    bq_table_cache[run_id] = result
+    return result
+
+
 @app.get("/api/runs/{run_id}/progress")
 async def get_progress(run_id: str):
     return await asyncio.to_thread(_get_progress_sync, run_id)
@@ -1054,14 +1092,14 @@ def fetch_metrics_from_gcs(run_id: str, run_config: dict):
                             
                             stats = job.get(rw_key, {})
                             bw_bytes = stats.get("bw_bytes", 0)
-                            bw_mbs = bw_bytes / (1024 * 1024)
+                            bw_mbs = bw_bytes / 1_000_000.0
                             
-                            # FIO reports bw_max in KB/s
+                            # FIO reports bw_max in KiB/s
                             bw_max_kbs = stats.get("bw_max", 0)
-                            bw_max_mbs = bw_max_kbs / 1024.0
+                            bw_max_mbs = bw_max_kbs * 1024 / 1_000_000.0
                             
-                            clat = stats.get("clat_ns", {})
-                            mean_ns = clat.get("mean", 0)
+                            lat = stats.get("lat_ns", {})
+                            mean_ns = lat.get("mean", 0)
                             lat_ms = mean_ns / 1000000.0
                             
                             bw_values.append(bw_mbs)
