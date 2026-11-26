@@ -117,7 +117,10 @@ def init_db():
         cursor.execute("UPDATE ui_runs SET metrics_json = NULL")
         cursor.execute("""
         UPDATE ui_presets
-        SET content = replace(content, '[global]' || char(10), '[global]' || char(10) || 'lat_percentiles=1' || char(10))
+        SET content = replace(
+            replace(content, '[global]' || char(13) || char(10), '[global]' || char(13) || char(10) || 'lat_percentiles=1' || char(13) || char(10)),
+            '[global]' || char(10), '[global]' || char(10) || 'lat_percentiles=1' || char(10)
+        )
         WHERE category = 'fio_job' AND content NOT LIKE '%lat_percentiles%'
         """)
         cursor.execute("PRAGMA user_version = 1")
