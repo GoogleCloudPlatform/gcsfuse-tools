@@ -1053,6 +1053,7 @@ function expandRunDetails(btn, id) {
         icon.className = "fa-solid fa-chevron-up text-sm";
         fetchHistoryLogs(id);
         fetchHistoryTestOutputs(id);
+        fetchBigQueryLink(id);
         plotOnDemand(id);
     } else {
         row.classList.add('hidden');
@@ -1069,6 +1070,39 @@ async function fetchHistoryLogs(id) {
         logEl.textContent = data.logs || "No logs returned.";
     } catch (e) {
         logEl.textContent = `Failed to fetch logs: ${e}`;
+    }
+}
+
+// Shows a link to the run's BigQuery table just above the plot / PDF buttons.
+async function fetchBigQueryLink(id) {
+    const buttons = document.getElementById(`btn-plot-${id}`)?.parentElement;
+    if (!buttons || document.getElementById(`bq-link-${id}`)) return;
+    try {
+        const res = await fetch(`/api/runs/${encodeURIComponent(id)}/bq-table`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!String(data.url).startsWith('https://console.cloud.google.com/bigquery?')) return;
+        if (document.getElementById(`bq-link-${id}`)) return;
+
+        const row = document.createElement('div');
+        row.id = `bq-link-${id}`;
+        row.className = 'mt-4 text-xs text-slate-600';
+        const label = document.createElement('span');
+        label.className = 'font-bold text-slate-700 uppercase tracking-wider mr-2';
+        label.textContent = 'BigQuery';
+        const link = document.createElement('a');
+        link.href = data.url;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        link.className = 'font-mono text-blue-600 hover:underline break-all';
+        link.textContent = data.table;
+        const hint = document.createElement('span');
+        hint.className = 'ml-2 text-slate-500';
+        hint.textContent = 'For more extensive details, check the BigQuery table results.';
+        row.append(label, link, hint);
+        buttons.before(row);
+    } catch (e) {
+        console.warn('BigQuery table lookup failed');
     }
 }
 
