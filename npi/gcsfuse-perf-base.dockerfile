@@ -17,4 +17,5 @@ RUN apt-get update && apt-get install -y fuse3 fio \
 rm -rf /var/lib/apt/lists/* && \
 pip install --no-cache-dir google-cloud-bigquery
 COPY --from=builder /app/gcsfuse/gcsfuse /gcsfuse/gcsfuse
+COPY convergence.py /usr/local/lib/python3.13/site-packages/convergence.py
 ENTRYPOINT ["/bin/bash"]

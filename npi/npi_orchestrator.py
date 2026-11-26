@@ -799,6 +799,44 @@ def execute_target(target, args, state_lock, state):
                 extra_mount_opts.append(str(cli_extra).strip())
             combined_extra_mount_opts = ",".join(extra_mount_opts) if extra_mount_opts else None
 
+            cli_min_iter = getattr(args, "min_iterations", None)
+            target_min_iter = target.get("min_iterations")
+            eff_min_iter = cli_min_iter if (isinstance(cli_min_iter, int) and not isinstance(cli_min_iter, bool)) else target_min_iter
+
+            cli_max_iter = getattr(args, "max_iterations", None)
+            target_max_iter = target.get("max_iterations")
+            eff_max_iter = cli_max_iter if (isinstance(cli_max_iter, int) and not isinstance(cli_max_iter, bool)) else target_max_iter
+
+            cli_threshold = getattr(args, "convergence_threshold", None)
+            target_threshold = target.get("convergence_threshold")
+            eff_threshold = cli_threshold if (isinstance(cli_threshold, (int, float)) and not isinstance(cli_threshold, bool)) else target_threshold
+
+            cli_conf = getattr(args, "confidence_level", None)
+            target_conf = target.get("confidence_level")
+            has_cli_conf = isinstance(cli_conf, (int, float)) and not isinstance(cli_conf, bool)
+            has_target_conf = isinstance(target_conf, (int, float)) and not isinstance(target_conf, bool)
+            if has_cli_conf and (cli_conf != 0.95 or not has_target_conf):
+                eff_conf = cli_conf
+            elif has_target_conf:
+                eff_conf = target_conf
+            else:
+                eff_conf = 0.95
+
+            has_min_iter = isinstance(eff_min_iter, int) and not isinstance(eff_min_iter, bool)
+            has_max_iter = isinstance(eff_max_iter, int) and not isinstance(eff_max_iter, bool)
+            has_threshold = isinstance(eff_threshold, (int, float)) and not isinstance(eff_threshold, bool)
+            any_conv_active = has_min_iter or has_max_iter or has_threshold
+
+            convergence_cli_args = []
+            if has_min_iter:
+                convergence_cli_args.extend(["--min-iterations", str(eff_min_iter)])
+            if has_max_iter:
+                convergence_cli_args.extend(["--max-iterations", str(eff_max_iter)])
+            if has_threshold:
+                convergence_cli_args.extend(["--convergence-threshold", str(eff_threshold)])
+            if any_conv_active or eff_conf != 0.95:
+                convergence_cli_args.extend(["--confidence-level", str(eff_conf)])
+
             if target["type"] == "gce":
                 python_args = [
                     "python3", "-u", f"/home/{SSH_USER}/gcsfuse-tools/npi/npi.py",
@@ -808,6 +846,7 @@ def execute_target(target, args, state_lock, state):
                     "--image-version", args.image_version,
                     "--iterations", str(args.iterations),
                 ]
+                python_args.extend(convergence_cli_args)
                 if is_rapid:
                     python_args.append("--is-rapid-bucket")
                 if args.smoke_mode:
@@ -842,6 +881,7 @@ def execute_target(target, args, state_lock, state):
                     "--resources-limits", res_lim,
                     "--iterations", str(args.iterations),
                 ]
+                python_args.extend(convergence_cli_args)
                 if is_rapid:
                     python_args.append("--is-rapid-bucket")
                 if args.smoke_mode:
@@ -971,6 +1011,10 @@ def main():
     parser.add_argument("--image-version", default="smoke-test", help="Docker image tag")
     parser.add_argument("--project", default=None, help="GCP Project")
     parser.add_argument("--iterations", type=int, default=5, help="Number of iterations")
+    parser.add_argument("--min-iterations", type=int, default=None, help="Minimum number of steady-state iterations before checking convergence")
+    parser.add_argument("--max-iterations", type=int, default=None, help="Maximum number of iterations before stopping")
+    parser.add_argument("--convergence-threshold", type=float, default=None, help="Target relative confidence interval margin of error threshold (e.g. 0.05)")
+    parser.add_argument("--confidence-level", type=float, default=0.95, help="Confidence level for Student's t interval estimation (default: 0.95)")
     parser.add_argument("--reset", action="store_true", help="Reset saved state and start a fresh run")
     parser.add_argument("--smoke-mode", action="store_true", help="Run orchestrator in fast smoke test mode")
     parser.add_argument("--extra-mount-options", default=None, help="Extra mount options to pass to GCSFuse benchmarks")
